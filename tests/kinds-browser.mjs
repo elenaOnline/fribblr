@@ -108,12 +108,93 @@ try {
   assert.equal(await page.locator('#zoom-menu-toggle').textContent(),fitByKey,'the key and the button fit alike');
   assert.equal(await page.locator('.keycap-printed').evaluateAll(caps=>caps.every(c=>c.getAttribute('aria-hidden')==='true')),true);
 
+  // Every labelled command with a key: its cap prints the binding the control declares,
+  // and pressing that key (from the board) does what clicking the control does.
+  const mac=process.platform==='darwin',mod=mac?'Meta':'Control';
+  const cap=locator=>locator.locator('kbd.keycap-printed').textContent();
+  const onBoard=()=>page.locator('#viewport').focus();
+  const settle=()=>page.waitForTimeout(350);
+  const cardCount=()=>page.locator('#world .workspace-card').count();
+  const toastText=()=>page.locator('.workspace-toast').last().textContent({timeout:2000}).catch(()=>'');
+  const notePlacement=snapshot.placements.find(p=>p.itemId==='note-1').id,noteCard=page.locator(`[data-placement="${notePlacement}"]`);
+  const at=async id=>{const p=(await getBoardSnapshot(config,'mixed')).placements.find(p=>p.id===id);return `${p.x},${p.y}`;};
+  const keyed=[];
+  // Find boards and items: the caret goes to the Navigator's search.
+  const search=page.locator('#chrome-search');
+  assert.equal(await cap(search),mac?'⌘K':'Ctrl+K');
+  await search.click();await settle();
+  const searchFocus=await page.evaluate(()=>document.activeElement?.id);assert.equal(searchFocus,'navigator-query');
+  await onBoard();await page.keyboard.press(`${mod}+k`);await settle();
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),searchFocus);keyed.push('search');
+  // Details… on the selection bar: the selected item's details.
+  await onBoard();await noteCard.locator('[data-placement-select]').click();
+  const details=page.locator('#workspace-selection button',{hasText:'Details'});
+  assert.equal(await cap(details),mac?'⌘I':'Ctrl+I');
+  const panelTitle=()=>page.locator('#workspace-item-controls h2').textContent();
+  await details.click();await settle();assert.equal(await panelTitle(),'note-1');
+  await page.locator('#workspace-item-controls [data-context-close]').click();await settle();
+  assert.equal(await page.locator('#workspace-item-controls').count(),0);
+  await onBoard();await page.keyboard.press(`${mod}+i`);await settle();
+  assert.equal(await panelTitle(),'note-1');keyed.push('details');
+  // Duplicate in the item's details: one more of it.
+  const duplicate=page.locator('#workspace-item-controls [data-context-duplicate]');
+  assert.equal(await cap(duplicate),mac?'⌘D':'Ctrl+D');
+  let total=await cardCount();
+  await duplicate.click();await page.waitForFunction(n=>document.querySelectorAll('#world .workspace-card').length===n,total+1,{timeout:10000});
+  total+=1;await settle();
+  await onBoard();await page.keyboard.press(`${mod}+d`);
+  await page.waitForFunction(n=>document.querySelectorAll('#world .workspace-card').length===n,total+1,{timeout:10000});keyed.push('duplicate');
+  await onBoard();await page.keyboard.press('Escape');await settle();
+  // Edit document on the selection bar: the selected Markdown document opens for editing in place.
+  const doc=await op('createItem',{boardId:'mixed',item:{id:'doc-2',title:'doc-2',content:{kind:'markdown',resource:{rootId:'assets',path:'a.md'}}},placement:{x:1100,y:400,width:320,height:240,presentation:{mode:'card'}}});
+  const docCard=page.locator(`[data-placement="${doc.placementIds[0]}"]`);await docCard.waitFor({timeout:10000});
+  await docCard.locator('[data-placement-select]').click();
+  const edit=page.locator('#workspace-selection [data-edit-document]');
+  assert.equal(await cap(edit),'E');
+  await edit.click();await page.waitForFunction(id=>document.querySelector(`[data-placement="${id}"]`)?.classList.contains('doc-editing'),doc.placementIds[0],{timeout:10000});
+  await onBoard();await page.keyboard.press('Escape');
+  await page.waitForFunction(id=>!document.querySelector(`[data-placement="${id}"]`)?.classList.contains('doc-editing'),doc.placementIds[0],{timeout:10000});
+  if(!await page.locator('#workspace-selection [data-edit-document]').count())await docCard.locator('[data-placement-select]').click();
+  await onBoard();await page.keyboard.press('e');
+  await page.waitForFunction(id=>document.querySelector(`[data-placement="${id}"]`)?.classList.contains('doc-editing'),doc.placementIds[0],{timeout:10000});keyed.push('edit document');
+  await onBoard();await page.keyboard.press('Escape');
+  await page.waitForFunction(id=>!document.querySelector(`[data-placement="${id}"]`)?.classList.contains('doc-editing'),doc.placementIds[0],{timeout:10000});
+  await page.keyboard.press('Escape');await settle();
+  // The board Inspector's Edit and Help rows: Undo, Redo, Copy selection, Keyboard shortcuts.
+  await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor({state:'visible'});
+  const undo=page.locator('#workspace-undo'),redo=page.locator('#workspace-redo'),copy=page.locator('#workspace-copy'),guide=page.locator('#workspace-keyboard-shortcuts');
+  assert.deepEqual([await cap(undo),await cap(redo),await cap(copy),await cap(guide)],mac?['⌘Z','⇧⌘Z','⌘C','?']:['Ctrl+Z','Ctrl+Shift+Z','Ctrl+C','?']);
+  await page.screenshot({path:path.join(evidence,'keycaps-inspector.png')});
+  // (a card on the left, clear of the Inspector)
+  const leftPlacement=snapshot.placements.find(p=>p.itemId==='page-2').id,leftCard=page.locator(`[data-placement="${leftPlacement}"]`);
+  const rest=await at(leftPlacement);
+  const drag=async()=>{const box=await leftCard.boundingBox();const x=box.x+box.width/2,y=box.y+12;await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+40,y+30,{steps:5});await page.mouse.move(x+80,y+60,{steps:5});await page.mouse.up();await page.waitForTimeout(700);};
+  await drag();const moved=await at(leftPlacement);assert.notEqual(moved,rest);
+  const inspector=async()=>{if(await page.locator('#board-info').isHidden()){await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor({state:'visible'});}};
+  await inspector();await undo.click();await page.waitForTimeout(700);assert.equal(await at(leftPlacement),rest,'Undo by click');
+  await inspector();await redo.click();await page.waitForTimeout(700);assert.equal(await at(leftPlacement),moved,'Redo by click');
+  await onBoard();await page.keyboard.press(`${mod}+z`);await page.waitForTimeout(700);assert.equal(await at(leftPlacement),rest,'Undo by its key');keyed.push('undo');
+  await page.keyboard.press(`${mod}+Shift+z`);await page.waitForTimeout(700);assert.equal(await at(leftPlacement),moved,'Redo by its key');keyed.push('redo');
+  await leftCard.locator('[data-placement-select]').click();await settle();
+  await inspector();await copy.click();await settle();const copiedByClick=await toastText();assert.match(copiedByClick,/^Copied 1 /);
+  await page.evaluate(()=>document.querySelectorAll('.workspace-toast').forEach(t=>t.remove()));   // the key must make its own
+  await onBoard();await page.keyboard.press(`${mod}+c`);await settle();
+  assert.equal(await toastText(),copiedByClick);keyed.push('copy selection');
+  await inspector();await guide.click();const shortcuts=page.getByRole('dialog',{name:'Keyboard shortcuts'});await shortcuts.waitFor();
+  await page.keyboard.press('Escape');await shortcuts.waitFor({state:'detached'}).catch(()=>shortcuts.waitFor({state:'hidden'}));
+  await onBoard();await page.keyboard.press('?');await shortcuts.waitFor();keyed.push('keyboard shortcuts');
+  await page.keyboard.press('Escape');await settle();
+  // Every cap is a member of the raised height: a lower lip inside its own box.
+  assert.ok(await page.locator('kbd.tk-kbd').evaluateAll(caps=>caps.filter(c=>c.offsetParent).every(c=>/inset/.test(getComputedStyle(c).boxShadow))),'keycaps stand at the raised height');
+  // Not printed, by design: the Comments key (⇧C shows and hides comments: the "Show comments" row of its menu, not the key that opens the menu).
+  assert.equal(await page.locator('#comment-layer-toggle kbd').count(),0);
+
   // Home: boards are boards, and each says what is inside it.
   await page.goto(base+'/');await page.locator('.board-card[data-home-board="mixed"]').waitFor();
   const home=page.locator('.board-card[data-home-board="mixed"]');
   assert.deepEqual(await home.evaluate(e=>[e.dataset.kind,e.dataset.family]),['board','board']);
   assert.deepEqual(await home.locator('.kinds-line-entry').evaluateAll(es=>es.map(e=>[e.dataset.family,e.textContent])),
-    [['page','2 pages'],['pic','2 pictures'],['plain','2 notes'],['board','1 board']]);
+    [['page','2 pages'],['doc','1 document'],['pic','2 pictures'],['plain','4 notes'],['board','1 board']]);   // after the keycap section's document and two duplicates
   await page.screenshot({path:path.join(evidence,'kinds-home.png')});
 
   // Phone width and touch: no legend, no keycaps.
@@ -122,5 +203,5 @@ try {
   assert.ok(await page.locator('.keycap-printed').evaluateAll(caps=>caps.every(c=>getComputedStyle(c).display==='none')));
 
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,evidence,checks:['kind and family on every card by the shared rule','legend families, order, counts and labels','hover lights one family, dims the rest, moves nothing','click keeps across live adds and removals','keyboard keep and Escape','reader item kind','keycap matches aria-keyshortcuts and its key fits as the button does','Home board kind and kinds line','no legend or keycaps at phone width']}));
+  console.log(JSON.stringify({passed:true,evidence,checks:['kind and family on every card by the shared rule','legend families, order, counts and labels','hover lights one family, dims the rest, moves nothing','click keeps across live adds and removals','keyboard keep and Escape','reader item kind','keycap matches aria-keyshortcuts and its key fits as the button does','search, details, duplicate, edit document, undo, redo, copy selection and keyboard shortcuts: cap = declared binding, key = click','Home board kind and kinds line','no legend or keycaps at phone width']}));
 } finally {await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});}

@@ -36,12 +36,15 @@ try{
  // Left is where (Navigator), right is what (Inspector, then the single primary Add).
  const order=await page.locator('#canvas-header').evaluate(el=>[...el.querySelectorAll('#project-navigator-toggle,.brand,#chrome-search,#board-info-toggle,#workspace-add')].map(n=>n.id||'brand'));
  assert.deepEqual(order,['project-navigator-toggle','brand','chrome-search','board-info-toggle','workspace-add']);
- assert.equal(await page.locator('#workspace-add').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(83, 96, 68)');
+ // A role token as the browser resolves it (tokens.css is the one source of the theme's colours).
+ const token=name=>page.evaluate(name=>{const probe=document.createElement('i');probe.style.color=`var(${name})`;document.body.append(probe);const value=getComputedStyle(probe).color;probe.remove();return value;},name);
+ const blue=await token('--mark-blue');assert.equal(blue,'rgb(0, 94, 139)','The one mark is the approved blue');
+ assert.equal(await page.locator('#workspace-add').evaluate(el=>getComputedStyle(el).backgroundColor),blue,'The single primary Add is the blue mark');
  // Board Inspector: click-away and Escape both dismiss it.
  await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor();
  const panel=await page.locator('#board-info').boundingBox();assert.ok(panel.x+panel.width>1440-12&&panel.x>1440/2,'Board Inspector opens on the right');
  // Built like the opened Tinka's Inspector: the board's name first, every section on one 16px edge, nothing wider than the panel.
- const layout=await page.locator('#board-info').evaluate(p=>{const r=p.getBoundingClientRect();const shown=[...p.querySelectorAll('h2,h3,.inspector-choice,.workspace-search input,.inspector-row,.inspector-row-btn,#board-description')].filter(e=>e.getClientRects().length);return {name:p.querySelector('.board-info-body h2')?.id,lefts:[...new Set(shown.map(e=>Math.round(e.getBoundingClientRect().left-r.left)))],overflow:p.scrollWidth>p.clientWidth,sections:[...p.querySelectorAll('.inspector-sec > h3')].map(h=>h.firstChild.textContent.trim()),appearanceWide:Math.round(p.querySelector('.inspector-appearance .tk-seg').getBoundingClientRect().width)>=Math.round(r.width-32)};});
+ const layout=await page.locator('#board-info').evaluate(p=>{const r=p.getBoundingClientRect();const shown=[...p.querySelectorAll('h2,h3,.inspector-choice,.workspace-search input,.inspector-row,.inspector-row-btn,#board-description')].filter(e=>e.getClientRects().length);return {name:p.querySelector('.board-info-body h2')?.id,lefts:[...new Set(shown.map(e=>Math.round(e.getBoundingClientRect().left-r.left)))],overflow:p.scrollWidth>p.clientWidth,sections:[...p.querySelectorAll('.inspector-sec > h3')].map(h=>h.firstChild.textContent.trim()),appearanceWide:Math.round(p.querySelector('.inspector-appearance .appearance-control').getBoundingClientRect().width)>=Math.round(r.width-32)};});
  assert.deepEqual(layout,{name:'board-info-heading',lefts:[16],overflow:false,sections:['View','Filter','Edit','Feedback','Appearance','Help'],appearanceWide:true},'Board Inspector layout');
  await clickBlank();assert.equal(await page.locator('#board-info').isVisible(),false,'Click-away closes the board Inspector');
  await page.locator('#board-info-toggle').click();await page.keyboard.press('Escape');
@@ -63,8 +66,10 @@ try{
  assert.equal(await page.locator('#reader-dialog').isVisible(),false,'Modifier clicks never open the reader');
  assert.equal(await page.locator('.workspace-card.selected').count(),2);
  assert.match(await page.locator('#workspace-selection strong').innerText(),/2 selected/);
- const ring=await card(a).evaluate(el=>getComputedStyle(el).outlineColor);assert.equal(ring,'rgb(98, 117, 74)','Selection ring is the one green');
- const bar=await page.locator('#workspace-selection').boundingBox();assert.ok(bar.y>900-80,'Selection bar floats at the bottom');
+ const ring=await card(a).evaluate(el=>getComputedStyle(el).outlineColor);assert.equal(ring,blue,'Selection ring is the one blue mark');
+ const bar=await page.locator('#workspace-selection').boundingBox();assert.ok(bar.y>900*.75,'Selection bar floats at the bottom');
+ // ...in the foot's row when it fits beside the kind legend and the view pill, else just above them: never over either.
+ for(const selector of ['.kind-legend','.canvas-footer .zoom-pill']){const r=await page.locator(selector).boundingBox();assert.ok(!r||bar.x+bar.width<=r.x||r.x+r.width<=bar.x||bar.y+bar.height<=r.y||r.y+r.height<=bar.y,`Selection bar clear of ${selector}`);}
  await page.screenshot({path:path.join(evidence,'calm-selection.png')});
  await page.keyboard.press('Escape');assert.equal(await page.locator('.workspace-card.selected').count(),0);
  // Right-click gives a short menu; Details… opens the Inspector. ⌘I does the same for one selection.
@@ -89,11 +94,15 @@ try{
  await page.goto(base+'/boards/ideas/');await page.locator('.workspace-card').first().waitFor();assert.equal(await page.locator('#viewport').getAttribute('data-canvas-pattern'),'plain','Other boards keep their own pattern');
  await page.goto(base+'/boards/studio/');await card(a).waitFor();await page.locator('#board-info-toggle').click();await page.locator('#board-info [data-canvas-pattern="plain"]').click();
  assert.equal(await page.locator('#viewport').evaluate(el=>getComputedStyle(el).backgroundImage),'none');await page.keyboard.press('Escape');
- // Warm graphite dark, never blue slate.
+ // Dark follows the tokens: the board stands on the dark ground, and it is dark.
+ const lightGround=await page.locator('#viewport').evaluate(el=>getComputedStyle(el).backgroundColor);
  await page.emulateMedia({colorScheme:'dark'});await page.evaluate(()=>localStorage.setItem('tinka/appearance','dark'));await page.reload();await card(a).waitFor();
- assert.equal(await page.locator('#viewport').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(43, 44, 41)');
+ const darkGround=await page.locator('#viewport').evaluate(el=>getComputedStyle(el).backgroundColor);
+ assert.equal(darkGround,await token('--ground'),'The dark board is the dark ground token');
+ assert.notEqual(darkGround,lightGround);
+ assert.ok(darkGround.match(/\d+/g).slice(0,3).map(Number).every(c=>c<64),`The dark ground is dark: ${darkGround}`);
  await page.screenshot({path:path.join(evidence,'calm-dark.png')});
  const after=await getBoardSnapshot(config,'studio');assert.equal(after.revision,before.revision,'View, panels and selection make no metadata writes');
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:true,evidence,checks:['left Navigator, right Inspector, single primary Add','board Inspector click-away and Escape with focus return','item Inspector replaces the popup; click-away and Escape','selection by Shift/⌘-click without checkboxes, green ring, floating selection bar','right-click menu Details and ⌘I','board-tile serif place with readable edited date','zoom pill and zoom menu click-away','Dots/Grid/Plain per board in this browser','warm graphite dark','no metadata writes'],errors}));
+ console.log(JSON.stringify({passed:true,evidence,checks:['left Navigator, right Inspector, single primary Add','board Inspector click-away and Escape with focus return','item Inspector replaces the popup; click-away and Escape','selection by Shift/⌘-click without checkboxes, blue ring, floating selection bar','right-click menu Details and ⌘I','board-tile serif place with readable edited date','zoom pill and zoom menu click-away','Dots/Grid/Plain per board in this browser','dark from the ground token','no metadata writes'],errors}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true,maxRetries:3,retryDelay:100});}

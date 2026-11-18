@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {FAMILY,FAMILIES,kindOf,familyOf,kindAttributes,familyCounts,familyLabel,kindsLine} from '../public/kinds.js';
-import {capLabel} from '../public/keycaps.js';
+import {capLabel,capFor} from '../public/keycaps.js';
 import {boardCovers} from '../lib/board-covers.mjs';
 
 test('an item is its stored kind, a board when it owns one, an idea when empty',()=>{
@@ -52,4 +52,11 @@ test('a printed keycap reads the shortcut the control declares',()=>{
   assert.equal(capLabel('Control+K',false),'Ctrl+K');
   assert.equal(capLabel('Escape'),'Esc');
   assert.equal(capLabel(''),'');
+  // A command bound to ⌘ on a Mac and Ctrl elsewhere declares both; each platform prints its own.
+  const control=value=>({getAttribute:()=>value});
+  assert.equal(capFor(control('Meta+D Control+D'),true),'⌘D');
+  assert.equal(capFor(control('Meta+D Control+D'),false),'Ctrl+D');
+  assert.equal(capFor(control('Shift+Meta+Z Control+Shift+Z'),true),'⇧⌘Z');
+  assert.equal(capFor(control('Shift+Meta+Z Control+Shift+Z'),false),'Ctrl+Shift+Z');
+  assert.equal(capFor(control('F Shift+1'),false),'F');
 });

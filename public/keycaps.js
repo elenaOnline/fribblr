@@ -6,34 +6,43 @@
 // for assistive technology, in the standard "Shift+1" form. The cap is that
 // attribute's first shortcut, so the cap, the screen reader and the button's own
 // declaration say the same thing, and a cap follows the attribute when the app
-// changes it (Fit switches between "F Shift+1" and "F Shift+2"). Icon-only keys
-// and keys that already print a <kbd> are left alone.
+// changes it (Fit switches between "F Shift+1" and "F Shift+2"). A control declares
+// only a binding the app really has, for that same command (Details… and ⌘I both
+// open the one selected item's details). Icon-only keys and keys that already print
+// a <kbd> are left alone. Caps join the raised height (depth.css).
 import {isMacPlatform} from "./reader-keys.js";
 
 const MAC = isMacPlatform();
 const NAMES = {
-  Shift: "⇧", Enter: "↩", Escape: "Esc", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
+  Enter: "↩", Escape: "Esc", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
   Space: "Space", Tab: "⇥", Backspace: "⌫", Delete: "⌦", Minus: "−", Plus: "+",
 };
 /** "Shift+1" -> "⇧1", "Meta+K" -> "⌘K" on a Mac; "Control+K" -> "Ctrl+K" elsewhere. */
 export function capLabel(shortcut, mac = MAC) {
   const parts = String(shortcut || "").split("+").filter(Boolean);
   if (!parts.length) return "";
-  const name = part => part === "Meta" ? (mac ? "⌘" : "Win") : part === "Control" ? (mac ? "⌃" : "Ctrl") : part === "Alt" ? (mac ? "⌥" : "Alt")
+  const name = part => part === "Shift" ? (mac ? "⇧" : "Shift") : part === "Meta" ? (mac ? "⌘" : "Win") : part === "Control" ? (mac ? "⌃" : "Ctrl") : part === "Alt" ? (mac ? "⌥" : "Alt")
     : NAMES[part] ?? (part.length === 1 ? part.toUpperCase() : part);
   const names = parts.map(name);
   return names.join(names.every(n => n.length === 1) ? "" : "+");
 }
-/** The first shortcut a control declares, as printed on its cap, or "". */
-export const capFor = (button, mac = MAC) => capLabel((button.getAttribute("aria-keyshortcuts") || "").trim().split(/\s+/)[0], mac);
+/** The shortcut a control declares, as printed on its cap, or "". A command bound to
+ *  ⌘ on a Mac and Ctrl elsewhere declares both ("Meta+D Control+D"); the cap shows
+ *  the first one that belongs to this platform. */
+export function capFor(button, mac = MAC) {
+  const all = (button.getAttribute("aria-keyshortcuts") || "").trim().split(/\s+/).filter(Boolean);
+  const foreign = mac ? /(^|\+)Control\+/ : /(^|\+)Meta\+/;
+  return capLabel(all.find(shortcut => !foreign.test(shortcut)) || all[0], mac);
+}
 
-const LABELLED = "button.tk-btn[aria-keyshortcuts]:not(.tk-icon)";
+// Labelled keys and menu rows; icon-only keys print nothing.
+const LABELLED = ":is(button.tk-btn, .tk-mi)[aria-keyshortcuts]:not(.tk-icon)";
 function print(root = document) {
   for (const button of root.querySelectorAll(LABELLED)) {
     let cap = button.querySelector(":scope > kbd.keycap-printed");
     if (!cap && button.querySelector("kbd")) continue;
     const label = capFor(button);
-    if (!label || label.length > 4) { cap?.remove(); continue; }
+    if (!label) { cap?.remove(); continue; }
     if (!cap) {
       cap = document.createElement("kbd");
       cap.className = "tk-kbd keycap-printed";
