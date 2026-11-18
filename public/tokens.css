@@ -130,6 +130,9 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
   border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink-2);
   font: 500 var(--t-md)/1 var(--font-ui); white-space: nowrap; cursor: pointer; text-decoration: none;
   transition: background .12s, color .12s, box-shadow .12s;
+  /* Never squeezed below its label: the min-width floor above replaces the flex
+     min-content floor, so a crowded row would otherwise cut the text and overlap. */
+  flex-shrink: 0;
 }
 .tk-btn:hover { background: var(--hover); color: var(--ink); }
 .tk-btn:active { background: var(--press); }
