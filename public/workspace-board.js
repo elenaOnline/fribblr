@@ -290,7 +290,7 @@ export class WorkspaceBoard {
     this.installEditTools();
     const history = document.createElement("div");
     history.className = "workspace-history-actions";
-    history.innerHTML = '<button type="button" id="workspace-undo" disabled>Undo</button><button type="button" id="workspace-redo" disabled>Redo</button>';
+    history.innerHTML = '<button type="button" id="workspace-undo" aria-keyshortcuts="Meta+Z Control+Z" disabled>Undo</button><button type="button" id="workspace-redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" disabled>Redo</button>';
     bar.append(history);
     this.installClipboard(bar);
     this.installFileDrop();
@@ -431,7 +431,7 @@ export class WorkspaceBoard {
       nodes.filter(Boolean).forEach(node => el.append(node));
       return el;
     };
-    // A labelled full-width choice (Layout, Background): the label names the control.
+    // A labelled full-width choice (Layout, Pattern): the label names the control.
     const choice = (label, seg) => {
       if (!seg) return null;
       const el = document.createElement("div"); el.className = "inspector-choice";
@@ -442,7 +442,7 @@ export class WorkspaceBoard {
     };
     const pick = selector => bar.querySelector(selector) || panel.querySelector(selector);
     const pattern = document.createElement("div");
-    pattern.className = "tk-seg canvas-pattern"; pattern.setAttribute("role", "group"); pattern.setAttribute("aria-label", "Canvas background");
+    pattern.className = "tk-seg canvas-pattern"; pattern.setAttribute("role", "group"); pattern.setAttribute("aria-label", "Pattern");
     pattern.innerHTML = '<button type="button" data-canvas-pattern="dots">Dots</button><button type="button" data-canvas-pattern="grid">Grid</button><button type="button" data-canvas-pattern="plain">Plain</button>';
     // Show the board's current background, whether this panel is built before or after it loads.
     const current = $("viewport")?.dataset.canvasPattern || "plain";
@@ -454,7 +454,7 @@ export class WorkspaceBoard {
     tonal(toggles);
     const edits = [pick(".workspace-history-actions"), pick(".workspace-clipboard-actions"), pick("#workspace-owner"), pick("#workspace-retry-drafts")];
     tonal(edits);
-    const view = section("View", "this board, this browser", [choice("Layout", segments), choice("Background", pattern)], "inspector-view");
+    const view = section("View", "this board, this browser", [choice("Layout", segments), choice("Pattern", pattern)], "inspector-view");
     const filter = section("Filter", "", [pick(".workspace-search"), row("inspector-toggles", toggles)], "inspector-filter");
     const edit = section("Edit", "", [row("inspector-edit-row", edits)], "inspector-edit");
     // Feedback: board-wide Comments as one full-width row (as in the opened Tinka's
@@ -680,6 +680,7 @@ export class WorkspaceBoard {
     guide.type = "button";
     guide.id = "workspace-keyboard-shortcuts";
     guide.textContent = "Keyboard shortcuts";
+    guide.ariaKeyShortcuts = "?";
     guide.onclick = () => this.keyboardShortcuts();
     bar.append(guide);
     // F or Z held while a selection box is released: F fits what the box selected, Z
@@ -888,7 +889,7 @@ export class WorkspaceBoard {
   installClipboard(bar) {
     const controls = document.createElement("div");
     controls.className = "workspace-clipboard-actions";
-    controls.innerHTML = '<button type="button" id="workspace-copy" disabled>Copy selection</button><button type="button" id="workspace-paste">Paste…</button>';
+    controls.innerHTML = '<button type="button" id="workspace-copy" aria-keyshortcuts="Meta+C Control+C" disabled>Copy selection</button><button type="button" id="workspace-paste">Paste…</button>';
     bar.append(controls);
     $("workspace-copy").onclick = () => {
       // An explicit command: the copy event below skips its focus guard for this call only.
@@ -1483,11 +1484,11 @@ export class WorkspaceBoard {
     );
     if (this.selection.size === 1) {
       const id = [...this.selection][0];
-      const controls = document.createElement('button'); controls.type='button'; controls.className='tk-btn tk-sm'; controls.textContent='Details…'; controls.setAttribute('aria-label','Item details'); controls.title='Item details (⌘I)';
+      const controls = document.createElement('button'); controls.type='button'; controls.className='tk-btn tk-sm'; controls.textContent='Details…'; controls.setAttribute('aria-label','Item details'); controls.setAttribute('aria-keyshortcuts','Meta+I Control+I'); controls.title='Item details (⌘I)';
       controls.onclick=()=>this.itemControls(id,'notes'); el.insertBefore(controls,el.querySelector('[data-bulk]'));
       const doc = this.selectedDocument();
       if (doc) {
-        const edit = document.createElement('button'); edit.type='button'; edit.className='tk-btn tk-sm'; edit.dataset.editDocument=''; edit.textContent='Edit document'; edit.title='Edit document (E)';
+        const edit = document.createElement('button'); edit.type='button'; edit.className='tk-btn tk-sm'; edit.dataset.editDocument=''; edit.textContent='Edit document'; edit.setAttribute('aria-keyshortcuts','E'); edit.title='Edit document (E)';
         edit.onclick=()=>this.editDocument(doc.id); el.insertBefore(edit,controls);
       }
     }
@@ -1752,7 +1753,7 @@ export class WorkspaceBoard {
         <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
         <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span><div class="workspace-appearance-buttons tk-seg" role="group" aria-label="Item appearance">${[["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => `<button type="button" data-presentation="${value}" aria-label="${label}" title="${label}" aria-pressed="${mode === value}"><svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span></button>`).join("")}</div></div><div class="workspace-context-row"><span class="inspector-label">Paper</span><div class="workspace-paper-swatches" role="group" aria-label="Paper color">${[["#f6f7f1", "Paper"], ["#e4ebdc", "Sage"], ["#f1e8d5", "Sand"], ["#f1e0dc", "Rose"], ["#e7e4ee", "Lilac"]].map(([color,label]) => `<button type="button" data-paper="${color}" aria-label="${label} paper" title="${label}" aria-pressed="${paper === color}" style="--swatch:${color}"></button>`).join("")}</div></div></section>
         <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
-        <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button><button type="button" class="tk-mi" data-context-geometry>Move / resize…</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate>Duplicate<kbd class="tk-kbd" aria-hidden="true">⌘D</kbd></button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
+        <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button><button type="button" class="tk-mi" data-context-geometry>Move / resize…</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
       </div>`;
     document.body.append(popover);
     this.context = popover;

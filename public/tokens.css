@@ -41,7 +41,7 @@
   --ground-rim: #BDC6CB;        /* the 1 px rim of a slab standing on the ground */
   --ground-key-side: #A9B5BD;   /* the lower side of a white key standing on the ground */
   --ground-cast: 30, 52, 66;    /* rgb of a cast shadow on the ground (the desk's hue, darker) */
-  --ground-cast-alpha: .34;
+  --ground-cast-alpha: .40;
 
   /* ---------- surface ---------- */
   --surface-paper: #FFFFFF;     /* the top face of every slab, key and field; documents */
@@ -71,7 +71,7 @@
   --kind-page-side: #1DB4B4;  --kind-page-edge: #006C6C;  --kind-page-text: #005F5F;   /* HTML, live apps, links */
   --kind-doc-side: #AF8CD8;   --kind-doc-edge: #6B4E8B;   --kind-doc-text: #614083;    /* Markdown, PDF */
   --kind-pic-side: #6FB171;   --kind-pic-edge: #356C38;   --kind-pic-text: #236228;    /* images, video, audio */
-  --kind-plain-side: #B3C0C8; --kind-plain-edge: #7B8891; --kind-plain-text: #595959;  /* notes, ideas: the desk's own material */
+  --kind-plain-side: #93A1A9; --kind-plain-edge: #50606A; --kind-plain-text: #595959;  /* notes, ideas: the desk's own material, at the kinds' L .70 / .48 */
   --kind-board-side: #647F8F; --kind-board-edge: #304652; --kind-board-text: #000000;  /* a child board: a deeper piece of desk */
 
   /* ---------- depth: one light from above; the model and its rules are in depth.css ----------
@@ -80,8 +80,9 @@
      World lengths are at 100 % zoom; a -min is a floor in screen pixels, held when the board is zoomed out. */
   --depth-sunk: 1px;            /* a field's shade along its top inner edge */
   --depth-raised: 2px;          /* a key's lower side */
-  --depth-slab: 6px;            /* a slab's lower side */
-  --depth-slab-min: 4.5;        /* ...never thinner than this on screen: the strength holds zoomed out */
+  --depth-slab: 8px;            /* a slab's lower side */
+  --depth-slab-min: 6;          /* ...never thinner than this on screen: the strength holds zoomed out */
+  --depth-edge-low: 1px;        /* the contour under a slab's side is this much heavier than at its ends */
   --depth-lift: 4px;            /* how far a slab she drags rises */
   --depth-lift-min: 3;
   --depth-hair-min: 1;          /* rims, contours and the selection gap never fall under a screen pixel */
@@ -175,11 +176,11 @@ html[data-ground="white"] {
   --ground-rim: #B3BDC3;        /* darker than on the desk: the rim is now a white face's only edge */
   --ground-key-side: #B4B4B4;
   --ground-cast: 30, 52, 66;
-  --ground-cast-alpha: .30;
+  --ground-cast-alpha: .34;
 }
 
 /* ---------- dark: derived, not designed. Light is the theme; dark only has to stay readable ---------- */
-html[data-appearance="dark"] {
+html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) {
   color-scheme: dark;
   --ground: #1C2328; --ground-deep: #151B1F; --ground-well: #161C20; --ground-pattern: #5A6C78;
   --ground-rim: #3A454D; --ground-key-side: #10161A; --ground-cast: 0, 0, 0; --ground-cast-alpha: .5;
@@ -231,16 +232,20 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 .tk-btn.tk-tonal:hover { background: var(--press); }
 .tk-btn.tk-primary { background: var(--accent); color: var(--on-accent); }
 .tk-btn.tk-primary:hover { background: var(--accent-hover); color: var(--on-accent); }
+/* the primary key's inputs for the raised height (depth.css): a blue face on a deep blue side */
+.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-deep); color: var(--on-accent); }
 .tk-btn.tk-danger { color: var(--danger); }
 .tk-btn svg, .tk-glyph { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .tk-kbd { font: 500 var(--t-xs)/1 var(--font-ui); color: var(--ink-3); border: 1px solid var(--line); border-radius: var(--r-xs); padding: 2px 4px; background: var(--field); }
-.tk-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--r-md); background: var(--hover); }
-.tk-seg > button { height: 28px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-2); font: 500 var(--t-sm)/1 var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+/* a segmented choice is a sunken track with the chosen segment a raised cell (depth.css) */
+.tk-seg { display: inline-flex; padding: 3px; gap: 0; border-radius: var(--shape-key); --sink-floor: var(--surface-frame); }
+.tk-seg > button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .tk-seg > button:hover { color: var(--ink); background: transparent; }
-.tk-seg > button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); box-shadow: var(--e1); }
-.tk-field { height: var(--control-h); padding: 0 10px; border: 1px solid var(--field-line); border-radius: var(--r-md); background: var(--field); color: var(--ink); font: var(--t-md)/1.3 var(--font-ui); }
-.tk-field::placeholder { color: var(--ink-3); opacity: 1; }
-.tk-field:focus { outline: none; border-color: var(--accent-ring); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tk-seg > button[aria-pressed="true"] { color: var(--ink); }
+/* a field sinks (depth.css) */
+.tk-field { height: var(--control-h); padding: 0 10px; border: 0; border-radius: var(--shape-key); color: var(--ink); font: 400 var(--type-ui)/1.3 var(--type-sans); }
+.tk-field::placeholder { color: var(--ink-2); opacity: 1; }
+.tk-field:focus { outline: none; }
 .tk-eyebrow { font: 600 var(--t-xs)/1.3 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .tk-divider { width: 1px; height: 20px; background: var(--line); flex: none; }
 .tk-menu { min-width: 220px; padding: 6px; background: var(--surface-2); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--e3); }
@@ -270,4 +275,16 @@ body.navigator-docked > main { margin-left: var(--navigator-dock-width, 340px); 
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}
+
+/* ---------- decoration palette: colours a person picks for content on the whiteboard (whiteboard.js) ----------
+   Not roles: they do not change with the ground or the appearance, because a chosen colour is stored on the board as
+   its value (a #hex in the board's file) and must read the same wherever the board is opened. The values are the
+   ones boards already store, so existing stickies, shapes, regions, text and arrows keep matching their swatch. */
+:root {
+  --deco-yellow: #f6e6a4;  --deco-pink: #f4c9d0;  --deco-green: #d3e8c6;  --deco-blue: #cfe0f1;  --deco-orange: #f7d3a8;  --deco-purple: #ddd1ef;   /* sticky and shape fills */
+  --deco-sage: #e0e8da;    --deco-mist: #dfe7ed;  --deco-area-sage: #e1e8d5;                                                                         /* shape and area fills */
+  --deco-ink-green: #6c8060;  --deco-ink-grey: #7d8590;  --deco-ink-blue: #4a78b0;  --deco-ink-red: #c0564b;  --deco-ink-amber: #d08a2e;  --deco-ink-purple: #8a63b3;   /* arrows */
+  --deco-text-green: #7a8a68;                                                                                                                      /* text's own green */
+  --deco-default: #78866c;                                                                                                                         /* a decoration saved with no valid colour */
 }
