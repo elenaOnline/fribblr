@@ -14,7 +14,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--accent); outline-
 .media-message h1 { margin:0 0 12px; color:var(--ink); font:400 34px/1.13 var(--type-serif); }
 .image-stage,.video-stage { display:flex; align-items:center; justify-content:center; width:100%; min-height:100%; padding:clamp(18px,5vw,50px); }
 .image-stage img { display:block; max-width:100%; max-height:calc(100vh - 125px); object-fit:contain; box-shadow:0 0 0 1px var(--line-hair); }
-.video-stage video { display:block; width:min(100%,1100px); max-height:calc(100vh - 125px); background:#111; }
+.video-stage video { display:block; width:min(100%,1100px); max-height:calc(100vh - 125px); background:#111; }  /* a video letterbox is black in every theme */
 .pdf-frame,.app-frame { display:block; width:100%; height:100%; border:0; background:var(--paper); }
 .markdown { width:min(100% - 56px,740px); margin:0 auto; padding:clamp(38px,8vh,85px) 0 120px; color:var(--ink); font:calc(19px * var(--scale))/1.7 var(--type-serif); overflow-wrap:anywhere; }
 .markdown h1,.markdown h2,.markdown h3,.markdown h4 { color:var(--ink); font-family:var(--type-serif); font-weight:400; line-height:1.2; letter-spacing:0; }

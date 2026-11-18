@@ -172,7 +172,6 @@ body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
 #reader-info .reader-more-menu .reader-mi2 { display: grid; gap: 1px; height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
 #reader-info .reader-more-menu .reader-mi2 small { color: var(--ink-3); font-size: var(--t-xs); font-weight: 400; }
 #reader-info .appearance-control { display: flex; width: 100%; }
-#reader-info .appearance-label { display: none; }
 #reader-info .appearance-control .tk-seg { display: flex; width: 100%; }
 #reader-info .appearance-control .tk-seg > button { flex: 1; }
 #reader-info .reader-info-status { position: sticky; bottom: 0; justify-self: center; margin: 0; padding: 7px 12px; border-radius: var(--shape-key); background: var(--ink); color: var(--surface-frame); font-size: var(--t-xs); box-shadow: var(--e2); }

@@ -5,14 +5,14 @@
 html[data-appearance="dark"] .workspace-decoration { --decoration-ink:var(--decoration-ink-dark); --decoration-wash:var(--decoration-wash-dark); }
 .whiteboard-shape { background:transparent !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; z-index:1 !important; }
 .whiteboard-silhouette { position:absolute; inset:0; width:100%; height:100%; fill:var(--decoration-color); stroke:color-mix(in srgb,var(--decoration-color),var(--decoration-ink) 18%); stroke-width:1; overflow:visible; pointer-events:none;  }
-.whiteboard-shape .workspace-decoration-label { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; text-align:center; white-space:pre-wrap; color:var(--decoration-ink); padding:16px; font:400 20px/1.4 var(--type-serif); }
+.whiteboard-shape .workspace-decoration-label { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; text-align:center; white-space:pre-wrap; color:var(--decoration-ink); padding:16px; font:400 13px/1.3 var(--type-sans); }
 .shape-rectangle .workspace-decoration-label { align-items:flex-start; justify-content:flex-start; text-align:left; padding:20px; }
 .shape-diamond .workspace-decoration-label { padding:20% 24%; }
 .shape-ellipse .workspace-decoration-label { padding:15% 20%; }
 .workspace-decoration.decoration-line { background:transparent; pointer-events:none; outline:none; z-index:2; }
 .workspace-decoration.decoration-line.selected { outline:none; z-index:10000; }
 .workspace-decoration-line .whiteboard-line-hit { fill:none; stroke:transparent; stroke-width:16; vector-effect:non-scaling-stroke; pointer-events:stroke; cursor:move; }
-.workspace-decoration .whiteboard-line-label { width:max-content; max-width:260px; bottom:auto; min-height:0; padding:3px 8px; transform:translate(-50%,-50%); background:var(--surface-paper); border-radius:var(--shape-cap); color:var(--ink); font:400 15px/1.4 var(--type-serif); pointer-events:auto; white-space:pre-wrap; box-shadow:0 0 0 3px color-mix(in srgb,var(--surface-paper) 73%,transparent); }
+.workspace-decoration .whiteboard-line-label { width:max-content; max-width:260px; bottom:auto; min-height:0; padding:3px 8px; transform:translate(-50%,-50%); background:var(--ground); border-radius:var(--shape-cap); color:var(--ink-2); font:400 12px/1.3 var(--type-sans); pointer-events:auto; white-space:pre-wrap; box-shadow:inset 0 0 0 1px var(--ground-rim); }
 .workspace-decoration .whiteboard-line-label:empty { display:none; }
 .workspace-decoration .workspace-endpoint { pointer-events:auto; }
 .workspace-decoration .endpoint-head { background:var(--mark-blue); border-color:var(--surface-paper); }
@@ -120,8 +120,8 @@ dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-heig
 .whiteboard-size-letter { font:600 13px/1 var(--type-sans); }
 .whiteboard-size-letter.size-small { font-size:10px; }
 .whiteboard-size-letter.size-large { font-size:16px; }
-.whiteboard-shape.text-size-small .workspace-decoration-label,.whiteboard-shape.text-size-small .whiteboard-editor textarea { font-size:15px; }
-.whiteboard-shape.text-size-large .workspace-decoration-label,.whiteboard-shape.text-size-large .whiteboard-editor textarea { font-size:28px; }
+.whiteboard-shape.text-size-small .workspace-decoration-label,.whiteboard-shape.text-size-small .whiteboard-editor textarea { font-size:12px; }
+.whiteboard-shape.text-size-large .workspace-decoration-label,.whiteboard-shape.text-size-large .whiteboard-editor textarea { font-size:18px; }
 .workspace-decoration:not(.whiteboard-shape):not(.decoration-line).text-size-small { font-size:18px; }
 .workspace-decoration:not(.whiteboard-shape):not(.decoration-line).text-size-large { font-size:36px; }
 .workspace-decoration:not(.whiteboard-shape):not(.decoration-line).text-size-small .whiteboard-editor textarea { font-size:16px; }

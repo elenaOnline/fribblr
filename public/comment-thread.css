@@ -14,7 +14,7 @@
 .ct-icon.tk-btn:hover{background:var(--hover)}
 /* the state is a plain word and a dot: ink while it waits, grey once settled */
 .ct-state{display:inline-flex;align-items:center;gap:5px;font:400 var(--type-meta)/1.4 var(--type-sans);color:var(--ink-2)}
-.ct-state::before{content:"";width:7px;height:7px;background:currentColor}
+.ct-state::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .ct-state:is([data-state=open],[data-state=question],[data-state=addressed]){color:var(--ink)}
 .ct-state[data-state=resolved]{color:var(--ink-2)}
 .ct-scroll{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 14px;background:var(--surface-paper)}

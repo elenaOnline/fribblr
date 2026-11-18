@@ -22,10 +22,10 @@
                           a nested tray sets a deeper --sink-d) */
 
 /* ---------- zoom: lengths on the board are world pixels; these keep the strength on screen when zoomed out ----------
-   --px is one screen pixel in world units. canvas.js writes --canvas-zoom on #viewport. */
+   --px is one screen pixel in world units. canvas.js writes --canvas-zoom on #viewport, reader-canvas.js on the reader's stage. */
 /* --lift is registered so it never leaks into a nested slab and so the rise can ease */
 @property --lift { syntax: '<length>'; inherits: false; initial-value: 0px; }
-:root, #viewport {
+:root, #viewport, .reader-stage {
   --px: calc(1px / var(--canvas-zoom, 1));
   --hair: max(1px, calc(var(--depth-hair-min) * var(--px)));
   --side-slab: max(var(--depth-slab), calc(var(--depth-slab-min) * var(--px)));
@@ -124,10 +124,12 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
    The primary key is .tk-primary-style inputs: blue face, --mark-blue-side side, --mark-blue-deep rim and hover face. */
 [data-height="raised"], .ct-avatar, .comment-pin, .tk-kbd, #world .workspace-select-dot,
 .whiteboard-toolbar .whiteboard-bar-button[aria-pressed="true"]:not([data-whiteboard-action="color"]),
-:where(.workspace-toolbar button, .workspace-dialog button:not(.workspace-close), .workspace-button, .item-content button,
+:where(.workspace-toolbar button:not(.tk-seg > button, .workspace-segments > button), .workspace-dialog button:not(.workspace-close), .workspace-button, .item-content button,
   .workspace-preview-launch span, .workspace-appearance-buttons button, .board-info #workspace-add),
-.masthead .tk-btn, .masthead .appearance-control select, body > main .tk-btn, .shelf .workspace-home-toolbar button,
-.empty-card .plus, #new-dialog .primary, .document-tools :is(button, select), .document-annotations button {
+.masthead .tk-btn, body > main .tk-btn, .shelf .workspace-home-toolbar button,
+.empty-card .plus, #new-dialog .primary, .document-tools :is(button, select), .document-annotations button,
+:is(#canvas-header, #reader-header) .tk-btn:not(.chrome-search, .reader-down), :is(.canvas-footer, .reader-footer) .zoom-pill .tk-btn:not(.zoom-percent),
+.calm-side-head .tk-btn, .board-map-head .tk-btn, #board-info .inspector-row-btn, #board-info .inspector-sec .tk-btn.tk-tonal, #board-info > .info-actions button {
   --key-d: var(--depth-raised);
   background-color: var(--key-face, var(--surface-paper));
   box-shadow: inset 0 calc(-1 * var(--key-d)) 0 var(--key-side), inset 0 0 0 1px var(--key-rim, var(--line-seam));
@@ -137,6 +139,8 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
   }
   /* press: the key drops onto its side */
   &:active:not(:disabled) { --key-d: 0px; translate: 0 1px; }
+  /* not available: it lies flat in the frame, with a hairline */
+  &:disabled { --key-d: 0px; --key-face: var(--surface-frame); --key-rim: var(--line-hair); color: var(--ink-2); opacity: 1; }
   /* on: it stays down, tinted blue, with a blue rim */
   &:is([aria-pressed="true"], [aria-expanded="true"]) {
     --key-d: 1px; background-color: var(--surface-chosen);
@@ -154,7 +158,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
    Inputs: --sink-d (how deep), --sink-floor (paper for a field; a ground colour for a window or tray),
    --sink-rim (seam), --sink-focus (the underline while typing: blue; her red where she writes). */
 [data-height="sunken"], #world .workspace-board-tile .workspace-card-preview, .board-card .board-art,
-.tk-field, .tk-seg, #new-dialog :is(input, textarea),
+.tk-field, .tk-seg, #new-dialog :is(input, textarea), :is(#canvas-header, #reader-header) .chrome-search,
 .ct-composer, .tile-notes textarea, #workspace-item-controls textarea, #board-info .workspace-search input,
 .feedback-composer textarea, .agent-dialog textarea, #reader-note, .note-box textarea, .whiteboard-color input,
 :where(.workspace-segments, .workspace-search input, .workspace-dialog :is(input:not([type="checkbox"]), textarea, select),

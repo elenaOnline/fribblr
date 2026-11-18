@@ -196,9 +196,6 @@ html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="
   --cast-float: 0 4px 14px rgba(0, 0, 0, .45);
   --cast-dialog: 0 10px 32px rgba(0, 0, 0, .55);
 }
-html[data-appearance="dark"][data-ground="white"] {
-  --ground: #1E1E1E; --ground-deep: #171717; --ground-well: #181818; --ground-pattern: #5C5C5C; --ground-rim: #444444;
-}
 
 /* without corner-shape the corners fall back to round ones, smaller because a circle reads rounder than a squircle */
 @supports not (corner-shape: squircle) {
@@ -218,7 +215,7 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: var(--control-h); min-width: var(--control-h); padding: 0 10px; margin: 0;
   border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink-2);
-  font: 500 var(--t-md)/1 var(--font-ui); white-space: nowrap; cursor: pointer; text-decoration: none;
+  font: 400 var(--type-ui)/1 var(--type-sans); white-space: nowrap; cursor: pointer; text-decoration: none;
   transition: background .12s, color .12s, box-shadow .12s;
   /* Never squeezed below its label: the min-width floor above replaces the flex
      min-content floor, so a crowded row would otherwise cut the text and overlap. */
@@ -249,7 +246,8 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 .tk-field { height: var(--control-h); padding: 0 10px; border: 0; border-radius: var(--shape-key); color: var(--ink); font: 400 var(--type-ui)/1.3 var(--type-sans); }
 .tk-field::placeholder { color: var(--ink-2); opacity: 1; }
 .tk-field:focus { outline: none; }
-.tk-eyebrow { font: 600 var(--t-xs)/1.3 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+/* section names are plain words, not eyebrows */
+.tk-eyebrow { font: 400 var(--type-meta)/1.3 var(--type-sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); }
 .tk-divider { width: 1px; height: 20px; background: var(--line); flex: none; }
 .tk-menu { min-width: 220px; padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float); }
 .tk-menu .tk-mi { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink); font: var(--t-md)/1.2 var(--font-ui); text-align: left; cursor: pointer; }
@@ -257,7 +255,7 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 .tk-menu .tk-mi .tk-kbd { margin-left: auto; }
 .tk-menu .tk-mi.tk-danger { color: var(--danger); }
 .tk-menu .tk-msep { height: 1px; background: var(--line); margin: 6px 4px; }
-.tk-menu .tk-mlabel { font: 600 var(--t-xs)/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding: 8px 10px 4px; }
+.tk-menu .tk-mlabel { font: 400 var(--type-meta)/1.3 var(--type-sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); padding: 8px 10px 4px; }
 
 /* Readable dates: exact time on hover or focus (see relative-dates.js). */
 time[data-rel] { text-decoration: underline dotted transparent; text-underline-offset: 3px; transition: text-decoration-color .12s; }

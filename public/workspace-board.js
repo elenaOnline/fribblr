@@ -98,7 +98,7 @@ function paperColors(paper) {
   if (hex.length < 5) hex = [...hex].map(c => c + c).join("");
   const rgb = [0,2,4].map(i => parseInt(hex.slice(i,i+2),16));
   const alpha = hex.length === 8 ? parseInt(hex.slice(6),16)/255 : 1;
-  return [["light",[253,253,251]],["dark",[58,60,55]]].map(([theme,base]) => {
+  return [["light",[255,255,255]],["dark",[42,49,54]]].map(([theme,base]) => {  // the paper face in each appearance (tokens.css --surface-paper)
     const linear = rgb.map((c,i) => (c*alpha+base[i]*(1-alpha))/255).map(c => c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4);
     const luminance = linear[0]*.2126 + linear[1]*.7152 + linear[2]*.0722;
     const contrast = color => {
@@ -106,9 +106,9 @@ function paperColors(paper) {
       const ink = channels[0]*.2126 + channels[1]*.7152 + channels[2]*.0722;
       return (Math.max(luminance,ink)+.05)/(Math.min(luminance,ink)+.05);
     };
-    let ink = ["#23271f", "#ecece5"].sort((a,b) => contrast(b)-contrast(a))[0];
+    let ink = ["#000000", "#e9edf0"].sort((a,b) => contrast(b)-contrast(a))[0];  // --ink, light and dark
     if (contrast(ink) < 4.5) ink = ["#000000", "#ffffff"].sort((a,b) => contrast(b)-contrast(a))[0];
-    const muted = contrast("#4c5145") >= contrast("#c8c9bf") ? "#4c5145" : "#c8c9bf";
+    const muted = contrast("#595959") >= contrast("#a7b1b8") ? "#595959" : "#a7b1b8";  // --ink-2, light and dark
     return `--item-ink-${theme}:${ink};--item-muted-${theme}:${contrast(muted) >= 4.5 ? muted : ink};`;
   }).join("");
 }
@@ -2738,11 +2738,12 @@ export class WorkspaceBoard {
     const early = type !== "arrow" && !document.querySelector(".quick-jot") ? this.holdEditorKeys() : null;
     if (this.mode !== "canvas") this.setMode("canvas");
     const point = this.canvasPoint(screen), shaped = ["sticky","rounded","diamond","ellipse"].includes(type), region = type === "region" || shaped;
+    // new drawings are stored with their colour: a sticky's yellow, the desk's blue-greys for shapes and regions, --ink-2 for a line
     const d = { id: crypto.randomUUID(), type: type === "arrow" ? "line" : region ? "region" : type,
       x: point.x, y: point.y, width: shaped ? type === "sticky" ? 220 : 240 : region ? 420 : type === "arrow" ? 200 : 280,
       height: shaped ? type === "sticky" ? 200 : type === "diamond" ? 180 : 130 : region ? 280 : type === "arrow" ? 90 : 70,
       text: type === "text" ? "Write something" : type === "sticky" ? "A thought to keep" : shaped ? ({rounded:"Process",diamond:"Decision",ellipse:"Start / end"}[type]) : region ? "A new area" : "",
-      color: type === "sticky" ? "#f6e6a4" : shaped ? "#e0e8da" : region ? "#e1e8d5" : "#7a8a68", ...(shaped ? {shape:type === "sticky" ? "rectangle" : type} : {}), ...(type === "arrow" ? { endArrow: true, flipY: true } : {}) };
+      color: type === "sticky" ? "#f6e6a4" : shaped ? "#e3eaef" : region ? "#8fa6b5" : "#595959", ...(shaped ? {shape:type === "sticky" ? "rectangle" : type} : {}), ...(type === "arrow" ? { endArrow: true, flipY: true } : {}) };
     if (!screen) {
       const occupied = [...this.snapshot.placements.filter(p => !p.removedAt && !p.archivedAt), ...(this.snapshot.decorations || []).filter(d => region || d.type !== "region")];
       const free = point => !occupied.some(p => point.x < p.x + p.width + 16 && point.x + d.width + 16 > p.x && point.y < p.y + p.height + 16 && point.y + d.height + 16 > p.y);
@@ -3072,7 +3073,7 @@ export class WorkspaceBoard {
     const b = this.snapshot.background || {};
     makeDialog(
       "Board background",
-      `<label>Color<input name="color" type="color" value="${b.color || "#e7e8e1"}"></label><p>An optional image remains a project resource. Your agent supplies its registered root ID and relative path.</p><label>Image root ID<input name="root" value="${esc(b.resource?.rootId || "")}"></label><label>Image path<input name="path" value="${esc(b.resource?.path || "")}"></label><button type="submit" class="workspace-primary">Save background</button>`,
+      `<label>Color<input name="color" type="color" value="${b.color || "#dae5ec"}"></label><p>An optional image remains a project resource. Your agent supplies its registered root ID and relative path.</p><label>Image root ID<input name="root" value="${esc(b.resource?.rootId || "")}"></label><label>Image path<input name="path" value="${esc(b.resource?.path || "")}"></label><button type="submit" class="workspace-primary">Save background</button>`,
       async (f) => {
         const background = { color: f.get("color") };
         if (f.get("root") || f.get("path"))
