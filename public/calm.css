@@ -337,10 +337,14 @@ html[data-appearance="dark"] #world .workspace-tile-toolbar { --ink: #ecece5; }
 /* Navigator reveal and moving into a board keep the one green. */
 #world .workspace-card.navigator-revealed { outline: 3px solid var(--accent-ring) !important; outline-offset: 4px; box-shadow: var(--e2), 0 0 0 9px var(--accent-soft) !important; }
 
-/* ---------- Selection bar: one floating pill ---------- */
+/* ---------- Selection bar: one floating pill ----------
+   Sized to its actions (max-content), not to the room right of its left edge,
+   which a centred fixed box would otherwise shrink-wrap into. Given less room
+   than that, its actions wrap rather than squeeze, and it is never narrower
+   than its widest action (min-content). */
 #workspace-selection.workspace-selection {
   position: fixed; left: 50%; bottom: 16px; z-index: 35; transform: translateX(-50%);
-  display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; max-width: calc(100vw - 24px); overflow-x: auto;
+  display: flex; flex-wrap: wrap; row-gap: 2px; align-items: center; gap: 2px; width: max-content; min-width: min-content; max-width: calc(100vw - 24px); overflow-x: auto;
   padding: 4px 4px 4px 14px; border: 0; border-radius: var(--r-lg);
   background: var(--surface-2); color: var(--ink); box-shadow: var(--e3); white-space: nowrap;
   animation: calm-up .14s var(--ease);
@@ -389,7 +393,7 @@ body dialog::backdrop { background: var(--scrim); }
   body .canvas-footer .status-line:has(#live-refresh:not([hidden])) { display: flex; }
   body .canvas-footer { justify-content: flex-end; }
   .zoom-percent { min-width: 52px; }
-  #workspace-selection.workspace-selection { left: 8px; right: 8px; bottom: 66px; transform: none; max-width: none; justify-content: flex-start; animation: none; }
+  #workspace-selection.workspace-selection { left: 8px; right: 8px; bottom: 66px; transform: none; width: auto; max-width: none; justify-content: flex-start; animation: none; }
   #workspace-selection .selection-wide { display: none; }
 }
 

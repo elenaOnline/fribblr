@@ -1894,8 +1894,9 @@ document.addEventListener('tinka:selection', () => { readSelection(); syncFitCon
 // The selection bar never runs into the zoom controls or the map. When its usual
 // centred place would, it centres in the free space to their left: beside the
 // status line if it fits, otherwise over a quiet status line (which steps aside
-// while the bar shows), otherwise raised above the footer row. On a phone it spans
-// the width and the open map stacks above it instead.
+// while the bar shows), otherwise raised above the footer row. Given less room than
+// its actions need, it wraps them (it never squeezes them), and it never starts off
+// screen. On a phone it spans the width and the open map stacks above it instead.
 function placeSelectionBar() {
   const bar = $('workspace-selection'), pill = document.querySelector('.canvas-footer .zoom-pill'), root = document.documentElement;
   const footer = document.querySelector('.canvas-footer');
@@ -1917,8 +1918,8 @@ function placeSelectionBar() {
   if (b.width <= right - beside) from = beside;
   else if (quiet && b.width <= right - edge) footer.classList.add('status-yields');
   else bar.style.bottom = `${Math.max(72, innerHeight - p.top + 12)}px`;
-  bar.style.left = `${Math.round((from + right) / 2)}px`;
   bar.style.maxWidth = `${Math.max(160, Math.round(right - from))}px`;
+  bar.style.left = `${Math.round(Math.max((from + right) / 2, from + bar.offsetWidth / 2))}px`;
 }
 let barObserved = false;
 const footerObserver = new ResizeObserver(() => placeSelectionBar());
