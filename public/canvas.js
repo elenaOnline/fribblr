@@ -1953,7 +1953,7 @@ function setCanvasPattern(pattern, { save = true } = {}) {
 function syncViewChrome() {
   const percent = Math.round(zoom * 100);
   const readout = $('zoom-menu-toggle');
-  if (readout && readout.textContent !== `${percent}%`) { readout.textContent = `${percent}%`; readout.setAttribute('aria-label', `Zoom ${percent}%, zoom and background options`); }
+  if (readout && readout.textContent !== `${percent}%`) { readout.textContent = `${percent}%`; readout.setAttribute('aria-label', `Zoom ${percent}%, zoom and pattern options`); }
   const canvasMode = graph?.mode !== 'grid';
   viewport.style.setProperty('--canvas-zoom', String(canvasMode ? zoom : 1));
   viewport.style.setProperty('--chrome-scale', String(canvasMode ? Math.min(2.4, 1 / zoom) : 1));

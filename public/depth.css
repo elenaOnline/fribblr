@@ -25,6 +25,8 @@
    --px is one screen pixel in world units. canvas.js writes --canvas-zoom on #viewport, reader-canvas.js on the reader's stage. */
 /* --lift is registered so it never leaks into a nested slab and so the rise can ease */
 @property --lift { syntax: '<length>'; inherits: false; initial-value: 0px; }
+/* --float-cast is set on a dialog for the dialog itself; the floats inside it keep their own soft shadow */
+@property --float-cast { syntax: '*'; inherits: false; }
 :root, #viewport, .reader-stage {
   --px: calc(1px / var(--canvas-zoom, 1));
   --hair: max(1px, calc(var(--depth-hair-min) * var(--px)));
@@ -197,11 +199,11 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 .ct-card, .cref-picker, .tile-notes, .feedback-panel, .feedback-ballot, .feedback-settings,
 .whiteboard-toolbar, .whiteboard-menu, .whiteboard-draft-state, .whiteboard-connect-hint, .preview-launch span,
 .document-selection-tools, .document-annotations, .doc-editing-link, #reader-info .reader-info-status,
-body .canvas-footer .status-line > .update-chip, dialog, .workspace-dialog, .agent-dialog
+body .canvas-footer .status-line > .update-chip, dialog:not(#reader-dialog), .workspace-dialog, .agent-dialog
 ) {
   box-shadow: 0 0 0 1px var(--float-rim, var(--line-edge)), var(--float-cast, var(--cast-float));
 }
-dialog, .workspace-dialog, .agent-dialog, .project-navigator, .ct-card.ct-sheet { --float-cast: var(--cast-dialog); }
+dialog:not(#reader-dialog), .workspace-dialog, .agent-dialog, .project-navigator, .ct-card.ct-sheet { --float-cast: var(--cast-dialog); }
 
 /* the selection corner of a selected card: a blue raised dot (its circle is the mark) */
 #world .workspace-select-dot[aria-pressed="true"], #world .workspace-card.selected .workspace-select-dot,

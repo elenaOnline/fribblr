@@ -24,7 +24,7 @@ html[data-appearance="dark"] .workspace-decoration { --decoration-ink:var(--deco
 .whiteboard-toolbar { border-radius:var(--shape-bar); }
 .whiteboard-toolbar { display:flex; align-items:center; gap:4px; max-width:calc(100vw - 16px); padding:4px; }
 .whiteboard-toolbar button { white-space:nowrap; min-height:36px; padding:6px 10px; border-color:transparent; font-size:13px; }
-.whiteboard-toolbar button:hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.whiteboard-toolbar button:not([aria-pressed=true]):hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
 .whiteboard-toolbar span { padding:0 8px; font-size:12px; color:var(--ink-2); }
 .whiteboard-menu { width:234px; padding:6px; max-height:calc(100dvh - 24px); overflow:auto; }
 .whiteboard-menu button { display:block; text-align:left; width:100%; min-height:36px; padding:8px 10px; border:0; font-size:13px; }
@@ -98,8 +98,10 @@ dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-heig
 .whiteboard-toolbar.whiteboard-arrow-bar { gap:0; padding:3px; }
 .whiteboard-bar-group { display:flex; align-items:center; gap:1px; padding:0 4px; }
 .whiteboard-bar-group + .whiteboard-bar-group { border-left:1px solid var(--line-seam); }
-.whiteboard-toolbar .whiteboard-bar-button { display:grid; place-items:center; width:30px; min-width:30px; height:30px; min-height:30px; padding:0; border:0; border-radius:var(--shape-cell); background:transparent; color:var(--ink); }
-.whiteboard-toolbar .whiteboard-bar-button:hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.whiteboard-toolbar .whiteboard-bar-button { display:grid; place-items:center; width:30px; min-width:30px; height:30px; min-height:30px; padding:0; border:0; border-radius:var(--shape-cell); color:var(--ink); }
+/* a key that is on is a raised key (depth.css); the others are quiet until the pointer is on them */
+.whiteboard-toolbar .whiteboard-bar-button:not([aria-pressed=true]) { background:transparent; }
+.whiteboard-toolbar .whiteboard-bar-button:not([aria-pressed=true]):hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
 .whiteboard-toolbar .whiteboard-bar-button[aria-pressed=true] { color:var(--ink); }
 .whiteboard-toolbar .whiteboard-bar-button:focus-visible { outline:2px solid var(--mark-blue); outline-offset:1px; }
 .whiteboard-toolbar .whiteboard-bar-button[data-whiteboard-action=remove]:hover { color:var(--ink); }

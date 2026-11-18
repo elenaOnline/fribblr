@@ -557,13 +557,13 @@ export class WorkspaceBoard {
       crumb.onkeydown = null;
       crumb.removeAttribute("role");
       if (parent) {
-        crumb.textContent = "← Parent";
+        crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parent"}));
         crumb.href = `/boards/${encodeURIComponent(parent.id)}/`;
         crumb.setAttribute("aria-label", "Return to parent board " + parent.title);
         crumb.title = "Return to " + parent.title +
           (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : "");
       } else if (parents.length > 1) {
-        crumb.textContent = "← Parents";
+        crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parents"}));
         crumb.href = "#parents";
         crumb.setAttribute("role", "button");
         crumb.setAttribute("aria-label", "Choose a parent board");

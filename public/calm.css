@@ -24,9 +24,9 @@ body { font-family: var(--type-sans); }
 :is(#canvas-header, #reader-header) .board-name {
   flex: 1 1 auto; min-width: 0; margin: 0 0 0 4px; padding: 0 4px; order: 0; flex-basis: auto;
   font: 400 var(--type-board)/1.2 var(--type-serif); letter-spacing: 0; color: var(--ink);
-  /* a long name takes a second line rather than being cut */
-  white-space: normal; overflow: hidden; overflow-wrap: anywhere; text-overflow: clip;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  /* one line in the bar: a long name ends in an ellipsis at a word's edge, never breaks mid-word; the whole name is
+     the element's title (canvas.js) */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 :is(#canvas-header, #reader-header) .chrome-actions { display: flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
 :is(#canvas-header, #reader-header) .chrome-history { display: inline-flex; gap: 2px; }
@@ -427,7 +427,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 7
 /* Reader chrome joins the same family: toggles on show the green wash. */
 body .reader-header { background: var(--surface-frame); border-color: var(--line-hair); }
 body .reader-header .item-star { border-color: transparent; color: var(--ink-2); border-radius: var(--shape-key); }
-body .reader-header .item-star:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
+body .reader-header .item-star:hover { color: var(--ink); }  /* its face is the raised key's (depth.css) */
 body .reader-header .item-star[aria-pressed="true"] { color: var(--mark-red); }
 body .reader-header .notes-toggle[aria-expanded="true"] { background: var(--surface-chosen); color: var(--mark-blue); border-color: transparent; }
 /* A docked Navigator makes room for the floating view controls too. */
@@ -622,3 +622,6 @@ body:is(.workspace-box-fit, .workspace-box-zoom) #workspace-marquee { border-sty
 @container tinka-card (min-width: 180px) {
   #world .workspace-card:not(.workspace-place-only):not(.workspace-icon):has(> .workspace-tile-toolbar) .workspace-preview-launch span { display: none; }
 }
+
+/* Phone width: the parent crumb is its arrow alone, so the board's name gets the room. Its aria-label and title keep the words. */
+@media (max-width: 480px) { #canvas-header .workspace-parent .workspace-parent-label { display: none; } }
