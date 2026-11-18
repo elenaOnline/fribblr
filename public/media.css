@@ -1,4 +1,5 @@
-:root { --paper:#f7f5ef; --ink:#2f352d; --muted:#6f786b; --line:#d5dacd; --accent:#597143; --scale:1; color-scheme:light; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+/* colours come from tokens.css, loaded after this file */
+:root { --scale:1; --code:var(--surface-frame); font-family:var(--type-sans); }
 :root[data-theme="night"] { --paper:#202621; --ink:#eeefe8; --muted:#b1bbae; --line:#455245; --accent:#c1d5a7; color-scheme:dark; }
 * { box-sizing:border-box; }
 html,body { width:100%; height:100%; margin:0; }
@@ -15,7 +16,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--accent); outline-
 .image-stage img { display:block; max-width:100%; max-height:calc(100vh - 125px); object-fit:contain; box-shadow:0 13px 35px #17231520; }
 .video-stage video { display:block; width:min(100%,1100px); max-height:calc(100vh - 125px); background:#111; }
 .pdf-frame,.app-frame { display:block; width:100%; height:100%; border:0; background:var(--paper); }
-.markdown { width:min(100% - 56px,740px); margin:0 auto; padding:clamp(38px,8vh,85px) 0 120px; color:var(--ink); font:calc(19px * var(--scale))/1.7 Georgia,"Times New Roman",serif; overflow-wrap:anywhere; }
+.markdown { width:min(100% - 56px,740px); margin:0 auto; padding:clamp(38px,8vh,85px) 0 120px; color:var(--ink); font:calc(19px * var(--scale))/1.7 var(--type-serif); overflow-wrap:anywhere; }
 .markdown h1,.markdown h2,.markdown h3,.markdown h4 { color:var(--ink); font-weight:400; line-height:1.2; letter-spacing:-.03em; }
 .markdown h1 { font-size:2.25em; margin:0 0 .8em; }
 .markdown h2 { font-size:1.55em; margin:1.9em 0 .65em; padding-top:.5em; border-top:1px solid var(--line); }
@@ -75,7 +76,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--accent); outline-
 /* Board document tiles (card and panel): the reader's paper page in both appearances, filling
    the tile edge to edge, readable at 100% and fading out at the bottom when the document runs
    longer than the tile. In a dark board it reads as a paper page sitting in the dark card. */
-:root:is([data-document-mode="card"],[data-document-mode="panel"]) { --paper:#f7f5ef; --ink:#2f352d; --muted:#6f786b; --line:#d5dacd; --accent:#597143; --code:#ecebe3; color-scheme:light; }
+:root:is([data-document-mode="card"],[data-document-mode="panel"]) { color-scheme:light; }
 :root:is([data-document-mode="card"],[data-document-mode="panel"]) #media-content { position:relative; overflow:hidden; }
 :root:is([data-document-mode="card"],[data-document-mode="panel"])[data-document-overflow] #media-content::after { content:""; position:fixed; inset:auto 0 0; height:clamp(28px,22%,64px); background:linear-gradient(color-mix(in srgb,var(--paper) 0%,transparent),var(--paper) 88%); pointer-events:none; }
 :root:is([data-document-mode="card"],[data-document-mode="panel"]) .markdown { width:auto; margin:0; padding:14px 16px 24px; font:400 14.5px/1.55 Georgia,"Times New Roman",serif; letter-spacing:0; }

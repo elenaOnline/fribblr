@@ -1,1 +1,9 @@
-/* System fonts keep the workspace independent of external services. */
+/* IBM Plex, shipped with the app (fonts/, SIL Open Font License 1.1 in fonts/OFL.txt). No network fonts.
+   Loaded by tokens.css; the voices are --type-sans, --type-serif and --type-mono. */
+@font-face { font-family: "IBM Plex Sans"; src: url("/app/fonts/IBMPlexSans-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; src: url("/app/fonts/IBMPlexSans-Medium.woff2") format("woff2"); font-weight: 500 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Serif"; src: url("/app/fonts/IBMPlexSerif-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Serif"; src: url("/app/fonts/IBMPlexSerif-Medium.woff2") format("woff2"); font-weight: 500 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Serif"; src: url("/app/fonts/IBMPlexSerif-Italic.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/app/fonts/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/app/fonts/IBMPlexMono-Medium.woff2") format("woff2"); font-weight: 500 700; font-style: normal; font-display: swap; }

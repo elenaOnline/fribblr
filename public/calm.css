@@ -210,16 +210,8 @@ body .workspace-add-menu button:hover, body .workspace-add-menu button:focus-vis
 body .workspace-add-menu button > span { width: 18px; color: var(--ink-3); text-align: center; }
 
 /* ---------- Tiles are calm objects ---------- */
-#world .workspace-card {
-  border-color: transparent; border-radius: var(--r-lg); box-shadow: var(--e1);
-  background-color: var(--item-paper, var(--surface-1));
-  transition: box-shadow .16s var(--ease);
-}
-#world .workspace-card:hover { box-shadow: var(--e2); }
-#world .workspace-card.selected, #world .workspace-card.inspected { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
-#world .workspace-card.inspected:not(.selected) { outline-style: dashed; }
-#world .workspace-card.workspace-dragging, #world .workspace-card[data-dragging] { box-shadow: var(--e3); }
-#world .workspace-card-preview { background-color: var(--surface-sunken); }
+/* A tile's height, rim, side, selection line and lift are the slab in depth.css. */
+#world .workspace-card-preview { background-color: var(--surface-paper); }
 #world .workspace-compact .workspace-card-preview { border-top: 0; }
 #world .workspace-panel { border-radius: var(--r-lg); }
 
@@ -281,7 +273,7 @@ html[data-appearance="dark"] #world .workspace-tile-toolbar { --ink: #ecece5; }
 
 /* Captions: title and state badges; quiet resize lane. */
 #world .workspace-item-footer.workspace-panel-caption { gap: 6px; padding: 0 0 0 12px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); background: var(--item-paper, var(--surface-1)); color: var(--ink); }
-#world .workspace-item-footer.workspace-panel-caption .workspace-panel-title { padding: 0; font: 600 var(--t-md)/40px var(--font-ui); color: var(--ink); }
+#world .workspace-item-footer.workspace-panel-caption .workspace-panel-title { padding: 0; font: 500 var(--type-ui)/40px var(--type-sans); color: var(--ink); }
 #world .workspace-compact .workspace-item-footer.workspace-panel-caption, #world .workspace-icon .workspace-item-footer.workspace-panel-caption { flex: 0 0 30px; height: 30px; min-height: 30px; max-height: 30px; border-top: 0; }
 #world .workspace-item-footer .workspace-item-spacer { flex: 1; }
 #world .workspace-badges { display: inline-flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font: 500 var(--t-xs)/1 var(--font-ui); }
@@ -298,7 +290,7 @@ html[data-appearance="dark"] #world .workspace-tile-toolbar { --ink: #ecece5; }
 #world .workspace-panel-title + .workspace-badges, #world .workspace-place-meta + .workspace-badges, #world .workspace-feature-caption + .workspace-badges { margin-left: auto; }
 
 /* Compact cards: title first, readable at rest. */
-#world .workspace-compact .workspace-card-copy h3 { font: 600 16px/1.3 var(--font-ui); }
+#world .workspace-compact .workspace-card-copy h3 { font: 500 16px/1.3 var(--type-sans); }
 #world .workspace-compact .workspace-compact-meta { color: var(--muted); }
 #world .workspace-icon-entry strong { font: 600 var(--t-lg)/1.25 var(--font-ui); }
 
@@ -307,21 +299,9 @@ html[data-appearance="dark"] #world .workspace-tile-toolbar { --ink: #ecece5; }
 #world .workspace-preview-launch span { padding: 7px 11px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); box-shadow: var(--e3); font: 600 var(--t-sm)/1 var(--font-ui); }
 
 /* ---------- Board-tiles are places ---------- */
-#world .workspace-board-tile {
-  box-shadow: var(--e1),
-    0 7px 0 -3px var(--surface-1), 0 7px 0 -2px color-mix(in srgb, var(--ink) 9%, transparent),
-    0 13px 0 -7px color-mix(in srgb, var(--surface-1) 88%, var(--bg-canvas)), 0 13px 0 -6px color-mix(in srgb, var(--ink) 7%, transparent),
-    0 16px 14px -10px rgba(0, 0, 0, .12);
-}
-#world .workspace-board-tile:hover { box-shadow: var(--e2),
-    0 7px 0 -3px var(--surface-1), 0 7px 0 -2px color-mix(in srgb, var(--ink) 10%, transparent),
-    0 13px 0 -7px color-mix(in srgb, var(--surface-1) 88%, var(--bg-canvas)), 0 13px 0 -6px color-mix(in srgb, var(--ink) 8%, transparent),
-    0 18px 16px -10px rgba(0, 0, 0, .14); }
-#world .workspace-board-tile .workspace-card-preview {
-  margin: 6px 6px 0; border-radius: var(--r-md); overflow: hidden;
-  background-color: var(--surface-sunken); background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.2px); background-size: 11px 11px;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .08);
-}
+/* A board-tile is a slab on the board's side (depth.css, data-family="board"). */
+/* its cover is a window sunk into the face onto its own ground (depth.css, sunken) */
+#world .workspace-board-tile .workspace-card-preview { margin: 6px 6px 0; border-radius: var(--shape-preview); overflow: hidden; background-image: none; }
 #world .workspace-board-tile .workspace-card-copy h3, #world .workspace-board-tile .workspace-card-copy h3 button,
 #world .workspace-board-tile .workspace-panel-title, #world .workspace-board-tile .workspace-icon-entry strong {
   font-family: var(--font-display); font-weight: 500; letter-spacing: -.01em;
@@ -335,7 +315,7 @@ html[data-appearance="dark"] #world .workspace-tile-toolbar { --ink: #ecece5; }
 #world .workspace-place-only:hover .workspace-preview-launch span, #world .workspace-place-only.selected .workspace-preview-launch span { opacity: 1; }
 
 /* Navigator reveal and moving into a board keep the one green. */
-#world .workspace-card.navigator-revealed { outline: 3px solid var(--accent-ring) !important; outline-offset: 4px; box-shadow: var(--e2), 0 0 0 9px var(--accent-soft) !important; }
+#world .workspace-card.navigator-revealed { outline: 3px solid var(--accent-ring) !important; outline-offset: var(--select-out, 4px); }
 
 /* ---------- Selection bar: one floating pill ---------- */
 #workspace-selection.workspace-selection {
@@ -526,8 +506,7 @@ body.navigator-docked .canvas-footer { left: var(--navigator-dock-width, 340px);
 
 /* Tonal host surfaces own the work without tracing a decorative rectangle.
    Insets belong to Tinka's wrappers, never to authored frames or image DOM. */
-#world .concept-card, #world .workspace-card { background-color:var(--item-paper,var(--tile-surface)); border:0; box-shadow:var(--tile-shadow); }
-#world .concept-card:hover, #world .workspace-card:hover { box-shadow:var(--tile-shadow); }
+#world .concept-card, #world .workspace-card { background-color:var(--item-paper,var(--tile-surface)); border:0; }
 #world .concept-card { padding:14px; }
 #world .concept-card .card-label { min-height:36px; gap:12px; margin:0 0 12px; }
 #world .concept-card .card-title { min-width:0; gap:10px; align-items:center; }

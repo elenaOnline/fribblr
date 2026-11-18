@@ -1,0 +1,136 @@
+/* fribblr depth: one light, named heights, drawn once. Values are tokens (tokens.css, "depth").
+
+   The light is above and slightly in front, so only a thing's lower side shows and shadows fall straight down.
+   Heights:  sunken -1  flush 0  raised 1  slab 2  float 3   (footprint: a slab not built yet, no height at all)
+
+   A thing declares its height by joining that height's rule below: add its selector to the list, or give new markup
+   data-height="slab|raised|sunken". It never writes its own height box-shadow.
+   A thing declares its side colour with --side / --side-edge. data-family sets them from the kind tokens, so a card
+   with data-family="doc" stands on a violet side. Keys take --key-side from where they stand.
+   States change inputs, never the recipe, and only under her pointer:
+     hover   --rim: the rim darkens; nothing rises (a dense board is crossed by the pointer all the time)
+     press   a key drops onto its side (raised only)
+     select  a blue line on the ground around the whole slab, side included; the slab does not move
+     drag    --lift: the side lengthens by the lift and the face rises by it, so the side still ends where it stood
+             and the cast shadow lengthens
+   Inputs a future idea uses (all present, all no-ops by default):
+     --under / --under-d  layers drawn beneath the slab's side, and how much extra height they add to the cast
+                          (stacked sheets for a board: one sheet = a paper rim and a side, a step lower)
+     --depth-lift         one token: a deeper lift; a footprint left behind is data-height="footprint" on a ghost
+     --sink-d / --sink-floor  how deep a sunken thing is cut and the colour of its floor
+                          (a drop well: a board tile under a held card goes sunken; trays: regions join sunken,
+                          a nested tray sets a deeper --sink-d) */
+
+/* ---------- zoom: lengths on the board are world pixels; these keep the strength on screen when zoomed out ----------
+   --px is one screen pixel in world units. canvas.js writes --canvas-zoom on #viewport. */
+/* --lift is registered so it never leaks into a nested slab and so the rise can ease */
+@property --lift { syntax: '<length>'; inherits: false; initial-value: 0px; }
+:root, #viewport {
+  --px: calc(1px / var(--canvas-zoom, 1));
+  --hair: max(1px, calc(var(--depth-hair-min) * var(--px)));
+  --side-slab: max(var(--depth-slab), calc(var(--depth-slab-min) * var(--px)));
+  --side-lift: max(var(--depth-lift), calc(var(--depth-lift-min) * var(--px)));
+  --select-line: max(var(--select-width), calc(2 * var(--px)));
+  --select-out: calc(var(--side-slab) + max(var(--select-gap), calc(2 * var(--px))));
+}
+
+/* ---------- shape: every corner is a squircle; a circle that is itself the mark opts out ---------- */
+:where(*), ::before, ::after { corner-shape: squircle; }
+:where(.comment-pin, .comment-pin-badge, .workspace-select-dot, .home-select-dot, .ct-avatar, .live i, .note-dot,
+  .workspace-note-dot, .tile-note-dot, .experiment-dot, input[type="radio"], [data-shape="round"]),
+.ct-state::before, #live-status::before, .experiment-dot::after { corner-shape: round; }
+
+/* ---------- kind: a thing's side colour comes from its family ---------- */
+[data-family] { --side: var(--kind-plain-side); --side-edge: var(--kind-plain-edge); --side-text: var(--kind-plain-text); }
+[data-family="page"] { --side: var(--kind-page-side); --side-edge: var(--kind-page-edge); --side-text: var(--kind-page-text); }
+[data-family="doc"] { --side: var(--kind-doc-side); --side-edge: var(--kind-doc-edge); --side-text: var(--kind-doc-text); }
+[data-family="pic"] { --side: var(--kind-pic-side); --side-edge: var(--kind-pic-edge); --side-text: var(--kind-pic-text); }
+[data-family="board"] { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); --side-text: var(--kind-board-text); }
+
+/* ================= slab (2): what you can pick up =================
+   A white face with a 1 px rim, standing on a lower side of its kind's colour. The side is the face's own outline
+   moved down (a box-shadow follows corner-shape), so its corner runs parallel to the face's squircle; a contour one
+   step darker edges it; then a cast shadow whose length follows the height.
+   Members still to join (their old height rules must go first): Home's .board-card .board-link (home.css),
+   the reader's #reader-window (reader.css). */
+#world .workspace-card, #world .concept-card, [data-height="slab"] {
+  --rim: var(--ground-rim);
+  --side-d: calc(var(--side-slab) + var(--lift));
+  --cast-d: calc(var(--side-d) + var(--under-d, 0px));
+  border: 0;
+  border-radius: var(--shape-slab);
+  background-color: var(--item-paper, var(--surface-paper));
+  box-shadow:
+    0 0 0 var(--hair) var(--rim),
+    0 var(--side-d) 0 0 var(--side, var(--kind-plain-side)),
+    0 var(--side-d) 0 var(--hair) var(--side-edge, var(--kind-plain-edge)),
+    var(--under, 0 0 #0000),
+    0 calc(var(--cast-d) * 2) calc(var(--cast-d) * 2.4) calc(var(--cast-d) * -1.6) rgba(var(--ground-cast), var(--ground-cast-alpha));
+  translate: 0 calc(-1 * var(--lift));
+  transition: --lift .14s var(--ease);
+}
+/* hover: the rim darkens */
+#world .workspace-card:hover, #world .concept-card:hover, [data-height="slab"]:hover { --rim: var(--line-edge); }
+/* select: a blue line drawn on the ground around the whole slab, side included */
+#world .workspace-card.selected, #world .workspace-card.inspected, [data-height="slab"][aria-selected="true"] {
+  outline: var(--select-line) solid var(--mark-blue);
+  outline-offset: calc(var(--select-out) + var(--lift));
+}
+#world .workspace-card.inspected:not(.selected) { outline-style: dashed; }
+/* drag: while she holds it, the slab rises */
+#world .workspace-card.workspace-dragging, #world .workspace-card[data-dragging], [data-height="slab"][data-lifted] {
+  --lift: var(--side-lift);
+  z-index: 9999 !important;     /* held above everything standing on the ground; beats the placement's inline z */
+}
+/* a slab she can drop into, while she holds one over it: blue rim, dashed blue line */
+#world .workspace-card.workspace-drop-target {
+  --rim: var(--mark-blue);
+  outline: var(--select-line) dashed var(--mark-blue);
+  outline-offset: var(--select-out);
+}
+
+/* ---------- slab, in miniature: the cards inside a board's cover, standing on that board's own ground ---------- */
+.board-collage.board-miniature, .board-collage { background: transparent; }
+:where(.board-collage .workspace-cover-tile) { --side: var(--kind-plain-side); --side-edge: var(--kind-plain-edge); }  /* not the cover's own family */
+.board-collage .workspace-cover-tile, .board-miniature .workspace-cover-tile.mini-tile {
+  border: 0; border-radius: 4px; background-color: var(--mini-paper, var(--surface-paper));
+  box-shadow: 0 0 0 .5px var(--ground-rim), 0 1.5px 0 0 var(--side, var(--kind-plain-side)), 0 1.5px 0 .5px var(--side-edge, var(--kind-plain-edge));
+}
+.board-miniature .mini-tile.mini-board { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); }
+.board-miniature .mini-tile.mini-pending { box-shadow: inset 0 0 0 .5px var(--ink-2); }
+
+/* ================= footprint: a slab not built yet has no height, only a dashed outline ================= */
+#world .workspace-card:is([data-build-state="building"], [data-build-state="reserved"]), [data-height="footprint"] {
+  box-shadow: none;
+  outline: max(1.5px, calc(1.5 * var(--px))) dashed var(--ink-2);
+  outline-offset: -1px;
+  background-color: color-mix(in srgb, var(--surface-paper) 50%, transparent);
+}
+
+/* ================= raised (1): what you can press =================
+   A key draws its side inside its own box (a lower lip), because header keys carry a transparent hit border that an
+   outside side would float beyond. Members join here as the controls are translated. */
+[data-height="raised"] {
+  --rim: var(--line-seam);
+  --key-d: var(--depth-raised);
+  box-shadow: inset 0 calc(-1 * var(--key-d)) 0 var(--key-side-here, var(--key-side)), inset 0 0 0 1px var(--rim);
+}
+[data-height="raised"]:hover { --rim: var(--line-edge); --key-side-here: var(--line-edge); }
+[data-height="raised"]:active:not(:disabled) { --key-d: 0px; translate: 0 1px; }
+[data-height="raised"]:is([aria-pressed="true"], [aria-expanded="true"]) {
+  --rim: var(--mark-blue); --key-d: 1px; --key-side-here: var(--mark-blue); background-color: var(--surface-chosen);
+}
+/* a key standing on the ground rather than on the frame: its container sets --key-side: var(--ground-key-side) */
+
+/* ================= sunken (-1): where you type, and windows cut into a face ================= */
+[data-height="sunken"], #world .workspace-board-tile .workspace-card-preview {
+  --rim: var(--line-seam);
+  --sink-d: var(--depth-sunk);
+  box-shadow: inset 0 0 0 var(--hair) var(--rim), inset 0 var(--sink-d) calc(var(--sink-d) - 1px) rgba(var(--ground-cast), .12);
+  background-color: var(--sink-floor, var(--surface-paper));
+}
+/* a board's cover: its own ground, seen through the face */
+#world .workspace-board-tile .workspace-card-preview { --rim: var(--ground-rim); --sink-d: 2px; --sink-floor: var(--ground-well); }
+
+/* ================= flush (0): the ground (--bg-canvas on #viewport, calm.css), chrome bars and side panels,
+   text and regions drawn on the board. No side, no shadow; separated by --e-chrome or a seam. ================= */

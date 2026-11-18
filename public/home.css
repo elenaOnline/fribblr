@@ -1,4 +1,3 @@
-@import url('/app/fonts.css');
 /* Home: calm objects, one green. Tokens and the control family live in
    tokens.css, which loads after this file. Rules that must beat the shared
    appearance/workspace layers carry an html[data-appearance] or .board-card scope. */
