@@ -24,7 +24,9 @@ body { font-family: var(--type-sans); }
 :is(#canvas-header, #reader-header) .board-name {
   flex: 1 1 auto; min-width: 0; margin: 0 0 0 4px; padding: 0 4px; order: 0; flex-basis: auto;
   font: 400 var(--type-board)/1.2 var(--type-serif); letter-spacing: 0; color: var(--ink);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* a long name takes a second line rather than being cut */
+  white-space: normal; overflow: hidden; overflow-wrap: anywhere; text-overflow: clip;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
 }
 :is(#canvas-header, #reader-header) .chrome-actions { display: flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
 :is(#canvas-header, #reader-header) .chrome-history { display: inline-flex; gap: 2px; }
@@ -64,17 +66,18 @@ body .canvas-footer > * { pointer-events: auto; }
 body .canvas-footer .status-line {
   align-self: center; flex: 0 1 auto; min-width: 0; height: 28px; padding: 0 10px; gap: 12px;
   border-radius: var(--shape-bar); background: transparent;
-  box-shadow: none; color: var(--ink-2); font: 400 11.5px/1.3 var(--type-mono);
+  box-shadow: none; color: var(--ink-2); font: 400 var(--type-meta)/1.3 var(--type-sans);  /* words, not numbers: sans */
   container-type: normal; overflow: hidden; white-space: nowrap;
 }
 body .canvas-footer .status-line > * { flex: none; }
+body .canvas-footer #live-status { color: var(--ink-2); font-weight: 400; }  /* live is a state, not a choice: no blue */
 body .canvas-footer #live-status::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--ink-2); vertical-align: 1px; }
 body .canvas-footer #live-status:empty { display: none; }
 body .canvas-footer #live-status[data-connection]:not([data-connection="live"])::before { background: var(--ink); }
 body.workspace-board .canvas-footer #round-status { display: none; }
 body .canvas-footer #save-status[data-state="saved"] { color: var(--ink-2); }
 body .canvas-footer .status-line:empty { display: none; }
-body .canvas-footer #live-refresh { height: 22px; min-height: 0; padding: 0 8px; border: 0; border-radius: var(--shape-cell); background: var(--mark-blue); color: var(--ink-on-mark); font: 600 var(--t-xs)/1 var(--type-sans); }
+body .canvas-footer #live-refresh { height: 22px; min-height: 0; padding: 0 8px; border: 0; border-radius: var(--shape-cell); background: var(--mark-blue); color: var(--ink-on-mark); font: 400 var(--t-xs)/1 var(--type-sans); }
 body :is(.canvas-footer, .reader-footer) .zoom-pill {
   display: flex; align-items: center; gap: 2px; padding: 4px; flex: none;
   background: var(--surface-frame); border-radius: var(--shape-bar);  padding: 5px; gap: 5px;
@@ -138,13 +141,10 @@ body .canvas-footer .zoom-slider-row input[type=range] { flex: 1; width: auto; m
 #board-info .inspector-edit-row .workspace-history-actions, #board-info .inspector-edit-row .workspace-clipboard-actions { display: contents; }
 /* the Edit row is four keys in a narrow panel: their shortcuts are the universal ones (the title says them), so no printed caps */
 #board-info .inspector-edit-row .keycap-printed { display: none; }
-#board-info .inspector-sec .tk-btn.tk-tonal { background: var(--hover); }
-#board-info .inspector-sec .tk-btn.tk-tonal:hover:enabled { background: var(--line-hair); }
-#board-info .inspector-sec .tk-btn.tk-tonal:disabled { background: var(--hover); }
+/* the inspector's keys are raised (depth.css) */
 #board-info .inspector-sec .tk-btn[aria-pressed="true"] { background: var(--surface-chosen); color: var(--mark-blue); }
-#board-info .board-info-body .inspector-row-btn { display: flex; justify-content: flex-start; align-items: center; width: 100%; height: 36px; margin: 0; padding: 0 12px; border-radius: var(--shape-key); background: var(--hover); color: var(--ink); text-align: left; font-weight: 500; }
-#board-info .board-info-body .inspector-row-btn:hover { background: var(--line-hair); }
-#board-info .board-info-body .inspector-row-btn[aria-expanded="true"] { background: var(--surface-chosen); color: var(--mark-blue); }
+#board-info .board-info-body .inspector-row-btn { display: flex; justify-content: flex-start; align-items: center; width: 100%; height: 36px; margin: 0; padding: 0 12px; border-radius: var(--shape-key); color: var(--ink); text-align: left; font-weight: 500; }
+#board-info .board-info-body .inspector-row-btn[aria-expanded="true"] { color: var(--ink); }
 #board-info .appearance-control { display: flex; width: 100%; margin: 0; }
 #board-info .board-help { margin: 0; }
 #board-info .board-help summary { cursor: pointer; min-height: var(--control-h-sm); color: var(--ink-2); font-weight: 500; padding: 4px 0; }
@@ -213,7 +213,7 @@ body .workspace-add-menu button > span { width: 18px; color: var(--ink-2); text-
 
 /* ---------- Tiles are calm objects ---------- */
 /* A tile's height, rim, side, selection line and lift are the slab in depth.css. */
-#world .workspace-card-preview { background-color: var(--surface-paper); }
+:where(#world .workspace-card-preview) { background-color: var(--surface-paper); }  /* zero weight: a board cover sinks (depth.css) */
 #world .workspace-compact .workspace-card-preview { border-top: 0; }
 #world .workspace-panel { border-radius: var(--shape-slab); }
 
@@ -402,6 +402,12 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill :is(button, .tk-btn) {
 :is(#canvas-header, #reader-header) :is(.tk-btn.tk-icon, .project-navigator-toggle), body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-icon { width: 44px; padding: 0; }
 :is(#canvas-header, #reader-header) .brand { padding: 0 4px; }
 :is(#canvas-header, #reader-header) .workspace-parent { padding: 0 4px; }
+/* the focus ring follows the visible key, not its transparent hit border */
+:is(#canvas-header, #reader-header) :is(.tk-btn, .brand, .workspace-parent, .project-navigator-toggle):focus-visible,
+body :is(.canvas-footer, .reader-footer) .zoom-pill :is(button, .tk-btn):focus-visible { outline-offset: -4px; }
+/* the divider after ← Parent stands outside the key, so the ring never takes it in */
+:is(#canvas-header, #reader-header) .workspace-parent { position: relative; margin-right: 10px; }
+:is(#canvas-header, #reader-header) .workspace-parent::after { position: absolute; right: -11px; top: 50%; margin: -8px 0 0; }
 :is(#canvas-header, #reader-header) .chrome-add { padding: 0 8px 0 6px; margin-left: 0; }
 :is(#canvas-header, #reader-header) .chrome-search { padding: 0 8px; }
 :is(#canvas-header, #reader-header) { gap: 0; padding: 4px 6px; }
@@ -420,7 +426,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 7
 
 /* Reader chrome joins the same family: toggles on show the green wash. */
 body .reader-header { background: var(--surface-frame); border-color: var(--line-hair); }
-body .reader-header .item-star { background: transparent; border-color: transparent; color: var(--ink-2); border-radius: var(--shape-key); }
+body .reader-header .item-star { border-color: transparent; color: var(--ink-2); border-radius: var(--shape-key); }
 body .reader-header .item-star:hover { background: var(--hover); color: var(--ink); }
 body .reader-header .item-star[aria-pressed="true"] { color: var(--mark-red); }
 body .reader-header .notes-toggle[aria-expanded="true"] { background: var(--surface-chosen); color: var(--mark-blue); border-color: transparent; }
@@ -574,7 +580,7 @@ body[data-board-layout="grid"] #world .workspace-card { position:relative; }
 body :is(.canvas-footer, .reader-footer) .zoom-pill .fit[data-target="selection"] { background: var(--surface-chosen); color: var(--mark-blue); }
 .fit .fit-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0; background: transparent; color: var(--ink-2); font: 500 12px/1 var(--type-mono); font-variant-numeric: tabular-nums; }
 .fit .fit-count[hidden], body :is(.canvas-footer, .reader-footer) .zoom-pill .view-back[hidden], body :is(.canvas-footer, .reader-footer) .zoom-pill .board-map-toggle[hidden] { display: none; }
-body :is(.canvas-footer, .reader-footer) .zoom-pill .view-back { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; color: var(--mark-blue); background: var(--surface-chosen); background-clip: padding-box; }
+body :is(.canvas-footer, .reader-footer) .zoom-pill .view-back { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; color: var(--mark-blue); --key-face: var(--surface-chosen); --key-face-hover: var(--surface-chosen); background-clip: padding-box; }
 body :is(.canvas-footer, .reader-footer) .zoom-pill .view-back svg, body :is(.canvas-footer, .reader-footer) .zoom-pill .board-map-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 body :is(.canvas-footer, .reader-footer) .zoom-pill .board-map-toggle[aria-pressed="true"] { background: var(--surface-chosen); color: var(--mark-blue); }
 .board-map { position: fixed; right: 12px; bottom: 64px; z-index: 29; display: flex; flex-direction: column; padding: 6px; border-radius: var(--shape-float); background: var(--surface-frame); color: var(--ink);  animation: calm-map-in .14s var(--ease); }

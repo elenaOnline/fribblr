@@ -53,7 +53,9 @@
    moved down (a box-shadow follows corner-shape), so its corner runs parallel to the face's squircle; a contour one
    step darker edges it; then a cast shadow whose length follows the height.
    Members: cards on a board, boards on Home (the same slab as a child board), the item in the reader. */
-#world .workspace-card, #world .concept-card, .board-card .board-link, #reader-dialog #reader-window, [data-height="slab"] {
+:where(
+#world .workspace-card, #world .concept-card, .board-card .board-link, #reader-dialog #reader-window, [data-height="slab"]
+) {
   --rim: var(--ground-rim);
   --side-d: calc(var(--side-slab) + var(--lift));
   --cast-d: calc(var(--side-d) + var(--under-d, 0px));
@@ -65,7 +67,7 @@
     0 var(--side-d) 0 0 var(--side, var(--kind-plain-side)),
     0 calc(var(--side-d) + var(--side-edge-low)) 0 var(--hair) var(--side-edge, var(--kind-plain-edge)),
     var(--under, 0 0 #0000),
-    0 calc(var(--cast-d) * 2) calc(var(--cast-d) * 2.4) calc(var(--cast-d) * -1.6) rgba(var(--ground-cast), var(--ground-cast-alpha));
+    0 calc(var(--cast-d) * 2) calc(var(--cast-d) * 2.4) calc(var(--cast-d) * -1.6) rgb(from var(--ground-cast) r g b / var(--ground-cast-alpha));
   translate: 0 calc(-1 * var(--lift));
   transition: --lift .14s var(--ease);
 }
@@ -100,7 +102,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 /* ---------- slab, in miniature: the cards inside a board's cover, standing on that board's own ground ---------- */
 .board-collage.board-miniature, .board-collage { background: transparent; }
 :where(.board-collage .workspace-cover-tile) { --side: var(--kind-plain-side); --side-edge: var(--kind-plain-edge); }  /* not the cover's own family */
-.board-collage .workspace-cover-tile, .board-miniature .workspace-cover-tile.mini-tile {
+.board-collage .workspace-cover-tile, .board-miniature .workspace-cover-tile.mini-tile, .board-art .sheet {
   border: 0; border-radius: 4px; background-color: var(--mini-paper, var(--surface-paper));
   box-shadow: 0 0 0 .5px var(--ground-rim), 0 1.5px 0 0 var(--side, var(--kind-plain-side)), 0 1.5px 0 .5px var(--side-edge, var(--kind-plain-edge));
 }
@@ -108,7 +110,9 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 .board-miniature .mini-tile.mini-pending { box-shadow: inset 0 0 0 .5px var(--ink-2); }
 
 /* ================= footprint: a slab not built yet has no height, only a dashed outline ================= */
-#world .workspace-card:is([data-build-state="building"], [data-build-state="reserved"]), [data-height="footprint"] {
+:where(
+#world .workspace-card:is([data-build-state="building"], [data-build-state="reserved"]), [data-height="footprint"]
+) {
   box-shadow: none;
   outline: max(1.5px, calc(1.5 * var(--px))) dashed var(--ink-2);
   outline-offset: -1px;
@@ -122,6 +126,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
      --key-face (paper)  --key-side (the frame's #B4B4B4; on the ground, var(--ground-key-side))  --key-rim (seam)
      --key-face-hover, --key-side-hover, --key-rim-hover (default: same face, the edge grey)
    The primary key is .tk-primary-style inputs: blue face, --mark-blue-side side, --mark-blue-deep rim and hover face. */
+:where(
 [data-height="raised"], .ct-avatar, .comment-pin, .tk-kbd, #world .workspace-select-dot,
 .whiteboard-toolbar .whiteboard-bar-button[aria-pressed="true"]:not([data-whiteboard-action="color"]),
 :where(.workspace-toolbar button:not(.tk-seg > button, .workspace-segments > button), .workspace-dialog button:not(.workspace-close), .workspace-button, .item-content button,
@@ -129,7 +134,9 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 .masthead .tk-btn, body > main .tk-btn, .shelf .workspace-home-toolbar button,
 .empty-card .plus, #new-dialog .primary, .document-tools :is(button, select), .document-annotations button,
 :is(#canvas-header, #reader-header) .tk-btn:not(.chrome-search, .reader-down), :is(.canvas-footer, .reader-footer) .zoom-pill .tk-btn:not(.zoom-percent),
-.calm-side-head .tk-btn, .board-map-head .tk-btn, #board-info .inspector-row-btn, #board-info .inspector-sec .tk-btn.tk-tonal, #board-info > .info-actions button {
+.calm-side-head .tk-btn, .board-map-head .tk-btn, #board-info .inspector-row-btn, #board-info .inspector-sec .tk-btn.tk-tonal, #board-info > .info-actions button,
+.board-card .home-select-dot, .workspace-cover-count, .project-navigator .navigator-chip
+) {
   --key-d: var(--depth-raised);
   background-color: var(--key-face, var(--surface-paper));
   box-shadow: inset 0 calc(-1 * var(--key-d)) 0 var(--key-side), inset 0 0 0 1px var(--key-rim, var(--line-seam));
@@ -157,18 +164,20 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 /* ================= sunken (-1): where you type, and windows cut into a face =================
    Inputs: --sink-d (how deep), --sink-floor (paper for a field; a ground colour for a window or tray),
    --sink-rim (seam), --sink-focus (the underline while typing: blue; her red where she writes). */
+:where(
 [data-height="sunken"], #world .workspace-board-tile .workspace-card-preview, .board-card .board-art,
 .tk-field, .tk-seg, #new-dialog :is(input, textarea), :is(#canvas-header, #reader-header) .chrome-search,
 .ct-composer, .tile-notes textarea, #workspace-item-controls textarea, #board-info .workspace-search input,
 .feedback-composer textarea, .agent-dialog textarea, #reader-note, .note-box textarea, .whiteboard-color input,
 :where(.workspace-segments, .workspace-search input, .workspace-dialog :is(input:not([type="checkbox"]), textarea, select),
-  .workspace-review textarea, .workspace-context-note textarea, .workspace-panel-feedback textarea, .item-content textarea) {
+  .workspace-review textarea, .workspace-context-note textarea, .workspace-panel-feedback textarea, .item-content textarea)
+) {
   --sink-d: var(--depth-sunk);
   background-color: var(--sink-floor, var(--surface-paper));
-  box-shadow: inset 0 0 0 var(--hair) var(--sink-rim, var(--line-seam)), inset 0 var(--sink-d) calc(var(--sink-d) - 1px) rgba(var(--ground-cast), .12);
+  box-shadow: inset 0 0 0 var(--hair) var(--sink-rim, var(--line-seam)), inset 0 var(--sink-d) calc(var(--sink-d) - 1px) rgb(from var(--ground-cast) r g b / .12);
   &:is(input, textarea, select, [contenteditable]):focus, &:has(:is(input, textarea):focus) {
     outline: none;
-    box-shadow: inset 0 0 0 var(--hair) var(--sink-rim, var(--line-seam)), inset 0 var(--sink-d) calc(var(--sink-d) - 1px) rgba(var(--ground-cast), .12),
+    box-shadow: inset 0 0 0 var(--hair) var(--sink-rim, var(--line-seam)), inset 0 var(--sink-d) calc(var(--sink-d) - 1px) rgb(from var(--ground-cast) r g b / .12),
       inset 0 -2px 0 var(--sink-focus, var(--mark-blue));
   }
 }
@@ -179,6 +188,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
    Held above the desk, not standing on it: no side, a 1 px edge and a soft shadow straight down. The component sets
    its own face (frame grey for menus, bars, cards and dialogs; ink for a toast). Inputs: --float-rim (edge grey),
    --float-cast (--cast-float; a dialog, a sheet or a docked panel sets --cast-dialog). */
+:where(
 [data-height="float"],
 .tk-menu, .tk-date-tip, .workspace-add-menu, .workspace-tile-menu, .workspace-tile-toolbar, .workspace-selection,
 .home-selection-bar, .workspace-toast, .board-map, .edit-tools, .workspace-drop-hint, .workspace-child-drag,
@@ -186,14 +196,16 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 :is(.canvas-footer, .reader-footer) .zoom-pill, .appearance-pop, .project-navigator, .reader-path-pop, #reader-update,
 .ct-card, .cref-picker, .tile-notes, .feedback-panel, .feedback-ballot, .feedback-settings,
 .whiteboard-toolbar, .whiteboard-menu, .whiteboard-draft-state, .whiteboard-connect-hint, .preview-launch span,
-.document-selection-tools, .document-annotations, .doc-editing-link,
-dialog, .workspace-dialog, .agent-dialog {
+.document-selection-tools, .document-annotations, .doc-editing-link, #reader-info .reader-info-status,
+body .canvas-footer .status-line > .update-chip, dialog, .workspace-dialog, .agent-dialog
+) {
   box-shadow: 0 0 0 1px var(--float-rim, var(--line-edge)), var(--float-cast, var(--cast-float));
 }
 dialog, .workspace-dialog, .agent-dialog, .project-navigator, .ct-card.ct-sheet { --float-cast: var(--cast-dialog); }
 
 /* the selection corner of a selected card: a blue raised dot (its circle is the mark) */
-#world .workspace-select-dot[aria-pressed="true"], #world .workspace-card.selected .workspace-select-dot {
+#world .workspace-select-dot[aria-pressed="true"], #world .workspace-card.selected .workspace-select-dot,
+.board-card.workspace-home-selected .home-select-dot, .board-card .home-select-dot[aria-pressed="true"] {
   background-color: var(--mark-blue); color: var(--ink-on-mark);
   box-shadow: 0 0 0 2px var(--surface-paper), 0 2px 0 2px var(--mark-blue-side);
 }

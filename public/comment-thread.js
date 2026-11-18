@@ -222,7 +222,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
         <span class="ct-on">${on}</span></header>
       <div class="ct-scroll">${target.gone ? '<p class="ct-detached">The thing this was pinned to is gone. The pin stays where it was.</p>' : ""}${activity}${messages.map(m => messageHTML(m, !!m.root)).join("")}${decide}</div>
       <footer class="ct-foot"><div class="ct-composer" contenteditable="true" role="textbox" aria-multiline="true" aria-label="${isNew ? "Comment" : "Reply"}" data-placeholder="${isNew ? "Comment… type @ to reference" : addressedMine ? "Reply… goes back to the agent" : "Reply… @ to reference"}"></div>
-        <div class="ct-row"><span class="ct-hint ct-keys">${MOD}↵ to post</span><span class="ct-status" role="status"></span>${forAgent}<button type="button" class="tk-btn tk-sm tk-primary" data-act="post">${isNew ? "Comment" : "Reply"}</button></div></footer>`;
+        <div class="ct-row"><span class="ct-hint ct-keys"><kbd class="tk-kbd" aria-hidden="true">${MOD}↩</kbd> to post</span><span class="ct-status" role="status"></span>${forAgent}<button type="button" class="tk-btn tk-sm tk-primary" data-act="post">${isNew ? "Comment" : "Reply"}</button></div></footer>`;
     // bodies and chips (DOM, never HTML from the server)
     for (const m of messages) {
       const body = card.querySelector(`[data-body="${CSS.escape(m.id)}"]`);

@@ -34,13 +34,23 @@
   color-scheme: light;
 
   /* ---------- ground: what everything stands on (swapped by data-ground) ---------- */
-  --ground: #DAE5EC;            /* the desk: board, reader stage, Home */
-  --ground-deep: #C5D3DC;       /* a step down into the desk */
-  --ground-well: #DAE5EC;       /* a window sunk into a face onto a board's desk: board covers */
-  --ground-pattern: #6E8798;    /* the board's Dots and Grid */
-  --ground-rim: #BDC6CB;        /* the 1 px rim of a slab standing on the ground */
-  --ground-key-side: #A9B5BD;   /* the lower side of a white key standing on the ground */
-  --ground-cast: 30, 52, 66;    /* rgb of a cast shadow on the ground (the desk's hue, darker) */
+  /* the desk family: one colour, and every piece cut from it (OKLCH steps from the desk, in its hue).
+     A new desk colour is this one edit. */
+  --desk: #DAE5EC;              /* Modus's well: L .916, C .015, hue 235 */
+  --desk-deep: oklch(from var(--desk) calc(l - .057) calc(c * 1.30) h);      /* #C5D3DC */
+  --desk-pattern: oklch(from var(--desk) calc(l - .306) calc(c * 2.54) h);   /* #6E8798 */
+  --desk-rim: oklch(from var(--desk) calc(l - .095) calc(c * .80) h);        /* #BDC6CB */
+  --desk-key-side: oklch(from var(--desk) calc(l - .149) calc(c * 1.16) h);  /* #A9B5BD */
+  --desk-cast: oklch(from var(--desk) calc(l - .602) calc(c * 2.47) h);      /* #1E3442 */
+
+  /* ---------- ground: what everything stands on (the desk, or white: data-ground) ---------- */
+  --ground: var(--desk);        /* the board, reader stage, Home */
+  --ground-deep: var(--desk-deep);   /* a step down into the ground */
+  --ground-well: var(--desk);   /* a window sunk into a face onto a board's ground: board covers */
+  --ground-pattern: var(--desk-pattern);   /* the board's Dots and Grid */
+  --ground-rim: var(--desk-rim);     /* the 1 px rim of a slab standing on the ground */
+  --ground-key-side: var(--desk-key-side);  /* the lower side of a white key standing on the ground */
+  --ground-cast: var(--desk-cast);   /* the colour of a cast shadow on the ground; used as rgb(from var(--ground-cast) r g b / a) */
   --ground-cast-alpha: .40;
 
   /* ---------- surface ---------- */
@@ -71,8 +81,9 @@
   --kind-page-side: #1DB4B4;  --kind-page-edge: #006C6C;  --kind-page-text: #005F5F;   /* HTML, live apps, links */
   --kind-doc-side: #AF8CD8;   --kind-doc-edge: #6B4E8B;   --kind-doc-text: #614083;    /* Markdown, PDF */
   --kind-pic-side: #6FB171;   --kind-pic-edge: #356C38;   --kind-pic-text: #236228;    /* images, video, audio */
-  --kind-plain-side: #93A1A9; --kind-plain-edge: #50606A; --kind-plain-text: #595959;  /* notes, ideas: the desk's own material, at the kinds' L .70 / .48 */
-  --kind-board-side: #647F8F; --kind-board-edge: #304652; --kind-board-text: #000000;  /* a child board: a deeper piece of desk */
+  /* no hue: notes are the desk's own material at the kinds' L .70 / .48; a child board is a deeper piece of desk */
+  --kind-plain-side: oklch(from var(--desk) .700 calc(c * 1.30) h); --kind-plain-edge: oklch(from var(--desk) .479 calc(c * 1.67) h); --kind-plain-text: #595959;   /* #93A1A9 #50606A */
+  --kind-board-side: oklch(from var(--desk) .581 calc(c * 2.61) h); --kind-board-edge: oklch(from var(--desk) .381 calc(c * 2.25) h); --kind-board-text: #000000;  /* #647F8F #304652 */
 
   /* ---------- depth: one light from above; the model and its rules are in depth.css ----------
      sunken -1  fields, tracks, covers     flush 0  ground, chrome, panels, drawn things
@@ -134,9 +145,9 @@
   --danger: var(--ink);
   --warn: var(--ink);
   --dot: var(--ground-pattern);
-  --grid-minor: rgba(var(--ground-cast), .06);
-  --grid-major: rgba(var(--ground-cast), .11);
-  --scrim: rgba(var(--ground-cast), .22);
+  --grid-minor: rgb(from var(--ground-cast) r g b / .06);
+  --grid-major: rgb(from var(--ground-cast) r g b / .11);
+  --scrim: rgb(from var(--ground-cast) r g b / .22);
   --e1: 0 0 0 1px var(--line-seam);                         /* flush: a seam ring */
   --e2: 0 0 0 1px var(--line-edge);                         /* flush, under the pointer */
   --e3: 0 0 0 1px var(--line-edge), var(--cast-float);      /* float */
@@ -175,7 +186,6 @@ html[data-ground="white"] {
   --ground-pattern: #A3B3BD;
   --ground-rim: #B3BDC3;        /* darker than on the desk: the rim is now a white face's only edge */
   --ground-key-side: #B4B4B4;
-  --ground-cast: 30, 52, 66;
   --ground-cast-alpha: .34;
 }
 
@@ -183,7 +193,7 @@ html[data-ground="white"] {
 html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) {
   color-scheme: dark;
   --ground: #1C2328; --ground-deep: #151B1F; --ground-well: #161C20; --ground-pattern: #5A6C78;
-  --ground-rim: #3A454D; --ground-key-side: #10161A; --ground-cast: 0, 0, 0; --ground-cast-alpha: .5;
+  --ground-rim: #3A454D; --ground-key-side: #10161A; --ground-cast: #000000; --ground-cast-alpha: .5;
   --surface-paper: #2A3136; --surface-frame: #22292E; --surface-chosen: #2F4250;
   --line-hair: #353D43; --line-seam: #465058; --line-edge: #69757E; --key-side: #151B1F;
   --ink: #E9EDF0; --ink-2: #A7B1B8; --ink-on-mark: #FFFFFF;
@@ -202,69 +212,74 @@ html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="
   :root { --shape-slab: 6px; --shape-key: 7px; --shape-cell: 5px; --shape-float: 10px; --shape-bar: 10px; --shape-cap: 4px; --shape-preview: 3px; }
 }
 
-/* ================= shared control family (upstream's, now on role tokens) ================= */
-:is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
-html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+/* ================= shared control family =================
+   Role tokens only. The look of a control that has a height (a key's face and side, a field's sunk rim) is depth.css's;
+   the rules here that would compete with it (face, rim, state tints) are wrapped in :where() so a height always wins. */
+:is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--mark-blue); outline-offset: 2px; }
+html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--mark-blue); outline-offset: 2px; }
 
 /* ---------- One control family ----------
-   1  In chrome every command is a quiet button: no container at rest.
-   2  A container appears only for a toggle that is on, the single primary
-      action, a field you type into, or a segmented choice.
+   1  In chrome every command is a key; a key with a height draws it from depth.css.
+   2  A key without a height (a quiet icon in a bar, a row action) is flat until the pointer is on it.
    3  Blue means on, selected or primary; nothing else is blue. */
 .tk-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: var(--control-h); min-width: var(--control-h); padding: 0 10px; margin: 0;
-  border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink-2);
+  border: 0; border-radius: var(--shape-key); color: var(--ink-2);
   font: 400 var(--type-ui)/1 var(--type-sans); white-space: nowrap; cursor: pointer; text-decoration: none;
-  transition: background .12s, color .12s, box-shadow .12s;
+  transition: background-color .12s, color .12s, box-shadow .12s;
   /* Never squeezed below its label: the min-width floor above replaces the flex
      min-content floor, so a crowded row would otherwise cut the text and overlap. */
   flex-shrink: 0;
 }
-.tk-btn:hover { background: var(--hover); color: var(--ink); }
-.tk-btn:active { background: var(--press); }
-.tk-btn:disabled { opacity: .5; cursor: default; background: transparent; }
-.tk-btn[aria-pressed="true"], .tk-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-text); }
+:where(.tk-btn) { background-color: transparent; }
+:where(.tk-btn:hover) { background-color: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
+:where(.tk-btn:active) { background-color: color-mix(in srgb, var(--ink) 9%, transparent); }
+:where(.tk-btn:disabled) { opacity: .5; cursor: default; background-color: transparent; }
+:where(.tk-btn[aria-pressed="true"], .tk-btn[aria-expanded="true"]) { background-color: var(--surface-chosen); color: var(--ink); }
 .tk-btn.tk-icon { padding: 0; width: var(--control-h); }
-.tk-btn.tk-sm { height: var(--control-h-sm); min-width: var(--control-h-sm); padding: 0 8px; font-size: var(--t-sm); border-radius: var(--r-sm); }
+.tk-btn.tk-sm { height: var(--control-h-sm); min-width: var(--control-h-sm); padding: 0 8px; font-size: var(--type-meta); border-radius: var(--shape-cell); }
 .tk-btn.tk-sm.tk-icon { width: var(--control-h-sm); padding: 0; }
-.tk-btn.tk-tonal { background: var(--hover); color: var(--ink); }
-.tk-btn.tk-tonal:hover { background: var(--press); }
-.tk-btn.tk-primary { background: var(--accent); color: var(--on-accent); }
-.tk-btn.tk-primary:hover { background: var(--accent-hover); color: var(--on-accent); }
+.tk-btn.tk-tonal { color: var(--ink); }
+.tk-btn.tk-tonal:disabled { color: var(--ink-2); }
+:where(.tk-btn.tk-primary) { background-color: var(--mark-blue); }
+:where(.tk-btn.tk-primary:hover) { background-color: var(--mark-blue-deep); }
+.tk-btn.tk-primary, .tk-btn.tk-primary:hover { color: var(--ink-on-mark); }
 /* the primary key's inputs for the raised height (depth.css): a blue face on a deep blue side */
-.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-deep); color: var(--on-accent); }
-.tk-btn.tk-danger { color: var(--danger); }
+.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-side); color: var(--ink-on-mark); }
+.tk-btn.tk-danger { color: var(--ink); }  /* danger has no colour: red is her voice */
 .tk-btn svg, .tk-glyph { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.tk-kbd { font: 500 var(--t-xs)/1 var(--font-ui); color: var(--ink-3); border: 1px solid var(--line); border-radius: var(--r-xs); padding: 2px 4px; background: var(--field); }
+/* a printed shortcut is a tiny raised key (depth.css) */
+.tk-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 17px; box-sizing: border-box; padding: 0 4px; border: 0; border-radius: var(--shape-cap); color: var(--ink-2); font: 400 10.5px/1 var(--type-mono); --key-d: 1.5px; }
 /* a segmented choice is a sunken track with the chosen segment a raised cell (depth.css) */
 .tk-seg { display: inline-flex; padding: 3px; gap: 0; border-radius: var(--shape-key); --sink-floor: var(--surface-frame); }
-.tk-seg > button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-.tk-seg > button:hover { color: var(--ink); background: transparent; }
-.tk-seg > button[aria-pressed="true"] { color: var(--ink); }
+.tk-seg > button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+:where(.tk-seg > button) { background-color: transparent; }
+.tk-seg > button:hover, .tk-seg > button[aria-pressed="true"] { color: var(--ink); }
 /* a field sinks (depth.css) */
 .tk-field { height: var(--control-h); padding: 0 10px; border: 0; border-radius: var(--shape-key); color: var(--ink); font: 400 var(--type-ui)/1.3 var(--type-sans); }
 .tk-field::placeholder { color: var(--ink-2); opacity: 1; }
 .tk-field:focus { outline: none; }
 /* section names are plain words, not eyebrows */
 .tk-eyebrow { font: 400 var(--type-meta)/1.3 var(--type-sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); }
-.tk-divider { width: 1px; height: 20px; background: var(--line); flex: none; }
+.tk-divider { width: 1px; height: 20px; background: var(--line-seam); flex: none; }
+/* a menu floats (depth.css): frame grey, comfortable rows, a blue-grey chosen row, the shortcut at the end */
 .tk-menu { min-width: 220px; padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float); }
-.tk-menu .tk-mi { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink); font: var(--t-md)/1.2 var(--font-ui); text-align: left; cursor: pointer; }
-.tk-menu .tk-mi:hover, .tk-menu .tk-mi:focus-visible { background: var(--hover); outline: none; }
+.tk-menu .tk-mi { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink); font: 400 var(--type-ui)/1.2 var(--type-sans); text-align: left; cursor: pointer; }
+.tk-menu .tk-mi:hover, .tk-menu .tk-mi:focus-visible { background: var(--surface-chosen); outline: none; }
 .tk-menu .tk-mi .tk-kbd { margin-left: auto; }
-.tk-menu .tk-mi.tk-danger { color: var(--danger); }
-.tk-menu .tk-msep { height: 1px; background: var(--line); margin: 6px 4px; }
+.tk-menu .tk-mi.tk-danger { color: var(--ink); }
+.tk-menu .tk-msep { height: 1px; background: var(--line-seam); margin: 6px 4px; }
 .tk-menu .tk-mlabel { font: 400 var(--type-meta)/1.3 var(--type-sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); padding: 8px 10px 4px; }
 
 /* Readable dates: exact time on hover or focus (see relative-dates.js). */
 time[data-rel] { text-decoration: underline dotted transparent; text-underline-offset: 3px; transition: text-decoration-color .12s; }
-time[data-rel]:hover, time[data-rel]:focus-visible { text-decoration-color: var(--line-strong); }
-.tk-date-tip { position: fixed; z-index: 1000; pointer-events: none; padding: 6px 9px; border-radius: var(--r-sm); background: var(--surface-frame); color: var(--ink); font: 400 12px/1.3 var(--type-sans); white-space: nowrap; opacity: 0; transform: translateY(3px); transition: opacity .12s, transform .15s; }
+time[data-rel]:hover, time[data-rel]:focus-visible { text-decoration-color: var(--line-seam); }
+.tk-date-tip { position: fixed; z-index: 1000; pointer-events: none; padding: 6px 9px; border-radius: var(--shape-cell); background: var(--surface-frame); color: var(--ink); font: 400 12px/1.3 var(--type-sans); white-space: nowrap; opacity: 0; transform: translateY(3px); transition: opacity .12s, transform .15s; }
 .tk-date-tip.on { opacity: 1; transform: none; }
 
 /* A neutral marker: blue is reserved for on, selected and primary. */
-.tk-new { display: inline-flex; align-items: center; font: 600 var(--t-xs)/1 var(--font-ui); letter-spacing: .02em; color: var(--ink-2); background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line-strong); border-radius: var(--r-pill); padding: 4px 7px; }
+.tk-new { display: inline-flex; align-items: center; font: 400 11px/1 var(--type-sans); letter-spacing: 0; color: var(--ink-2); background: transparent; box-shadow: inset 0 0 0 1px var(--line-seam); border-radius: var(--shape-cap); padding: 3px 6px; }
 
 /* The mark follows the theme: ink and blue. */
 .brand-mark { display: block; flex: 0 0 auto; }

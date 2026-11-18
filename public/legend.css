@@ -34,11 +34,14 @@
    connection, an app update) still shows. */
 .canvas-footer:has(> .kind-legend:not([hidden])) .status-line:not(:has(#save-status:is([data-state="error"], [data-state="local"]), #live-refresh:not([hidden]), #live-status[data-connection="offline"], .update-chip, .update-refresh)) { display: none; }
 
-/* Narrower: the counts stay and the names go (still read out by assistive tech). */
+/* Narrower, or beside an open Inspector: the names stay (they are what say which colour is which kind) and the counts
+   step back (still read out by assistive tech); the entries pack closer. */
 @media (max-width: 1280px) {
-  .kind-legend-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .kind-legend-count { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .kind-legend-entry { gap: 6px; padding: 0 8px 0 7px; }
 }
-body:has(#workspace-item-controls, #board-info:not([hidden])) .kind-legend-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+body:has(#workspace-item-controls, #board-info:not([hidden])) .kind-legend-count { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+body:has(#workspace-item-controls, #board-info:not([hidden])) .kind-legend-entry { gap: 6px; padding: 0 8px 0 7px; }
 @media (max-width: 720px) { .kind-legend { display: none; } }
 
 /* ---------- lighting one kind: every other card and drawn element dims ----------

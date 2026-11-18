@@ -2,7 +2,7 @@
    The item stands on it as a slab, its side the item's kind (depth.css). Loaded after calm.css. */
 #reader-dialog { background: var(--bg-canvas); color: var(--ink); }
 #reader-header { flex: none; }
-#reader-header .reader-up { flex: 0 1 auto; min-width: 44px; max-width: min(26vw, 260px); gap: 2px; }
+#reader-header .reader-up { flex: 0 1 auto; min-width: 44px; max-width: min(26vw, 260px); gap: 2px; overflow: visible; }  /* the label clips itself; the divider stands outside */
 #reader-header .reader-up svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 #reader-header .reader-up-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The title row takes the space that is left; a long title truncates rather than squeezing ‹ board. */
@@ -12,7 +12,8 @@
   height: 44px; min-height: 44px; margin: 0 0 0 2px; padding: 0 8px; border: 6px solid transparent; background-clip: padding-box;
   border-radius: 14px; background-color: transparent; color: var(--ink); cursor: pointer; text-align: left;
 }
-#reader-header .reader-path:hover, #reader-header .reader-path[aria-expanded="true"] { background-color: var(--hover); }
+#reader-header .reader-path:hover, #reader-header .reader-path[aria-expanded="true"] { background-color: color-mix(in srgb, var(--ink) 5%, transparent); }
+#reader-header .reader-path:focus-visible { outline-offset: -4px; }
 #reader-header .reader-path .experiment-crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 var(--type-board)/1.2 var(--type-serif); letter-spacing: 0; color: var(--ink); }
 #reader-header .reader-path .reader-number { margin: 0; font: 400 var(--type-board)/1.2 var(--type-mono); color: var(--ink-2); }
 #reader-header .reader-chev { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--ink-2); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -174,7 +175,7 @@ body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
 #reader-info .appearance-control { display: flex; width: 100%; }
 #reader-info .appearance-control .tk-seg { display: flex; width: 100%; }
 #reader-info .appearance-control .tk-seg > button { flex: 1; }
-#reader-info .reader-info-status { position: sticky; bottom: 0; justify-self: center; margin: 0; padding: 7px 12px; border-radius: var(--shape-key); background: var(--ink); color: var(--surface-frame); font-size: var(--t-xs); box-shadow: var(--e2); }
+#reader-info .reader-info-status { position: sticky; bottom: 0; justify-self: center; margin: 0; padding: 7px 12px; border-radius: var(--shape-key); background: var(--ink); color: var(--surface-frame); font-size: var(--t-xs); }
 #reader-info .reader-info-status[hidden] { display: none; }
 
 /* The Navigator and the path sit below the reader's header, however tall it wraps. */

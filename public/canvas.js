@@ -8,7 +8,7 @@ import { openRemovalPrompt } from './agent-prompt.js';
 import { WorkspaceBoard } from './workspace-board.js';
 import { contentURL, enableOrganization, makeDialog } from './workspace.js';
 import { validTextAnchor } from './markdown-document.js';
-import {bindCommitShortcut,commitShortcutLabel} from './interaction.js';
+import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, wheelZoomFactor} from './canvas-zoom.js';
 import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
@@ -1673,7 +1673,7 @@ document.addEventListener('input', event => {
 bindCommitShortcut(world,{accept:event=>event.target.matches('textarea[data-note]'),commit:flushNoteEdits,onError:error=>setSaveStatus(error.message,'local')});
 bindCommitShortcut($('reader-note'),{commit:flushNoteEdits,onError:error=>setSaveStatus(error.message,'local')});
 $('reader-note').setAttribute('aria-keyshortcuts','Meta+Enter Control+Enter');
-const readerNoteHint=document.createElement('small');readerNoteHint.className='workspace-submit-hint';readerNoteHint.textContent=`${commitShortcutLabel()} to save`; $('reader-note').after(readerNoteHint);
+const readerNoteHint=document.createElement('small');readerNoteHint.className='workspace-submit-hint';setCommitHint(readerNoteHint, 'save'); $('reader-note').after(readerNoteHint);
 document.addEventListener('keydown', event => {
   // The document editor (board-document.js) handles its own Escape: save and close it, keep the reader open.
   if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode===229 || event.repeat || document.querySelector('dialog.workspace-dialog[open],dialog.tinka-doc-editor[open]')) return;

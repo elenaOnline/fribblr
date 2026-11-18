@@ -1,5 +1,5 @@
 import {positionTilePopover,bindTileMenu} from './tile-ui.js';
-import {bindCommitShortcut,commitShortcutLabel} from './interaction.js';
+import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {Whiteboard,decorationMarkup,decorationUnchanged,lineBox} from "./whiteboard.js";
 import {decorationBounds,resolveLine} from "./whiteboard-geometry.js";
 import {FeedbackController} from "./feedback.js";
@@ -1790,7 +1790,7 @@ export class WorkspaceBoard {
     actions.querySelector('[data-context-duplicate]').onclick=()=>{this.closeContext();only();this.duplicateSelection({explicit:true});};
     actions.querySelector('[data-context-remove]').onclick=()=>{this.closeContext();only();this.bulk("remove");};
     const noteField=popover.querySelector('textarea');noteField.setAttribute('aria-keyshortcuts','Meta+Enter Control+Enter');
-    const hint=document.createElement('small');hint.textContent=`${commitShortcutLabel()} to save`;noteField.after(hint);
+    const hint=document.createElement('small');setCommitHint(hint, 'save');noteField.after(hint);
     this.contextCommit=bindCommitShortcut(noteField,{commit:async()=>{await this.hooks.flushNotes();},onError:error=>toast(error.message)});
     this.positionContext();
     document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`).forEach(b => b.setAttribute("aria-expanded", "false"));
@@ -2616,7 +2616,7 @@ export class WorkspaceBoard {
     const menu = document.createElement("div");
     menu.className = "workspace-add-menu"; menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", "Add to board");
-    menu.innerHTML = `<button type="button" role="menuitem" data-add="text"><span aria-hidden="true">T</span>Text</button><button type="button" role="menuitem" data-add="region"><span aria-hidden="true">▧</span>Colored region</button><button type="button" role="menuitem" data-add="sticky"><span aria-hidden="true">▣</span>Sticky note</button><button type="button" role="menuitem" data-add="rounded"><span aria-hidden="true">▢</span>Process</button><button type="button" role="menuitem" data-add="diamond"><span aria-hidden="true">◇</span>Decision</button><button type="button" role="menuitem" data-add="ellipse"><span aria-hidden="true">⬭</span>Start / end</button><button type="button" role="menuitem" data-add="arrow"><span aria-hidden="true">↗</span>Arrow</button><button type="button" role="menuitem" data-add="document"><span aria-hidden="true">≣</span>Document</button><hr><button type="button" role="menuitem" data-add="idea"><span aria-hidden="true">◇</span>Item…</button><button type="button" role="menuitem" data-add="board"><span aria-hidden="true">▱</span>Tinka / Board…</button><hr><button type="button" role="menuitem" data-add="copy-notes">Copy notes as Markdown <kbd aria-hidden="true">${isMacPlatform() ? "⇧⌘C" : "Ctrl-Shift-C"}</kbd></button><button type="button" role="menuitem" data-add="background">Board background…</button><button type="button" role="menuitem" data-add="order">Comparison order…</button>`;
+    menu.innerHTML = `<button type="button" role="menuitem" data-add="text"><span aria-hidden="true">T</span>Text</button><button type="button" role="menuitem" data-add="region"><span aria-hidden="true">▧</span>Colored region</button><button type="button" role="menuitem" data-add="sticky"><span aria-hidden="true">▣</span>Sticky note</button><button type="button" role="menuitem" data-add="rounded"><span aria-hidden="true">▢</span>Process</button><button type="button" role="menuitem" data-add="diamond"><span aria-hidden="true">◇</span>Decision</button><button type="button" role="menuitem" data-add="ellipse"><span aria-hidden="true">⬭</span>Start / end</button><button type="button" role="menuitem" data-add="arrow"><span aria-hidden="true">↗</span>Arrow</button><button type="button" role="menuitem" data-add="document"><span aria-hidden="true">≣</span>Document</button><hr><button type="button" role="menuitem" data-add="idea"><span aria-hidden="true">◇</span>Item…</button><button type="button" role="menuitem" data-add="board"><span aria-hidden="true">▱</span>Tinka / Board…</button><hr><button type="button" role="menuitem" data-add="copy-notes">Copy notes as Markdown <kbd class="tk-kbd" aria-hidden="true">${isMacPlatform() ? "⇧⌘C" : "Ctrl-Shift-C"}</kbd></button><button type="button" role="menuitem" data-add="background">Board colour or image…</button><button type="button" role="menuitem" data-add="order">Comparison order…</button>`;
     document.body.append(menu); this.addPopup = menu;
     const rect = anchor?.getBoundingClientRect();
     const screen = point || { x: rect.right - menu.offsetWidth, y: rect.bottom + 6 };
@@ -3072,7 +3072,7 @@ export class WorkspaceBoard {
   backgroundForm() {
     const b = this.snapshot.background || {};
     makeDialog(
-      "Board background",
+      "Board colour or image",
       `<label>Color<input name="color" type="color" value="${b.color || "#dae5ec"}"></label><p>An optional image remains a project resource. Your agent supplies its registered root ID and relative path.</p><label>Image root ID<input name="root" value="${esc(b.resource?.rootId || "")}"></label><label>Image path<input name="path" value="${esc(b.resource?.path || "")}"></label><button type="submit" class="workspace-primary">Save background</button>`,
       async (f) => {
         const background = { color: f.get("color") };

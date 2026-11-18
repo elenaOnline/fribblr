@@ -63,11 +63,11 @@ body>main,body>.masthead{--key-side:var(--ground-key-side)}
 .board-art .board-collage,html[data-appearance] .board-art .board-collage{background:transparent;padding:10px;gap:8px}
 .board-art .workspace-cover-tile{color:var(--ink)}
 /* the count is printed on a small raised cap */
-.board-art .workspace-cover-count{right:8px;bottom:8px;border:0;border-radius:var(--shape-cap);padding:4px 8px 5px;background:var(--surface-paper);box-shadow:inset 0 -1.5px 0 var(--ground-key-side),inset 0 0 0 1px var(--line-seam);color:var(--ink-2);font:400 12px/1 var(--type-mono)}
+.board-art .workspace-cover-count{right:8px;bottom:8px;border:0;border-radius:var(--shape-cap);padding:4px 8px 5px;--key-d:1.5px;--key-side:var(--ground-key-side);color:var(--ink-2);font:400 12px/1 var(--type-mono)}
 .board-art .workspace-paper-art{position:absolute;inset:0;display:grid;place-items:center;color:var(--ink-3);font-size:22px;letter-spacing:6px}
 .board-empty{position:absolute;inset:14% 12%;display:grid;place-items:center;border:1.5px dashed var(--line-strong);border-radius:6px;color:var(--ink-3);font-size:var(--t-xs)}
 /* Fallback artwork: two quiet sheets in the window. */
-.board-art .sheet{position:absolute;top:17%;bottom:17%;left:16%;width:32%;display:flex;flex-direction:column;gap:6px;padding:9px;background:var(--surface-paper);border-radius:4px;box-shadow:0 0 0 .5px var(--ground-rim),0 1.5px 0 0 var(--kind-plain-side)}
+.board-art .sheet{position:absolute;top:17%;bottom:17%;left:16%;width:32%;display:flex;flex-direction:column;gap:6px;padding:9px}
 .board-art .sheet.second{top:11%;bottom:23%;left:52%;width:30%}
 .board-art .sheet::before{content:'';flex:none;width:60%;height:4px;border-radius:2px;background:var(--line-strong)}
 .board-art .sheet::after{content:'';flex:1;border-radius:2px;background:repeating-linear-gradient(to bottom,var(--line) 0 2px,transparent 2px 8px)}
@@ -93,13 +93,13 @@ body>main,body>.masthead{--key-side:var(--ground-key-side)}
 .board-actions .tk-btn{color:var(--ink);font:400 var(--type-meta)/1 var(--type-sans)}
 /* Selection without checkboxes: the board's corner circle, hidden at rest,
    shown on hover or focus, a green check when selected. */
-.board-card .home-select-dot{position:absolute;left:-9px;top:-9px;z-index:4;display:grid;place-items:center;width:22px;height:22px;min-width:0;min-height:0;margin:0;padding:0;border:0;border-radius:50%;background:var(--surface-paper);color:transparent;box-shadow:0 0 0 1px var(--line-edge),0 1.5px 0 1px var(--ground-key-side);opacity:0;cursor:pointer;transition:opacity .12s}
+.board-card .home-select-dot{position:absolute;left:-9px;top:-9px;z-index:4;display:grid;place-items:center;width:22px;height:22px;min-width:0;min-height:0;margin:0;padding:0;border:0;border-radius:50%;color:transparent;opacity:0;cursor:pointer;transition:opacity .12s}
 .board-card .home-select-dot::after{content:'';position:absolute;inset:-6px;border-radius:50%}
 .board-card .home-select-dot svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .board-card:hover .home-select-dot,.board-card:focus-within .home-select-dot{opacity:1}
-html[data-appearance] .board-card .home-select-dot:hover{background:var(--surface-2);color:var(--ink-3)}
-.board-card.workspace-home-selected .home-select-dot,html[data-appearance] .board-card.workspace-home-selected .home-select-dot{opacity:1;background:var(--mark-blue);color:var(--ink-on-mark);box-shadow:0 0 0 2px var(--surface-paper),0 2px 0 2px var(--mark-blue-side)}
-.board-card .home-select-dot:focus-visible,html[data-appearance] .board-card .home-select-dot:focus-visible{opacity:1;outline:2px solid var(--accent-ring);outline-offset:2px}
+html[data-appearance] .board-card .home-select-dot:hover{color:var(--ink-2)}
+.board-card.workspace-home-selected .home-select-dot,html[data-appearance] .board-card.workspace-home-selected .home-select-dot{opacity:1;}
+.board-card .home-select-dot:focus-visible,html[data-appearance] .board-card .home-select-dot:focus-visible{opacity:1;outline:2px solid var(--mark-blue);outline-offset:2px}
 @media(hover:none){.board-actions{opacity:1}.board-card .home-select-dot{opacity:.9}}
 
 /* ---------- Selection bar: one floating pill, as on a board ---------- */

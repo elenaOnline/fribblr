@@ -1,4 +1,4 @@
-import {bindForm, restoreFocus, commitShortcutLabel} from './interaction.js';
+import {bindForm, restoreFocus, commitShortcutLabel, commitShortcutCap} from './interaction.js';
 import {escape as esc, makeDialog, showFailure} from './workspace.js';
 import {resolveEndpoint, resolveLine, decorationBounds, linePath, targetBox} from './whiteboard-geometry.js';
 import {formatToHTMLString} from './deco-format.js';
@@ -279,7 +279,7 @@ export class Whiteboard {
       this.toolbar.classList.toggle('whiteboard-arrow-bar',!this.editor);
       this.toolbar.setAttribute('aria-label',this.groupName(list));
       this.toolbar.innerHTML=this.editor
-        ? `<span class="whiteboard-edit-hint">${esc(line?'Enter':commitShortcutLabel())} to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
+        ? `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
         : this.bar(list,draft);
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }

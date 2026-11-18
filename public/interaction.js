@@ -3,6 +3,19 @@ export function commitShortcutLabel() {
   const platform = globalThis.navigator?.userAgentData?.platform || globalThis.navigator?.platform || '';
   return /Mac|iPhone|iPad/i.test(platform) ? '⌘ Enter' : 'Ctrl Enter';
 }
+/** The commit shortcut as printed on a keycap: ⌘↩ on a Mac, Ctrl↩ elsewhere. */
+export function commitShortcutCap() {
+  const platform = globalThis.navigator?.userAgentData?.platform || globalThis.navigator?.platform || '';
+  return /Mac|iPhone|iPad/i.test(platform) ? '⌘↩' : 'Ctrl↩';
+}
+/** The commit shortcut printed as a keycap (a tiny raised key) followed by what it does: "[⌘↩] to save". */
+export function commitHintHTML(verb) {
+  return `<kbd class="tk-kbd" aria-hidden="true">${commitShortcutCap()}</kbd> to ${verb}`;
+}
+export function setCommitHint(element, verb) {
+  element.innerHTML = commitHintHTML(verb);
+  element.setAttribute('aria-label', `${commitShortcutLabel()} to ${verb}`);
+}
 export function isCommitShortcut(event) {
   return event.key === 'Enter' && (event.metaKey || event.ctrlKey) &&
     !event.altKey && !event.shiftKey && !event.isComposing && event.keyCode !== 229 && !event.repeat;

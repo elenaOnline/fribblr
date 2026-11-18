@@ -22,7 +22,7 @@ body .canvas-footer .status-line .update-sep { width: 1px; height: 12px; backgro
 @media (max-width: 1100px) { body .canvas-footer .status-line:has(.update-chip) { display: flex; } }
 /* Phones: the status island shows only Refresh; the update joins it as a pill. */
 @media (max-width: 720px) {
-  body .canvas-footer .status-line > .update-chip { display: inline-flex !important; height: 28px; margin: 0; padding: 0 12px; background: var(--surface-frame); box-shadow: var(--e2); color: var(--ink); }
+  body .canvas-footer .status-line > .update-chip { display: inline-flex !important; height: 28px; margin: 0; padding: 0 12px; background: var(--surface-frame); color: var(--ink); }
   body .canvas-footer .status-line > .update-chip[data-kind="major"] { background: var(--surface-chosen); color: var(--mark-blue); }
   body .canvas-footer .status-line > .update-chip[data-kind="failed"] { color: var(--ink); }
   body .canvas-footer .status-line > .update-sep { display: none; }
