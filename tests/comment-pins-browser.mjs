@@ -111,8 +111,11 @@ try{
     assert.equal(await toggle.locator('.comment-count').textContent(),'2');
     assert.ok(await toggle.locator('.comment-count.warn').count(),'amber count when something waits on you');
     assert.equal(await page.locator(`[data-comment-pin="${a}"]`).getAttribute('data-status'),'addressed');
-    const [body,warn]=await page.locator(`[data-comment-pin="${a}"]`).evaluate(el=>{const probe=document.createElement('i');probe.style.color='var(--warn)';document.body.append(probe);const w=getComputedStyle(probe).color;probe.remove();return [getComputedStyle(el).backgroundColor,w];});
-    assert.equal(body,warn,'an addressed pin is amber');
+    // Her voice is a red raised key (--mark-red); state is a mark, not a hue: an addressed pin keeps the red face and shows the badge a plain open pin does not.
+    const red=await page.evaluate(()=>{const i=document.createElement('i');i.style.color='var(--mark-red)';document.body.append(i);const c=getComputedStyle(i).color;i.remove();return c;});
+    const [face,badge]=await page.locator(`[data-comment-pin="${a}"]`).evaluate(el=>[getComputedStyle(el).backgroundColor,getComputedStyle(el.querySelector('.comment-pin-badge')).display]);
+    assert.equal(face,red,'an addressed pin keeps her red face (--mark-red)');
+    assert.notEqual(badge,'none','an addressed pin carries the badge mark that says something is waiting');
     const inView=async()=>{const pin=await page.locator(`[data-comment-pin="${q}"]`).boundingBox(),view=await page.locator('#viewport').boundingBox();return !!pin&&pin.x>view.x&&pin.x<view.x+view.width&&pin.y>view.y&&pin.y<view.y+view.height;};
     assert.equal(await inView(),false,'the far pin starts out of view');
     await toggle.click();
@@ -176,7 +179,9 @@ try{
     await cluster.click();const picks=page.locator('.comment-cluster-menu [data-comment-pick]');assert.equal(await picks.count(),3);
     const dot=async t=>page.locator(`.comment-cluster-menu [data-comment-pick="${t}"] .comment-dot`).evaluate(el=>getComputedStyle(el).backgroundColor);
     const token=name=>page.evaluate(n=>{const i=document.createElement('i');i.style.color=`var(${n})`;document.body.append(i);const c=getComputedStyle(i).color;i.remove();return c;},name);
-    assert.equal(await dot(ids[0]),await token('--accent'),'an open row is not amber');assert.equal(await dot(ids[1]),await token('--warn'),'the addressed row is amber');
+    const dotLook=async t=>page.locator(`.comment-cluster-menu [data-comment-pick="${t}"] .comment-dot`).evaluate(el=>{const c=getComputedStyle(el);return c.backgroundColor+'|'+c.boxShadow;});
+    assert.equal(await dot(ids[0]),await token('--mark-red'),'an open row is her red (--mark-red)');assert.notEqual(await dotLook(ids[1]),await dotLook(ids[0]),'the addressed row reads differently from an open row, by mark not by amber');
+    assert.notEqual(await dotLook(ids[1]),await dotLook(ids[2]),'and from a sent row');
     await page.locator(`.comment-cluster-menu [data-comment-pick="${ids[1]}"]`).click();await page.locator('.ct-card').waitFor();
     assert.equal(await page.evaluate(()=>import('/app/comment-thread.js').then(m=>m.openThreadId())),ids[1]);
     await page.keyboard.press('Escape');
