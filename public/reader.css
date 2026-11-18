@@ -51,7 +51,8 @@
 .reader-path-section { display: grid; gap: 2px; padding: 4px 0; }
 .reader-path-section + .reader-path-section { border-top: 1px solid var(--line-seam); margin-top: 2px; padding-top: 8px; }
 .reader-path-section .tk-eyebrow { padding: 2px 10px 4px; }
-.reader-path-pop ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+/* minmax(0, 1fr): an implicit auto track grows to a row's unwrapped title, so the title's ellipsis never applied. */
+.reader-path-pop ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
 .reader-path-row {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; box-sizing: border-box;
   padding: 4px 10px 4px calc(10px + var(--depth, 0) * 12px); border: 0; border-radius: var(--shape-cell);
