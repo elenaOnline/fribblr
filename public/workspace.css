@@ -1130,6 +1130,15 @@ html[data-theme="night"] .item-representation p {
 .workspace-decoration .workspace-decoration-label[contenteditable] { cursor: text; outline: 1px solid #98aa84; background: #fafcf5a0; }
 .workspace-board .decoration-text { color: var(--decoration-color); }
 .workspace-board .decoration-region { z-index: 0; }
+/* On Canvas the cards are one layer of their own, so a placement's z orders cards
+   among themselves only. Whatever its z, a card sits above regions, shapes and text
+   (z 0-1, rendered before this layer) and below arrows (2), comment pins (30, 100) and
+   connection ports. Sharing #world's stacking context, a card's z (its creation count,
+   unbounded) competed with those fixed values: shapes covered cards with z 0, and
+   cards past z 2 or 30 covered arrows and comment pins. The layer fills #world exactly,
+   so card positions are unchanged, and passes the pointer through to what is under it. */
+.workspace-board[data-board-layout="canvas"] #world > .workspace-cards { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+:where(.workspace-board[data-board-layout="canvas"] #world > .workspace-cards) > * { pointer-events: auto; }
 .workspace-board .decoration-line { background: transparent; min-height: 1px; }
 .workspace-decoration-line { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .decoration-line .workspace-decoration-label { position: absolute; left: 0; bottom: 100%; padding: 3px 0; font-size: 16px; min-height: 0; }
