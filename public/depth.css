@@ -171,5 +171,28 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 /* a board's cover: its own ground, seen through the face */
 #world .workspace-board-tile .workspace-card-preview, .board-card .board-art { --sink-rim: var(--ground-rim); --sink-d: 2px; --sink-floor: var(--ground-well); }
 
+/* ================= float (3): what appears over the work =================
+   Held above the desk, not standing on it: no side, a 1 px edge and a soft shadow straight down. The component sets
+   its own face (frame grey for menus, bars, cards and dialogs; ink for a toast). Inputs: --float-rim (edge grey),
+   --float-cast (--cast-float; a dialog, a sheet or a docked panel sets --cast-dialog). */
+[data-height="float"],
+.tk-menu, .tk-date-tip, .workspace-add-menu, .workspace-tile-menu, .workspace-tile-toolbar, .workspace-selection,
+.home-selection-bar, .workspace-toast, .board-map, .edit-tools, .workspace-drop-hint, .workspace-child-drag,
+.workspace-decoration-actions, .comment-target-tag, .workspace-panel-feedback, :is(.workspace-item-controls, .board-info):not(.calm-side),
+:is(.canvas-footer, .reader-footer) .zoom-pill, .appearance-pop, .project-navigator, .reader-path-pop, #reader-update,
+.ct-card, .cref-picker, .tile-notes, .feedback-panel, .feedback-ballot, .feedback-settings,
+.whiteboard-toolbar, .whiteboard-menu, .whiteboard-draft-state, .whiteboard-connect-hint, .preview-launch span,
+.document-selection-tools, .document-annotations, .doc-editing-link,
+dialog, .workspace-dialog, .agent-dialog {
+  box-shadow: 0 0 0 1px var(--float-rim, var(--line-edge)), var(--float-cast, var(--cast-float));
+}
+dialog, .workspace-dialog, .agent-dialog, .project-navigator, .ct-card.ct-sheet { --float-cast: var(--cast-dialog); }
+
+/* the selection corner of a selected card: a blue raised dot (its circle is the mark) */
+#world .workspace-select-dot[aria-pressed="true"], #world .workspace-card.selected .workspace-select-dot {
+  background-color: var(--mark-blue); color: var(--ink-on-mark);
+  box-shadow: 0 0 0 2px var(--surface-paper), 0 2px 0 2px var(--mark-blue-side);
+}
+
 /* ================= flush (0): the ground (--bg-canvas on #viewport, calm.css), chrome bars and side panels,
    text and regions drawn on the board. No side, no shadow; separated by --e-chrome or a seam. ================= */

@@ -35,14 +35,14 @@
 #reader-dialog #reader-update.reader-update {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 24px);
   min-height: 32px; margin: 0; padding: 6px 14px; border: 0; border-radius: var(--shape-key);
-  background: var(--accent); color: var(--on-accent); box-shadow: var(--e3); font: 400 var(--type-ui)/1.25 var(--type-sans); white-space: normal; cursor: pointer;
+  background: var(--accent); color: var(--on-accent);  font: 400 var(--type-ui)/1.25 var(--type-sans); white-space: normal; cursor: pointer;
 }
 #reader-dialog #reader-update.reader-update[hidden] { display: none; }
 
 /* Where you are: the path ladder, then the neighbours on this board. */
 .reader-path-pop {
   position: fixed; z-index: 70; width: min(380px, calc(100vw - 16px)); box-sizing: border-box; overflow: auto; overscroll-behavior: contain;
-  padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float); box-shadow: var(--e3);
+  padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float); 
   font: 400 var(--type-ui)/1.35 var(--type-sans); animation: reader-pop-in .12s var(--ease, ease-out);
 }
 .reader-path-pop[hidden] { display: none; }
@@ -129,7 +129,7 @@ body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
   position: fixed; top: calc(var(--reader-header-h, var(--chrome-h)) + 8px); right: 8px; bottom: 8px; left: auto; z-index: 50;
   width: 360px; max-width: calc(100vw - 16px); max-height: none; margin: 0; padding: 0 0 16px; box-sizing: border-box;
   display: flex; flex-direction: column; overflow: auto; overscroll-behavior: contain;
-  background: var(--surface-frame); color: var(--ink); border: 0; border-radius: var(--shape-float); box-shadow: var(--e4);
+  background: var(--surface-frame); color: var(--ink); border: 0; border-radius: 0; box-shadow: -1px 0 0 var(--line-seam);
   font: 400 var(--type-ui)/1.45 var(--type-sans); animation: calm-in-right .18s var(--ease);
 }
 #reader-info.calm-side[hidden] { display: none; }

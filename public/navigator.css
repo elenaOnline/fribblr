@@ -2,7 +2,7 @@
 .project-navigator-toggle{flex:none}
 .project-navigator-toggle svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .project-navigator{position:fixed;z-index:60;top:calc(var(--chrome-h) + 8px);left:8px;bottom:8px;width:340px;max-width:calc(100vw - 16px);box-sizing:border-box;display:flex;flex-direction:column;min-height:0;overflow:hidden;
-  background:var(--surface-frame);color:var(--ink);border-radius:var(--shape-float);box-shadow:var(--e4);font:var(--type-ui)/1.4 var(--type-sans);
+  background:var(--surface-frame);color:var(--ink);border-radius:var(--shape-float);--float-cast: var(--cast-dialog);font:var(--type-ui)/1.4 var(--type-sans);
   animation:navigator-in .18s var(--ease)}
 .project-navigator[hidden]{display:none}
 @keyframes navigator-in{from{opacity:0;transform:translateX(-12px)}}

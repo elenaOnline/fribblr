@@ -57,7 +57,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--accent); outline-
 .document-status:empty { display:none; }
 .document-loading { margin:0; padding:18px 14px; color:var(--muted); font:13px/1.5 var(--type-sans); }
 /* floats: frame grey, an edge, a soft shadow */
-.document-selection-tools { position:fixed; z-index:10; display:flex; gap:0; padding:3px; border:0; border-radius:var(--shape-key); background:var(--surface-frame); box-shadow:var(--e3); }
+.document-selection-tools { position:fixed; z-index:10; display:flex; gap:0; padding:3px; border:0; border-radius:var(--shape-key); background:var(--surface-frame);  }
 .document-selection-tools button { border:0; padding:8px 12px; background:transparent; border-radius:var(--shape-cell); }
 .document-selection-tools button:hover { background:var(--surface-chosen); }
 .document-selection-tools[hidden],.document-annotations[hidden] { display:none; }
@@ -70,7 +70,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--accent); outline-
 ::highlight(tinka-document-highlights) { background:color-mix(in srgb,var(--mark-red) 18%,transparent); color:inherit; }
 ::highlight(tinka-document-comments) { background:transparent; text-decoration:underline 2px; text-decoration-color:var(--mark-red); text-underline-offset:3px; }
 ::highlight(tinka-document-selection) { background:color-mix(in srgb,var(--mark-blue) 22%,transparent); color:inherit; }
-.document-annotations { position:fixed; z-index:8; top:52px; right:16px; width:min(340px,calc(100% - 32px)); max-height:calc(100dvh - 72px); overflow:auto; padding:14px; border:0; border-radius:var(--shape-float); background:var(--surface-frame); box-shadow:var(--e3); font:13px/1.5 var(--type-sans); }
+.document-annotations { position:fixed; z-index:8; top:52px; right:16px; width:min(340px,calc(100% - 32px)); max-height:calc(100dvh - 72px); overflow:auto; padding:14px; border:0; border-radius:var(--shape-float); background:var(--surface-frame);  font:13px/1.5 var(--type-sans); }
 .document-annotations header { display:flex; justify-content:space-between; align-items:center; gap:10px; }
 .document-annotations h2 { margin:18px 0 8px; font:500 13px/1.4 var(--type-sans); }
 .document-annotations article { display:flex; flex-direction:column; gap:7px; padding:10px 0; border-top:1px solid var(--line); }
@@ -123,5 +123,5 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--accent); outline-
 .doc-editing-conflict[hidden],.doc-editing-link[hidden] { display:none; }
 .doc-editing-conflict span { flex:1; }
 .doc-editing-conflict button { border:1px solid var(--line-seam); border-radius:var(--shape-key); background:var(--paper); color:var(--ink); font:inherit; padding:4px 10px; cursor:pointer; }
-.doc-editing-link { position:absolute; z-index:5; width:250px; padding:4px; border:0; border-radius:var(--shape-key); background:var(--surface-frame); box-shadow:var(--e3); }
+.doc-editing-link { position:absolute; z-index:5; width:250px; padding:4px; border:0; border-radius:var(--shape-key); background:var(--surface-frame);  }
 .doc-editing-link input { box-sizing:border-box; width:100%; padding:5px 7px; border:1px solid var(--line-seam); border-radius:var(--shape-cell); background:var(--paper); color:var(--ink); font:12px/1.4 var(--type-sans); }

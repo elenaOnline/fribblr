@@ -20,7 +20,7 @@ html[data-appearance="dark"] .workspace-decoration { --decoration-ink:var(--deco
 .whiteboard-ports { position:absolute; inset:0; pointer-events:none; z-index:10001; }
 .whiteboard-port { position:absolute; transform:translate(-50%,-50%); width:20px; height:20px; min-width:20px; min-height:20px; border-radius:50%; border:2px solid var(--mark-blue); background:var(--surface-paper); pointer-events:auto; cursor:crosshair; padding:0; }
 .whiteboard-port:hover,.whiteboard-port:focus-visible { background:var(--surface-chosen); }
-.whiteboard-toolbar,.whiteboard-menu { position:fixed; z-index:100020; font:var(--type-ui)/1.4 var(--type-sans); color:var(--ink); background:var(--surface-frame); border:0; border-radius:var(--shape-float); box-shadow:var(--e3); }
+.whiteboard-toolbar,.whiteboard-menu { position:fixed; z-index:100020; font:var(--type-ui)/1.4 var(--type-sans); color:var(--ink); background:var(--surface-frame); border:0; border-radius:var(--shape-float);  }
 .whiteboard-toolbar { border-radius:var(--shape-bar); }
 .whiteboard-toolbar { display:flex; align-items:center; gap:4px; max-width:calc(100vw - 16px); padding:4px; }
 .whiteboard-toolbar button { white-space:nowrap; min-height:36px; padding:6px 10px; border-color:transparent; font-size:13px; }
@@ -40,9 +40,9 @@ html[data-appearance="dark"] .workspace-decoration { --decoration-ink:var(--deco
 .decoration-line .whiteboard-editor { width:260px; height:100px; left:50%; top:50%; transform:translate(-50%,-50%); }
 .workspace-decoration.decoration-line .whiteboard-editor textarea { background:var(--surface-paper); color:var(--ink); caret-color:var(--ink); font:400 16px/1.4 var(--type-serif); padding:12px; }
 .whiteboard-editing > .workspace-decoration-resize,.whiteboard-editing > .workspace-endpoint { display:none !important; }
-.whiteboard-draft-state { position:absolute; left:0; top:calc(100% + 6px); display:flex; gap:8px; align-items:center; padding:4px 6px; background:var(--surface-frame); border:0; border-radius:var(--shape-key); box-shadow:var(--e3); white-space:nowrap; font:var(--type-meta)/1.4 var(--type-sans); pointer-events:auto; z-index:5; }
+.whiteboard-draft-state { position:absolute; left:0; top:calc(100% + 6px); display:flex; gap:8px; align-items:center; padding:4px 6px; background:var(--surface-frame); border:0; border-radius:var(--shape-key);  white-space:nowrap; font:var(--type-meta)/1.4 var(--type-sans); pointer-events:auto; z-index:5; }
 .whiteboard-draft-state button { min-height:32px; font-size:12px; padding:4px 8px; }
-.whiteboard-connect-hint { position:fixed; bottom:52px; left:50%; transform:translateX(-50%); padding:8px 14px; background:var(--ink); color:var(--ink-on-mark); border-radius:var(--shape-key); box-shadow:var(--e3); font:var(--type-ui)/1.4 var(--type-sans); z-index:100021; pointer-events:none; max-width:calc(100vw - 32px); }
+.whiteboard-connect-hint { position:fixed; bottom:52px; left:50%; transform:translateX(-50%); padding:8px 14px; background:var(--ink); color:var(--ink-on-mark); border-radius:var(--shape-key);  font:var(--type-ui)/1.4 var(--type-sans); z-index:100021; pointer-events:none; max-width:calc(100vw - 32px); }
 .whiteboard-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px 12px; }
 .whiteboard-fields label { min-width:0; }
 .whiteboard-fields input { width:100%; }

@@ -251,7 +251,7 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 .tk-field:focus { outline: none; }
 .tk-eyebrow { font: 600 var(--t-xs)/1.3 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .tk-divider { width: 1px; height: 20px; background: var(--line); flex: none; }
-.tk-menu { min-width: 220px; padding: 6px; background: var(--surface-2); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--e3); }
+.tk-menu { min-width: 220px; padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float); }
 .tk-menu .tk-mi { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink); font: var(--t-md)/1.2 var(--font-ui); text-align: left; cursor: pointer; }
 .tk-menu .tk-mi:hover, .tk-menu .tk-mi:focus-visible { background: var(--hover); outline: none; }
 .tk-menu .tk-mi .tk-kbd { margin-left: auto; }
@@ -262,7 +262,7 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 /* Readable dates: exact time on hover or focus (see relative-dates.js). */
 time[data-rel] { text-decoration: underline dotted transparent; text-underline-offset: 3px; transition: text-decoration-color .12s; }
 time[data-rel]:hover, time[data-rel]:focus-visible { text-decoration-color: var(--line-strong); }
-.tk-date-tip { position: fixed; z-index: 1000; pointer-events: none; padding: 6px 9px; border-radius: var(--r-sm); background: var(--surface-2); color: var(--ink); box-shadow: var(--e3); font: 500 12px/1.3 var(--font-ui); white-space: nowrap; opacity: 0; transform: translateY(3px); transition: opacity .12s, transform .15s; }
+.tk-date-tip { position: fixed; z-index: 1000; pointer-events: none; padding: 6px 9px; border-radius: var(--r-sm); background: var(--surface-frame); color: var(--ink); font: 400 12px/1.3 var(--type-sans); white-space: nowrap; opacity: 0; transform: translateY(3px); transition: opacity .12s, transform .15s; }
 .tk-date-tip.on { opacity: 1; transform: none; }
 
 /* A neutral marker: blue is reserved for on, selected and primary. */

@@ -1,6 +1,6 @@
 /* The Comment tool's thread card, @ picker and reference chips (comment-thread.js,
    comment-refs.js). Floating-object style of 1.0.4; light and dark come from tokens.css. */
-.ct-card{position:fixed;z-index:400;width:340px;max-width:calc(100vw - 16px);max-height:min(540px,calc(100dvh - 80px));display:flex;flex-direction:column;box-sizing:border-box;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);box-shadow:var(--e3);font:400 var(--type-ui)/1.5 var(--type-sans)}
+.ct-card{position:fixed;z-index:400;width:340px;max-width:calc(100vw - 16px);max-height:min(540px,calc(100dvh - 80px));display:flex;flex-direction:column;box-sizing:border-box;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:400 var(--type-ui)/1.5 var(--type-sans)}
 .ct-card[aria-busy=true]{cursor:progress}
 .ct-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .ct-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:10px 8px 8px 14px;border-bottom:1px solid var(--line-seam)}
@@ -56,7 +56,7 @@
 .ct-edit{margin-top:4px;min-height:44px}
 .ct-loading{margin:0;padding:18px 14px;color:var(--ink-2)}
 /* Bottom sheet on narrow screens */
-.ct-card.ct-sheet{left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:70dvh;border-radius:var(--shape-float) var(--shape-float) 0 0;box-shadow:var(--e4)}
+.ct-card.ct-sheet{left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:70dvh;border-radius:var(--shape-float) var(--shape-float) 0 0;--float-cast: var(--cast-dialog);}
 .ct-card.ct-sheet .ct-foot{padding-bottom:max(12px,env(safe-area-inset-bottom))}
 /* Reference chips (in messages, the composer and "Changed") */
 .cref{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:0 7px 0 5px;margin:0 1px;border-radius:var(--shape-cap);background:var(--surface-paper);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-seam);font:400 var(--type-meta)/1.6 var(--type-sans);vertical-align:baseline;cursor:pointer;white-space:nowrap;user-select:none}
@@ -70,7 +70,7 @@
 .cref.missing{background:var(--surface-frame);color:var(--ink-2);text-decoration:line-through;cursor:default}
 .ct-composer .cref{cursor:default}
 /* @ picker */
-.cref-picker{position:fixed;z-index:420;max-height:300px;overflow:auto;box-sizing:border-box;padding:6px;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);box-shadow:var(--e3);font:var(--type-ui)/1.4 var(--type-sans)}
+.cref-picker{position:fixed;z-index:420;max-height:300px;overflow:auto;box-sizing:border-box;padding:6px;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:var(--type-ui)/1.4 var(--type-sans)}
 .cref-picker h6{margin:6px 8px 4px;font:400 var(--type-meta)/1.3 var(--type-sans);color:var(--ink-2)}
 .cref-picker button{display:flex;width:100%;align-items:center;gap:8px;padding:6px 8px;border:0;border-radius:var(--shape-cell);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .cref-picker button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

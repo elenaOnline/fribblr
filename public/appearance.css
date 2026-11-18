@@ -18,7 +18,7 @@
 .appearance-trigger .appearance-icon-fill { fill: currentColor; stroke: none; }
 .appearance-pop {
   position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: 300px; box-sizing: border-box; padding: 12px;
-  border-radius: var(--shape-float); background: var(--surface-frame); color: var(--ink); box-shadow: var(--e3);
+  border-radius: var(--shape-float); background: var(--surface-frame); color: var(--ink); 
 }
 .appearance-pop[hidden] { display: none; }
 @media (max-width: 700px) {

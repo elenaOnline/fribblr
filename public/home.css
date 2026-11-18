@@ -104,7 +104,7 @@ html[data-appearance] .board-card .home-select-dot:hover{background:var(--surfac
 @media(hover:none){.board-actions{opacity:1}.board-card .home-select-dot{opacity:.9}}
 
 /* ---------- Selection bar: one floating pill, as on a board ---------- */
-.home-selection-bar{position:fixed;left:50%;bottom:16px;z-index:35;transform:translateX(-50%);display:flex;flex-wrap:nowrap;align-items:center;gap:2px;max-width:calc(100vw - 24px);overflow-x:auto;padding:4px 4px 4px 14px;border:0;border-radius:var(--shape-bar);background:var(--surface-frame);color:var(--ink);box-shadow:var(--e3);white-space:nowrap;animation:home-up .14s var(--ease)}
+.home-selection-bar{position:fixed;left:50%;bottom:16px;z-index:35;transform:translateX(-50%);display:flex;flex-wrap:nowrap;align-items:center;gap:2px;max-width:calc(100vw - 24px);overflow-x:auto;padding:4px 4px 4px 14px;border:0;border-radius:var(--shape-bar);background:var(--surface-frame);color:var(--ink);white-space:nowrap;animation:home-up .14s var(--ease)}
 .home-selection-bar[hidden]{display:none}
 @keyframes home-up{from{opacity:0;transform:translate(-50%,8px)}}
 .home-selection-bar strong{margin-right:8px;font:500 12px/1 var(--type-mono);color:var(--ink)}
@@ -130,7 +130,7 @@ footer{display:flex;justify-content:space-between;gap:16px;padding:28px 0 40px;c
 
 /* ---------- New board prompt and other Home dialogs ---------- */
 /* a dialog floats: frame grey, an edge, a soft shadow, no side */
-dialog{width:calc(100% - 32px);max-width:600px;max-height:calc(100dvh - 36px);padding:32px 38px;border:0;border-radius:var(--shape-float);background:var(--surface-frame);color:var(--ink);box-shadow:var(--e4)}
+dialog{width:calc(100% - 32px);max-width:600px;max-height:calc(100dvh - 36px);padding:32px 38px;border:0;border-radius:var(--shape-float);background:var(--surface-frame);color:var(--ink);--float-cast: var(--cast-dialog);}
 dialog::backdrop{background:var(--scrim)}
 .eyebrow{display:none}
 dialog h2{margin:0 30px 12px 0;font:400 30px/1.2 var(--type-serif);letter-spacing:0;color:var(--ink)}
