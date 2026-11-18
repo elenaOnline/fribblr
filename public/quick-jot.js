@@ -3,9 +3,12 @@
 // current view, skipping cells that would overlap anything on the board, and
 // the view pans gently to keep the newest jot visible. Esc closes it.
 
+import { token } from "./tokens.js";
+
 const STYLE_ID = "quick-jot-style";
 const GAP = 16, MAX_COLS = 4, JOT_W = 180, JOT_H = 140, MARGIN = 24;
-const STICKY = { type: "region", shape: "rectangle", color: "#f6e6a4" };
+// A jot is a yellow Sticky; the colour is a stored value, read from the decoration palette (tokens.css).
+const stickyDecoration = () => ({ type: "region", shape: "rectangle", color: token("--deco-yellow") });
 let open = null;
 
 function injectStyle() {
@@ -15,14 +18,14 @@ function injectStyle() {
   style.textContent = `
 .quick-jot{position:fixed;left:50%;bottom:var(--quick-jot-bottom,72px);transform:translateX(-50%);z-index:1000;
   display:flex;align-items:center;width:min(440px,calc(100vw - 32px));box-sizing:border-box;
-  background:var(--surface-2,#fff);color:var(--ink,#23271f);border:1px solid var(--line-strong,#c8c6bb);
-  border-radius:var(--r-lg,12px);box-shadow:var(--e3)}
-.quick-jot:focus-within{border-color:var(--accent-ring,#62754a);box-shadow:0 0 0 1px var(--accent-ring,#62754a),var(--e3)}
+  background:var(--surface-frame);color:var(--ink);border:0;
+  border-radius:var(--shape-bar);box-shadow:var(--e3)}
+.quick-jot:focus-within{box-shadow:0 0 0 2px var(--mark-blue),var(--e3)}
 .quick-jot input{flex:1;min-width:0;margin:0;border:0;border-radius:inherit;background:transparent;
-  color:var(--ink,#23271f);caret-color:var(--accent-ring,#62754a);font:inherit;font-family:var(--font-ui,inherit);
-  font-size:var(--t-lg,15px);padding:11px 14px;appearance:none}
+  color:var(--mark-red);caret-color:var(--mark-red);font:inherit;font-family:var(--type-sans);
+  font-size:15px;padding:11px 14px;appearance:none}
 html .quick-jot input,html[data-appearance] .quick-jot input:focus,html[data-appearance] .quick-jot input:focus-visible{outline:none;box-shadow:none}
-.quick-jot input::placeholder{color:var(--muted,#7a7d70);opacity:1}
+.quick-jot input::placeholder{color:var(--ink-2);opacity:1}
 .quick-jot input:disabled{opacity:.7}`;
   document.head.append(style);
 }
@@ -123,7 +126,7 @@ export function openQuickJot(board) {
       board.whiteboard?.commitEdit?.({ focus: false });
       if (!layout) layout = { anchor: findAnchor(board, form), index: 0 };
       const cell = nextCell(board, layout);
-      const d = { id: crypto.randomUUID(), ...STICKY, x: cell.x, y: cell.y, width: JOT_W, height: JOT_H, text };
+      const d = { id: crypto.randomUUID(), ...stickyDecoration(), x: cell.x, y: cell.y, width: JOT_W, height: JOT_H, text };
       await board.client.write("createDecoration", { boardId: board.snapshot.id, decoration: d });
       // No lingering selection or handles: nothing is active after a jot.
       board.whiteboard?.clearSelection?.({ finishEdit: false });

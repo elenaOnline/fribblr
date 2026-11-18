@@ -16,39 +16,41 @@
   const DOTS = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/></svg>';
   const CSS = `
     :host { all: initial; position: fixed; left: 16px; bottom: 16px; z-index: 2147483000; display: block; color-scheme: light;
-      --bg: rgba(253,253,251,.86); --menu: #fdfdfb; --ink: #23271f; --ink3: #64685b; --line: rgba(35,39,31,.10); --hover: rgba(35,39,31,.06); --accent: #536044; --accent2: #899477; --soft: #e4e9da; --softink: #4a5838;
-      font: 500 13px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; color: var(--ink); }
-    :host([data-dark]) { color-scheme: dark; --bg: rgba(58,60,55,.9); --menu: #3a3c37; --ink: #ecece5; --ink3: #b9bbb0; --line: rgba(255,255,255,.12); --hover: rgba(255,255,255,.08); --accent: #a9bb8a; --accent2: #c9d3b5; --soft: #4a5240; --softink: #dfe6d0; }
+      /* This runs inside the page of a served item, where the app's tokens.css is not loaded: the theme's values (tokens.css)
+         are repeated here, light then dark. */
+      --bg: rgba(242,242,242,.9); --menu: #F2F2F2; --ink: #000000; --ink3: #595959; --line: #C8C8C8; --hover: rgba(0,0,0,.05); --blue: #005E8B; --soft: #D3DFE5; --cast: 0 4px 14px rgba(0,0,0,.16);
+      font: 400 13.5px/1.3 "IBM Plex Sans", -apple-system, system-ui, sans-serif; color: var(--ink); }
+    :host([data-dark]) { color-scheme: dark; --bg: rgba(34,41,46,.9); --menu: #22292E; --ink: #E9EDF0; --ink3: #A7B1B8; --line: #465058; --hover: rgba(255,255,255,.08); --blue: #4BA3D6; --soft: #2F4250; --cast: 0 4px 14px rgba(0,0,0,.45); }
     @media print { :host { display: none !important; } }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; corner-shape: squircle; }
     a, button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
-    svg { display: block; } .ma { fill: var(--accent); } .mb { fill: var(--accent2); }
+    svg { display: block; } .ma { fill: var(--ink); } .mb { fill: var(--blue); }
     .wrap { display: flex; align-items: center; gap: 4px; }
-    .chip { display: flex; align-items: center; height: 36px; padding: 0 9px; border-radius: 999px; background: var(--bg); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-      box-shadow: 0 0 0 1px var(--line), 0 4px 10px rgba(35,39,31,.10), 0 10px 24px rgba(35,39,31,.08); cursor: pointer; text-decoration: none; opacity: .72; transition: opacity .16s, padding .16s; }
+    .chip { display: flex; align-items: center; height: 36px; padding: 0 9px; border-radius: 16px; background: var(--bg);
+      box-shadow: 0 0 0 1px var(--line), var(--cast); cursor: pointer; text-decoration: none; opacity: .72; transition: opacity .16s, padding .16s; }
     .chip .m { width: 18px; height: 18px; flex: none; }
     .chip .t { display: grid; max-width: 0; margin-left: 0; overflow: hidden; white-space: nowrap; transition: max-width .2s cubic-bezier(.2,.7,.2,1), margin .2s; }
     .chip .t b { font-weight: 600; } .chip .t small { overflow: hidden; text-overflow: ellipsis; color: var(--ink3); font-size: 11px; font-weight: 400; }
-    .more { display: none; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 2px 6px rgba(35,39,31,.08); color: var(--ink3); cursor: pointer; }
+    .more { display: none; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 12px; background: var(--bg); box-shadow: 0 0 0 1px var(--line), var(--cast); color: var(--ink3); cursor: pointer; }
     .more svg { fill: currentColor; }
     .open .chip { opacity: 1; padding: 0 14px 0 10px; }
     .open .chip .t { max-width: min(300px, calc(100vw - 120px)); margin-left: 10px; }
     .open .more { display: inline-flex; }
-    .chip:focus-visible, .more:focus-visible, .row:focus-visible, .foot button:focus-visible, .foot a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .card { position: absolute; left: 0; bottom: 44px; width: 288px; max-width: calc(100vw - 32px); max-height: min(420px, calc(100vh - 80px)); overflow: auto; padding: 6px; border-radius: 12px; background: var(--menu); color: var(--ink);
-      box-shadow: 0 0 0 1px var(--line), 0 8px 18px rgba(35,39,31,.11), 0 22px 50px rgba(35,39,31,.11); }
+    .chip:focus-visible, .more:focus-visible, .row:focus-visible, .foot button:focus-visible, .foot a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .card { position: absolute; left: 0; bottom: 44px; width: 288px; max-width: calc(100vw - 32px); max-height: min(420px, calc(100vh - 80px)); overflow: auto; padding: 6px; border-radius: 18px; background: var(--menu); color: var(--ink);
+      box-shadow: 0 0 0 1px var(--line), var(--cast); }
     .card[hidden] { display: none; }
-    .lab { padding: 8px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink3); }
-    .row { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; align-items: center; width: 100%; padding: 7px 10px; border-radius: 6px; text-decoration: none; cursor: pointer; }
+    .lab { padding: 8px 10px 4px; font-size: 12px; font-weight: 400; color: var(--ink3); }
+    .row { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; align-items: center; width: 100%; padding: 7px 10px; border-radius: 9px; text-decoration: none; cursor: pointer; }
     .row:hover { background: var(--hover); }
     .row span, .row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .row small { grid-column: 1; color: var(--ink3); font-size: 11px; font-weight: 400; }
-    .row em { grid-row: 1 / span 2; grid-column: 2; font-style: normal; font-size: 11px; color: var(--softink); background: var(--soft); border-radius: 999px; padding: 2px 7px; }
+    .row em { grid-row: 1 / span 2; grid-column: 2; font-style: normal; font-size: 11px; color: var(--ink); background: var(--soft); border-radius: 6px; padding: 2px 7px; }
     .sep { height: 1px; background: var(--line); margin: 6px 4px; }
     .foot { display: flex; gap: 4px; padding: 2px; }
-    .foot button, .foot a { flex: 1; display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 6px; border: 0; border-radius: 6px; background: var(--hover); cursor: pointer; font-size: 12px; text-decoration: none; white-space: nowrap; }
+    .foot button, .foot a { flex: 1; display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 6px; border: 0; border-radius: 9px; background: var(--hover); cursor: pointer; font-size: 12px; text-decoration: none; white-space: nowrap; }
     .foot button:hover, .foot a:hover { background: var(--line); }
-    .toast { position: absolute; left: 0; bottom: 44px; padding: 8px 12px; border-radius: 999px; background: var(--ink); color: var(--menu); font-size: 12px; white-space: nowrap; }
+    .toast { position: absolute; left: 0; bottom: 44px; padding: 8px 12px; border-radius: 12px; background: var(--ink); color: var(--menu); font-size: 12px; white-space: nowrap; }
     .toast[hidden] { display: none; }
     @media (prefers-reduced-motion: reduce) { .chip, .chip .t { transition: none; } }`;
 
