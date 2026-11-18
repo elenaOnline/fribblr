@@ -59,9 +59,9 @@ try{
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   const noBlank=async label=>{
    await page.waitForTimeout(2500);
-   const cells=await page.locator('.workspace-cover-tile:has(iframe)').evaluateAll(tiles=>tiles.map(tile=>{const frame=tile.querySelector('iframe'),fallback=tile.querySelector('.workspace-cover-fallback');const fs=getComputedStyle(frame);return {pending:frame.hasAttribute('data-cover-pending')||frame.hidden,shown:fs.display!=='none'&&Number(fs.opacity)>0,fallback:getComputedStyle(fallback).visibility,background:getComputedStyle(tile).backgroundColor};}));
+   const cells=await page.locator('.workspace-cover-tile:has(iframe)').evaluateAll(tiles=>tiles.map(tile=>{const frame=tile.querySelector('iframe'),fallback=tile.querySelector('.workspace-cover-fallback');const fs=getComputedStyle(frame);const fr=fallback.getBoundingClientRect(),lum=c=>{const v=c.match(/[\d.]+/g).slice(0,3).map(Number).map(x=>x/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return .2126*v[0]+.7152*v[1]+.0722*v[2];};const ink=lum(getComputedStyle(fallback.querySelector('strong')||fallback).color),face=lum(getComputedStyle(tile).backgroundColor);return {pending:frame.hasAttribute('data-cover-pending')||frame.hidden,shown:fs.display!=='none'&&Number(fs.opacity)>0,fallback:getComputedStyle(fallback).visibility,said:fallback.textContent.trim().length>0&&fr.width>0&&fr.height>0,contrast:(Math.max(ink,face)+.05)/(Math.min(ink,face)+.05)};}));
    assert.ok(cells.length>0,`${label}: cover frames were rendered`);
-   for(const cell of cells){assert.equal(cell.shown,false,`${label}: a blocked frame is never shown`);assert.equal(cell.fallback,'visible',`${label}: the typed placeholder shows instead`);assert.notEqual(cell.background,'rgb(255, 255, 255)',`${label}: no white cell`);}
+   for(const cell of cells){assert.equal(cell.shown,false,`${label}: a blocked frame is never shown`);assert.equal(cell.fallback,'visible',`${label}: the typed placeholder shows instead`);assert.ok(cell.said,`${label}: no blank cell: the placeholder names the item`);assert.ok(cell.contrast>=4.5,`${label}: the placeholder reads on the tile's face (${cell.contrast.toFixed(2)}:1)`);}
    return cells.length;
   };
   await page.goto(base+'/');await page.locator('.board-card').first().waitFor();const home=await noBlank(`Home ${theme}`);

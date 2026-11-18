@@ -1,14 +1,20 @@
-import {bindForm, restoreFocus, commitShortcutLabel} from './interaction.js';
+import {bindForm, restoreFocus, commitShortcutLabel, commitShortcutCap} from './interaction.js';
 import {escape as esc, makeDialog, showFailure} from './workspace.js';
 import {resolveEndpoint, resolveLine, decorationBounds, linePath, targetBox} from './whiteboard-geometry.js';
 import {formatToHTMLString} from './deco-format.js';
 import {snapBox, snapDisabled} from './snap-guides.js';
 import {isMacPlatform} from './reader-keys.js';
+import {token} from './tokens.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
 const selector = id => `[data-decoration="${CSS.escape(id)}"]`;
-const cleanColor = value => /^#[0-9a-f]{3,8}$/i.test(value || '') ? value : '#78866c';
+// The decoration palette is tokens (--deco-*, tokens.css). A chosen colour is still stored on the board as its #hex
+// value, so deco() resolves the token at the moment of choosing; swatches draw var(--deco-*) directly.
+const deco = name => token('--deco-' + name);
+const cleanColor = value => /^#[0-9a-f]{3,8}$/i.test(value || '') ? value : deco('default');
+// Readable ink for text on an authored fill, per app appearance. The ink and canvas pairs below are the two
+// appearances' --ink and --ground (tokens.css), held as numbers because the maths needs both at once.
 // Readable ink for text on an authored fill, per app appearance. Translucent
 // fills composite over that appearance's canvas; the wash lightens or darkens
 // the fill away from its ink for the editing surface.
@@ -17,18 +23,18 @@ const decorationInk = color => {
   const rgb = [0,2,4].map(i => parseInt(hex.slice(i,i+2),16)), alpha = hex.length === 8 ? parseInt(hex.slice(6),16)/255 : 1;
   const luminance = channels => channels.map(c => c/255).map(c => c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4).reduce((sum,c,i) => sum + c*[.2126,.7152,.0722][i],0);
   const parse = value => value.match(/[a-f0-9]{2}/gi).map(c => parseInt(c,16));
-  return [['light',[239,238,232]],['dark',[43,44,41]]].map(([theme,canvas]) => {
+  return [['light',[218,229,236]],['dark',[28,35,40]]].map(([theme,canvas]) => {
     const fill = luminance(rgb.map((c,i) => c*alpha + canvas[i]*(1-alpha)));
     const contrast = ink => { const l = luminance(parse(ink)); return (Math.max(fill,l)+.05)/(Math.min(fill,l)+.05); };
-    let ink = ['#23271f','#ecece5'].sort((a,b) => contrast(b)-contrast(a))[0];
+    let ink = ['#000000','#e9edf0'].sort((a,b) => contrast(b)-contrast(a))[0];
     if (contrast(ink) < 4.5) ink = ['#000000','#ffffff'].sort((a,b) => contrast(b)-contrast(a))[0];
     const dark = luminance(parse(ink)) < .2;
-    return `--decoration-ink-${theme}:${ink};--decoration-wash-${theme}:${dark ? '#fdfdfb' : '#1c1d1a'};`;
+    return `--decoration-ink-${theme}:${ink};--decoration-wash-${theme}:${dark ? '#ffffff' : '#1c2328'};`;
   }).join('');
 };
 const lineWidths = {thin:1.25, medium:2, thick:3.5};
 // The arrow bar's preset palette; More keeps a custom colour picker.
-const arrowColors = [['#6c8060','Green'],['#7d8590','Grey'],['#4a78b0','Blue'],['#c0564b','Red'],['#d08a2e','Amber'],['#8a63b3','Purple']];
+const arrowSpec = [['ink-green','Green'],['ink-grey','Grey'],['ink-blue','Blue'],['ink-red','Red'],['ink-amber','Amber'],['ink-purple','Purple']];
 const icon = body => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 const icons = {
   straight:'<path d="M3 13L13 3"/>', elbow:'<path d="M3 13H8V3H13"/>', curved:'<path d="M3 13C3 6 13 10 13 3"/>',
@@ -47,12 +53,16 @@ const barParts = {
   group:(label,body)=>`<div class="whiteboard-bar-group" role="group" aria-label="${label}">${body}</div>`,
 };
 // Preset palettes per kind; More keeps a custom colour picker for anything else.
-const palettes = {
-  sticky:[['#f6e6a4','Yellow'],['#f4c9d0','Pink'],['#d3e8c6','Green'],['#cfe0f1','Blue'],['#f7d3a8','Orange'],['#ddd1ef','Purple']],
-  shape:[['#e0e8da','Sage'],['#dfe7ed','Mist'],['#f6e6a4','Yellow'],['#f4c9d0','Pink'],['#f7d3a8','Orange'],['#ddd1ef','Purple']],
-  text:[['#7a8a68','Green'],['#7d8590','Grey'],['#4a78b0','Blue'],['#c0564b','Red'],['#d08a2e','Amber'],['#8a63b3','Purple']],
+const paletteSpecs = {
+  sticky:[['yellow','Yellow'],['pink','Pink'],['green','Green'],['blue','Blue'],['orange','Orange'],['purple','Purple']],
+  shape:[['sage','Sage'],['mist','Mist'],['yellow','Yellow'],['pink','Pink'],['orange','Orange'],['purple','Purple']],
+  text:[['text-green','Green'],...arrowSpec.slice(1)],
 };
-palettes.area=[['#e1e8d5','Sage'],...palettes.shape.slice(1)];
+paletteSpecs.area=[['area-sage','Sage'],...paletteSpecs.shape.slice(1)];
+// [stored value, label, token name]: the value is what a board's file keeps; the name draws the swatch.
+const resolvePalette = spec => spec.map(([name,label]) => [deco(name),label,name]);
+const arrowColors = () => resolvePalette(arrowSpec);
+const palettes = kind => resolvePalette(paletteSpecs[kind]);
 const defaultAlign = d => d.shape && d.shape !== 'rectangle' ? 'center' : 'left';
 const kindOf = d => d.type==='line'?'line':d.type==='text'?'text':d.shape==='rectangle'?'sticky':d.shape?'shape':'area';
 const headsOf = d => d.startArrow ? d.endArrow ? 'both' : 'start' : d.endArrow ? 'end' : 'none';
@@ -269,7 +279,7 @@ export class Whiteboard {
       this.toolbar.classList.toggle('whiteboard-arrow-bar',!this.editor);
       this.toolbar.setAttribute('aria-label',this.groupName(list));
       this.toolbar.innerHTML=this.editor
-        ? `<span class="whiteboard-edit-hint">${esc(line?'Enter':commitShortcutLabel())} to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
+        ? `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
         : this.bar(list,draft);
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }
@@ -288,10 +298,10 @@ export class Whiteboard {
     const {button,group}=barParts,multi=list.length>1,kinds=new Set(list.map(kindOf)),kind=kinds.size===1?[...kinds][0]:null;
     const shared=read=>{const values=list.map(read);return values.every(v=>v===values[0])?values[0]:undefined;};
     const families=new Set([...kinds].map(k=>k==='line'||k==='text'?'ink':'fill'));
-    const palette=kind==='line'?arrowColors:kind?palettes[kind]:families.size===1?families.has('ink')?arrowColors:palettes.shape:null;
+    const palette=kind==='line'?arrowColors():kind?palettes(kind):families.size===1?families.has('ink')?arrowColors():palettes('shape'):null;
     const color=shared(d=>cleanColor(d.color).toLowerCase()),more=button('more',multi?'More options':`More ${kind==='line'?'arrow ':''}options`,icon(icons.more),{extra:` aria-haspopup="menu" aria-expanded="${!this.menu.hidden}"`});
     const name=multi?this.groupName(list):this.kindName(list[0]).toLowerCase(),remove=(multi?button('arrange','Arrange: align, distribute, tidy',icon(icons.arrange),{extra:' aria-haspopup="menu"'}):'')+button('remove',`Delete ${multi?name:name}`,icon(icons.remove));
-    const groups=[palette?group(kind==='text'?'Text color':'Color',palette.map(([value,label])=>button('color',`${label}${value===color?' (current)':''}`,`<i class="whiteboard-swatch" style="background:${value}"></i>`,{value,pressed:value===color})).join('')):''];
+    const groups=[palette?group(kind==='text'?'Text color':'Color',palette.map(([value,label,name])=>button('color',`${label}${value===color?' (current)':''}`,`<i class="whiteboard-swatch" style="background:var(--deco-${name})"></i>`,{value,pressed:value===color})).join('')):''];
     if(kind==='line') {
       const route=shared(d=>d.route||'straight'),thickness=shared(d=>d.thickness||'medium'),heads=shared(headsOf),dashed=shared(d=>!!d.dashed);
       const names={straight:'Straight',elbow:'Elbow',curved:'Curved',none:'No arrowheads',end:'Arrowhead at end',start:'Arrowhead at start',both:'Arrowheads at both ends',thin:'Thin',medium:'Medium',thick:'Thick'};
@@ -431,7 +441,7 @@ export class Whiteboard {
     finally{this.host.decorationCommitting=false;this.host.hooks.liveReady?.();}
   }
   async createLine(patch) {
-    const d={...patch,id:patch.id||crypto.randomUUID(),type:'line',text:patch.text||'',color:patch.color||'#6c8060',endArrow:patch.endArrow??true};
+    const d={...patch,id:patch.id||crypto.randomUUID(),type:'line',text:patch.text||'',color:patch.color||deco('ink-green'),endArrow:patch.endArrow??true};
     await this.host.writeArrangement('createDecoration',{boardId:this.host.snapshot.id,decoration:d},endpointsUnchanged(d,this.host.snapshot));
     this.host.activeDecoration=d.id;this.connectMode=false;this.pendingFrom=null;this.hint.hidden=true;
     await this.host.refresh({saveReview:false});this.sync();
@@ -596,7 +606,7 @@ export class Whiteboard {
     const point=this.host.canvasPoint({x:e.clientX,y:e.clientY});
     if(port) {
       const ref=JSON.parse(port.dataset.port),from=this.pendingFrom||ref,p=resolveEndpoint(from,this.host.snapshot);
-      d={id:crypto.randomUUID(),type:'line',text:'',color:'#6c8060',endArrow:true,...lineBox(p,p),from,to:pointOnly(p)};
+      d={id:crypto.randomUUID(),type:'line',text:'',color:deco('ink-green'),endArrow:true,...lineBox(p,p),from,to:pointOnly(p)};
       this.drag={d,creating:true,endpoint:'to',port:ref,choosing:!!this.pendingFrom};
     } else {
       this.select(d.id);this.drag={d:structuredClone(d),endpoint:e.target.closest('[data-endpoint]')?.dataset.endpoint,resize:!!e.target.closest('[data-decoration-resize]')};

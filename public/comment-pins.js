@@ -6,6 +6,7 @@
 import {pointAnchorAt, resolveCommentPoint, alongAnchorAt} from './feedback-geometry.js';
 import {toast, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
+import {token} from './tokens.js';
 
 // ---- API adapter (comment API, Tinka 1.1). Field and operation names live only here.
 export const commentApi = {
@@ -239,7 +240,7 @@ export class CommentPins {
     }
     if (drawn) {
       const d = (this.snapshot.decorations || []).find(d => d.id === drawn.dataset.decoration);if (!d) return null;
-      const kind = d.type === 'line' ? 'Arrow' : d.type === 'text' ? 'Text' : d.shape === 'rectangle' && /f6e6a4/i.test(d.color || '') ? 'Sticky' : d.shape ? 'Shape' : 'Area';
+      const kind = d.type === 'line' ? 'Arrow' : d.type === 'text' ? 'Text' : d.shape === 'rectangle' && (d.color || '').toLowerCase() === token('--deco-yellow') ? 'Sticky' : d.shape ? 'Shape' : 'Area';
       const words = String(d.text || '').replace(/\s+/g, ' ').trim().slice(0, 40);
       return {element:drawn, ref:{decorationId:d.id}, label:words ? `${kind} · ${words}` : kind};
     }

@@ -55,7 +55,7 @@ try{
   if(motion==='reduce'){await page.waitForTimeout(80);assert.equal(await inView(page,ids['09']),true,'Reduced motion jumps straight to the tile');}
   await page.locator(`[data-placement="${ids['09']}"].return-pulse`).waitFor({timeout:3000});
   await page.waitForFunction(id=>{const el=document.querySelector(`[data-placement="${id}"]`),r=el.getBoundingClientRect(),v=document.getElementById('viewport').getBoundingClientRect();return r.left>=v.left-1&&r.right<=v.right+1&&r.top>=v.top-1&&r.bottom<=v.bottom+1;},ids['09'],{timeout:3000});
-  const ring=await page.locator(`[data-placement="${ids['09']}"]`).evaluate(el=>getComputedStyle(el).outlineColor);assert.match(ring,/98, 117, 74|rgb\(98/,'The pulse is the one green');
+  const ring=await page.locator(`[data-placement="${ids['09']}"]`).evaluate(el=>getComputedStyle(el).outlineColor);const markBlue=await page.evaluate(()=>{const p=document.createElement('i');p.style.color='var(--mark-blue)';document.body.append(p);const c=getComputedStyle(p).color;p.remove();return c;});assert.equal(ring,markBlue,'The pulse is the theme mark-blue (the selected/focused colour)');
   if(motion==='no-preference')await page.screenshot({path:path.join(evidence,'return-pulse-09.png')});
   // A visible tile is not moved: open 09 again and return without stepping.
   await page.waitForTimeout(500);const viewBefore=await page.locator('#plane').evaluate(el=>el.style.transform);
@@ -73,5 +73,5 @@ try{
  }
  assert.equal((await getBoardSnapshot(config,'options')).revision,before,'Numbers and return-to-origin make no writes');
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:true,evidence,checks:['parent tiles show 07/08/09','reader number and title follow sibling arrows 07→08→09','Escape lands on the last viewed off-screen tile with a green pulse','reduced motion jumps straight there and still highlights','a visible tile keeps the view','child board top bar carries the owner number','← Parent and browser Back land on the board-tile with a pulse','no writes'],errors}));
+ console.log(JSON.stringify({passed:true,evidence,checks:['parent tiles show 07/08/09','reader number and title follow sibling arrows 07→08→09','Escape lands on the last viewed off-screen tile with a mark-blue pulse','reduced motion jumps straight there and still highlights','a visible tile keeps the view','child board top bar carries the owner number','← Parent and browser Back land on the board-tile with a pulse','no writes'],errors}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});}

@@ -8,7 +8,7 @@ import { openRemovalPrompt } from './agent-prompt.js';
 import { WorkspaceBoard } from './workspace-board.js';
 import { contentURL, enableOrganization, makeDialog } from './workspace.js';
 import { validTextAnchor } from './markdown-document.js';
-import {bindCommitShortcut,commitShortcutLabel} from './interaction.js';
+import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, wheelZoomFactor} from './canvas-zoom.js';
 import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
@@ -18,6 +18,8 @@ import {isMacPlatform, readerCommand, stepModifierLabel} from './reader-keys.js'
 import {boardStepCommand, boardStepTarget, isSteppable} from './board-step.js';
 import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
+import {markKind} from './kinds.js';
+import './keycaps.js';
 
 const $ = id => document.getElementById(id);
 mountAppearance($('board-info'));
@@ -713,6 +715,8 @@ function renderReaderHeader() {
   const name = descriptor(active, variant).name;
   const hint = variant?.hint || active.hint || '';
   $('reader-name').textContent = name;
+  // The opened item carries its kind, as its card on the board does.
+  markKind(document.querySelector('.reader-title-row'), active.graphItem || null);
   $('reader-path').title = `${name}${hint ? ` · ${hint}` : ''} · hover or click for where you are`;
   const number = shownNumber(active);
   $('reader-number').textContent = number;
@@ -1669,7 +1673,7 @@ document.addEventListener('input', event => {
 bindCommitShortcut(world,{accept:event=>event.target.matches('textarea[data-note]'),commit:flushNoteEdits,onError:error=>setSaveStatus(error.message,'local')});
 bindCommitShortcut($('reader-note'),{commit:flushNoteEdits,onError:error=>setSaveStatus(error.message,'local')});
 $('reader-note').setAttribute('aria-keyshortcuts','Meta+Enter Control+Enter');
-const readerNoteHint=document.createElement('small');readerNoteHint.className='workspace-submit-hint';readerNoteHint.textContent=`${commitShortcutLabel()} to save`; $('reader-note').after(readerNoteHint);
+const readerNoteHint=document.createElement('small');readerNoteHint.className='workspace-submit-hint';setCommitHint(readerNoteHint, 'save'); $('reader-note').after(readerNoteHint);
 document.addEventListener('keydown', event => {
   // The document editor (board-document.js) handles its own Escape: save and close it, keep the reader open.
   if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode===229 || event.repeat || document.querySelector('dialog.workspace-dialog[open],dialog.tinka-doc-editor[open]')) return;
@@ -1894,8 +1898,9 @@ document.addEventListener('tinka:selection', () => { readSelection(); syncFitCon
 // The selection bar never runs into the zoom controls or the map. When its usual
 // centred place would, it centres in the free space to their left: beside the
 // status line if it fits, otherwise over a quiet status line (which steps aside
-// while the bar shows), otherwise raised above the footer row. On a phone it spans
-// the width and the open map stacks above it instead.
+// while the bar shows), otherwise raised above the footer row. Given less room than
+// its actions need, it wraps them (it never squeezes them), and it never starts off
+// screen. On a phone it spans the width and the open map stacks above it instead.
 function placeSelectionBar() {
   const bar = $('workspace-selection'), pill = document.querySelector('.canvas-footer .zoom-pill'), root = document.documentElement;
   const footer = document.querySelector('.canvas-footer');
@@ -1909,16 +1914,18 @@ function placeSelectionBar() {
   const b = bar.getBoundingClientRect(), p = pill.getBoundingClientRect();
   const m = boardMap?.visible ? boardMapElement().getBoundingClientRect() : null;
   if (!meets(b, p) && !(m && meets(b, m))) return;
-  const statusLine = footer.querySelector('.status-line'), status = statusLine?.getBoundingClientRect();
+  // The left of the foot holds the kind legend and the status line; the bar sits beside whichever ends further right.
+  const status = [...footer.querySelectorAll('.kind-legend, .status-line')].map(el => el.getBoundingClientRect()).filter(r => r.width).reduce((a, r) => !a || r.right > a.right ? r : a, null);
   const right = Math.min(p.left, m ? m.left : Infinity) - 12, edge = footer.getBoundingClientRect().left + 12;
   const beside = status && status.width && status.bottom > b.top && status.top < b.bottom ? Math.max(edge, status.right + 12) : edge;
-  const quiet = ['saved', 'saving', '', undefined].includes($('save-status').dataset.state) && $('live-refresh').hidden && $('live-status').dataset.connection !== 'offline';
+  const quiet = ['saved', 'saving', '', undefined].includes($('save-status').dataset.state) && $('live-refresh').hidden && $('live-status').dataset.connection !== 'offline'
+    && !footer.querySelector('.kind-legend:not([hidden])'); // the legend is a control, not status: it never steps aside
   let from = edge;
   if (b.width <= right - beside) from = beside;
   else if (quiet && b.width <= right - edge) footer.classList.add('status-yields');
   else bar.style.bottom = `${Math.max(72, innerHeight - p.top + 12)}px`;
-  bar.style.left = `${Math.round((from + right) / 2)}px`;
   bar.style.maxWidth = `${Math.max(160, Math.round(right - from))}px`;
+  bar.style.left = `${Math.round(Math.max((from + right) / 2, from + bar.offsetWidth / 2))}px`;
 }
 let barObserved = false;
 const footerObserver = new ResizeObserver(() => placeSelectionBar());
@@ -1946,7 +1953,7 @@ function setCanvasPattern(pattern, { save = true } = {}) {
 function syncViewChrome() {
   const percent = Math.round(zoom * 100);
   const readout = $('zoom-menu-toggle');
-  if (readout && readout.textContent !== `${percent}%`) { readout.textContent = `${percent}%`; readout.setAttribute('aria-label', `Zoom ${percent}%, zoom and background options`); }
+  if (readout && readout.textContent !== `${percent}%`) { readout.textContent = `${percent}%`; readout.setAttribute('aria-label', `Zoom ${percent}%, zoom and pattern options`); }
   const canvasMode = graph?.mode !== 'grid';
   viewport.style.setProperty('--canvas-zoom', String(canvasMode ? zoom : 1));
   viewport.style.setProperty('--chrome-scale', String(canvasMode ? Math.min(2.4, 1 / zoom) : 1));

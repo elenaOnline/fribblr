@@ -46,7 +46,7 @@ try{
     const response=await route.fetch();requests.push({type:body?.type,status:response.status()});
     await route.fulfill({response});
   });
-  const ready=async()=>{await page.locator('#live-status[data-connection="live"]').waitFor();await page.waitForTimeout(300);};
+  const ready=async()=>{await page.locator('#live-status[data-connection="live"]').waitFor({state:'attached'});await page.waitForTimeout(300);};
   const show=async(id,from)=>{await page.goto(`${url}/boards/${id}/${from?`?from=${from}`:''}`);await page.locator('#world').waitFor();await ready();};
   const until=async(check,ms=6000)=>{const end=Date.now()+ms;while(Date.now()<end){if(await check())return true;await page.waitForTimeout(100);}return false;};
   const centre=async locator=>{const b=await locator.boundingBox();return {x:b.x+b.width/2,y:b.y+b.height/2};};

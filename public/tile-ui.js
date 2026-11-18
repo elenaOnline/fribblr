@@ -1,4 +1,4 @@
-import {bindForm, commitShortcutLabel, restoreFocus} from './interaction.js';
+import {bindForm, commitShortcutLabel, restoreFocus, setCommitHint} from './interaction.js';
 
 // Menus and note editors live in viewport space, independent of canvas zoom.
 export function positionTilePopover(element, anchor, point) {
@@ -84,7 +84,7 @@ export class TileNotes {
     const field=form.querySelector('textarea');field.setAttribute('aria-label',`Notes on ${title}`);field.setAttribute('aria-keyshortcuts','Meta+Enter Control+Enter');
     let draft=this.drafts.get(key);try{draft??=localStorage.getItem(this.draftKey(key))??undefined;}catch{}
     field.value=draft??this.read(key);this.field=field;this.element=form;
-    form.querySelector('small').textContent=`${commitShortcutLabel()} to save`;
+    setCommitHint(form.querySelector('small'), 'save');
     let saved=false;
     this.binding=bindForm(form,{submit:async()=>{await this.save(key,field.value);},onSuccess:()=>{saved=true;},onError:error=>{this.remember();const status=form.querySelector('[data-form-status]');status.textContent=error.message||'Note not saved. Try again.';status.setAttribute('role','alert');},onPendingChange:pending=>{field.readOnly=pending;form.querySelectorAll('[data-note-close],[data-note-cancel]').forEach(b=>b.disabled=pending);if(!pending&&saved)this.close({cancel:true,focus:true});}});
     form.querySelector('[data-note-close]').onclick=()=>this.close({focus:true});

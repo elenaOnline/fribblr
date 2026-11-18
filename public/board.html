@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tinka</title>
+  <script src="/app/appearance-boot.js"></script>
   <link rel="stylesheet" href="/app/canvas.css">
   <link rel="stylesheet" href="/app/live.css">
   <link rel="stylesheet" href="/app/agent-prompt.css">
-<link rel="stylesheet" href="/app/workspace.css"><link rel="stylesheet" href="/app/navigator.css"><link rel="stylesheet" href="/app/appearance.css"><link rel="stylesheet" href="/app/tokens.css"><link rel="stylesheet" href="/app/calm.css"><link rel="stylesheet" href="/app/reader.css"><link rel="stylesheet" href="/app/update-notice.css"><link rel="icon" href="/app/mark.svg" type="image/svg+xml"></head>
+<link rel="stylesheet" href="/app/workspace.css"><link rel="stylesheet" href="/app/navigator.css"><link rel="stylesheet" href="/app/appearance.css"><link rel="stylesheet" href="/app/tokens.css"><link rel="stylesheet" href="/app/calm.css"><link rel="stylesheet" href="/app/depth.css"><link rel="stylesheet" href="/app/reader.css"><link rel="stylesheet" href="/app/update-notice.css"><link rel="stylesheet" href="/app/legend.css"><link rel="icon" href="/app/mark.svg" type="image/svg+xml"></head>
 <body>
   <header id="canvas-header" class="canvas-header">
     <nav class="identity" aria-label="Board navigation">
@@ -15,7 +16,7 @@
       <span id="board-number" class="item-number board-number" hidden></span><h1 id="board-title" class="board-name" aria-current="page">Loading board…</h1>
     </nav>
     <div id="chrome-actions" class="chrome-actions">
-      <button id="chrome-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" title="Find boards and items (⌘K)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span><kbd class="tk-kbd" aria-hidden="true">⌘K</kbd></button>
+      <button id="chrome-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" title="Find boards and items (⌘K)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
       <button id="board-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="board-info" aria-label="Inspector" title="Inspector: board view, filters, details and help (⌘I)"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
     </div>
     <section id="board-info" class="board-info calm-side calm-side-right" role="dialog" aria-modal="false" aria-labelledby="board-info-heading" hidden>
@@ -40,8 +41,8 @@
     <section class="view-tools zoom-pill" role="toolbar" aria-label="Board view controls">
       <button id="zoom-minus" class="tk-btn tk-icon" type="button" aria-label="Zoom out" title="Zoom out (−)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10"/></svg></button>
       <span class="zoom-menu-wrap">
-        <button id="zoom-menu-toggle" class="tk-btn zoom-percent" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="zoom-menu" title="Zoom and background">50%</button>
-        <div id="zoom-menu" class="tk-menu zoom-menu" role="group" aria-label="Zoom and background" hidden>
+        <button id="zoom-menu-toggle" class="tk-btn zoom-percent" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="zoom-menu" title="Zoom and pattern">50%</button>
+        <div id="zoom-menu" class="tk-menu zoom-menu" role="group" aria-label="Zoom and pattern" hidden>
           <button class="tk-mi" type="button" data-zoom-to="0.5">Zoom to 50%</button>
           <button class="tk-mi" type="button" data-zoom-to="1">Zoom to 100%<kbd class="tk-kbd" aria-hidden="true">⇧0</kbd></button>
           <button class="tk-mi" type="button" data-zoom-to="1.25">Zoom to 125%</button>
@@ -50,7 +51,7 @@
           <button class="tk-mi" type="button" data-zoom-to="fit">Fit board<kbd class="tk-kbd" aria-hidden="true">⇧1</kbd></button>
           <button class="tk-mi" type="button" data-zoom-to="selection" hidden>Fit selection<kbd class="tk-kbd" aria-hidden="true">⇧2</kbd></button>
           <div class="tk-msep"></div>
-          <div class="tk-mlabel" id="canvas-pattern-label">Background · this board</div>
+          <div class="tk-mlabel" id="canvas-pattern-label">Pattern · this board</div>
           <div class="tk-seg canvas-pattern" role="group" aria-labelledby="canvas-pattern-label"><button type="button" data-canvas-pattern="dots" aria-pressed="false">Dots</button><button type="button" data-canvas-pattern="grid" aria-pressed="false">Grid</button><button type="button" data-canvas-pattern="plain" aria-pressed="true">Plain</button></div>
         </div>
       </span>
@@ -76,7 +77,7 @@
       </nav>
       <div class="chrome-actions">
         <span class="item-actions"><button id="reader-star" class="item-star tk-btn tk-icon" type="button" aria-pressed="false" aria-label="Favorite" title="Favorite">☆</button><button id="notes-toggle" class="notes-toggle tk-btn" type="button" aria-expanded="false" aria-controls="notes-panel">Notes<span class="note-dot" aria-hidden="true" hidden></span></button></span>
-        <button id="reader-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" title="Find boards and items (⌘K)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span><kbd class="tk-kbd" aria-hidden="true">⌘K</kbd></button>
+        <button id="reader-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" title="Find boards and items (⌘K)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
         <button id="reader-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="reader-info" aria-label="Inspector" title="Inspector: this Tinka's details and actions (⌘I)"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
       </div>
     </header>

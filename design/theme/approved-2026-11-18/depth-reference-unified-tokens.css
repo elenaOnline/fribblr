@@ -1,0 +1,111 @@
+/* fribblr, round 2: one theme from Extruded cards and Colour by kind. Tokens (light only).
+   The plain names are the ones fribblr/public/tokens.css already defines, so a real theme can drop this block in
+   place of the current light set. --x-* names are new and belong to this theme.
+
+   Shape rule: what you press is round, what holds things is square.
+   Colour rule: state colours are marks (outline, pin, band, word); kind colours are material (the slab's side). */
+:root, html[data-appearance="light"], html[data-appearance] {
+  color-scheme: light;
+
+  /* ground and surfaces: white paper, cool hairlines, no cream (Extruded cards) */
+  --bg-canvas: #FFFFFF;
+  --bg-chrome: #FFFFFF;
+  --surface-1: #FFFFFF;
+  --surface-2: #FFFFFF;
+  --surface-sunken: #F3F4F7;     /* wells: previews, control tracks, idle sockets */
+  --tile-surface: #FFFFFF;       /* the top face of every slab */
+  --field: #FFFFFF;
+  --field-line: #BFC3CF;
+  --line: #E1E4EA;
+  --line-strong: #BFC3CF;
+
+  /* ink: Pure's navy ladder */
+  --ink: #1B2340;                /* 15.4:1 on white */
+  --ink-2: #545B73;              /* 6.7:1 */
+  --ink-3: #646A80;              /* 5.4:1; Pure's #8A90A3 stays decorative only */
+  --hover: rgba(27, 35, 64, .05);
+  --press: rgba(27, 35, 64, .09);
+
+  /* state colours, one job each (Extruded cards). These appear only as marks. */
+  --accent: #1B2340;             /* navy: the primary action, a board */
+  --accent-hover: #2A3560;
+  --accent-text: #1F4FD1;        /* blue: selected, on, focused */
+  --accent-soft: #E9EFFF;
+  --accent-soft-2: #D6E1FF;
+  --accent-ring: #2F6BFF;
+  --on-accent: #FFFFFF;
+  --danger: #C2410C;             /* orange: danger */
+  --warn: #8A5A00;
+  --x-comment: #C9246E;          /* raspberry: comments */
+  --x-comment-soft: #FBEAF1;
+  --x-star: #C99A2E;             /* gold: starred (a band on the slab) */
+  --x-star-text: #9A7314;
+  --x-star-soft: #FBF3DF;
+  --sage: #8A90A3;
+
+  /* kind colours: three families, worn as material. OKLCH hues 200 / 305 / 148, chroma fitted to sRGB
+     (design/theming/a/tools/colour.py). side = the slab's lit side (L .70), edge = its lower edge (L .50),
+     text = the role word (L .45), tint = a swatch's well (L .955). Notes, ideas: no hue. Boards: navy. */
+  --kind-page-side: #2BB3B9;  --kind-page-edge: #007176;  --kind-page-text: #006266;  --kind-page-tint: #D6F8F9;   /* HTML, live apps, links */
+  --kind-doc-side: #AE8CD5;   --kind-doc-edge: #734F99;   --kind-doc-text: #65418A;   --kind-doc-tint: #F4ECFF;    /* Markdown, PDF */
+  --kind-pic-side: #6CB177;   --kind-pic-edge: #277539;   --kind-pic-text: #13662B;   --kind-pic-tint: #E1F7E3;    /* images, video */
+  --kind-plain-side: #E3E6ED; --kind-plain-edge: #C2C7D3; --kind-plain-text: #545B73; --kind-plain-tint: #F3F4F7;  /* notes, ideas */
+  --kind-board-side: #2A3560; --kind-board-edge: #0B1022; --kind-board-text: #1B2340; --kind-board-tint: #E6E8EE;  /* boards */
+
+  /* the floor: registration crosses at a 56 px pitch */
+  --dot: #C9CDD8;
+  --grid-minor: rgba(27, 35, 64, .05);
+  --grid-major: rgba(27, 35, 64, .09);
+  --scrim: rgba(27, 35, 64, .18);
+  --x-cross: #D5D8E0;
+
+  /* one light, from above. A slab: top face, 1 px rim, a 5 px lit side, its lower edge, a short cast shadow.
+     --k-side / --k-edge are set per card from its kind. */
+  --x-depth: 6px;
+  --x-rim: #CDD1DB;
+  --x-cast: 0 14px 18px -12px rgba(27, 35, 64, .22);
+  --tile-shadow: 0 0 0 1px var(--x-rim), 0 5px 0 0 var(--kind-plain-side), 0 5px 0 1px var(--kind-plain-edge), var(--x-cast);
+
+  /* floating chrome */
+  --e1: 0 0 0 1px rgba(27, 35, 64, .10), 0 1px 0 rgba(27, 35, 64, .04);
+  --e2: 0 0 0 1px #DADDE5, 0 1px 0 rgba(27, 35, 64, .04), 0 8px 28px rgba(27, 35, 64, .09);
+  --e3: 0 0 0 1px #DADDE5, 0 2px 0 rgba(27, 35, 64, .04), 0 12px 32px rgba(27, 35, 64, .12);
+  --e4: 0 0 0 1px #DADDE5, 0 2px 0 rgba(27, 35, 64, .04), 0 18px 50px rgba(27, 35, 64, .16);
+  --e-chrome: 0 1px 0 #E1E4EA;
+
+  /* keycap lips: a control is a built thing too, pressed flat on :active */
+  --x-lip: inset 0 -2px 0 rgba(27, 35, 64, .14), 0 0 0 1px #D5D8E0;
+  --x-lip-primary: inset 0 -2px 0 #0B1022;
+
+  /* radii by kind of surface */
+  --r-control: 999px;            /* buttons, fields, segmented controls, toolbars: round */
+  --r-socket: 50%;               /* the round icon socket inside a control */
+  --r-menu: 14px;                /* menus, thread card, hover toolbar's outer panel */
+  --r-row: 8px;                  /* a row inside a menu: 14 minus the 6 px inset */
+  --r-xs: 3px;                   /* keycap hints (read, not pressed), role swatches */
+  --r-sm: 6px;
+  --r-md: 8px;                   /* the app also uses --r-md for wells and notes, so controls are rounded by name in theme.css */
+  --r-lg: 6px;                   /* slabs on the floor */
+  --r-xl: 12px;                  /* side panels, dialogs */
+  --r-pill: 999px;
+  --x-r-float: 14px;
+
+  /* type: Space Grotesk for everything you operate; Latin Modern italic only for lettered points */
+  --font-ui: 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --x-font-letter: 'Latin Modern', Georgia, serif;
+  --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 15px; --t-xl: 18px; --t-2xl: 24px; --t-3xl: 30px;
+  --x-label: 600 10.5px/1.2 var(--font-ui);   /* uppercase role words, letter-spacing .09em */
+
+  --control-h: 32px; --control-h-sm: 28px;
+  --chrome-h: 52px;
+  --x-dim: .35;                  /* the kind legend: what is not lit drops to 35% */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+
+  /* older aliases the app still reads */
+  --canvas: var(--bg-canvas); --paper: var(--surface-1); --card: var(--surface-1); --muted: var(--ink-3);
+  --green: var(--accent-ring); --olive: var(--accent); --soft: var(--surface-sunken); --wash: var(--surface-sunken);
+  --focus: var(--accent-ring); --control-line: var(--field-line); --night: var(--field); --white: var(--surface-2);
+  --serif: var(--font-display); --sans: var(--font-ui);
+}

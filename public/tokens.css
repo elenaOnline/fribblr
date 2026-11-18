@@ -1,186 +1,261 @@
-/* Tinka foundation: calm objects, one green.
-   One accent (the Tinka mark's green) means on, selected or primary. Warm
-   neutrals carry no blue cast; dark mode is a softer warm graphite. Elevation
-   has a hairline, an ambient and a key shadow. Load this file after the page's
-   own styles: it defines the tokens and maps the older variable names onto them. */
-:root, html[data-appearance="light"] {
+@import url('/app/fonts.css');
+/* fribblr tokens: the one source of truth for colour, depth, shape and type.
+   The approved intent is design/theme/approved-2026-11-18/ (frozen); this file is its live form.
+   A change to the theme is an edit here. Depth's rules (how heights are drawn) are in depth.css.
+
+   Three layers, all declared on <html>:
+   1  Role tokens, by role: ground, surface, line, ink, palette (marks and kind material), depth, shape, type.
+      Light on the desk is the base. html[data-ground="white"] swaps only the ground role; html[data-appearance="dark"]
+      swaps ground, surface, line, ink and marks. Nothing else is restyled per mode: everything derives.
+   2  The app's older names (--bg-canvas, --surface-1, --e1..--e4, --r-*, --canvas, --paper ...) mapped onto roles,
+      so untouched CSS follows the theme. New CSS uses role tokens, not these.
+   3  Zoom-aware depth (--px, --hair, --side-*), computed per board in depth.css.
+
+   Translating a file (the rule to apply literally):
+   - A hard-coded colour becomes the role token for its job, never a near match by value:
+     the board/desk behind things  --ground        a sunken window onto a board  --ground-well
+     a white face (card, key, field) --surface-paper  chrome, menus, panels, dialogs --surface-frame
+     a chosen row / on-state tint    --surface-chosen
+     rule inside a surface --line-hair   rim of a key/field/row --line-seam   rim of a float, hover rim --line-edge
+     words --ink   meta, labels, hints --ink-2   words on a blue or red mark --ink-on-mark
+     on/selected/focus/primary --mark-blue(-deep, -side)   her voice (comments, stars, notes) --mark-red(-deep, -side)
+     an item's kind --kind-<family>-side | -edge | -text   (family = page, doc, pic, plain, board)
+     danger has no colour: --ink.  A translucent wash of ink: color-mix(in srgb, var(--ink) N%, transparent).
+   - A box-shadow that shows height is deleted; the element joins a height in depth.css instead.
+     Only hairline rings (0 0 0 1px) and focus rings stay local, coloured from the line tokens.
+   - A radius becomes a --shape-* token. Corners are squircles everywhere (depth.css); a circle that is the mark
+     itself (pin head, dot, avatar) opts out with corner-shape: round.
+   - A font stack becomes --type-sans | --type-serif | --type-mono. Mono is for numbers only.
+   - Leave html[data-appearance="dark"] overrides out; delete them when the light rule already uses tokens.
+   - JS: write 'var(--token)' into style where it can; read a value with token() from tokens.js only for canvas
+     drawing or SVG attributes, and read it again from onThemeChange(). */
+
+:root {
   color-scheme: light;
-  --bg-canvas: #efeee8;
-  --bg-chrome: #f8f7f3;
-  --surface-1: #fdfdfb;
-  --surface-2: #ffffff;
-  --surface-sunken: #e7e6df;
-  --tile-surface: #e5e5dc;
-  --tile-shadow: 0 2px 7px rgba(35,39,31,.035);
-  --field: #f4f3ee;
-  --field-line: #868a7c;
-  --line: #dfddd4;
-  --line-strong: #c8c6bb;
-  --ink: #23271f;
-  --ink-2: #4c5145;
-  --ink-3: #64685b;
-  --hover: rgba(35, 39, 31, .06);
-  --press: rgba(35, 39, 31, .10);
-  --accent: #536044;
-  --accent-hover: #46512f;
-  --accent-text: #4a5838;
-  --accent-soft: #e4e9da;
-  --accent-soft-2: #d5dec6;
-  --accent-ring: #62754a;
-  --on-accent: #ffffff;
-  --sage: #899477;
-  --danger: #a4462f;
-  --warn: #8a6314;
-  --dot: rgba(35, 39, 31, .085);
-  --grid-minor: rgba(35, 39, 31, .055);
-  --grid-major: rgba(35, 39, 31, .09);
-  --scrim: rgba(35, 39, 31, .16);
-  --e1: 0 0 0 1px rgba(35, 39, 31, .075), 0 1px 2px rgba(35, 39, 31, .06), 0 3px 8px rgba(35, 39, 31, .045);
-  --e2: 0 0 0 1px rgba(35, 39, 31, .08), 0 4px 10px rgba(35, 39, 31, .08), 0 14px 30px rgba(35, 39, 31, .08);
-  --e3: 0 0 0 1px rgba(35, 39, 31, .09), 0 8px 18px rgba(35, 39, 31, .11), 0 22px 50px rgba(35, 39, 31, .11);
-  --e4: 0 0 0 1px rgba(35, 39, 31, .09), 0 16px 36px rgba(35, 39, 31, .14), 0 36px 90px rgba(35, 39, 31, .14);
-  --e-chrome: 0 1px 0 rgba(35, 39, 31, .07);
-  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 999px;
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-  --font-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 15px; --t-xl: 18px; --t-2xl: 24px; --t-3xl: 32px;
+
+  /* ---------- ground: what everything stands on (swapped by data-ground) ---------- */
+  /* the desk family: one colour, and every piece cut from it (OKLCH steps from the desk, in its hue).
+     A new desk colour is this one edit. */
+  --desk: #DAE5EC;              /* Modus's well: L .916, C .015, hue 235 */
+  --desk-deep: oklch(from var(--desk) calc(l - .057) calc(c * 1.30) h);      /* #C5D3DC */
+  --desk-pattern: oklch(from var(--desk) calc(l - .306) calc(c * 2.54) h);   /* #6E8798 */
+  --desk-rim: oklch(from var(--desk) calc(l - .095) calc(c * .80) h);        /* #BDC6CB */
+  --desk-key-side: oklch(from var(--desk) calc(l - .149) calc(c * 1.16) h);  /* #A9B5BD */
+  --desk-cast: oklch(from var(--desk) calc(l - .602) calc(c * 2.47) h);      /* #1E3442 */
+
+  /* ---------- ground: what everything stands on (the desk, or white: data-ground) ---------- */
+  --ground: var(--desk);        /* the board, reader stage, Home */
+  --ground-deep: var(--desk-deep);   /* a step down into the ground */
+  --ground-well: var(--desk);   /* a window sunk into a face onto a board's ground: board covers */
+  --ground-pattern: var(--desk-pattern);   /* the board's Dots and Grid */
+  --ground-rim: var(--desk-rim);     /* the 1 px rim of a slab standing on the ground */
+  --ground-key-side: var(--desk-key-side);  /* the lower side of a white key standing on the ground */
+  --ground-cast: var(--desk-cast);   /* the colour of a cast shadow on the ground; used as rgb(from var(--ground-cast) r g b / a) */
+  --ground-cast-alpha: .40;
+
+  /* ---------- surface ---------- */
+  --surface-paper: #FFFFFF;     /* the top face of every slab, key and field; documents */
+  --surface-frame: #F2F2F2;     /* header bar, inspector, menus, dialogs, the thread card, bars over the board */
+  --surface-chosen: #D3DFE5;    /* a chosen row, a key that is on: frame + 13 % blue */
+
+  /* ---------- line ---------- */
+  --line-hair: #E0E0E0;         /* rules inside a surface */
+  --line-seam: #C8C8C8;         /* the rim of a key, field or float row */
+  --line-edge: #9F9F9F;         /* the rim of a float; a slab's rim under the pointer */
+  --key-side: #B4B4B4;          /* the lower side of a white key on the frame */
+
+  /* ---------- ink ---------- */
+  --ink: #000000;               /* the agent's work and the controls' words */
+  --ink-2: #595959;             /* machinery: labels, meta, counts, hints */
+  --ink-on-mark: #FFFFFF;
+
+  /* ---------- palette: marks are deep and carry state; material is mid and carries kind ---------- */
+  --mark-blue: #005E8B;         /* on, selected, focused, the primary key, links in documents */
+  --mark-blue-deep: #005077;
+  --mark-blue-side: #003A57;
+  --mark-red: #B33830;          /* her voice: her comments, replies, review notes, stars, votes, the note dot */
+  --mark-red-deep: #922C26;
+  --mark-red-side: #791A16;
+  /* kind material: an item's kind is the colour of its slab's lower side (OKLCH L .70, C .115; hues 195/305/145);
+     -edge is the side's darker contour (L .48), -text the kind's colour as words */
+  --kind-page-side: #1DB4B4;  --kind-page-edge: #006C6C;  --kind-page-text: #005F5F;   /* HTML, live apps, links */
+  --kind-doc-side: #AF8CD8;   --kind-doc-edge: #6B4E8B;   --kind-doc-text: #614083;    /* Markdown, PDF */
+  --kind-pic-side: #6FB171;   --kind-pic-edge: #356C38;   --kind-pic-text: #236228;    /* images, video, audio */
+  /* no hue: notes are the desk's own material at the kinds' L .70 / .48; a child board is a deeper piece of desk */
+  --kind-plain-side: oklch(from var(--desk) .700 calc(c * 1.30) h); --kind-plain-edge: oklch(from var(--desk) .479 calc(c * 1.67) h); --kind-plain-text: #595959;   /* #93A1A9 #50606A */
+  --kind-board-side: oklch(from var(--desk) .581 calc(c * 2.61) h); --kind-board-edge: oklch(from var(--desk) .381 calc(c * 2.25) h); --kind-board-text: #000000;  /* #647F8F #304652 */
+
+  /* ---------- depth: one light from above; the model and its rules are in depth.css ----------
+     sunken -1  fields, tracks, covers     flush 0  ground, chrome, panels, drawn things
+     raised  1  keys, pins, keycaps        slab  2  cards, the reader's item, boards on Home      float 3  menus, dialogs
+     World lengths are at 100 % zoom; a -min is a floor in screen pixels, held when the board is zoomed out. */
+  --depth-sunk: 1px;            /* a field's shade along its top inner edge */
+  --depth-raised: 2px;          /* a key's lower side */
+  --depth-slab: 8px;            /* a slab's lower side */
+  --depth-slab-min: 6;          /* ...never thinner than this on screen: the strength holds zoomed out */
+  --depth-edge-low: 1px;        /* the contour under a slab's side is this much heavier than at its ends */
+  --depth-lift: 4px;            /* how far a slab she drags rises */
+  --depth-lift-min: 3;
+  --depth-hair-min: 1;          /* rims, contours and the selection gap never fall under a screen pixel */
+  --select-width: 2px;          /* the selection line around a slab */
+  --select-gap: 2px;            /* ...drawn this far outside the slab's side */
+  --cast-float: 0 4px 14px rgba(0, 0, 0, .16);     /* floats are held above, not standing: a soft shadow, no side */
+  --cast-dialog: 0 10px 32px rgba(0, 0, 0, .2);
+
+  /* ---------- shape: squircles (corner-shape in depth.css); a squircle reads about 60 % as round ---------- */
+  --shape-slab: 12px;           /* cards, the reader's item, boards on Home */
+  --shape-key: 12px;            /* keys, fields, segmented tracks */
+  --shape-cell: 9px;            /* the chosen segment, menu rows */
+  --shape-float: 18px;          /* menus, the thread card, dialogs */
+  --shape-bar: 16px;            /* the bars floating over the board */
+  --shape-cap: 6px;             /* printed keycaps, small swatches */
+  --shape-preview: 6px;         /* a preview set into a face */
+
+  /* ---------- type: IBM Plex (fonts.css), three voices with fixed jobs ---------- */
+  --type-serif: "IBM Plex Serif", Georgia, serif;                       /* names: boards, titles, documents */
+  --type-sans: "IBM Plex Sans", -apple-system, system-ui, sans-serif;   /* controls and card titles */
+  --type-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;         /* numbers: counts, shortcuts, zoom, times */
+  --type-ui: 13.5px;            /* controls, menu rows, card titles */
+  --type-meta: 12px;
+  --type-board: 21px;           /* the board's name in the bar */
+
+  /* ================= the app's older names, mapped ================= */
+  /* kept: still read by name outside public/ (tests/decoration-ink-browser.mjs --bg-canvas, tests/cover-layers-browser.mjs --canvas),
+     named in depth.css comments (--bg-canvas, --e-chrome), by calm.css --hover (hover fills inside a card keep the page's ink, not the
+     card's own --ink), and by reader.css --on-accent (dark has its own value). New CSS uses role tokens. */
+  --bg-canvas: var(--ground);
+  --canvas: var(--bg-canvas);
+  --hover: color-mix(in srgb, var(--ink) 5%, transparent);
+  --on-accent: var(--ink-on-mark);
+  --e-chrome: 0 1px 0 var(--line-seam);
   --control-h: 32px; --control-h-sm: 28px;
   --chrome-h: 52px;
   --ease: cubic-bezier(.2, .7, .2, 1);
-  /* Older names used across the app's stylesheets. */
-  --canvas: var(--bg-canvas);
-  --paper: var(--surface-1);
-  --card: var(--surface-1);
-  --muted: var(--ink-3);
-  --green: var(--accent);
-  --olive: var(--accent);
-  --soft: var(--surface-sunken);
-  --wash: var(--surface-sunken);
-  --focus: var(--accent-ring);
-  --control-line: var(--field-line);
-  --night: var(--field);
-  --white: var(--surface-2);
-  --serif: var(--font-display);
-  --sans: var(--font-ui);
-}
-html[data-appearance="dark"] {
-  color-scheme: dark;
-  --bg-canvas: #2b2c29;
-  --bg-chrome: #323430;
-  --surface-1: #3a3c37;
-  --surface-2: #43453f;
-  --surface-sunken: #262724;
-  --tile-surface: #373c31;
-  --tile-shadow: 0 2px 7px rgba(0,0,0,.12);
-  --field: #2b3027;
-  --field-line: #85877d;
-  --line: #4a4c46;
-  --line-strong: #5f615a;
-  --ink: #ecece5;
-  --ink-2: #c8c9bf;
-  --ink-3: #b4b5aa;
-  --hover: rgba(236, 236, 229, .07);
-  --press: rgba(236, 236, 229, .12);
-  --accent: #a9bb8a;
-  --accent-hover: #bccb9f;
-  --accent-text: #b6c697;
-  --accent-soft: #3d4535;
-  --accent-soft-2: #4a5440;
-  --accent-ring: #a9bb8a;
-  --on-accent: #1d2218;
-  --sage: #8c9a76;
-  --danger: #eb9d86;
-  --warn: #d9b25a;
-  --dot: rgba(204, 216, 182, .08);
-  --grid-minor: rgba(236, 236, 229, .045);
-  --grid-major: rgba(236, 236, 229, .08);
-  --scrim: rgba(10, 10, 8, .35);
-  --e1: 0 0 0 1px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .045), 0 2px 6px rgba(0, 0, 0, .22);
-  --e2: 0 0 0 1px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .06), 0 8px 22px rgba(0, 0, 0, .30);
-  --e3: 0 0 0 1px rgba(0, 0, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .07), 0 14px 36px rgba(0, 0, 0, .38);
-  --e4: 0 0 0 1px rgba(0, 0, 0, .40), inset 0 1px 0 rgba(255, 255, 255, .07), 0 24px 70px rgba(0, 0, 0, .45);
-  --e-chrome: 0 1px 0 rgba(0, 0, 0, .35);
-  --canvas: var(--bg-canvas);
-  --paper: var(--surface-1);
-  --card: var(--surface-1);
-  --muted: var(--ink-3);
-  --green: var(--accent);
-  --olive: var(--accent);
-  --soft: var(--surface-sunken);
-  --wash: var(--surface-sunken);
-  --focus: var(--accent-ring);
-  --control-line: var(--field-line);
-  --night: var(--field);
-  --white: var(--surface-2);
 }
 
-/* One visible green focus ring everywhere. */
-:is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
-html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+/* ---------- ground: white. A flat white board; the desk's job (separating things) moves to rims and sides ---------- */
+html[data-ground="white"] {
+  --ground: #FFFFFF;
+  --ground-deep: #E4EBF0;
+  --ground-well: #EEF3F6;
+  --ground-pattern: #A3B3BD;
+  --ground-rim: #B3BDC3;        /* darker than on the desk: the rim is now a white face's only edge */
+  --ground-key-side: #B4B4B4;
+  --ground-cast-alpha: .34;
+}
+
+/* ---------- dark: derived, not designed. Light is the theme; dark only has to stay readable ---------- */
+html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) {
+  color-scheme: dark;
+  --ground: #1C2328; --ground-deep: #151B1F; --ground-well: #161C20; --ground-pattern: #5A6C78;
+  --ground-rim: #3A454D; --ground-key-side: #10161A; --ground-cast: #000000; --ground-cast-alpha: .5;
+  --surface-paper: #2A3136; --surface-frame: #22292E; --surface-chosen: #2F4250;
+  --line-hair: #353D43; --line-seam: #465058; --line-edge: #69757E; --key-side: #151B1F;
+  --ink: #E9EDF0; --ink-2: #A7B1B8; --ink-on-mark: #FFFFFF;
+  --mark-blue: #4BA3D6; --mark-blue-deep: #2F86B8; --mark-blue-side: #1A5A80;
+  --mark-red: #F0877E; --mark-red-deep: #D96A61; --mark-red-side: #8E2E27;
+  --kind-plain-side: #56656F; --kind-plain-edge: #3A464E; --kind-plain-text: #A7B1B8;
+  --kind-board-side: #7F98A8; --kind-board-edge: #4A6170; --kind-board-text: #E9EDF0;
+  --kind-page-text: #6FD6D6; --kind-doc-text: #CDB3EE; --kind-pic-text: #9AD19B;
+  --on-accent: #0B1B24;
+  --cast-float: 0 4px 14px rgba(0, 0, 0, .45);
+  --cast-dialog: 0 10px 32px rgba(0, 0, 0, .55);
+}
+
+/* without corner-shape the corners fall back to round ones, smaller because a circle reads rounder than a squircle */
+@supports not (corner-shape: squircle) {
+  :root { --shape-slab: 6px; --shape-key: 7px; --shape-cell: 5px; --shape-float: 10px; --shape-bar: 10px; --shape-cap: 4px; --shape-preview: 3px; }
+}
+
+/* ================= shared control family =================
+   Role tokens only. The look of a control that has a height (a key's face and side, a field's sunk rim) is depth.css's;
+   the rules here that would compete with it (face, rim, state tints) are wrapped in :where() so a height always wins. */
+:is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--mark-blue); outline-offset: 2px; }
+html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--mark-blue); outline-offset: 2px; }
 
 /* ---------- One control family ----------
-   1  In chrome every command is a quiet button: no container at rest.
-   2  A container appears only for a toggle that is on, the single primary
-      action, a field you type into, or a segmented choice.
-   3  Green means on, selected or primary; nothing else is green. */
+   1  In chrome every command is a key; a key with a height draws it from depth.css.
+   2  A key without a height (a quiet icon in a bar, a row action) is flat until the pointer is on it.
+   3  Blue means on, selected or primary; nothing else is blue. */
 .tk-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: var(--control-h); min-width: var(--control-h); padding: 0 10px; margin: 0;
-  border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink-2);
-  font: 500 var(--t-md)/1 var(--font-ui); white-space: nowrap; cursor: pointer; text-decoration: none;
-  transition: background .12s, color .12s, box-shadow .12s;
+  border: 0; border-radius: var(--shape-key); color: var(--ink-2);
+  font: 400 var(--type-ui)/1 var(--type-sans); white-space: nowrap; cursor: pointer; text-decoration: none;
+  transition: background-color .12s, color .12s, box-shadow .12s;
+  /* Never squeezed below its label: the min-width floor above replaces the flex
+     min-content floor, so a crowded row would otherwise cut the text and overlap. */
+  flex-shrink: 0;
 }
-.tk-btn:hover { background: var(--hover); color: var(--ink); }
-.tk-btn:active { background: var(--press); }
-.tk-btn:disabled { opacity: .5; cursor: default; background: transparent; }
-.tk-btn[aria-pressed="true"], .tk-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-text); }
+:where(.tk-btn) { background-color: transparent; }
+:where(.tk-btn:hover) { background-color: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
+:where(.tk-btn:active) { background-color: color-mix(in srgb, var(--ink) 9%, transparent); }
+:where(.tk-btn:disabled) { opacity: .5; cursor: default; background-color: transparent; }
+:where(.tk-btn[aria-pressed="true"], .tk-btn[aria-expanded="true"]) { background-color: var(--surface-chosen); color: var(--ink); }
 .tk-btn.tk-icon { padding: 0; width: var(--control-h); }
-.tk-btn.tk-sm { height: var(--control-h-sm); min-width: var(--control-h-sm); padding: 0 8px; font-size: var(--t-sm); border-radius: var(--r-sm); }
+.tk-btn.tk-sm { height: var(--control-h-sm); min-width: var(--control-h-sm); padding: 0 8px; font-size: var(--type-meta); border-radius: var(--shape-cell); }
 .tk-btn.tk-sm.tk-icon { width: var(--control-h-sm); padding: 0; }
-.tk-btn.tk-tonal { background: var(--hover); color: var(--ink); }
-.tk-btn.tk-tonal:hover { background: var(--press); }
-.tk-btn.tk-primary { background: var(--accent); color: var(--on-accent); }
-.tk-btn.tk-primary:hover { background: var(--accent-hover); color: var(--on-accent); }
-.tk-btn.tk-danger { color: var(--danger); }
+.tk-btn.tk-tonal { color: var(--ink); }
+.tk-btn.tk-tonal:disabled { color: var(--ink-2); }
+:where(.tk-btn.tk-primary) { background-color: var(--mark-blue); }
+:where(.tk-btn.tk-primary:hover) { background-color: var(--mark-blue-deep); }
+.tk-btn.tk-primary, .tk-btn.tk-primary:hover { color: var(--ink-on-mark); }
+/* the primary key's inputs for the raised height (depth.css): a blue face on a deep blue side */
+.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-side); color: var(--ink-on-mark); }
+.tk-btn.tk-danger { color: var(--ink); }  /* danger has no colour: red is her voice */
 .tk-btn svg, .tk-glyph { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.tk-kbd { font: 500 var(--t-xs)/1 var(--font-ui); color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--field); }
-.tk-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 9px; background: var(--hover); }
-.tk-seg > button { height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font: 500 var(--t-sm)/1 var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-.tk-seg > button:hover { color: var(--ink); background: transparent; }
-.tk-seg > button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); box-shadow: var(--e1); }
-.tk-field { height: var(--control-h); padding: 0 10px; border: 1px solid var(--field-line); border-radius: var(--r-md); background: var(--field); color: var(--ink); font: var(--t-md)/1.3 var(--font-ui); }
-.tk-field::placeholder { color: var(--ink-3); opacity: 1; }
-.tk-field:focus { outline: none; border-color: var(--accent-ring); box-shadow: 0 0 0 3px var(--accent-soft); }
-.tk-eyebrow { font: 600 var(--t-xs)/1.3 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
-.tk-divider { width: 1px; height: 20px; background: var(--line); flex: none; }
-.tk-menu { min-width: 220px; padding: 6px; background: var(--surface-2); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--e3); }
-.tk-menu .tk-mi { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink); font: var(--t-md)/1.2 var(--font-ui); text-align: left; cursor: pointer; }
-.tk-menu .tk-mi:hover, .tk-menu .tk-mi:focus-visible { background: var(--hover); outline: none; }
+/* a printed shortcut is a tiny raised key (depth.css) */
+.tk-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 17px; box-sizing: border-box; padding: 0 4px; border: 0; border-radius: var(--shape-cap); color: var(--ink-2); font: 400 10.5px/1 var(--type-mono); --key-d: 1.5px; }
+/* a segmented choice is a sunken track with the chosen segment a raised cell (depth.css) */
+.tk-seg { display: inline-flex; padding: 3px; gap: 0; border-radius: var(--shape-key); --sink-floor: var(--surface-frame); }
+.tk-seg > button { height: 28px; padding: 0 12px; border: 0; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+:where(.tk-seg > button) { background-color: transparent; }
+.tk-seg > button:hover, .tk-seg > button[aria-pressed="true"] { color: var(--ink); }
+/* a field sinks (depth.css) */
+.tk-field { height: var(--control-h); padding: 0 10px; border: 0; border-radius: var(--shape-key); color: var(--ink); font: 400 var(--type-ui)/1.3 var(--type-sans); }
+.tk-field::placeholder { color: var(--ink-2); opacity: 1; }
+.tk-field:focus { outline: none; }
+/* section names are plain words, not eyebrows */
+.tk-eyebrow { font: 400 var(--type-meta)/1.3 var(--type-sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+.tk-divider { width: 1px; height: 20px; background: var(--line-seam); flex: none; }
+/* a menu floats (depth.css): frame grey, comfortable rows, a blue-grey chosen row, the shortcut at the end */
+.tk-menu { min-width: 220px; padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float); }
+.tk-menu .tk-mi { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink); font: 400 var(--type-ui)/1.2 var(--type-sans); text-align: left; cursor: pointer; }
+.tk-menu .tk-mi:hover, .tk-menu .tk-mi:focus-visible { background: var(--surface-chosen); outline: none; }
 .tk-menu .tk-mi .tk-kbd { margin-left: auto; }
-.tk-menu .tk-mi.tk-danger { color: var(--danger); }
-.tk-menu .tk-msep { height: 1px; background: var(--line); margin: 6px 4px; }
-.tk-menu .tk-mlabel { font: 600 var(--t-xs)/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding: 8px 10px 4px; }
+.tk-menu .tk-mi.tk-danger { color: var(--ink); }
+.tk-menu .tk-msep { height: 1px; background: var(--line-seam); margin: 6px 4px; }
+.tk-menu .tk-mlabel { font: 400 var(--type-meta)/1.3 var(--type-sans); letter-spacing: 0; text-transform: none; color: var(--ink-2); padding: 8px 10px 4px; }
 
 /* Readable dates: exact time on hover or focus (see relative-dates.js). */
 time[data-rel] { text-decoration: underline dotted transparent; text-underline-offset: 3px; transition: text-decoration-color .12s; }
-time[data-rel]:hover, time[data-rel]:focus-visible { text-decoration-color: var(--line-strong); }
-.tk-date-tip { position: fixed; z-index: 1000; pointer-events: none; padding: 6px 9px; border-radius: 8px; background: var(--surface-2); color: var(--ink); box-shadow: var(--e3); font: 500 12px/1.3 var(--font-ui); white-space: nowrap; opacity: 0; transform: translateY(3px); transition: opacity .12s, transform .15s; }
+time[data-rel]:hover, time[data-rel]:focus-visible { text-decoration-color: var(--line-seam); }
+.tk-date-tip { position: fixed; z-index: 1000; pointer-events: none; padding: 6px 9px; border-radius: var(--shape-cell); background: var(--surface-frame); color: var(--ink); font: 400 12px/1.3 var(--type-sans); white-space: nowrap; opacity: 0; transform: translateY(3px); transition: opacity .12s, transform .15s; }
 .tk-date-tip.on { opacity: 1; transform: none; }
 
-/* A neutral marker: green is reserved for on, selected and primary. */
-.tk-new { display: inline-flex; align-items: center; font: 600 var(--t-xs)/1 var(--font-ui); letter-spacing: .02em; color: var(--ink-2); background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--line-strong); border-radius: var(--r-pill); padding: 4px 7px; }
+/* A neutral marker: blue is reserved for on, selected and primary. */
+.tk-new { display: inline-flex; align-items: center; font: 400 11px/1 var(--type-sans); letter-spacing: 0; color: var(--ink-2); background: transparent; box-shadow: inset 0 0 0 1px var(--line-seam); border-radius: var(--shape-cap); padding: 3px 6px; }
 
-/* The Tinka mark follows the theme: green and sage on light, lifted on dark. */
+/* The mark follows the theme: ink and blue. */
 .brand-mark { display: block; flex: 0 0 auto; }
-.brand-mark-a { fill: #536044; }
-.brand-mark-b { fill: #899477; }
-html[data-appearance="dark"] .brand-mark-a { fill: var(--accent); }
-html[data-appearance="dark"] .brand-mark-b { fill: #c9d3b5; }
+.brand-mark-a { fill: var(--ink); }
+.brand-mark-b { fill: var(--mark-blue); }
 
 /* Docked side panels make room beside the work. */
 body.navigator-docked > main { margin-left: var(--navigator-dock-width, 340px); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}
+
+/* ---------- decoration palette: colours a person picks for content on the whiteboard (whiteboard.js) ----------
+   Not roles: they do not change with the ground or the appearance, because a chosen colour is stored on the board as
+   its value (a #hex in the board's file) and must read the same wherever the board is opened. The values are the
+   ones boards already store, so existing stickies, shapes, regions, text and arrows keep matching their swatch. */
+:root {
+  --deco-yellow: #f6e6a4;  --deco-pink: #f4c9d0;  --deco-green: #d3e8c6;  --deco-blue: #cfe0f1;  --deco-orange: #f7d3a8;  --deco-purple: #ddd1ef;   /* sticky and shape fills */
+  --deco-sage: #e0e8da;    --deco-mist: #dfe7ed;  --deco-area-sage: #e1e8d5;                                                                         /* shape and area fills */
+  --deco-ink-green: #6c8060;  --deco-ink-grey: #7d8590;  --deco-ink-blue: #4a78b0;  --deco-ink-red: #c0564b;  --deco-ink-amber: #d08a2e;  --deco-ink-purple: #8a63b3;   /* arrows */
+  --deco-text-green: #7a8a68;                                                                                                                      /* text's own green */
+  --deco-default: #78866c;                                                                                                                         /* a decoration saved with no valid colour */
 }

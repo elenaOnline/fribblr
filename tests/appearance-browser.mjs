@@ -47,6 +47,7 @@ try{
   await page.screenshot({path:path.join(evidence,'home-dark.png')});
   // Preview launch buttons cover the artwork. Their hover backgrounds must
   // remain translucent in both appearances, including the legacy viewer.
+  // (Alpha is read from rgba() and from color(... / a), which color-mix tokens compute to.)
   await page.goto(base+'/boards/studio/');
   await page.locator('.workspace-card-preview .board-collage').waitFor();
   for(const appearance of ['dark','light']){
@@ -54,11 +55,11 @@ try{
     await page.reload();await page.locator('.workspace-card-preview .board-collage').waitFor();
     const launch=page.locator('.workspace-card-preview:has(.board-collage) .workspace-preview-launch').first();
     await launch.hover();
-    const alpha=await launch.evaluate(el=>{const c=getComputedStyle(el).backgroundColor;return c.startsWith('rgba(')?Number(c.match(/[\d.]+/g)[3]):c==='transparent'?0:1;});
+    const alpha=await launch.evaluate(el=>{const c=getComputedStyle(el).backgroundColor;return c.includes('/')?Number(c.split('/').pop().replace(')','')):c.startsWith('rgba(')?Number(c.match(/[\d.]+/g)[3]):c==='transparent'?0:1;});
     assert.ok(alpha<.1,`${appearance} board cover hover obscures artwork: alpha ${alpha}`);
     await page.evaluate(()=>{const preview=document.createElement('div');preview.className='preview';preview.style.cssText='position:fixed;top:80px;left:80px;width:200px;height:150px;z-index:99999;background:#f00';preview.innerHTML='<button class="preview-launch"><span>Open</span></button>';document.body.append(preview);});
     const legacy=page.locator('.preview > .preview-launch').last();await legacy.hover();
-    const legacyAlpha=await legacy.evaluate(el=>{const c=getComputedStyle(el).backgroundColor;return c.startsWith('rgba(')?Number(c.match(/[\d.]+/g)[3]):c==='transparent'?0:1;});
+    const legacyAlpha=await legacy.evaluate(el=>{const c=getComputedStyle(el).backgroundColor;return c.includes('/')?Number(c.split('/').pop().replace(')','')):c.startsWith('rgba(')?Number(c.match(/[\d.]+/g)[3]):c==='transparent'?0:1;});
     assert.ok(legacyAlpha<.1,`${appearance} legacy preview hover obscures artwork: alpha ${legacyAlpha}`);
     await legacy.locator('..').evaluate(el=>el.remove());
   }
@@ -109,7 +110,7 @@ try{
   await openItemDetails(page.locator(`[data-placement="${placements.town}"] [data-item-controls]`));await page.screenshot({path:path.join(evidence,'item-popup-dark-narrow.png')});await page.locator('[data-context-close]').click();
   await page.getByRole('button',{name:'Navigator',exact:true}).click();await page.locator('#project-navigator').waitFor({state:'visible'});await page.getByText('Loading project boards…',{exact:true}).waitFor({state:'hidden'});await check('.navigator-status','#project-navigator');
   await page.screenshot({path:path.join(evidence,'navigator-dark-narrow.png')});await page.keyboard.press('Escape');
-  await page.goto(base+'/');assert.equal(await page.getByRole('combobox',{name:'Appearance'}).inputValue(),'system');
+  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name:'System'}).getAttribute('aria-pressed'),'true');
   assert.deepEqual(errors,[]);
   await writeFile(path.join(evidence,'appearance-report.json'),JSON.stringify({passed:true,contrasts,checks:['system/light/dark persistence','mixed building and review cards','explicit white and dark paper','popup field text and boundary','authored media retains source colors','home and navigator','normal and narrow'],errors},null,2));
   console.log(JSON.stringify({passed:true,evidence,contrasts,errors}));

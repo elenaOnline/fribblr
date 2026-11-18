@@ -126,14 +126,14 @@ try{
   await run('keys typed right after a double-click are kept; Escape then cancels cleanly',async()=>{
     const snap=await getBoardSnapshot(config,board.boardId),placement=snap.placements.at(-1),card=page.locator(`[data-placement="${placement.id}"]`);
     const item=snap.items[placement.itemId],file=path.join(fixture,'boards','imports',item.content.resource.path),before=await readFile(file,'utf8');
-    const box=await card.locator('.workspace-card-preview').boundingBox();
-    await page.mouse.dblclick(box.x+box.width-30,box.y+box.height-30);await page.keyboard.type('xyz',{delay:5});
+    const box=await card.locator('.workspace-card-preview').boundingBox();/* aim at mid-height: the selection bar floats over the card's lower part now it sits above the foot */
+    await page.mouse.dblclick(box.x+box.width-30,box.y+box.height/2);await page.keyboard.type('xyz',{delay:5});
     const ed=page.frameLocator('.workspace-card.doc-editing iframe').locator('article.doc-editing');
     assert.ok(await until(async()=>(await ed.innerText()).includes('xyz'),15000),`early keys replayed in order: ${await ed.innerText().catch(()=>'')}`);
     await done();
     assert.ok(await until(async()=>(await readFile(file,'utf8')).includes('xyz'),15000),'saved');
     const now=await readFile(file,'utf8');
-    await page.mouse.dblclick(box.x+box.width-30,box.y+box.height-30);await page.keyboard.press('Escape');
+    await page.mouse.dblclick(box.x+box.width-30,box.y+box.height/2);await page.keyboard.press('Escape');
     await page.locator('.workspace-card.doc-editing').waitFor({state:'detached'});
     await page.waitForTimeout(500);
     assert.equal(await page.locator('.workspace-card.doc-editing').count(),0,'not editing');

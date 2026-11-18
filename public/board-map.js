@@ -1,9 +1,10 @@
 // The board map: every rendered item and region drawn once as silhouettes on one
-// canvas, the current view as a frame and the selection in the accent green.
+// canvas, the current view as a frame and the selection in the accent blue.
 // Outlines redraw only when content, selection or theme change; panning moves only
 // the frame. The map owns its pointer, wheel and key gestures, so nothing it does
 // reaches the board underneath. All coordinates it exchanges are world units.
 import {wheelZoomFactor} from './canvas-zoom.js';
+import {onThemeChange} from './tokens.js';
 
 const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
@@ -27,7 +28,7 @@ export class BoardMap {
     this.visible = false; this.dirty = true; this.box = null; this.raf = 0; this.drag = null;
     this.bindPointer(); this.bindKeys();
     // Theme changes recolour the silhouettes.
-    new MutationObserver(() => this.invalidate()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-appearance'] });
+    onThemeChange(() => this.invalidate());
     try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.invalidate()); } catch {}
   }
   show(on) {
@@ -80,16 +81,16 @@ export class BoardMap {
       c.beginPath();
       if (c.roundRect) c.roundRect(x, y, w, h, Math.min(radius, w / 2, h / 2)); else c.rect(x, y, w, h);
     };
-    const sage = token('--sage') || '#899477';
+    const plain = token('--line-edge');
     for (const d of decorations) {
       if (d.type === 'line') continue;
-      const color = HEX.test(d.color || '') ? d.color : sage;
+      const color = HEX.test(d.color || '') ? d.color : plain;
       shape(d, d.type === 'region' ? 3 : 1);
       c.globalAlpha = d.type === 'region' ? .3 : .15; c.fillStyle = color; c.fill();
       c.globalAlpha = .55; c.strokeStyle = color; c.lineWidth = 1; c.stroke();
       c.globalAlpha = 1;
     }
-    const fill = token('--line-strong'), edge = token('--field-line'), accent = token('--accent');
+    const fill = token('--line-seam'), edge = token('--line-edge'), accent = token('--mark-blue');
     for (const item of items) {
       if (item.selected) continue;
       shape(item, 1.5); c.fillStyle = fill; c.fill();

@@ -1,5 +1,5 @@
 import {writesReady} from './update-hold.js';
-import {bindForm,restoreFocus,commitShortcutLabel} from './interaction.js';
+import {bindForm,restoreFocus,commitShortcutLabel,setCommitHint} from './interaction.js';
 // Small shared primitives for graph workspaces; the legacy board stays independent.
 export const escape = (value) =>
   String(value ?? "").replace(
@@ -162,7 +162,7 @@ export function makeDialog(title, body, onSubmit) {
   document.body.append(d);
   if (onSubmit && d.querySelector('[type=submit]')) {
     const hint=document.createElement('small');hint.className='workspace-submit-hint';
-    hint.textContent=`${commitShortcutLabel()} to save`;
+    setCommitHint(hint, 'save');
     d.querySelector('.workspace-form-status').before(hint);
   }
   let closed = false, controller;

@@ -1,65 +1,66 @@
 /* Whiteboard objects inherit Tinka's paper canvas and authored Georgia text. */
 /* Text on an authored fill takes its ink from that fill, not from the app
    appearance; the renderer supplies per-appearance ink and an editing wash. */
-.workspace-decoration { --decoration-ink:var(--decoration-ink-light,var(--ink)); --decoration-wash:var(--decoration-wash-light,var(--paper)); }
-html[data-appearance="dark"] .workspace-decoration { --decoration-ink:var(--decoration-ink-dark,var(--ink)); --decoration-wash:var(--decoration-wash-dark,var(--paper)); }
+.workspace-decoration { --decoration-ink:var(--decoration-ink-light); --decoration-wash:var(--decoration-wash-light); }
+html[data-appearance="dark"] .workspace-decoration { --decoration-ink:var(--decoration-ink-dark); --decoration-wash:var(--decoration-wash-dark); }
 .whiteboard-shape { background:transparent !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; z-index:1 !important; }
-.whiteboard-silhouette { position:absolute; inset:0; width:100%; height:100%; fill:var(--decoration-color); stroke:color-mix(in srgb,var(--decoration-color),var(--decoration-ink) 18%); stroke-width:1; overflow:visible; pointer-events:none; filter:drop-shadow(0 3px 3px #35402a14); }
-.whiteboard-shape .workspace-decoration-label { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; text-align:center; white-space:pre-wrap; color:var(--decoration-ink); padding:16px; font:400 20px/1.4 Georgia,serif; }
+.whiteboard-silhouette { position:absolute; inset:0; width:100%; height:100%; fill:var(--decoration-color); stroke:color-mix(in srgb,var(--decoration-color),var(--decoration-ink) 18%); stroke-width:1; overflow:visible; pointer-events:none;  }
+.whiteboard-shape .workspace-decoration-label { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; text-align:center; white-space:pre-wrap; color:var(--decoration-ink); padding:16px; font:400 20px/1.4 var(--type-sans); }  /* her text size: Small 15, Medium 20, Large 28 (as upstream) */
 .shape-rectangle .workspace-decoration-label { align-items:flex-start; justify-content:flex-start; text-align:left; padding:20px; }
 .shape-diamond .workspace-decoration-label { padding:20% 24%; }
 .shape-ellipse .workspace-decoration-label { padding:15% 20%; }
 .workspace-decoration.decoration-line { background:transparent; pointer-events:none; outline:none; z-index:2; }
 .workspace-decoration.decoration-line.selected { outline:none; z-index:10000; }
 .workspace-decoration-line .whiteboard-line-hit { fill:none; stroke:transparent; stroke-width:16; vector-effect:non-scaling-stroke; pointer-events:stroke; cursor:move; }
-.workspace-decoration .whiteboard-line-label { width:max-content; max-width:260px; bottom:auto; min-height:0; padding:3px 8px; transform:translate(-50%,-50%); background:var(--paper); border-radius:5px; color:var(--ink); font:400 15px/1.4 Georgia,serif; pointer-events:auto; white-space:pre-wrap; box-shadow:0 0 0 3px color-mix(in srgb,var(--paper) 73%,transparent); }
+.workspace-decoration .whiteboard-line-label { width:max-content; max-width:260px; bottom:auto; min-height:0; padding:3px 8px; transform:translate(-50%,-50%); background:var(--ground); border-radius:var(--shape-cap); color:var(--ink-2); font:400 12px/1.3 var(--type-sans); pointer-events:auto; white-space:pre-wrap; box-shadow:inset 0 0 0 1px var(--ground-rim); }
 .workspace-decoration .whiteboard-line-label:empty { display:none; }
 .workspace-decoration .workspace-endpoint { pointer-events:auto; }
-.workspace-decoration .endpoint-head { background:var(--green); border-color:var(--paper); }
-.whiteboard-detached { position:absolute; right:0; top:12px; white-space:nowrap; padding:2px 5px; background:#fff4d9; color:#755c28; border-radius:4px; font:11px system-ui; pointer-events:none; }
+.workspace-decoration .endpoint-head { background:var(--mark-blue); border-color:var(--surface-paper); }
+.whiteboard-detached { position:absolute; right:0; top:12px; white-space:nowrap; padding:2px 5px; background:var(--surface-frame); color:var(--ink-2); box-shadow:0 0 0 1px var(--line-seam); border-radius:var(--shape-cap); font:var(--type-meta) var(--type-sans); pointer-events:none; }
 .whiteboard-ports { position:absolute; inset:0; pointer-events:none; z-index:10001; }
-.whiteboard-port { position:absolute; transform:translate(-50%,-50%); width:20px; height:20px; min-width:20px; min-height:20px; border-radius:50%; border:2px solid var(--green); background:var(--paper); box-shadow:0 1px 4px #26321d30; pointer-events:auto; cursor:crosshair; padding:0; }
-.whiteboard-port:hover,.whiteboard-port:focus-visible { background:var(--soft); outline:3px solid var(--line); }
-.whiteboard-toolbar,.whiteboard-menu { position:fixed; z-index:100020; font:13px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 18px #25301820; }
+.whiteboard-port { position:absolute; transform:translate(-50%,-50%); width:20px; height:20px; min-width:20px; min-height:20px; border-radius:50%; border:2px solid var(--mark-blue); background:var(--surface-paper); pointer-events:auto; cursor:crosshair; padding:0; }
+.whiteboard-port:hover,.whiteboard-port:focus-visible { background:var(--surface-chosen); }
+.whiteboard-toolbar,.whiteboard-menu { position:fixed; z-index:100020; font:var(--type-ui)/1.4 var(--type-sans); color:var(--ink); background:var(--surface-frame); border:0; border-radius:var(--shape-float);  }
+.whiteboard-toolbar { border-radius:var(--shape-bar); }
 .whiteboard-toolbar { display:flex; align-items:center; gap:4px; max-width:calc(100vw - 16px); padding:4px; }
 .whiteboard-toolbar button { white-space:nowrap; min-height:36px; padding:6px 10px; border-color:transparent; font-size:13px; }
-.whiteboard-toolbar button:hover,.whiteboard-toolbar button[aria-pressed=true] { background:var(--soft); }
-.whiteboard-toolbar span { padding:0 8px; font-size:12px; color:var(--muted); }
+.whiteboard-toolbar button:not([aria-pressed=true]):hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.whiteboard-toolbar span { padding:0 8px; font-size:12px; color:var(--ink-2); }
 .whiteboard-menu { width:234px; padding:6px; max-height:calc(100dvh - 24px); overflow:auto; }
 .whiteboard-menu button { display:block; text-align:left; width:100%; min-height:36px; padding:8px 10px; border:0; font-size:13px; }
-.whiteboard-menu button:hover { background:var(--soft); }
-.whiteboard-menu hr { border:0; border-top:1px solid var(--line); margin:5px 6px; }
+.whiteboard-menu button:hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.whiteboard-menu hr { border:0; border-top:1px solid var(--line-hair); margin:5px 6px; }
 .whiteboard-color { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 10px; }
-.whiteboard-color input { width:36px; height:32px; border:1px solid var(--line); border-radius:5px; background:transparent; padding:3px; }
+.whiteboard-color input { width:36px; height:32px; border:1px solid var(--line-seam); border-radius:var(--shape-cap); background:transparent; padding:3px; }
 .whiteboard-editor { position:absolute; inset:0; z-index:3; margin:0; pointer-events:auto; }
-.workspace-decoration .whiteboard-editor textarea { display:block; width:100%; height:100%; resize:none; border:1px solid var(--green); border-radius:3px; background:color-mix(in srgb,var(--decoration-color),var(--decoration-wash) 18%); color:var(--decoration-ink); caret-color:var(--decoration-ink); padding:20px; font:400 20px/1.4 Georgia,serif; white-space:pre-wrap; outline:2px solid var(--paper); outline-offset:1px; }
-.workspace-decoration.decoration-text .whiteboard-editor textarea { background:var(--paper); color:var(--ink); caret-color:var(--ink); padding:10px 12px; }
+.workspace-decoration .whiteboard-editor textarea { display:block; width:100%; height:100%; resize:none; border:1px solid var(--mark-blue); border-radius:var(--shape-cap); background:color-mix(in srgb,var(--decoration-color),var(--decoration-wash) 18%); color:var(--decoration-ink); caret-color:var(--decoration-ink); padding:20px; font:400 20px/1.4 var(--type-serif); white-space:pre-wrap; outline:2px solid var(--surface-paper); outline-offset:1px; }
+.workspace-decoration.decoration-text .whiteboard-editor textarea { background:var(--surface-paper); color:var(--ink); caret-color:var(--ink); padding:10px 12px; }
 .workspace-decoration .whiteboard-editor textarea::selection { background:color-mix(in srgb,var(--decoration-ink) 26%,transparent); color:var(--decoration-ink); }
 .workspace-decoration:is(.decoration-text,.decoration-line) .whiteboard-editor textarea::selection { background:color-mix(in srgb,var(--ink) 22%,transparent); color:var(--ink); }
 .decoration-line .whiteboard-editor { width:260px; height:100px; left:50%; top:50%; transform:translate(-50%,-50%); }
-.workspace-decoration.decoration-line .whiteboard-editor textarea { background:var(--paper); color:var(--ink); caret-color:var(--ink); font:400 16px/1.4 Georgia,serif; padding:12px; }
+.workspace-decoration.decoration-line .whiteboard-editor textarea { background:var(--surface-paper); color:var(--ink); caret-color:var(--ink); font:400 16px/1.4 var(--type-serif); padding:12px; }
 .whiteboard-editing > .workspace-decoration-resize,.whiteboard-editing > .workspace-endpoint { display:none !important; }
-.whiteboard-draft-state { position:absolute; left:0; top:calc(100% + 6px); display:flex; gap:8px; align-items:center; padding:4px 6px; background:var(--paper); border:1px solid var(--line); border-radius:6px; white-space:nowrap; font:12px/1.4 system-ui; pointer-events:auto; z-index:5; }
+.whiteboard-draft-state { position:absolute; left:0; top:calc(100% + 6px); display:flex; gap:8px; align-items:center; padding:4px 6px; background:var(--surface-frame); border:0; border-radius:var(--shape-key);  white-space:nowrap; font:var(--type-meta)/1.4 var(--type-sans); pointer-events:auto; z-index:5; }
 .whiteboard-draft-state button { min-height:32px; font-size:12px; padding:4px 8px; }
-.whiteboard-connect-hint { position:fixed; bottom:52px; left:50%; transform:translateX(-50%); padding:8px 14px; background:var(--ink); color:var(--paper); border-radius:8px; box-shadow:0 4px 14px #0000002e; font:13px/1.4 system-ui; z-index:100021; pointer-events:none; max-width:calc(100vw - 32px); }
+.whiteboard-connect-hint { position:fixed; bottom:52px; left:50%; transform:translateX(-50%); padding:8px 14px; background:var(--ink); color:var(--ink-on-mark); border-radius:var(--shape-key);  font:var(--type-ui)/1.4 var(--type-sans); z-index:100021; pointer-events:none; max-width:calc(100vw - 32px); }
 .whiteboard-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px 12px; }
 .whiteboard-fields label { min-width:0; }
 .whiteboard-fields input { width:100%; }
-.whiteboard-endpoint-form { margin:12px 0; padding:12px; border:1px solid var(--line); border-radius:8px; }
+.whiteboard-endpoint-form { margin:12px 0; padding:12px; border:1px solid var(--line-hair); border-radius:var(--shape-key); }
 .whiteboard-endpoint-form legend { padding:0 5px; font-size:13px; }
 .whiteboard-endpoint-form details { margin-top:10px; }
-.whiteboard-endpoint-form summary { font-size:12px; color:var(--muted); cursor:pointer; }
-.whiteboard-inspector-help,.whiteboard-endpoint-summary { font-size:12px; color:var(--muted); line-height:1.5; }
+.whiteboard-endpoint-form summary { font-size:12px; color:var(--ink-2); cursor:pointer; }
+.whiteboard-inspector-help,.whiteboard-endpoint-summary { font-size:12px; color:var(--ink-2); line-height:1.5; }
 .workspace-add-menu { max-height:calc(100vh - 20px); overflow-y:auto; }
 @media(max-width:600px) { .whiteboard-toolbar { flex-wrap:wrap; } .whiteboard-toolbar button,.whiteboard-menu button { min-height:44px; } .whiteboard-edit-hint { flex-basis:100%; } .whiteboard-endpoint-form { padding:8px; } }
 /* Precision is secondary: a compact native form, with independent body scrolling. */
 dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); padding:16px; overflow:hidden; }
 .whiteboard-arrow-settings form { display:grid; grid-template-rows:auto minmax(0,1fr) auto; gap:12px; max-height:calc(100dvh - 58px); }
-.whiteboard-arrow-settings h2 { margin:0; padding:3px 36px 0 0; font:600 16px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+.whiteboard-arrow-settings h2 { margin:0; padding:3px 36px 0 0; font:600 16px/1.4 var(--type-sans); }
 .whiteboard-arrow-settings .workspace-close { position:absolute; top:9px; right:9px; float:none; margin:0; min-width:32px; width:32px; min-height:32px; height:32px; font-size:20px; }
 .whiteboard-settings-body { min-height:0; overflow:auto; overscroll-behavior:contain; padding:1px; }
 .whiteboard-endpoint-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; margin-top:12px; }
-.whiteboard-arrow-settings label { font-size:12px; margin:0; color:var(--muted); }
+.whiteboard-arrow-settings label { font-size:12px; margin:0; color:var(--ink-2); }
 .whiteboard-arrow-settings input:not([type=checkbox]),.whiteboard-arrow-settings select,.whiteboard-arrow-settings textarea { min-height:36px; padding:6px 8px; margin-top:4px; font-size:13px; line-height:1.4; }
 .whiteboard-arrow-settings textarea { height:48px; min-height:48px; max-height:100px; }
 .whiteboard-arrow-settings .whiteboard-endpoint-form { margin:0; min-width:0; padding:8px 10px; }
@@ -69,9 +70,9 @@ dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-heig
 .whiteboard-arrow-settings summary { min-height:28px; padding:4px 0; font-size:12px; }
 .whiteboard-arrow-settings .whiteboard-endpoint-summary { margin:6px 0 0; font-size:11px; line-height:1.4; }
 .whiteboard-arrow-settings .whiteboard-inspector-help { margin:10px 0 0; font-size:11px; line-height:1.4; }
-.whiteboard-settings-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding-top:12px; border-top:1px solid var(--line); background:var(--paper); }
+.whiteboard-settings-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding-top:12px; border-top:1px solid var(--line-hair); background:var(--surface-paper); }
 .whiteboard-settings-actions .workspace-primary { margin:0; min-height:36px; padding:7px 12px; font-size:13px; }
-.whiteboard-settings-actions .workspace-submit-hint { font-size:11px; color:var(--muted); }
+.whiteboard-settings-actions .workspace-submit-hint { font-size:11px; color:var(--ink-2); }
 .whiteboard-settings-actions .workspace-form-status { flex-basis:100%; margin:0; }
 .whiteboard-settings-actions .workspace-form-status:empty { display:none; }
 @media(max-width:560px) {
@@ -80,7 +81,7 @@ dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-heig
   .whiteboard-settings-actions .workspace-primary { min-height:44px; }
 }
 .whiteboard-arrow-settings form { overflow:hidden; }
-.whiteboard-settings-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:32px; position:sticky; top:0; z-index:2; background:var(--paper); }
+.whiteboard-settings-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:32px; position:sticky; top:0; z-index:2; background:var(--surface-paper); }
 .whiteboard-settings-heading h2 { flex:1; padding:0; }
 .whiteboard-settings-heading .workspace-close { position:static; flex:none; }
 .whiteboard-arrow-settings .whiteboard-settings-body { position:relative; contain:paint; }
@@ -90,35 +91,35 @@ dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-heig
 .deco-body{display:block;max-width:100%;white-space:normal}.deco-body ul,.deco-body ol{margin:0;padding-left:1.3em;text-align:left}.deco-heading{font-size:1.3em;font-weight:600}.deco-body code{font-family:ui-monospace,monospace;font-size:.9em}
 /* Arrows: a FigJam/Miro-style contextual bar, draggable ends that snap to a
    highlighted target, and the label typed in place on the line. */
-.decoration-line.selected .whiteboard-line-hit { stroke:color-mix(in srgb,var(--green) 13%,transparent); }
-.workspace-decoration.decoration-line > .workspace-endpoint { width:16px; min-width:16px; height:16px; min-height:16px; border:2px solid var(--green); background:var(--paper); box-shadow:0 1px 4px #0000003d; cursor:grab; }
-.workspace-decoration.decoration-line > .endpoint-head { background:var(--green); border-color:var(--paper); }
-.workspace-decoration.decoration-line > .workspace-endpoint:hover,.workspace-decoration.decoration-line > .workspace-endpoint:focus-visible { transform:translate(-50%,-50%) scale(1.2); outline:3px solid color-mix(in srgb,var(--green) 35%,transparent); }
+.decoration-line.selected .whiteboard-line-hit { stroke:color-mix(in srgb,var(--mark-blue) 13%,transparent); }
+.workspace-decoration.decoration-line > .workspace-endpoint { width:16px; min-width:16px; height:16px; min-height:16px; border:2px solid var(--mark-blue); background:var(--surface-paper); cursor:grab; }
+.workspace-decoration.decoration-line > .endpoint-head { background:var(--mark-blue); border-color:var(--surface-paper); }
+.workspace-decoration.decoration-line > .workspace-endpoint:hover,.workspace-decoration.decoration-line > .workspace-endpoint:focus-visible { transform:translate(-50%,-50%) scale(1.2); outline:3px solid color-mix(in srgb,var(--mark-blue) 35%,transparent); }
 .whiteboard-toolbar.whiteboard-arrow-bar { gap:0; padding:3px; }
 .whiteboard-bar-group { display:flex; align-items:center; gap:1px; padding:0 4px; }
-.whiteboard-bar-group + .whiteboard-bar-group { border-left:1px solid var(--line); }
-.whiteboard-toolbar .whiteboard-bar-button { display:grid; place-items:center; width:30px; min-width:30px; height:30px; min-height:30px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--ink); }
-.whiteboard-toolbar .whiteboard-bar-button:hover { background:var(--soft); }
-.whiteboard-toolbar .whiteboard-bar-button[aria-pressed=true] { background:var(--soft); color:var(--green); box-shadow:inset 0 0 0 1.5px var(--green); }
-.whiteboard-toolbar .whiteboard-bar-button:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
-.whiteboard-toolbar .whiteboard-bar-button[data-whiteboard-action=remove]:hover { color:var(--danger,#b4463c); }
-.whiteboard-swatch { display:block; width:16px; height:16px; border-radius:50%; box-shadow:inset 0 0 0 1px #00000026; }
-.whiteboard-bar-button[data-whiteboard-action=color][aria-pressed=true] { box-shadow:none; background:transparent; }
-.whiteboard-bar-button[data-whiteboard-action=color][aria-pressed=true] .whiteboard-swatch { box-shadow:0 0 0 2px var(--paper),0 0 0 3.5px var(--ink); }
+.whiteboard-bar-group + .whiteboard-bar-group { border-left:1px solid var(--line-seam); }
+.whiteboard-toolbar .whiteboard-bar-button { display:grid; place-items:center; width:30px; min-width:30px; height:30px; min-height:30px; padding:0; border:0; border-radius:var(--shape-cell); color:var(--ink); }
+/* a key that is on is a raised key (depth.css); the others are quiet until the pointer is on them */
+.whiteboard-toolbar .whiteboard-bar-button:not([aria-pressed=true]) { background:transparent; }
+.whiteboard-toolbar .whiteboard-bar-button:not([aria-pressed=true]):hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.whiteboard-toolbar .whiteboard-bar-button[aria-pressed=true] { color:var(--ink); }
+.whiteboard-toolbar .whiteboard-bar-button:focus-visible { outline:2px solid var(--mark-blue); outline-offset:1px; }
+.whiteboard-toolbar .whiteboard-bar-button[data-whiteboard-action=remove]:hover { color:var(--ink); }
+.whiteboard-swatch { display:block; width:16px; height:16px; border-radius:50%; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 15%,transparent); }
+.whiteboard-toolbar .whiteboard-bar-button[data-whiteboard-action=color][aria-pressed=true] { box-shadow:none; background:transparent; }
+.whiteboard-bar-button[data-whiteboard-action=color][aria-pressed=true] .whiteboard-swatch { box-shadow:0 0 0 2px var(--surface-frame),0 0 0 3.5px var(--ink); }
 .whiteboard-toolbar .whiteboard-bar-status { padding:0 6px; }
 .whiteboard-ports.snapping .whiteboard-port:not(.near) { opacity:.3; }
-.whiteboard-port.near { border-color:var(--green); }
-.whiteboard-port.snapped { background:var(--green); transform:translate(-50%,-50%) scale(1.3); box-shadow:0 0 0 5px color-mix(in srgb,var(--green) 25%,transparent); }
-#world .whiteboard-snap-target { outline:2px solid var(--green) !important; outline-offset:4px; border-radius:6px; }
-#world .whiteboard-shape.whiteboard-snap-target .whiteboard-silhouette { filter:drop-shadow(0 0 6px color-mix(in srgb,var(--green) 55%,transparent)); }
+.whiteboard-port.near { border-color:var(--mark-blue); }
+.whiteboard-port.snapped { background:var(--mark-blue); transform:translate(-50%,-50%) scale(1.3); }
+#world .whiteboard-snap-target { outline:2px solid var(--mark-blue) !important; outline-offset:4px; border-radius:var(--shape-key); }
 .whiteboard-editing .whiteboard-line-label { visibility:hidden; }
 .decoration-line .whiteboard-editor.whiteboard-label-editor { right:auto; bottom:auto; width:auto; height:auto; transform:translate(-50%,-50%); }
-.workspace-decoration.decoration-line .whiteboard-label-editor textarea { field-sizing:content; width:auto; min-width:72px; max-width:280px; height:auto; min-height:0; padding:3px 8px; border:1.5px solid var(--green); border-radius:5px; outline:3px solid color-mix(in srgb,var(--paper) 73%,transparent); outline-offset:0; text-align:center; font:400 15px/1.4 Georgia,serif; }
-.workspace-decoration.decoration-line .whiteboard-label-editor textarea::placeholder { color:var(--muted); }
-html[data-appearance="dark"] .whiteboard-detached { background:#4a3d1f; color:#f3dfae; }
+.workspace-decoration.decoration-line .whiteboard-label-editor textarea { field-sizing:content; width:auto; min-width:72px; max-width:280px; height:auto; min-height:0; padding:3px 8px; border:1.5px solid var(--mark-blue); border-radius:var(--shape-cap); outline:3px solid color-mix(in srgb,var(--surface-paper) 73%,transparent); outline-offset:0; text-align:center; font:400 15px/1.4 var(--type-serif); }
+.workspace-decoration.decoration-line .whiteboard-label-editor textarea::placeholder { color:var(--ink-2); }
 @media(max-width:600px) { .whiteboard-toolbar .whiteboard-bar-button { width:40px; min-width:40px; height:40px; min-height:40px; } .whiteboard-bar-group + .whiteboard-bar-group { border-left:0; } }
 /* The same bar for Sticky notes, Text, shapes and areas: text size and alignment. */
-.whiteboard-size-letter { font:600 13px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+.whiteboard-size-letter { font:600 13px/1 var(--type-sans); }
 .whiteboard-size-letter.size-small { font-size:10px; }
 .whiteboard-size-letter.size-large { font-size:16px; }
 .whiteboard-shape.text-size-small .workspace-decoration-label,.whiteboard-shape.text-size-small .whiteboard-editor textarea { font-size:15px; }
@@ -134,13 +135,13 @@ html[data-appearance="dark"] .whiteboard-detached { background:#4a3d1f; color:#f
 
 /* Smart guides while dragging or resizing: thin accent lines; equal spacing dashed. */
 .snap-guides { position: fixed; inset: 0; pointer-events: none; z-index: 45; }
-.snap-guide { position: absolute; display: block; background: var(--snap-guide, var(--accent)); }
+.snap-guide { position: absolute; display: block; background: var(--snap-guide); }
 .snap-guide.snap-v { width: 1px; }
 .snap-guide.snap-h { height: 1px; }
 .snap-guide.snap-space { background: none; }
-.snap-guide.snap-space.snap-h { border-top: 1px dashed var(--snap-guide, var(--accent)); height: 0; }
-.snap-guide.snap-space.snap-v { border-left: 1px dashed var(--snap-guide, var(--accent)); width: 0; }
-.snap-guide.snap-space::before, .snap-guide.snap-space::after { content: ""; position: absolute; background: var(--snap-guide, var(--accent)); }
+.snap-guide.snap-space.snap-h { border-top: 1px dashed var(--snap-guide); height: 0; }
+.snap-guide.snap-space.snap-v { border-left: 1px dashed var(--snap-guide); width: 0; }
+.snap-guide.snap-space::before, .snap-guide.snap-space::after { content: ""; position: absolute; background: var(--snap-guide); }
 .snap-guide.snap-space.snap-h::before, .snap-guide.snap-space.snap-h::after { top: -4px; width: 1px; height: 7px; }
 .snap-guide.snap-space.snap-h::before { left: 0; } .snap-guide.snap-space.snap-h::after { right: 0; }
 .snap-guide.snap-space.snap-v::before, .snap-guide.snap-space.snap-v::after { left: -4px; height: 1px; width: 7px; }

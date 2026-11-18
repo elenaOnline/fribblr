@@ -55,7 +55,7 @@ function fallbackToast(message) {
     node = document.createElement("div");
     node.id = "board-notes-toast";
     node.setAttribute("role", "status");
-    node.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:8px 14px;border-radius:8px;background:#1c1d1a;color:#fdfdfb;font:13px system-ui;z-index:9999";
+    node.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:8px 14px;border-radius:var(--shape-key);background:var(--ink);color:var(--ink-on-mark);font:var(--type-ui) var(--type-sans);z-index:9999";
     document.body.append(node);
   }
   node.textContent = message;

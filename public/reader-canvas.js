@@ -28,10 +28,13 @@ export class ReaderCanvas {
     stage.append(this.shield);
     this.bind();
   }
-  // Room around a fitted sheet (less on a phone), keeping the floating zoom pill clear of it.
+  // Room around a fitted sheet (less on a phone), keeping the floating zoom pill clear of it,
+  // and of the sheet's lower side: the sheet is a slab, so its side stands below its box (depth.css).
   insets() {
     const pad = innerWidth <= 650 ? 10 : 24;
-    return { top: pad, right: pad, left: pad, bottom: Math.max(pad, Math.round(this.reserveBottom() || 0)) };
+    const css = getComputedStyle(this.sheet);
+    const side = (parseFloat(css.getPropertyValue('--depth-slab')) || 0) + (parseFloat(css.getPropertyValue('--depth-edge-low')) || 0);
+    return { top: pad, right: pad, left: pad, bottom: Math.max(pad, Math.round(this.reserveBottom() || 0)) + Math.ceil(side) };
   }
   area() { return { width: this.stage.clientWidth, height: this.stage.clientHeight }; }
   // The Fit window size fills the stage, less that room.
@@ -61,6 +64,8 @@ export class ReaderCanvas {
     this.view = this.clamp(this.view);
     const { zoom, x, y } = this.view;
     this.plane.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${zoom})`;
+    // The zoom, for depth.css: the sheet's side keeps its strength on screen when zoomed out, as on a board.
+    this.stage.style.setProperty('--canvas-zoom', String(zoom));
     // The board's background values: a 22-unit step (110 major) that fades out towards 25%.
     let step = 22 * zoom;
     while (step < 9) step *= 2;

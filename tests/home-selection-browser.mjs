@@ -15,7 +15,10 @@ const fixture=await mkdtemp(path.join(os.tmpdir(),'tinka-home-selection-'));
 const evidence=process.env.TINKA_EVIDENCE_DIR||await mkdtemp(path.join(os.tmpdir(),'tinka-home-selection-evidence-'));
 await mkdir(evidence,{recursive:true});
 const configPath=path.join(fixture,'local/config.json'),boards=path.join(fixture,'boards');
-const LIGHT_RING='rgb(98, 117, 74)',DARK_ACCENT='rgb(169, 187, 138)';
+// The selection mark is the theme's one blue (tokens.css --mark-blue): the approved value in light,
+// and in dark whatever the dark tokens resolve it to (dark is derived, not designed).
+const LIGHT_RING='rgb(0, 94, 139)';let DARK_ACCENT=null;
+const markBlue=page=>page.evaluate(()=>{const probe=document.createElement('i');probe.style.color='var(--mark-blue)';document.body.append(probe);const value=getComputedStyle(probe).color;probe.remove();return value;});
 let browser,server;
 try {
   await main(['init','--config',configPath,'--boards',boards,'--label','Home selection']);
@@ -47,7 +50,8 @@ try {
     const bad=[];
     if(document.querySelector('#board-grid input[type=checkbox],#board-grid .workspace-home-select'))bad.push('checkbox control');
     for(const el of document.querySelectorAll('#board-grid .board-card *')){
-      if(el.closest('.board-art'))continue;
+      // The kinds line's swatches are tiny slabs naming a kind's colour, not controls.
+      if(el.closest('.board-art')||el.matches('.kind-swatch'))continue;
       const r=el.getBoundingClientRect(),s=getComputedStyle(el);
       if(!r.width||r.width>40||Math.abs(r.width-r.height)>4||Number(s.opacity)<.05||s.visibility==='hidden')continue;
       const painted=s.backgroundColor!=='rgba(0, 0, 0, 0)'||s.boxShadow!=='none'||parseFloat(s.borderTopWidth)>0;
@@ -94,10 +98,11 @@ try {
   assert.equal(context.pages().length,1,'modifier clicks open no tab or window');
   passed.push('Shift, ⌘ and Ctrl click toggle without navigating');
 
-  // Selected: green ring and green circle with a check; one floating bar.
+  // Selected: blue ring and blue circle with a check; one floating bar.
   const ring=await card('Delta').locator('.board-link').evaluate(el=>{const s=getComputedStyle(el);return `${s.outlineStyle} ${s.outlineColor} ${s.boxShadow}`;});
-  assert(ring.includes(LIGHT_RING)&&ring.startsWith('solid'),`green ring: ${ring}`);
-  dot=await dotState('Gamma');assert.equal(dot.opacity,1);assert.equal(dot.bg,'rgb(83, 96, 68)','selected circle is the accent');
+  assert.equal(await markBlue(page),LIGHT_RING,'the mark is the approved blue');
+  assert(ring.includes(LIGHT_RING)&&ring.startsWith('solid'),`blue ring: ${ring}`);
+  dot=await dotState('Gamma');assert.equal(dot.opacity,1);assert.equal(dot.bg,LIGHT_RING,'selected circle is the blue mark');
   await bar.waitFor();
   assert.equal(await bar.locator('strong').textContent(),'2 selected');
   const vb=await bar.boundingBox();
@@ -109,7 +114,7 @@ try {
   await page.screenshot({path:path.join(evidence,'home-selected-light-1440.png')});
   await bar.getByRole('button',{name:'Clear selection'}).click();
   await expectSelected([],'× clears');assert(await bar.isHidden(),'bar hides when empty');
-  passed.push('selected cards carry the green ring and check','floating bar shows the count and Home bulk actions','× clears');
+  passed.push('selected cards carry the blue ring and check','floating bar shows the count and Home bulk actions','× clears');
 
   // Marquee from empty space over two cards; Shift adds; Escape restores.
   const box=async t=>card(t).locator('.board-link').boundingBox();
@@ -170,11 +175,12 @@ try {
   await page.mouse.click(sd.x-18,sd.y-40);await expectSelected([]);
   passed.push('marquee works with page scroll');
 
-  // Dark theme: same ring and circle in the dark accent.
+  // Dark theme: same ring and circle in the dark blue mark.
   await page.setViewportSize({width:1440,height:1000});await page.evaluate(()=>scrollTo(0,0));
   await page.emulateMedia({colorScheme:'dark'});
   await card('Delta').locator('h3').click({modifiers:['Shift']});await card('Gamma').locator('h3').click({modifiers:['Shift']});
   await page.mouse.move(1400,980);await page.waitForTimeout(250);
+  DARK_ACCENT=await markBlue(page);assert.notEqual(DARK_ACCENT,LIGHT_RING,'dark resolves its own blue');
   assert.equal((await dotState('Delta')).bg,DARK_ACCENT,'dark selected circle');
   assert((await card('Delta').locator('.board-link').evaluate(el=>getComputedStyle(el).outlineColor))===DARK_ACCENT,'dark ring');
   await page.screenshot({path:path.join(evidence,'home-selected-dark-1440.png')});

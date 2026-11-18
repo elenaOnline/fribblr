@@ -181,7 +181,7 @@ try{
   await a.page.screenshot({path:path.join(evidence,'removal-prompt-narrow.png')});
   assert.equal(await a.page.locator('#agent-prompt-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await a.page.locator('.agent-dialog-close').click();
-  assert.deepEqual(await a.page.locator('#canvas-header').evaluate(el=>{const title=el.querySelector('#board-title'),tools=el.querySelector('#board-info-toggle');const t=title.getBoundingClientRect(),b=tools.getBoundingClientRect();return {overflow:el.scrollWidth>el.clientWidth,wrap:getComputedStyle(title).whiteSpace,overlap:t.left<b.right&&t.right>b.left&&t.top<b.bottom&&t.bottom>b.top};}),{overflow:false,wrap:'normal',overlap:false});
+  assert.deepEqual(await a.page.locator('#canvas-header').evaluate(el=>{const title=el.querySelector('#board-title'),tools=el.querySelector('#board-info-toggle');const t=title.getBoundingClientRect(),b=tools.getBoundingClientRect();return {overflow:el.scrollWidth>el.clientWidth,oneLine:t.height<=parseFloat(getComputedStyle(title).lineHeight)*1.5,named:title.title===title.textContent,overlap:t.left<b.right&&t.right>b.left&&t.top<b.bottom&&t.bottom>b.top};}),{overflow:false,oneLine:true,named:true,overlap:false});  // a narrow bar keeps the name on one line, its full text in the title
   assert.equal(await a.page.locator('#project-label').textContent(),'Home');
   assert.equal(await a.page.locator('.canvas-footer').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await a.page.locator('#fit').click();

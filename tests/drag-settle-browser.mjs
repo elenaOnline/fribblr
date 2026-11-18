@@ -39,7 +39,7 @@ try{
   // Realistic write latency makes any intermediate frame observable.
   let delay=250;await page.route('**/api/operations',async route=>{await new Promise(r=>setTimeout(r,delay));await route.continue();});
   await page.goto(`${url}/boards/${board.boardId}/`);await page.locator('[data-decoration=sticky]').waitFor();
-  await page.locator('#live-status[data-connection="live"]').waitFor();
+  await page.locator('#live-status[data-connection="live"]').waitFor({state:'attached'});
   const snapshot=()=>getBoardSnapshot(config,board.boardId);
   // Type into the sticky first, as in the report.
   await page.locator('[data-decoration=sticky] [data-decoration-label]').dblclick();await page.locator('.whiteboard-editor textarea').fill('Typed before dragging');
@@ -71,7 +71,7 @@ try{
     await page.mouse.move(p.x,p.y);await page.mouse.down();await page.mouse.move(p.x+dx,p.y+dy,{steps:8});
     if(during)await during();
     await page.waitForTimeout(50);
-    const dropped=await page.evaluate(({watch,anchor})=>{const a=document.querySelector(anchor).getBoundingClientRect();return watch.map(s=>{const r=document.querySelector(s).getBoundingClientRect();return {x:Math.round(r.left-a.left),y:Math.round(r.top-a.top)};});},{watch,anchor:sel.anchor});
+    const dropped=await page.evaluate(({watch,anchor})=>{const a=document.querySelector(anchor).getBoundingClientRect();return watch.map(s=>{const r=document.querySelector(s).getBoundingClientRect();const held=parseFloat((getComputedStyle(document.querySelector(s)).translate.split(' ')[1])||'0')||0;/* a held slab rises by its lift (the theme's depth model); on release it settles back down by that much, in place */return {x:Math.round(r.left-a.left),y:Math.round(r.top-a.top-held)};});},{watch,anchor:sel.anchor});
     const original=await page.evaluate(({kinds,before})=>kinds.map((k,i)=>before[i]),{kinds,before});
     await startTrace(watch);await page.waitForTimeout(50);
     await page.mouse.up();

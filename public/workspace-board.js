@@ -1,11 +1,13 @@
 import {positionTilePopover,bindTileMenu} from './tile-ui.js';
-import {bindCommitShortcut,commitShortcutLabel} from './interaction.js';
+import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {Whiteboard,decorationMarkup,decorationUnchanged,lineBox} from "./whiteboard.js";
 import {decorationBounds,resolveLine} from "./whiteboard-geometry.js";
 import {FeedbackController} from "./feedback.js";
 import {newestBoardsFirst} from "./board-order.js";
 import {reconcileChildren} from "./reconcile.js";
 import {coverMarkup, observeCovers} from "./board-covers.js";
+import {kindAttributes} from "./kinds.js";
+import {KindLegend} from "./kind-legend.js";
 import {eventFiles,hasFileDrag,validateImportFiles,importLayout,pdfSupported,pdfPreviewURL} from "./file-import.js";
 import {CutIntent} from "./cut-intent.js";
 import {MovementHistory} from "./movement-history.js";
@@ -96,7 +98,7 @@ function paperColors(paper) {
   if (hex.length < 5) hex = [...hex].map(c => c + c).join("");
   const rgb = [0,2,4].map(i => parseInt(hex.slice(i,i+2),16));
   const alpha = hex.length === 8 ? parseInt(hex.slice(6),16)/255 : 1;
-  return [["light",[253,253,251]],["dark",[58,60,55]]].map(([theme,base]) => {
+  return [["light",[255,255,255]],["dark",[42,49,54]]].map(([theme,base]) => {  // the paper face in each appearance (tokens.css --surface-paper)
     const linear = rgb.map((c,i) => (c*alpha+base[i]*(1-alpha))/255).map(c => c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4);
     const luminance = linear[0]*.2126 + linear[1]*.7152 + linear[2]*.0722;
     const contrast = color => {
@@ -104,9 +106,9 @@ function paperColors(paper) {
       const ink = channels[0]*.2126 + channels[1]*.7152 + channels[2]*.0722;
       return (Math.max(luminance,ink)+.05)/(Math.min(luminance,ink)+.05);
     };
-    let ink = ["#23271f", "#ecece5"].sort((a,b) => contrast(b)-contrast(a))[0];
+    let ink = ["#000000", "#e9edf0"].sort((a,b) => contrast(b)-contrast(a))[0];  // --ink, light and dark
     if (contrast(ink) < 4.5) ink = ["#000000", "#ffffff"].sort((a,b) => contrast(b)-contrast(a))[0];
-    const muted = contrast("#4c5145") >= contrast("#c8c9bf") ? "#4c5145" : "#c8c9bf";
+    const muted = contrast("#595959") >= contrast("#a7b1b8") ? "#595959" : "#a7b1b8";  // --ink-2, light and dark
     return `--item-ink-${theme}:${ink};--item-muted-${theme}:${contrast(muted) >= 4.5 ? muted : ink};`;
   }).join("");
 }
@@ -288,7 +290,7 @@ export class WorkspaceBoard {
     this.installEditTools();
     const history = document.createElement("div");
     history.className = "workspace-history-actions";
-    history.innerHTML = '<button type="button" id="workspace-undo" disabled>Undo</button><button type="button" id="workspace-redo" disabled>Redo</button>';
+    history.innerHTML = '<button type="button" id="workspace-undo" aria-keyshortcuts="Meta+Z Control+Z" disabled>Undo</button><button type="button" id="workspace-redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" disabled>Redo</button>';
     bar.append(history);
     this.installClipboard(bar);
     this.installFileDrop();
@@ -429,7 +431,7 @@ export class WorkspaceBoard {
       nodes.filter(Boolean).forEach(node => el.append(node));
       return el;
     };
-    // A labelled full-width choice (Layout, Background): the label names the control.
+    // A labelled full-width choice (Layout, Pattern): the label names the control.
     const choice = (label, seg) => {
       if (!seg) return null;
       const el = document.createElement("div"); el.className = "inspector-choice";
@@ -440,7 +442,7 @@ export class WorkspaceBoard {
     };
     const pick = selector => bar.querySelector(selector) || panel.querySelector(selector);
     const pattern = document.createElement("div");
-    pattern.className = "tk-seg canvas-pattern"; pattern.setAttribute("role", "group"); pattern.setAttribute("aria-label", "Canvas background");
+    pattern.className = "tk-seg canvas-pattern"; pattern.setAttribute("role", "group"); pattern.setAttribute("aria-label", "Pattern");
     pattern.innerHTML = '<button type="button" data-canvas-pattern="dots">Dots</button><button type="button" data-canvas-pattern="grid">Grid</button><button type="button" data-canvas-pattern="plain">Plain</button>';
     // Show the board's current background, whether this panel is built before or after it loads.
     const current = $("viewport")?.dataset.canvasPattern || "plain";
@@ -452,7 +454,7 @@ export class WorkspaceBoard {
     tonal(toggles);
     const edits = [pick(".workspace-history-actions"), pick(".workspace-clipboard-actions"), pick("#workspace-owner"), pick("#workspace-retry-drafts")];
     tonal(edits);
-    const view = section("View", "this board, this browser", [choice("Layout", segments), choice("Background", pattern)], "inspector-view");
+    const view = section("View", "this board, this browser", [choice("Layout", segments), choice("Pattern", pattern)], "inspector-view");
     const filter = section("Filter", "", [pick(".workspace-search"), row("inspector-toggles", toggles)], "inspector-filter");
     const edit = section("Edit", "", [row("inspector-edit-row", edits)], "inspector-edit");
     // Feedback: board-wide Comments as one full-width row (as in the opened Tinka's
@@ -555,13 +557,13 @@ export class WorkspaceBoard {
       crumb.onkeydown = null;
       crumb.removeAttribute("role");
       if (parent) {
-        crumb.textContent = "← Parent";
+        crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parent"}));
         crumb.href = `/boards/${encodeURIComponent(parent.id)}/`;
         crumb.setAttribute("aria-label", "Return to parent board " + parent.title);
         crumb.title = "Return to " + parent.title +
           (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : "");
       } else if (parents.length > 1) {
-        crumb.textContent = "← Parents";
+        crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parents"}));
         crumb.href = "#parents";
         crumb.setAttribute("role", "button");
         crumb.setAttribute("aria-label", "Choose a parent board");
@@ -678,6 +680,7 @@ export class WorkspaceBoard {
     guide.type = "button";
     guide.id = "workspace-keyboard-shortcuts";
     guide.textContent = "Keyboard shortcuts";
+    guide.ariaKeyShortcuts = "?";
     guide.onclick = () => this.keyboardShortcuts();
     bar.append(guide);
     // F or Z held while a selection box is released: F fits what the box selected, Z
@@ -886,7 +889,7 @@ export class WorkspaceBoard {
   installClipboard(bar) {
     const controls = document.createElement("div");
     controls.className = "workspace-clipboard-actions";
-    controls.innerHTML = '<button type="button" id="workspace-copy" disabled>Copy selection</button><button type="button" id="workspace-paste">Paste…</button>';
+    controls.innerHTML = '<button type="button" id="workspace-copy" aria-keyshortcuts="Meta+C Control+C" disabled>Copy selection</button><button type="button" id="workspace-paste">Paste…</button>';
     bar.append(controls);
     $("workspace-copy").onclick = () => {
       // An explicit command: the copy event below skips its focus guard for this call only.
@@ -1365,11 +1368,11 @@ export class WorkspaceBoard {
         : item.childBoardId && !item.content ? coverMarkup(this.snapshot.boardCovers?.[item.childBoardId],item.childBoardId)
         : item.content?.text ? `<div class="workspace-document-preview">${esc(item.content.text.slice(0,2400))}</div>`
         : `<span class="workspace-title-art">${esc(item.preview?.text || item.title)}</span>`;
-      const paper = /^#[0-9a-f]{3,8}$/i.test(p.presentation?.paper || "") ? p.presentation.paper : "var(--tile-surface)";
+      const paper = /^#[0-9a-f]{3,8}$/i.test(p.presentation?.paper || "") ? p.presentation.paper : "var(--surface-paper)";
       const dimensions = this.mode === "canvas"
         ? `left:${p.x + this.origin.x}px;top:${p.y + this.origin.y}px;width:${p.width}px;height:${p.height}px;z-index:${p.z};`
         : panel || icon ? `width:${p.width}px;height:${p.height}px;` : "";
-      return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" data-build-state="${esc(item.build?.state || "ready")}" style="${dimensions}--item-paper:${paper};${paperColors(paper)}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}</article>`;
+      return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)} data-build-state="${esc(item.build?.state || "ready")}" style="${dimensions}--item-paper:${paper};${paperColors(paper)}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}</article>`;
     };
     const cards = concepts.map(renderCard).join("");
     const groups = new Map();
@@ -1388,6 +1391,8 @@ export class WorkspaceBoard {
     // On Canvas, stickies, shapes, text, regions and arrows also make a board non-empty.
     const canvasEmpty = !cards && !(this.snapshot.decorations || []).length;
     this.reconcile(world, `${this.mode === "canvas" ? this.decorations() : ""}${this.mode === "grid" ? grid || '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : `<div class="workspace-cards">${canvasEmpty ? '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : cards}</div>`}`);
+    // The foot's kind legend counts exactly the cards just drawn.
+    (this.kindLegend ||= new KindLegend(world)).update(this.snapshot.id);
     // A card being edited in place keeps its editing state across re-renders.
     if (this.documentEditing) import("./board-document.js").then(m => m.reapplyEditing(this)).catch(() => {});
     if (this.mode === "canvas") {
@@ -1479,11 +1484,11 @@ export class WorkspaceBoard {
     );
     if (this.selection.size === 1) {
       const id = [...this.selection][0];
-      const controls = document.createElement('button'); controls.type='button'; controls.className='tk-btn tk-sm'; controls.textContent='Details…'; controls.setAttribute('aria-label','Item details'); controls.title='Item details (⌘I)';
+      const controls = document.createElement('button'); controls.type='button'; controls.className='tk-btn tk-sm'; controls.textContent='Details…'; controls.setAttribute('aria-label','Item details'); controls.setAttribute('aria-keyshortcuts','Meta+I Control+I'); controls.title='Item details (⌘I)';
       controls.onclick=()=>this.itemControls(id,'notes'); el.insertBefore(controls,el.querySelector('[data-bulk]'));
       const doc = this.selectedDocument();
       if (doc) {
-        const edit = document.createElement('button'); edit.type='button'; edit.className='tk-btn tk-sm'; edit.dataset.editDocument=''; edit.textContent='Edit document'; edit.title='Edit document (E)';
+        const edit = document.createElement('button'); edit.type='button'; edit.className='tk-btn tk-sm'; edit.dataset.editDocument=''; edit.textContent='Edit document'; edit.setAttribute('aria-keyshortcuts','E'); edit.title='Edit document (E)';
         edit.onclick=()=>this.editDocument(doc.id); el.insertBefore(edit,controls);
       }
     }
@@ -1748,7 +1753,7 @@ export class WorkspaceBoard {
         <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
         <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span><div class="workspace-appearance-buttons tk-seg" role="group" aria-label="Item appearance">${[["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => `<button type="button" data-presentation="${value}" aria-label="${label}" title="${label}" aria-pressed="${mode === value}"><svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span></button>`).join("")}</div></div><div class="workspace-context-row"><span class="inspector-label">Paper</span><div class="workspace-paper-swatches" role="group" aria-label="Paper color">${[["#f6f7f1", "Paper"], ["#e4ebdc", "Sage"], ["#f1e8d5", "Sand"], ["#f1e0dc", "Rose"], ["#e7e4ee", "Lilac"]].map(([color,label]) => `<button type="button" data-paper="${color}" aria-label="${label} paper" title="${label}" aria-pressed="${paper === color}" style="--swatch:${color}"></button>`).join("")}</div></div></section>
         <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
-        <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button><button type="button" class="tk-mi" data-context-geometry>Move / resize…</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate>Duplicate<kbd class="tk-kbd" aria-hidden="true">⌘D</kbd></button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
+        <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button><button type="button" class="tk-mi" data-context-geometry>Move / resize…</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
       </div>`;
     document.body.append(popover);
     this.context = popover;
@@ -1785,7 +1790,7 @@ export class WorkspaceBoard {
     actions.querySelector('[data-context-duplicate]').onclick=()=>{this.closeContext();only();this.duplicateSelection({explicit:true});};
     actions.querySelector('[data-context-remove]').onclick=()=>{this.closeContext();only();this.bulk("remove");};
     const noteField=popover.querySelector('textarea');noteField.setAttribute('aria-keyshortcuts','Meta+Enter Control+Enter');
-    const hint=document.createElement('small');hint.textContent=`${commitShortcutLabel()} to save`;noteField.after(hint);
+    const hint=document.createElement('small');setCommitHint(hint, 'save');noteField.after(hint);
     this.contextCommit=bindCommitShortcut(noteField,{commit:async()=>{await this.hooks.flushNotes();},onError:error=>toast(error.message)});
     this.positionContext();
     document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`).forEach(b => b.setAttribute("aria-expanded", "false"));
@@ -2611,7 +2616,7 @@ export class WorkspaceBoard {
     const menu = document.createElement("div");
     menu.className = "workspace-add-menu"; menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", "Add to board");
-    menu.innerHTML = `<button type="button" role="menuitem" data-add="text"><span aria-hidden="true">T</span>Text</button><button type="button" role="menuitem" data-add="region"><span aria-hidden="true">▧</span>Colored region</button><button type="button" role="menuitem" data-add="sticky"><span aria-hidden="true">▣</span>Sticky note</button><button type="button" role="menuitem" data-add="rounded"><span aria-hidden="true">▢</span>Process</button><button type="button" role="menuitem" data-add="diamond"><span aria-hidden="true">◇</span>Decision</button><button type="button" role="menuitem" data-add="ellipse"><span aria-hidden="true">⬭</span>Start / end</button><button type="button" role="menuitem" data-add="arrow"><span aria-hidden="true">↗</span>Arrow</button><button type="button" role="menuitem" data-add="document"><span aria-hidden="true">≣</span>Document</button><hr><button type="button" role="menuitem" data-add="idea"><span aria-hidden="true">◇</span>Item…</button><button type="button" role="menuitem" data-add="board"><span aria-hidden="true">▱</span>Tinka / Board…</button><hr><button type="button" role="menuitem" data-add="copy-notes">Copy notes as Markdown <kbd aria-hidden="true">${isMacPlatform() ? "⇧⌘C" : "Ctrl-Shift-C"}</kbd></button><button type="button" role="menuitem" data-add="background">Board background…</button><button type="button" role="menuitem" data-add="order">Comparison order…</button>`;
+    menu.innerHTML = `<button type="button" role="menuitem" data-add="text"><span aria-hidden="true">T</span>Text</button><button type="button" role="menuitem" data-add="region"><span aria-hidden="true">▧</span>Colored region</button><button type="button" role="menuitem" data-add="sticky"><span aria-hidden="true">▣</span>Sticky note</button><button type="button" role="menuitem" data-add="rounded"><span aria-hidden="true">▢</span>Process</button><button type="button" role="menuitem" data-add="diamond"><span aria-hidden="true">◇</span>Decision</button><button type="button" role="menuitem" data-add="ellipse"><span aria-hidden="true">⬭</span>Start / end</button><button type="button" role="menuitem" data-add="arrow"><span aria-hidden="true">↗</span>Arrow</button><button type="button" role="menuitem" data-add="document"><span aria-hidden="true">≣</span>Document</button><hr><button type="button" role="menuitem" data-add="idea"><span aria-hidden="true">◇</span>Item…</button><button type="button" role="menuitem" data-add="board"><span aria-hidden="true">▱</span>Tinka / Board…</button><hr><button type="button" role="menuitem" data-add="copy-notes">Copy notes as Markdown <kbd class="tk-kbd" aria-hidden="true">${isMacPlatform() ? "⇧⌘C" : "Ctrl-Shift-C"}</kbd></button><button type="button" role="menuitem" data-add="background">Board colour or image…</button><button type="button" role="menuitem" data-add="order">Comparison order…</button>`;
     document.body.append(menu); this.addPopup = menu;
     const rect = anchor?.getBoundingClientRect();
     const screen = point || { x: rect.right - menu.offsetWidth, y: rect.bottom + 6 };
@@ -2733,11 +2738,12 @@ export class WorkspaceBoard {
     const early = type !== "arrow" && !document.querySelector(".quick-jot") ? this.holdEditorKeys() : null;
     if (this.mode !== "canvas") this.setMode("canvas");
     const point = this.canvasPoint(screen), shaped = ["sticky","rounded","diamond","ellipse"].includes(type), region = type === "region" || shaped;
+    // new drawings are stored with their colour: a sticky's yellow, the desk's blue-greys for shapes and regions, --ink-2 for a line
     const d = { id: crypto.randomUUID(), type: type === "arrow" ? "line" : region ? "region" : type,
       x: point.x, y: point.y, width: shaped ? type === "sticky" ? 220 : 240 : region ? 420 : type === "arrow" ? 200 : 280,
       height: shaped ? type === "sticky" ? 200 : type === "diamond" ? 180 : 130 : region ? 280 : type === "arrow" ? 90 : 70,
       text: type === "text" ? "Write something" : type === "sticky" ? "A thought to keep" : shaped ? ({rounded:"Process",diamond:"Decision",ellipse:"Start / end"}[type]) : region ? "A new area" : "",
-      color: type === "sticky" ? "#f6e6a4" : shaped ? "#e0e8da" : region ? "#e1e8d5" : "#7a8a68", ...(shaped ? {shape:type === "sticky" ? "rectangle" : type} : {}), ...(type === "arrow" ? { endArrow: true, flipY: true } : {}) };
+      color: type === "sticky" ? "#f6e6a4" : shaped ? "#e3eaef" : region ? "#8fa6b5" : "#595959", ...(shaped ? {shape:type === "sticky" ? "rectangle" : type} : {}), ...(type === "arrow" ? { endArrow: true, flipY: true } : {}) };
     if (!screen) {
       const occupied = [...this.snapshot.placements.filter(p => !p.removedAt && !p.archivedAt), ...(this.snapshot.decorations || []).filter(d => region || d.type !== "region")];
       const free = point => !occupied.some(p => point.x < p.x + p.width + 16 && point.x + d.width + 16 > p.x && point.y < p.y + p.height + 16 && point.y + d.height + 16 > p.y);
@@ -3066,8 +3072,8 @@ export class WorkspaceBoard {
   backgroundForm() {
     const b = this.snapshot.background || {};
     makeDialog(
-      "Board background",
-      `<label>Color<input name="color" type="color" value="${b.color || "#e7e8e1"}"></label><p>An optional image remains a project resource. Your agent supplies its registered root ID and relative path.</p><label>Image root ID<input name="root" value="${esc(b.resource?.rootId || "")}"></label><label>Image path<input name="path" value="${esc(b.resource?.path || "")}"></label><button type="submit" class="workspace-primary">Save background</button>`,
+      "Board colour or image",
+      `<label>Color<input name="color" type="color" value="${b.color || "#dae5ec"}"></label><p>An optional image remains a project resource. Your agent supplies its registered root ID and relative path.</p><label>Image root ID<input name="root" value="${esc(b.resource?.rootId || "")}"></label><label>Image path<input name="path" value="${esc(b.resource?.path || "")}"></label><button type="submit" class="workspace-primary">Save background</button>`,
       async (f) => {
         const background = { color: f.get("color") };
         if (f.get("root") || f.get("path"))
