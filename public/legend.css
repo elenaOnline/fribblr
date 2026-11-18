@@ -31,8 +31,8 @@
 
 /* With the legend in the foot, the routine status ("Saved", the live dot) steps
    back; anything that needs her (a save problem, new work to load, a lost
-   connection) still shows. */
-.canvas-footer:has(> .kind-legend:not([hidden])) .status-line:not(:has(#save-status:is([data-state="error"], [data-state="local"]), #live-refresh:not([hidden]), #live-status[data-connection="offline"])) { display: none; }
+   connection, an app update) still shows. */
+.canvas-footer:has(> .kind-legend:not([hidden])) .status-line:not(:has(#save-status:is([data-state="error"], [data-state="local"]), #live-refresh:not([hidden]), #live-status[data-connection="offline"], .update-chip, .update-refresh)) { display: none; }
 
 /* Narrower: the counts stay and the names go (still read out by assistive tech). */
 @media (max-width: 1280px) {
