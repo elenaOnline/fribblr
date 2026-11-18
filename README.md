@@ -206,8 +206,8 @@ current title — and **what** on the right: Find (⌘K), Undo/Redo, the Inspect
 the single primary **+ Add** (Text, Colored region, Arrow, shapes, items and
 boards). The Inspector opens on demand at the right edge: with nothing chosen it
 starts with the board itself (its name, counts and description), then View
-(Layout: Grid/Canvas; Background), Filter, Edit, Feedback (Comments, Export
-notes), Appearance, Help (how to use this board, Keyboard shortcuts) and Tinka; a tile's ⋯ menu groups Open experiment, Handoff when available, Notes and
+(Layout: Grid/Canvas; Pattern), Filter, Edit, Feedback (Comments, Export
+notes), Appearance (Mode: System/Light/Dark; Background: Blue/White, light only), Help (how to use this board, Keyboard shortcuts) and Tinka; a tile's ⋯ menu groups Open experiment, Handoff when available, Notes and
 Remove from board; Details… (or ⌘/Ctrl-I with one tile selected) shows that item's notes, feedback, appearance and paper, created/edited
 dates and actions. Click-away or Escape closes any temporary panel or menu. Zoom
 lives in one floating pill at the lower right: −, the zoom percentage (a menu with
