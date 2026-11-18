@@ -1,0 +1,415 @@
+/* fribblr, round 3: one theme. A replacement layer loaded after the app's own stylesheets. Mockup only.
+   Tokens in tokens.css. Sections: shape, base, keys, segmented, fields, chrome, desk, slabs, kinds, selection and
+   drag, comments and her marks, floats, bars over the board, legend, thread, inspector, dialog, home, reader,
+   documents, narrow.
+
+   The desk is Modus's blue well; everything you can pick up is a white slab standing on it, its lower side the
+   colour of its kind. Everything you can press is a smaller raised key. Fields and tracks sink. Menus and dialogs
+   float above, in Modus's frame grey. */
+@import url("tokens.css");
+
+/* ================= shape: squircles on the surfaces that carry them ================= */
+:is(.tk-btn, .tk-seg, .tk-seg > button, .tk-field, .tk-kbd, .f-key, .tk-menu, .tk-menu .tk-mi, .ct-card, .ct-composer, .cref,
+  .tile-notes, .tile-notes textarea, .cref-picker, .board-map, dialog, dialog :is(input, textarea, select, button),
+  #world .workspace-card, #world .workspace-card > .workspace-card-body, #world .workspace-card-preview, #world .workspace-tile-toolbar,
+  #world .workspace-tile-toolbar button, #world .workspace-preview-launch span, #world .workspace-tile-more,
+  .workspace-add-menu, .workspace-add-menu button, .workspace-tile-menu, .workspace-tile-menu button,
+  :is(#canvas-header, #reader-header) :is(.brand, .workspace-parent, .chrome-search, .chrome-add, .info-toggle),
+  :is(.canvas-footer, .reader-footer) .zoom-pill, :is(.canvas-footer, .reader-footer) .zoom-pill :is(button, .tk-btn),
+  #workspace-selection.workspace-selection, #workspace-selection.workspace-selection button, .fr-legend, .fr-legend button,
+  #board-info .inspector-row-btn, #board-info > .info-actions button, #workspace-item-controls textarea,
+  .home-find input, .masthead :is(button, select, .new-board), .board-link, .board-art, .board-art .workspace-cover-tile,
+  .board-art .workspace-cover-count, .empty-card, .empty-card .plus, .shelf .workspace-home-toolbar button,
+  #reader-window, .notes-panel textarea, .document-tools :is(button, select), .whiteboard-toolbar, .whiteboard-toolbar button,
+  .whiteboard-menu, .workspace-toast, .tk-new, .markdown pre, .markdown-table) { corner-shape: squircle; }
+
+/* ================= base ================= */
+html, body { background-color: var(--f-desk); color: var(--f-ink); }
+body { font-family: var(--f-sans); -webkit-font-smoothing: antialiased; }
+:is(button, a, input, textarea, select, summary, [tabindex]):focus-visible,
+html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid var(--f-blue); outline-offset: 2px; }
+::selection { background-color: var(--f-select-row); color: var(--f-ink); }
+.brand-mark-a { fill: var(--f-ink); }
+.brand-mark-b { fill: var(--f-blue); }
+
+/* ================= keys: height 1 =================
+   A key is a white face with a seam rim and a 2 px lower side. Pressing it drops it onto its side. */
+.tk-btn {
+  height: var(--control-h); border-radius: var(--f-r-key); color: var(--f-ink); font: 400 var(--f-t-ui)/1 var(--f-sans);
+  background-color: var(--f-paper); transition: none;
+  box-shadow: var(--f-key);
+}
+.tk-btn:hover { background-color: var(--f-paper); color: var(--f-ink); box-shadow: var(--f-key-hover); }
+.tk-btn:active:not(:disabled) { translate: 0 1px; box-shadow: var(--f-key-down); }
+/* on: the key stays down, tinted blue, with a blue rim */
+.tk-btn[aria-pressed="true"], .tk-btn[aria-expanded="true"] {
+  background-color: var(--f-select-row); color: var(--f-ink); box-shadow: var(--f-key-on);
+}
+/* the primary key: blue face, deep blue side. One per screen. */
+.tk-btn.tk-primary, :is(#canvas-header, #reader-header) .chrome-add, .masthead .new-board, button.primary, #copy-prompt,
+.workspace-dialog .workspace-primary, .ct-card .ct-btn-primary {
+  background-color: var(--f-blue); color: #FFFFFF; border-radius: var(--f-r-key);
+  box-shadow: var(--f-key-primary);
+}
+.tk-btn.tk-primary:hover, :is(#canvas-header, #reader-header) .chrome-add:hover, .masthead .new-board:hover, button.primary:hover { background-color: var(--f-blue-deep); color: #FFFFFF; }
+.tk-btn.tk-primary:active, :is(#canvas-header, #reader-header) .chrome-add:active, .masthead .new-board:active { translate: 0 1px; box-shadow: inset 0 0 0 1px var(--f-blue-side); }
+.tk-btn svg, .tk-glyph { stroke-width: 1.5; }
+/* icon-only keys in a bar sit quieter: no rim until the pointer is on them, still raised when on */
+:is(#canvas-header, #reader-header) .tk-btn.tk-icon:not([aria-pressed="true"]):not([aria-expanded="true"]):not(:hover) { box-shadow: var(--f-key); }
+
+/* the printed shortcut (theme.js): a small keycap, itself a raised key */
+.tk-kbd, kbd.tk-kbd, .f-key {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 17px; box-sizing: border-box; padding: 0 4px;
+  font: 400 10.5px/1 var(--f-mono); color: var(--f-ink-2); background-color: var(--f-paper);
+  border: 0; border-radius: var(--f-r-cap); box-shadow: 0 0 0 1px var(--f-seam), 0 1.5px 0 0 var(--f-seam);
+}
+.f-key { margin-left: 4px; margin-bottom: 1px; }
+.tk-btn.tk-primary .tk-kbd, .chrome-add .f-key, .new-board .f-key { color: #FFFFFF; background-color: transparent; box-shadow: 0 0 0 1px rgba(255, 255, 255, .45); }
+
+/* ================= segmented: a sunken track, the chosen segment a raised cell ================= */
+.tk-seg, #board-info .tk-seg {
+  padding: 3px; gap: 0; border-radius: var(--f-r-key); background-color: var(--f-frame);
+  box-shadow: inset 0 0 0 1px var(--f-seam), var(--f-sunk);
+}
+.tk-seg > button, #board-info .tk-seg > button, #workspace-item-controls .tk-seg > button {
+  height: 26px; border-radius: var(--f-r-cell); color: var(--f-ink-2); font: 400 12.5px/1 var(--f-sans); background-color: transparent; box-shadow: none;
+}
+.tk-seg > button[aria-pressed="true"], #board-info .tk-seg > button[aria-pressed="true"], #workspace-item-controls .tk-seg > button[aria-pressed="true"],
+.shelf .workspace-home-toolbar button[aria-pressed="true"], html[data-appearance] .shelf .workspace-home-toolbar button[aria-pressed="true"] {
+  background-color: var(--f-paper); color: var(--f-ink); box-shadow: inset 0 -1.5px 0 var(--f-key-side), inset 0 0 0 1px var(--f-seam);
+}
+
+/* ================= fields: height -1 ================= */
+.tk-field, .home-find input, #board-info .workspace-search input, .masthead .appearance-control select {
+  border: 1px solid var(--f-seam); border-radius: var(--f-r-key); background-color: var(--f-paper); color: var(--f-ink);
+  font-family: var(--f-sans); box-shadow: var(--f-sunk);
+}
+.tk-field:focus, .home-find input:focus, #board-info .workspace-search input:focus { border-color: var(--f-blue); box-shadow: var(--f-sunk), inset 0 -2px 0 var(--f-blue); outline: none; }
+
+/* ================= chrome: the frame strip, flush ================= */
+:is(#canvas-header, #reader-header), body > .masthead { background-color: var(--f-frame); box-shadow: 0 1px 0 var(--f-seam); }
+:is(#canvas-header, #reader-header) .board-name, #reader-name { font: 400 var(--f-t-board)/1.2 var(--f-serif); letter-spacing: 0; color: var(--f-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+:is(#canvas-header, #reader-header) .brand, .masthead .brand { color: var(--f-ink); font: 400 var(--f-t-ui)/1 var(--f-sans); box-shadow: none; background-color: transparent; }
+:is(#canvas-header, #reader-header) .workspace-parent { color: var(--f-ink-2); font: 400 var(--f-t-ui)/1 var(--f-sans); box-shadow: none; }
+:is(#canvas-header, #reader-header) .workspace-parent::after { background-color: var(--f-seam); }
+/* the search key in the bar is a field: it sinks */
+:is(#canvas-header, #reader-header) .chrome-search { background-color: var(--f-paper); color: var(--f-ink-2); border-radius: var(--f-r-key); box-shadow: inset 0 0 0 1px var(--f-seam), var(--f-sunk); translate: none; }
+:is(#canvas-header, #reader-header) .chrome-search:hover { background-color: var(--f-paper); color: var(--f-ink); box-shadow: inset 0 0 0 1px var(--f-edge), var(--f-sunk); }
+:is(#canvas-header, #reader-header) .chrome-search:active { translate: none; }
+.item-number { font: 400 13px/1 var(--f-mono); color: var(--f-ink-2); }
+
+/* ================= desk ================= */
+#viewport { background-color: var(--f-desk); --pattern-ink: #6E8798; }
+.workspace-decoration-label, #world .workspace-decoration-label { font-family: var(--f-serif); }
+#world .workspace-decoration.decoration-text .workspace-decoration-label,
+#world .decoration-text .workspace-decoration-label { font-style: normal; color: var(--f-ink); }
+#world .decoration-line .workspace-decoration-label { font: 400 12px/1.3 var(--f-sans); color: var(--f-ink-2); background-color: var(--f-desk); }
+/* regions are drawn on the desk: flush, no side */
+#world .workspace-decoration.decoration-region > .workspace-decoration-label { font: 400 13px/1.3 var(--f-sans); color: var(--f-ink-2); }
+
+/* ================= slabs: height 2 =================
+   A card is a white face on a lower side of the kind's colour. The side is the face's own squircle moved down
+   by the depth, with a 1 px darker contour, so the corner of the side is the same curve as the corner of the face:
+   the slab reads as one extruded piece rather than a card with a shadow. Then a short cast shadow on the desk. */
+#world .concept-card, #world .workspace-card {
+  --k-side: var(--f-plain-side); --k-edge: var(--f-plain-edge); --d: var(--f-slab-d); --rim: var(--f-rim); --cast: var(--f-cast-slab);
+  --slab: 0 0 0 1px var(--rim), 0 var(--d) 0 0 var(--k-side), 0 var(--d) 0 1px var(--k-edge), var(--cast);
+  border: 0; border-radius: var(--f-r-slab); background-color: var(--item-paper, var(--f-paper)); box-shadow: var(--slab);
+}
+#world .concept-card:hover, #world .workspace-card:hover { --rim: var(--f-edge); box-shadow: var(--slab); }
+#world .workspace-card > .workspace-card-body { border-radius: var(--f-r-slab); }
+#world .workspace-card > .workspace-item-footer { border-radius: 0 0 var(--f-r-slab) var(--f-r-slab); }
+#world .workspace-card-preview, #world .workspace-compact .workspace-card-preview { background-color: var(--f-paper); }
+#world .workspace-panel .workspace-panel-preview { border-radius: var(--f-r-preview); box-shadow: 0 0 0 1px var(--f-hairline); }
+#world .workspace-document-preview { font-family: var(--f-serif); color: var(--f-ink); }
+#world .workspace-card h3, #world .workspace-card h3 button, #world .workspace-panel-title,
+.workspace-board[data-board-layout="canvas"] :is(.workspace-panel-title, .workspace-card-copy h3 [data-open]) {
+  font-family: var(--f-sans); font-weight: 500; color: var(--f-ink); letter-spacing: 0;
+}
+#world .workspace-card-copy > p { color: var(--f-ink-2); }
+#world .workspace-concept-number, .workspace-build-label { font-family: var(--f-mono); color: var(--f-ink-2); }
+#world .workspace-item-footer.workspace-panel-caption { border-top: 1px solid var(--f-hairline); background-color: var(--item-paper, var(--f-paper)); }
+#world .workspace-tile-more { color: var(--f-ink-2); border-radius: var(--f-r-cell); }
+#world .workspace-tile-more:hover { background-color: var(--hover); }
+#world .workspace-title-art { font: 400 15px/1.35 var(--f-serif); color: var(--f-ink-2); letter-spacing: 0; }
+/* not settled yet: no side, a dashed footprint, because it is not built */
+#world .workspace-card:is([data-build-state="building"], [data-build-state="reserved"]) { box-shadow: none; outline: 1.5px dashed var(--f-ink-2); outline-offset: -1px; background-color: rgba(255, 255, 255, .5); }
+
+/* ================= kinds: the lower side's colour (data-family from theme.js) ================= */
+#world .workspace-card[data-family="page"] { --k-side: var(--f-page-side); --k-edge: var(--f-page-edge); }
+#world .workspace-card[data-family="doc"] { --k-side: var(--f-doc-side); --k-edge: var(--f-doc-edge); }
+#world .workspace-card[data-family="pic"] { --k-side: var(--f-pic-side); --k-edge: var(--f-pic-edge); }
+#world .workspace-card[data-family="plain"] { --k-side: var(--f-plain-side); --k-edge: var(--f-plain-edge); }
+/* a child board: a white slab on an ink side, its board seen through a window sunk into the desk */
+#world .workspace-board-tile, #world .workspace-card[data-family="board"] { --k-side: var(--f-board-side); --k-edge: var(--f-board-edge); }
+#world .workspace-board-tile .workspace-card-preview { background-color: var(--f-desk); box-shadow: inset 0 0 0 1px var(--f-rim), inset 0 1px 0 1px rgba(0, 0, 0, .05); border-radius: var(--f-r-preview); }
+#world .workspace-board-tile :is(.workspace-card-copy h3, .workspace-panel-title, .workspace-icon-entry strong) { font-family: var(--f-serif); font-weight: 400; }
+
+/* ================= selection and drag ================= */
+/* selected: a blue line drawn on the desk around the whole slab, side included. The slab does not move. */
+#world .workspace-card.selected, #world .workspace-card.inspected { outline: 2px solid var(--f-blue); outline-offset: calc(var(--d) + 2px); }
+#world .workspace-card.inspected:not(.selected) { outline-style: dashed; }
+#world .workspace-select-dot, #world .workspace-card > .workspace-select-dot {
+  border-radius: 50%; background-color: var(--f-paper); box-shadow: 0 0 0 1px var(--f-edge), 0 1.5px 0 1px var(--f-key-side-desk);
+}
+#world .workspace-card.selected .workspace-select-dot, #world .workspace-select-dot[aria-pressed="true"] {
+  background-color: var(--f-blue); color: #FFFFFF; box-shadow: 0 0 0 2px var(--f-paper), 0 2px 0 2px var(--f-blue-side);
+}
+/* dragged: while she holds it, the slab rises off the desk. The side lengthens by the lift, the face moves up by
+   the same amount, so the side still ends where the slab stood and the cast shadow falls further away. */
+#world .workspace-card.workspace-dragging { --d: calc(var(--f-slab-d) + var(--f-lift-d)); --cast: var(--f-cast-lift); translate: 0 calc(-1 * var(--f-lift-d)); box-shadow: var(--slab); z-index: 9999 !important; cursor: grabbing; }
+/* a card she drags over to drop into: the target's rim turns blue and a dashed blue line is drawn around it */
+#world .workspace-card.workspace-drop-target { --rim: var(--f-blue); outline: 2px dashed var(--f-blue); outline-offset: calc(var(--d) + 2px); box-shadow: var(--slab); }
+#world .workspace-card.workspace-dragging.selected { outline-offset: calc(var(--f-slab-d) + 2px); }
+
+/* the hover strip on a card: a small float of keys */
+#world .workspace-tile-toolbar { background-color: var(--f-frame); border-radius: var(--f-r-key); box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-float); }
+#world .workspace-tile-toolbar button { color: var(--f-ink); font-family: var(--f-sans); border-radius: var(--f-r-cell); }
+#world .workspace-tile-toolbar button:hover { background-color: var(--f-paper); }
+#world .workspace-tile-toolbar button[aria-pressed="true"] { background-color: var(--f-select-row); }
+#world .workspace-preview-launch span {
+  background-color: var(--f-paper); color: var(--f-ink); border-radius: var(--f-r-key); font-family: var(--f-sans);
+  box-shadow: var(--f-key), var(--f-cast-float);
+}
+
+/* ================= her marks: comments, stars, votes, notes — one red =================
+   The agent's work is black. Everything she said on the board is red. A comment pin is a raised key: press it to
+   open the thread. */
+.comment-pin {
+  background-color: var(--f-red); color: #FFFFFF; font: 500 12px/1 var(--f-sans); border-color: var(--f-paper);
+  box-shadow: 0 2px 0 0 var(--f-red-side), 0 5px 6px -3px rgba(var(--f-cast), .35);
+}
+.comment-pin:hover, html[data-appearance] .comment-pin:enabled:hover { background-color: var(--f-red-deep); }
+.comment-pin.active { background-color: var(--f-red-deep); outline: 2px solid var(--f-red); outline-offset: 3px; }
+.comment-pin:active { box-shadow: 0 0 0 0 var(--f-red-side); }
+/* the agent's pin is not her voice: a white key with an ink rim */
+.comment-pin[data-author="agent"] { background-color: var(--f-paper); color: var(--f-ink); border-color: var(--f-ink); box-shadow: 0 2px 0 0 var(--f-ink), 0 5px 6px -3px rgba(var(--f-cast), .35); }
+.comment-pin:is([data-status="sent"], [data-status="working"]) { background-color: var(--f-paper); color: var(--f-red); border-color: var(--f-red); box-shadow: 0 2px 0 0 var(--f-red-side); }
+/* resolved: pressed flat into the desk, grey */
+.comment-pin[data-status="resolved"] { background-color: var(--f-desk); color: var(--f-ink-2); border-color: var(--f-edge); box-shadow: none; opacity: 1; }
+.comment-pin[data-status="addressed"], .comment-pin.comment-cluster[data-status="addressed"] { background-color: var(--f-red); color: #FFFFFF; }
+/* the agent answered or asked: an ink dot on her pin */
+.comment-pin-badge { border-color: var(--f-paper); }
+.comment-pin[data-status] .comment-pin-badge { background-color: var(--f-ink) !important; }
+.comment-pin.detached { border: 2px dashed var(--f-red); background-color: var(--f-paper); color: var(--f-red); box-shadow: none; }
+#world .workspace-badge-star, #world .workspace-badge-note, #world .workspace-item-footer .shortlist[aria-pressed="true"],
+#world .workspace-tile-toolbar .shortlist[aria-pressed="true"], .workspace-item-footer .workspace-vote-trigger[aria-pressed="true"],
+body .reader-header .item-star[aria-pressed="true"], #reader-star[aria-pressed="true"] { color: var(--f-red); }
+#world .workspace-tile-more .workspace-note-dot, #world .workspace-tile-toolbar .workspace-note-dot, .note-dot { background-color: var(--f-red); }
+#world .workspace-badge-vote { font-family: var(--f-mono); }
+
+/* ================= floats: height 3 (Modus) =================
+   Frame grey, a 1 px edge, one soft shadow. No side: a float is held above the desk, not standing on it. */
+.tk-menu, body .workspace-add-menu, body .workspace-tile-menu, .ct-card, .tile-notes, .cref-picker, .board-map {
+  background-color: var(--f-frame); color: var(--f-ink); border-radius: var(--f-r-float); border: 0;
+  box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-float);
+}
+body .workspace-tile-menu, body .workspace-add-menu { width: max-content; }
+.tk-menu .tk-mi, body .workspace-add-menu button, body .workspace-tile-menu button { font: 400 var(--f-t-ui)/1.2 var(--f-sans); color: var(--f-ink); border-radius: var(--f-r-cell); }
+.tk-menu .tk-mi:hover, .tk-menu .tk-mi:focus-visible, body .workspace-add-menu button:hover, body .workspace-add-menu button:focus-visible { background-color: var(--f-select-row); }
+/* danger has no colour: red means her voice. A destructive row is ink, alone in the last section. */
+.tk-menu .tk-mi.tk-danger, .tk-mi.tk-danger { color: var(--f-ink); }
+.tk-menu .tk-msep { background-color: var(--f-seam); }
+/* section names are plain words, not eyebrows */
+.tk-menu .tk-mlabel, .tk-eyebrow, .inspector-sec > h3, html body .inspector-sec > h3, #board-info > #board-info-heading, .cref-picker h6 {
+  font: 400 12px/1.3 var(--f-sans); text-transform: none; letter-spacing: 0; color: var(--f-ink-2);
+}
+body .workspace-add-menu button > span { color: var(--f-ink-2); }
+
+/* ================= bars over the board: floats ================= */
+body :is(.canvas-footer, .reader-footer) .zoom-pill {
+  background-color: var(--f-frame); border-radius: 16px; box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-float); padding: 5px; gap: 5px;
+}
+body :is(.canvas-footer, .reader-footer) .zoom-pill :is(button, .tk-btn) { font: 400 var(--f-t-ui)/1 var(--f-sans); border-radius: var(--f-r-key); }
+body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { font: 400 12.5px/1 var(--f-mono); box-shadow: none; background-color: transparent; min-width: 52px; translate: none; }
+body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-icon:not([aria-pressed="true"]) { box-shadow: none; background-color: transparent; }
+body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-icon:not([aria-pressed="true"]):hover { background-color: var(--f-paper); box-shadow: var(--f-key); }
+body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-divider { background-color: var(--f-seam); height: 18px; }
+body .canvas-footer .status-line { background-color: transparent; box-shadow: none; border: 0; color: var(--f-ink-2); font: 400 11.5px/1.3 var(--f-mono); }
+body .canvas-footer .status-line > * { color: var(--f-ink-2) !important; }
+body .canvas-footer #live-status::before { background-color: var(--f-ink-2); }
+/* counts are numbers, not badges; her waiting comments count in red */
+html body .comment-count, html body .fit .fit-count { position: static; height: auto; line-height: 1; background-color: transparent; color: var(--f-ink-2); box-shadow: none; min-width: 0; padding: 0; font: 500 12px/1 var(--f-mono); }
+html body .comment-count, html body .comment-count.warn { background-color: transparent; color: var(--f-red); }
+
+#workspace-selection.workspace-selection { background-color: var(--f-frame); border-radius: 16px; box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-float); color: var(--f-ink); flex-wrap: wrap; row-gap: 2px; }
+#workspace-selection.workspace-selection > * { flex-shrink: 0; }
+#workspace-selection.workspace-selection strong { font: 500 12px/1 var(--f-mono); color: var(--f-ink); }
+#workspace-selection.workspace-selection button { color: var(--f-ink); flex: none; padding: 0 8px; font: 400 13px/1 var(--f-sans); box-shadow: none; background-color: transparent; border-radius: var(--f-r-cell); }
+#workspace-selection.workspace-selection button:hover { background-color: var(--f-paper); box-shadow: var(--f-key); }
+
+.whiteboard-toolbar { background-color: var(--f-frame); border-radius: 16px; border: 0; box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-float); font-family: var(--f-sans); padding: 4px; }
+.whiteboard-menu { background-color: var(--f-frame); border-radius: var(--f-r-float); border: 0; box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-float); font-family: var(--f-sans); }
+.whiteboard-toolbar button { border-radius: var(--f-r-cell); }
+.whiteboard-toolbar button[aria-pressed=true] { background-color: var(--f-paper); box-shadow: 0 0 0 1px var(--f-blue), 0 1px 0 0 var(--f-blue-side); color: var(--f-ink); }
+body .workspace-toast { border-radius: var(--f-r-key); background-color: var(--f-ink); color: #FFFFFF; font-family: var(--f-sans); }
+
+/* ================= the kind legend (theme.js): names the side colours ================= */
+body.fr-has-legend .canvas-footer .status-line { display: none; }
+.fr-legend { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px; height: 44px; box-sizing: border-box; padding: 0 5px;
+  border-radius: 16px; background-color: var(--f-frame); box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-float); overflow: hidden; white-space: nowrap; }
+.fr-legend button { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 11px 0 9px; border: 0; border-radius: var(--f-r-cell);
+  background-color: transparent; color: var(--f-ink); font: 400 var(--f-t-ui)/1 var(--f-sans); cursor: pointer; }
+/* the swatch is a tiny slab: white face, the kind's side */
+.fr-legend button i, .fr-strip i { width: 13px; height: 9px; border-radius: 3px; corner-shape: squircle; background-color: #FFFFFF; flex: none;
+  box-shadow: 0 0 0 1px var(--f-rim), 0 3px 0 0 var(--k-side), 0 3px 0 1px var(--k-edge); margin-bottom: 3px; }
+.fr-legend button b, .fr-strip b { font: 400 12px/1 var(--f-mono); color: var(--f-ink-2); }
+.fr-legend button:hover { background-color: var(--f-paper); }
+.fr-legend button[aria-pressed="true"] { background-color: var(--f-select-row); box-shadow: inset 0 0 0 1px var(--f-blue); }
+[data-family="page"] { --k-side: var(--f-page-side); --k-edge: var(--f-page-edge); }
+[data-family="doc"] { --k-side: var(--f-doc-side); --k-edge: var(--f-doc-edge); }
+[data-family="pic"] { --k-side: var(--f-pic-side); --k-edge: var(--f-pic-edge); }
+[data-family="plain"] { --k-side: var(--f-plain-side); --k-edge: var(--f-plain-edge); }
+[data-family="board"] { --k-side: var(--f-board-side); --k-edge: var(--f-board-edge); }
+#world.fr-lit .workspace-card:not(.fr-on), #world.fr-lit .workspace-decoration { opacity: .3; }
+@media (max-width: 1280px) { .fr-legend button span { display: none; } }
+@media (max-width: 720px) { .fr-legend { display: none; } }
+body:has(#workspace-item-controls, #board-info:not([hidden])) .fr-legend button span { display: none; }
+
+/* ================= comment thread ================= */
+html body .ct-card { font: 400 13.5px/1.5 var(--f-sans); }
+html body .ct-head { border-bottom-color: var(--f-seam); }
+html body .ct-on { font-family: var(--f-sans); font-size: 12px; color: var(--f-ink-2); }
+html body .ct-on b, html body .ct-on-target { color: var(--f-ink); }
+html body .ct-state, html body .ct-state[data-state] { padding: 0; background-color: transparent !important; border-radius: 0; font: 400 12px/1.4 var(--f-sans); color: var(--f-ink-2); text-transform: none; letter-spacing: 0; }
+html body .ct-state::before { width: 7px; height: 7px; animation: none; }
+html body .ct-state[data-state=open], html body .ct-state[data-state=question], html body .ct-state[data-state=addressed] { color: var(--f-ink); }
+html body .ct-scroll { background-color: var(--f-paper); }
+html body .ct-msg + .ct-msg { border-top-color: var(--f-hairline); }
+html body .ct-who { font-weight: 500; }
+html body .ct-msg-head time, html body .ct-edited { font-family: var(--f-mono); font-size: 11px; color: var(--f-ink-2); }
+html body .ct-msg:not(.ct-agent) .ct-body { color: var(--f-red); }
+html body .ct-agent .ct-body { color: var(--f-ink); }
+html body .ct-agent::before { display: none; }
+html body .ct-agent-tag { background-color: transparent; color: var(--f-ink-2); font: 400 11.5px/1.4 var(--f-sans); padding: 0; text-transform: none; letter-spacing: 0; }
+html body .ct-avatar { background-color: var(--f-red); color: #FFFFFF; font: 500 11px/1 var(--f-sans); box-shadow: 0 1.5px 0 0 var(--f-red-side); }
+html body .ct-avatar.agent { background-color: var(--f-paper); color: var(--f-ink); box-shadow: inset 0 0 0 1.5px var(--f-ink), 0 1.5px 0 0 var(--f-ink); }
+html body .ct-foot { border-top-color: var(--f-seam); }
+html body .ct-hint, html body .ct-status, html body .ct-for-agent, html body .ct-activity { font-family: var(--f-sans); font-size: 12px; color: var(--f-ink-2); }
+/* where she writes, the field sinks and its underline is her colour */
+html body .ct-composer { background-color: var(--f-paper); border-radius: var(--f-r-key); box-shadow: inset 0 0 0 1px var(--f-seam), var(--f-sunk); color: var(--f-red); }
+html body .ct-composer:focus { box-shadow: inset 0 0 0 1px var(--f-seam), var(--f-sunk), inset 0 -2px 0 var(--f-red); }
+html body .ct-composer:focus-visible { outline: none; }
+html body .ct-composer:empty::before { color: var(--f-ink-2); }
+html body .ct-icon.tk-btn { box-shadow: none; background-color: transparent; }
+html body .ct-icon.tk-btn:hover { background-color: var(--hover); }
+html body .cref { background-color: var(--f-paper); color: var(--f-ink); box-shadow: inset 0 0 0 1px var(--f-seam); font: 400 12px/1.6 var(--f-sans); border-radius: var(--f-r-cap); }
+html body .tile-notes textarea, html body #workspace-item-controls textarea { color: var(--f-red); background-color: var(--f-paper); border-color: var(--f-seam); border-radius: var(--f-r-key); font-family: var(--f-sans); box-shadow: var(--f-sunk); }
+html body .tile-notes textarea:focus, html body #workspace-item-controls textarea:focus { border-color: var(--f-seam); box-shadow: var(--f-sunk), inset 0 -2px 0 var(--f-red); }
+html body #workspace-item-controls .workspace-context-note { color: var(--f-red); }
+
+/* ================= inspector: a flush side panel ================= */
+#board-info.calm-side, #workspace-item-controls.calm-side { background-color: var(--f-frame); box-shadow: -1px 0 0 var(--f-seam); border: 0; border-radius: 0; }
+.calm-side-head { background-color: var(--f-frame); }
+.inspector-sec { border-top-color: var(--f-seam); }
+.inspector-title h2 { font: 400 20px/1.2 var(--f-serif); letter-spacing: 0; }
+.inspector-title h2.inspector-place { font: 400 22px/1.15 var(--f-serif); }
+.inspector-title p, #board-info .board-info-identity .info-meta, .inspector-props dt, #board-info .inspector-choice-label { font-family: var(--f-sans); font-size: 12px; color: var(--f-ink-2); }
+.inspector-props dd { font-family: var(--f-sans); }
+#board-info .board-info-body .inspector-row-btn, #board-info .inspector-sec .tk-btn.tk-tonal, #board-info > .info-actions button {
+  background-color: var(--f-paper); border-radius: var(--f-r-key); color: var(--f-ink);
+  box-shadow: var(--f-key);
+}
+#board-info .board-info-body .inspector-row-btn:hover, #board-info .inspector-sec .tk-btn.tk-tonal:hover:enabled { background-color: var(--f-paper); box-shadow: var(--f-key-hover); }
+#board-info .inspector-sec .tk-btn.tk-tonal:disabled { background-color: var(--f-frame); color: var(--f-ink-2); opacity: 1; box-shadow: inset 0 0 0 1px var(--f-hairline); }
+#board-info #help-panel { background-color: var(--f-paper); box-shadow: inset 0 0 0 1px var(--f-hairline); }
+#workspace-item-controls .workspace-paper-swatches button { box-shadow: inset 0 -1.5px 0 var(--f-key-side), inset 0 0 0 1px var(--f-seam); }
+
+/* ================= dialog: a float ================= */
+dialog, body dialog.workspace-dialog, #new-dialog { background-color: var(--f-frame); color: var(--f-ink); border-radius: var(--f-r-float); box-shadow: 0 0 0 1px var(--f-edge), var(--f-cast-dialog); border: 0; }
+dialog::backdrop, html body dialog::backdrop, html[data-appearance] body dialog::backdrop { background-color: rgba(0, 20, 35, .18); }
+dialog h2, body dialog.workspace-dialog h2 { font: 400 23px/1.2 var(--f-serif); letter-spacing: 0; color: var(--f-ink); }
+dialog label, body dialog.workspace-dialog label { font: 400 12.5px/1.3 var(--f-sans); color: var(--f-ink-2); text-transform: none; letter-spacing: 0; }
+dialog input, dialog textarea, dialog select { background-color: var(--f-paper); border: 1px solid var(--f-seam); border-radius: var(--f-r-key); color: var(--f-ink); font-family: var(--f-sans); box-shadow: var(--f-sunk); }
+dialog input:focus, dialog textarea:focus { outline: none; border-color: var(--f-blue); box-shadow: var(--f-sunk), inset 0 -2px 0 var(--f-blue); }
+dialog .eyebrow { display: none; }
+body dialog.workspace-dialog :is(button, .workspace-button):not(.workspace-close):not(.workspace-primary) {
+  border: 0; background-color: var(--f-paper); color: var(--f-ink); font: 400 13.5px/1 var(--f-sans); border-radius: var(--f-r-key);
+  box-shadow: var(--f-key);
+}
+.workspace-dialog .workspace-primary { height: 34px; padding: 0 16px; margin-right: 12px; font: 400 13.5px/1 var(--f-sans); border: 0; }
+body dialog.workspace-dialog .workspace-close { background-color: transparent; box-shadow: none; color: var(--f-ink-2); border-radius: var(--f-r-key); }
+body dialog.workspace-dialog .workspace-close:hover { background-color: var(--hover); }
+
+/* ================= home: boards are slabs on the desk ================= */
+body:has(> .masthead) { background-color: var(--f-desk); }
+.masthead #workspace-name { font: 400 var(--f-t-ui)/1 var(--f-sans); }
+.live, #connection { font: 400 12px/1 var(--f-sans); color: var(--f-ink-2); }
+.live i { background-color: var(--f-ink-2); }
+.shelf-title h1 { font: 400 32px/1.15 var(--f-serif); letter-spacing: 0; }
+.shelf-sub { font: 400 12.5px/1.4 var(--f-sans); color: var(--f-ink-2); }
+.shelf-heading { border-bottom: 2px solid var(--f-blue); padding-bottom: 14px; }
+.board-card::before, .board-card::after { display: none; }
+.board-link, .board-card .board-link {
+  background-color: var(--f-paper); border-radius: var(--f-r-slab); padding: 8px;
+  box-shadow: 0 0 0 1px var(--f-rim), 0 var(--f-slab-d) 0 0 var(--f-board-side), 0 var(--f-slab-d) 0 1px var(--f-board-edge), var(--f-cast-slab);
+}
+.board-card:hover .board-link, .board-link:focus-visible { box-shadow: 0 0 0 1px var(--f-edge), 0 var(--f-slab-d) 0 0 var(--f-board-side), 0 var(--f-slab-d) 0 1px var(--f-board-edge), var(--f-cast-slab); transform: none; }
+.board-card.workspace-home-selected .board-link { outline: 2px solid var(--f-blue); outline-offset: calc(var(--f-slab-d) + 2px); }
+/* a board's cover is a window sunk into the desk, with its cards as tiny slabs */
+.board-art, html[data-appearance] .board-card .board-art { background-color: var(--f-desk); border-radius: var(--f-r-preview); background-image: none; }
+.board-art::after { box-shadow: inset 0 0 0 1px var(--f-rim), inset 0 1px 0 1px rgba(0, 0, 0, .05); border-radius: var(--f-r-preview); }
+.board-art .workspace-cover-tile { background-color: var(--f-paper); box-shadow: 0 0 0 1px var(--f-rim), 0 2px 0 0 var(--f-plain-side); border-radius: 4px; color: var(--f-ink); }
+.board-art .workspace-cover-count { font: 400 12px/1 var(--f-mono); background-color: var(--f-paper); color: var(--f-ink-2); box-shadow: inset 0 -1.5px 0 var(--f-key-side-desk), inset 0 0 0 1px var(--f-seam); }
+.board-info h3, html[data-appearance] .board-card .board-info h3 { font: 400 18px/1.25 var(--f-serif); color: var(--f-ink); letter-spacing: 0; }
+.board-info p { color: var(--f-ink-2); }
+.card-bottom, .board-info .card-bottom { font: 400 12px/1.4 var(--f-sans); color: var(--f-ink-2); }
+.fr-strip { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0; font: 400 12px/1.4 var(--f-sans); color: var(--f-ink-2); }
+.fr-strip span { display: inline-flex; align-items: center; gap: 7px; }
+.tk-new { background-color: transparent; box-shadow: inset 0 0 0 1px var(--f-seam); color: var(--f-ink-2); font: 400 11px/1 var(--f-sans); border-radius: var(--f-r-cap); padding: 3px 6px; letter-spacing: 0; text-transform: none; }
+.board-card .home-select-dot { box-shadow: 0 0 0 1px var(--f-edge), 0 1.5px 0 1px var(--f-key-side-desk); }
+.empty-card { border: 1.5px dashed var(--f-edge); border-radius: var(--f-r-slab); background-color: transparent; box-shadow: none; }
+.empty-card strong { font: 400 17px/1.2 var(--f-serif); }
+.empty-card .plus { background-color: var(--f-paper); border-radius: var(--f-r-key); color: var(--f-ink); box-shadow: var(--f-key-desk); }
+main > footer { font: 400 12px/1.4 var(--f-sans); color: var(--f-ink-2); }
+.board-actions button { border-radius: var(--f-r-key); }
+/* keys standing on the desk have a desk-tinted side */
+body:has(> .masthead) main :is(.tk-btn, .shelf .workspace-home-toolbar button):not(.tk-primary) { box-shadow: var(--f-key-desk); }
+
+/* ================= reader: the item is a slab on the desk ================= */
+#reader-dialog { background-color: var(--f-desk); }
+#reader-dialog .reader-stage, body:has(#viewport[data-canvas-pattern]) #reader-dialog .reader-stage { background-color: var(--f-desk); background-image: none; }
+#reader-dialog #reader-window { border: 0; border-radius: var(--f-r-slab); background-color: var(--f-paper); --k-side: var(--f-plain-side); --k-edge: var(--f-plain-edge);
+  box-shadow: 0 0 0 1px var(--f-rim), 0 var(--f-slab-d) 0 0 var(--k-side), 0 var(--f-slab-d) 0 1px var(--k-edge), var(--f-cast-slab); }
+body:has(.reader-title-row[data-family="page"]) #reader-dialog #reader-window { --k-side: var(--f-page-side); --k-edge: var(--f-page-edge); }
+body:has(.reader-title-row[data-family="doc"]) #reader-dialog #reader-window { --k-side: var(--f-doc-side); --k-edge: var(--f-doc-edge); }
+body:has(.reader-title-row[data-family="pic"]) #reader-dialog #reader-window { --k-side: var(--f-pic-side); --k-edge: var(--f-pic-edge); }
+.reader-count, #reader-count { font: 400 12px/1 var(--f-mono); }
+.notes-panel { background-color: var(--f-frame); box-shadow: -1px 0 0 var(--f-seam); }
+.notes-panel textarea { color: var(--f-red); background-color: var(--f-paper); border: 1px solid var(--f-seam); border-radius: var(--f-r-key); box-shadow: var(--f-sunk); }
+.notes-label { font: 400 12px/1.3 var(--f-sans); text-transform: none; letter-spacing: 0; color: var(--f-ink-2); }
+
+/* ================= documents (item.html, media.html) ================= */
+html:has(.markdown), html:has(.markdown) body, html:has(.document-tools) body { background-color: var(--f-paper); }
+.markdown { font-family: var(--f-serif); color: var(--f-ink); }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { font-family: var(--f-serif); font-weight: 400; color: var(--f-ink); letter-spacing: 0; }
+.markdown h2 { border-bottom: 1px solid var(--f-hairline); padding-bottom: 6px; }
+.markdown strong { font-weight: 500; }
+.markdown code, .markdown pre { font-family: var(--f-mono); }
+.markdown pre { border-radius: var(--f-r-preview); }
+.markdown a { color: var(--f-blue); text-decoration-color: color-mix(in srgb, var(--f-blue) 40%, transparent); }
+.markdown blockquote { color: var(--f-ink-2); border-left-color: var(--f-seam); }
+.document-tools { background-color: var(--f-frame); box-shadow: 0 1px 0 var(--f-hairline); }
+.document-tools button, .document-tools select { font-family: var(--f-sans); background-color: var(--f-paper); border: 0; border-radius: var(--f-r-key); color: var(--f-ink); box-shadow: var(--f-key); }
+.document-source, .document-source a { font: 400 12px/1.3 var(--f-sans); color: var(--f-ink-2); }
+/* her text comments and highlights in a document: her colour */
+mark, .markdown mark, [data-annotation], .document-annotation, .text-comment, .tinka-highlight {
+  background-color: transparent; color: inherit; text-decoration: underline 2px var(--f-red); text-underline-offset: 3px;
+}
+
+/* ================= narrow and touch: no keyboard, no printed shortcuts ================= */
+@media (hover: none), (pointer: coarse), (max-width: 760px) { .f-key { display: none; } }
+@media (max-width: 760px) {
+  .shelf-title h1 { font-size: 26px; }
+  :is(#canvas-header, #reader-header) .board-name, #reader-name { font-size: 16px; }
+  body :is(.canvas-footer, .reader-footer) .zoom-pill { padding: 3px; gap: 2px; }
+}
+
+/* ================= board covers inside a child board's card: a window onto the desk ================= */
+#world .workspace-board-tile .board-collage, #world .workspace-board-tile .board-miniature { background-color: var(--f-desk); background-image: none; }
+.board-collage, .board-miniature { background-color: var(--f-desk); background-image: none; }
+.board-collage .workspace-cover-tile, .board-miniature .mini-tile {
+  background-color: var(--f-paper); border-radius: 4px; corner-shape: squircle;
+  box-shadow: 0 0 0 .5px var(--f-rim), 0 1.5px 0 0 var(--f-plain-side);
+}
+.board-collage .workspace-cover-count, .board-miniature .workspace-cover-count { font: 400 11px/1 var(--f-mono); color: var(--f-ink-2); background-color: var(--f-paper); box-shadow: 0 0 0 1px var(--f-seam); }
