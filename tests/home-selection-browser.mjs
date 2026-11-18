@@ -47,7 +47,8 @@ try {
     const bad=[];
     if(document.querySelector('#board-grid input[type=checkbox],#board-grid .workspace-home-select'))bad.push('checkbox control');
     for(const el of document.querySelectorAll('#board-grid .board-card *')){
-      if(el.closest('.board-art'))continue;
+      // The kinds line's swatches are tiny slabs naming a kind's colour, not controls.
+      if(el.closest('.board-art')||el.matches('.kind-swatch'))continue;
       const r=el.getBoundingClientRect(),s=getComputedStyle(el);
       if(!r.width||r.width>40||Math.abs(r.width-r.height)>4||Number(s.opacity)<.05||s.visibility==='hidden')continue;
       const painted=s.backgroundColor!=='rgba(0, 0, 0, 0)'||s.boxShadow!=='none'||parseFloat(s.borderTopWidth)>0;

@@ -3,6 +3,7 @@ import {newestBoardsFirst} from "./board-order.js";
 import {reconcileChildren} from "./reconcile.js";
 import {coverMarkup,observeCovers} from "./board-covers.js";
 import {timeHTML,toDate} from "./relative-dates.js";
+import {kindsLine} from "./kinds.js";
 import {
   WorkspaceClient,
   escape as esc,
@@ -44,8 +45,9 @@ export const legacyCounts = (b) => [
   Number(b.conceptCount) ? plural(b.conceptCount, "experiment") : "No experiments yet",
   ...(b.buildingCount ? [`<span class="building">${Number(b.buildingCount)} taking shape</span>`] : []),
 ];
-/** Title, New pill, description and the date line. Counts are trusted markup. */
-export function boardInfo(board, { description = "", counts = [] } = {}) {
+/** Title, New pill, description, the kinds line and the date line. Counts are trusted
+ *  markup; `kinds` is a board cover's {kind: count} map. */
+export function boardInfo(board, { description = "", counts = [], kinds = null } = {}) {
   const created = msOf(board.createdAt), edited = editedAt(board);
   const fresh = Number.isFinite(created) && Date.now() - created < DAY;
   const byEdit = homeView.sort === "updated" && Number.isFinite(edited);
@@ -56,7 +58,7 @@ export function boardInfo(board, { description = "", counts = [] } = {}) {
     : byEdit ? timeHTML(board.createdAt, { prefix: "created ", verb: "Created" })
     : timeHTML(edited, { prefix: "edited ", verb: "Edited" });
   const line = [...counts, primary].filter(Boolean).join('<span class="board-sep" aria-hidden="true"> · </span>');
-  return `<div class="board-info"><div class="board-title-row"><h3 title="${esc(board.title)}">${esc(board.title)}</h3>${fresh ? '<span class="tk-new">New</span>' : ""}</div><p>${esc(description)}</p><div class="card-bottom"><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
+  return `<div class="board-info"><div class="board-title-row"><h3 title="${esc(board.title)}">${esc(board.title)}</h3>${fresh ? '<span class="tk-new">New</span>' : ""}</div><p>${esc(description)}</p>${kinds ? kindsLine(kinds) : ""}<div class="card-bottom"><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
 }
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 8.5 2.6 2.6L12.2 5.4"/></svg>';
 const CLOSE = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>';
@@ -183,7 +185,7 @@ export class WorkspaceHome {
             b.itemCount ? plural(b.itemCount, "item") : "No items yet",
             ...(b.roundCount ? [`${plural(b.roundCount, "prior round")}`] : []),
           ];
-          return `<article data-home-board="${esc(b.id)}" data-home-item="${esc(i.id)}" class="board-card${selected ? " workspace-home-selected" : ""}"><button type="button" class="home-select-dot" data-home-select="${esc(i.id)}" aria-label="${selected ? "Deselect" : "Select"} ${esc(b.title)}" aria-pressed="${selected}">${CHECK}</button><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${art}</div>${boardInfo(b, { description: b.description || i.description || "A place to gather what you make.", counts })}</a></article>`;
+          return `<article data-home-board="${esc(b.id)}" data-home-item="${esc(i.id)}" class="board-card${selected ? " workspace-home-selected" : ""}" data-kind="board" data-family="board"><button type="button" class="home-select-dot" data-home-select="${esc(i.id)}" aria-label="${selected ? "Deselect" : "Select"} ${esc(b.title)}" aria-pressed="${selected}">${CHECK}</button><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${art}</div>${boardInfo(b, { description: b.description || i.description || "A place to gather what you make.", counts, kinds: cover?.kinds })}</a></article>`;
         })
         .join("") +
       (homeView.query.trim() && !shown
@@ -364,7 +366,7 @@ export class WorkspaceHome {
     });
   }
   legacyCard(b) {
-    return `<article data-home-board="${esc(b.id)}" class="board-card board-card-legacy"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${FALLBACK_ART}<span class="art-label">Legacy board · compare as before</span></div>${boardInfo(b, { description: b.description || "Existing rounds, revisions and feedback remain available.", counts: legacyCounts(b) })}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-convert-legacy>Convert to organize…</button></div></article>`;
+    return `<article data-home-board="${esc(b.id)}" class="board-card board-card-legacy" data-kind="board" data-family="board"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${FALLBACK_ART}<span class="art-label">Legacy board · compare as before</span></div>${boardInfo(b, { description: b.description || "Existing rounds, revisions and feedback remain available.", counts: legacyCounts(b) })}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-convert-legacy>Convert to organize…</button></div></article>`;
   }
   create() {
     makeDialog(

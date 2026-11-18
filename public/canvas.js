@@ -18,6 +18,8 @@ import {isMacPlatform, readerCommand, stepModifierLabel} from './reader-keys.js'
 import {boardStepCommand, boardStepTarget, isSteppable} from './board-step.js';
 import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
+import {markKind} from './kinds.js';
+import './keycaps.js';
 
 const $ = id => document.getElementById(id);
 mountAppearance($('board-info'));
@@ -713,6 +715,8 @@ function renderReaderHeader() {
   const name = descriptor(active, variant).name;
   const hint = variant?.hint || active.hint || '';
   $('reader-name').textContent = name;
+  // The opened item carries its kind, as its card on the board does.
+  markKind(document.querySelector('.reader-title-row'), active.graphItem || null);
   $('reader-path').title = `${name}${hint ? ` · ${hint}` : ''} · hover or click for where you are`;
   const number = shownNumber(active);
   $('reader-number').textContent = number;
@@ -1909,10 +1913,12 @@ function placeSelectionBar() {
   const b = bar.getBoundingClientRect(), p = pill.getBoundingClientRect();
   const m = boardMap?.visible ? boardMapElement().getBoundingClientRect() : null;
   if (!meets(b, p) && !(m && meets(b, m))) return;
-  const statusLine = footer.querySelector('.status-line'), status = statusLine?.getBoundingClientRect();
+  // The left of the foot holds the kind legend and the status line; the bar sits beside whichever ends further right.
+  const status = [...footer.querySelectorAll('.kind-legend, .status-line')].map(el => el.getBoundingClientRect()).filter(r => r.width).reduce((a, r) => !a || r.right > a.right ? r : a, null);
   const right = Math.min(p.left, m ? m.left : Infinity) - 12, edge = footer.getBoundingClientRect().left + 12;
   const beside = status && status.width && status.bottom > b.top && status.top < b.bottom ? Math.max(edge, status.right + 12) : edge;
-  const quiet = ['saved', 'saving', '', undefined].includes($('save-status').dataset.state) && $('live-refresh').hidden && $('live-status').dataset.connection !== 'offline';
+  const quiet = ['saved', 'saving', '', undefined].includes($('save-status').dataset.state) && $('live-refresh').hidden && $('live-status').dataset.connection !== 'offline'
+    && !footer.querySelector('.kind-legend:not([hidden])'); // the legend is a control, not status: it never steps aside
   let from = edge;
   if (b.width <= right - beside) from = beside;
   else if (quiet && b.width <= right - edge) footer.classList.add('status-yields');

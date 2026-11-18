@@ -1,0 +1,83 @@
+/* Kinds made visible: the kind legend in a board's foot, the kinds line under a
+   board on Home, and printed shortcut keycaps. Markup comes from kind-legend.js,
+   kinds.js (kindsLine) and keycaps.js.
+
+   Colours: the kind material tokens --kind-<family>-side / -edge, and the app's
+   own role tokens (--ink, --accent, --bg-chrome, --r-*, ...), which tokens.css maps
+   onto the approved theme. Literal fallbacks are the approved 2026-11-18 values. */
+
+/* ---------- a family's material, for the swatches here ---------- */
+:is(.kind-legend-entry, .kinds-line-entry)[data-family="page"]  { --swatch-side: var(--kind-page-side, #1DB4B4);  --swatch-edge: var(--kind-page-edge, #006C6C); }
+:is(.kind-legend-entry, .kinds-line-entry)[data-family="doc"]   { --swatch-side: var(--kind-doc-side, #AF8CD8);   --swatch-edge: var(--kind-doc-edge, #6B4E8B); }
+:is(.kind-legend-entry, .kinds-line-entry)[data-family="pic"]   { --swatch-side: var(--kind-pic-side, #6FB171);   --swatch-edge: var(--kind-pic-edge, #356C38); }
+:is(.kind-legend-entry, .kinds-line-entry)[data-family="plain"] { --swatch-side: var(--kind-plain-side, #B3C0C8); --swatch-edge: var(--kind-plain-edge, #7B8891); }
+:is(.kind-legend-entry, .kinds-line-entry)[data-family="board"] { --swatch-side: var(--kind-board-side, #647F8F); --swatch-edge: var(--kind-board-edge, #304652); }
+
+/* The swatch is a tiny slab: a white face on its kind's side, with the side's darker contour. */
+.kind-swatch {
+  flex: none; width: 13px; height: 9px; margin-bottom: 3px; box-sizing: border-box;
+  border-radius: 3px; corner-shape: squircle; background-color: var(--surface-1, #FFFFFF);
+  box-shadow: 0 0 0 1px var(--rim, #BDC6CB), 0 3px 0 0 var(--swatch-side), 0 3px 0 1px var(--swatch-edge);
+}
+
+/* ---------- the kind legend: a bar over the board, at the left of its foot ---------- */
+.kind-legend {
+  flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px;
+  height: 44px; box-sizing: border-box; padding: 0 5px; overflow: hidden; white-space: nowrap;
+  border-radius: 16px; corner-shape: squircle;
+  background-color: var(--bg-chrome, #F2F2F2); box-shadow: var(--e3, 0 0 0 1px #9F9F9F, 0 4px 14px rgba(0, 0, 0, .16));
+}
+.kind-legend[hidden] { display: none; }
+.kind-legend-entry {
+  display: inline-flex; align-items: center; gap: 8px; height: 32px; min-height: 0; margin: 0; padding: 0 11px 0 9px;
+  border: 0; border-radius: var(--r-sm, 9px); corner-shape: squircle; background-color: transparent;
+  color: var(--ink, #000000); font: 400 var(--t-ui, 13.5px)/1 var(--font-ui, sans-serif); cursor: pointer;
+}
+.kind-legend-count { font: 400 12px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-2, #595959); }
+.kind-legend-entry:hover { background-color: var(--surface-1, #FFFFFF); }
+.kind-legend-entry[aria-pressed="true"] { background-color: var(--accent-soft-2, #D3DFE5); box-shadow: inset 0 0 0 1px var(--accent, #005E8B); }
+.kind-legend-entry:focus-visible { outline: 2px solid var(--accent, #005E8B); outline-offset: -2px; }
+
+/* With the legend in the foot, the routine status ("Saved", the live dot) steps
+   back; anything that needs her (a save problem, new work to load, a lost
+   connection) still shows. */
+.canvas-footer:has(> .kind-legend:not([hidden])) .status-line:not(:has(#save-status:is([data-state="error"], [data-state="local"]), #live-refresh:not([hidden]), #live-status[data-connection="offline"])) { display: none; }
+
+/* Narrower: the counts stay and the names go (still read out by assistive tech). */
+@media (max-width: 1280px) {
+  .kind-legend-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+body:has(#workspace-item-controls, #board-info:not([hidden])) .kind-legend-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 720px) { .kind-legend { display: none; } }
+
+/* ---------- lighting one kind: every other card and drawn element dims ----------
+   Opacity only, so nothing on the board moves. #world carries data-lit. */
+@media (min-width: 721px) {
+  #world .workspace-card, #world .workspace-decoration { transition: opacity 120ms ease; }
+  #world[data-lit="page"]  :is(.workspace-card:not([data-family="page"]), .workspace-decoration),
+  #world[data-lit="doc"]   :is(.workspace-card:not([data-family="doc"]), .workspace-decoration),
+  #world[data-lit="pic"]   :is(.workspace-card:not([data-family="pic"]), .workspace-decoration),
+  #world[data-lit="plain"] :is(.workspace-card:not([data-family="plain"]), .workspace-decoration),
+  #world[data-lit="board"] :is(.workspace-card:not([data-family="board"]), .workspace-decoration) { opacity: .3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #world .workspace-card, #world .workspace-decoration { transition: none; }
+}
+
+/* ---------- the kinds line under a board on Home ---------- */
+.kinds-line {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0;
+  font: 400 var(--t-meta, 12px)/1.4 var(--font-ui, sans-serif); color: var(--ink-2, #595959);
+}
+.kinds-line-entry { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ---------- printed shortcut keycaps: a small raised key at the end of a labelled key ---------- */
+.keycap-printed {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 17px;
+  box-sizing: border-box; margin: 0 0 1px 4px; padding: 0 4px;
+  font: 400 10.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-2, #595959);
+  background-color: var(--surface-1, #FFFFFF); border: 0; border-radius: var(--r-xs, 6px); corner-shape: squircle;
+  box-shadow: 0 0 0 1px var(--line-strong, #C8C8C8), 0 1.5px 0 0 var(--line-strong, #C8C8C8);
+}
+.tk-primary .keycap-printed { color: var(--on-accent, #FFFFFF); background-color: transparent; box-shadow: 0 0 0 1px rgba(255, 255, 255, .45); }
+@media (hover: none), (pointer: coarse), (max-width: 760px) { .keycap-printed { display: none; } }
