@@ -15,7 +15,7 @@
   --float-cast: var(--cast-dialog);
   font: var(--type-ui)/1.6 var(--type-sans);
 }
-.agent-dialog::backdrop { background: var(--scrim); }
+.agent-dialog::backdrop { background: rgb(from var(--ground-cast) r g b / .22); }
 .agent-dialog .agent-dialog-close { position: absolute; right: 14px; top: 10px; border: 0; background: transparent; font-size: 26px; padding: 0 8px; color: var(--ink-2); cursor: pointer; }
 .agent-dialog .agent-dialog-eyebrow { margin: 0 30px 10px 0; color: var(--ink-2); font-size: var(--type-meta); }
 .agent-dialog h2 { font: 400 29px/1.15 var(--type-serif); margin: 0 24px 14px 0; overflow-wrap: anywhere; }

@@ -19,8 +19,8 @@ function injectStyle() {
 .quick-jot{position:fixed;left:50%;bottom:var(--quick-jot-bottom,72px);transform:translateX(-50%);z-index:1000;
   display:flex;align-items:center;width:min(440px,calc(100vw - 32px));box-sizing:border-box;
   background:var(--surface-frame);color:var(--ink);border:0;
-  border-radius:var(--shape-bar);box-shadow:var(--e3)}
-.quick-jot:focus-within{box-shadow:0 0 0 2px var(--mark-blue),var(--e3)}
+  border-radius:var(--shape-bar);box-shadow:0 0 0 1px var(--line-edge), var(--cast-float)}
+.quick-jot:focus-within{box-shadow:0 0 0 2px var(--mark-blue),0 0 0 1px var(--line-edge), var(--cast-float)}
 .quick-jot input{flex:1;min-width:0;margin:0;border:0;border-radius:inherit;background:transparent;
   color:var(--mark-red);caret-color:var(--mark-red);font:inherit;font-family:var(--type-sans);
   font-size:15px;padding:11px 14px;appearance:none}

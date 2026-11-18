@@ -421,7 +421,7 @@
   overflow: auto;
 }
 .workspace-dialog::backdrop {
-  background: var(--scrim);
+  background: rgb(from var(--ground-cast) r g b / .22);
 }
 .workspace-dialog form {
   margin: 0;
@@ -1323,7 +1323,7 @@ body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px
  .workspace-board .workspace-compact .workspace-card-preview { display:none; }
 }
 
-.workspace-board .workspace-card[style*="--item-paper:#"] { --ink:var(--item-ink-light); --ink-2:var(--item-muted-light); --muted:var(--item-muted-light); }
+.workspace-board .workspace-card[style*="--item-paper:#"] { --ink:var(--item-ink-light); --ink-2:var(--item-muted-light); }
 
 .workspace-compact .workspace-live-preview:not(.workspace-document-excerpt-preview) iframe {
  inset:auto; left:50%; top:50%; width:var(--panel-viewport-width); height:var(--panel-viewport-height);

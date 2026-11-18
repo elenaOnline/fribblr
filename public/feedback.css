@@ -2,7 +2,7 @@
 .feedback-panel{position:fixed;z-index:350;right:16px;bottom:76px;width:350px;max-width:calc(100vw - 24px);height:auto;max-height:min(520px,calc(var(--feedback-available-height,100dvh) - 120px));display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .feedback-panel[hidden],.feedback-pins[hidden],.feedback-settings[hidden],.feedback-compose-context[hidden]{display:none}
 .feedback-panel button,.feedback-ballot button{font:inherit;font-size:12px;line-height:1.35;cursor:pointer;border:1px solid var(--line-hair);border-radius:var(--shape-cell);background:transparent;padding:7px 9px;color:inherit;min-height:34px}
-.feedback-panel button:hover,.feedback-ballot button:hover{background:var(--hover)}
+.feedback-panel button:hover,.feedback-ballot button:hover{background:color-mix(in srgb, var(--ink) 5%, transparent)}
 .feedback-panel button:focus-visible,.feedback-panel textarea:focus-visible,.feedback-panel input:focus-visible,.feedback-ballot button:focus-visible,.feedback-pin:focus-visible{outline:2px solid var(--mark-blue);outline-offset:2px}
 .feedback-panel button:disabled,.feedback-ballot button:disabled{opacity:.55;cursor:default}
 .feedback-head{display:flex;gap:4px;align-items:flex-start;flex:none;padding:12px;border-bottom:1px solid var(--line-hair)}

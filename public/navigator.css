@@ -14,7 +14,7 @@
 .project-navigator .navigator-head{display:flex;align-items:center;gap:2px;padding:12px 10px 6px 18px;flex:none}
 .project-navigator .navigator-heading{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px}
 .project-navigator h2{margin:0;flex:none}
-.project-navigator .navigator-project{margin:0;min-width:0;font-size:var(--t-xs);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.project-navigator .navigator-project{margin:0;min-width:0;font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .project-navigator .navigator-find{padding:4px 14px 6px;display:grid;gap:6px;flex:none}
 .project-navigator .navigator-search{position:relative;display:block}
@@ -24,19 +24,19 @@
 .project-navigator .navigator-search .tk-kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none}
 .project-navigator .navigator-search input:not(:placeholder-shown)~.tk-kbd{display:none}
 .project-navigator .navigator-search input:not(:placeholder-shown){padding-right:10px}
-.project-navigator .navigator-scope{display:flex;align-items:center;gap:6px;padding:0 2px;font-size:var(--t-xs);color:var(--ink-2)}
+.project-navigator .navigator-scope{display:flex;align-items:center;gap:6px;padding:0 2px;font-size:11px;color:var(--ink-2)}
 .project-navigator .navigator-scope[hidden]{display:none}
 .project-navigator .navigator-scope label{flex:none}
-.project-navigator .navigator-scope select{min-width:0;max-width:100%;height:24px;padding:0 22px 0 6px;border:0;border-radius:var(--shape-cell);background:transparent;color:var(--ink-2);font:500 var(--t-xs)/1 var(--type-sans);cursor:pointer;field-sizing:content;
+.project-navigator .navigator-scope select{min-width:0;max-width:100%;height:24px;padding:0 22px 0 6px;border:0;border-radius:var(--shape-cell);background:transparent;color:var(--ink-2);font:500 11px/1 var(--type-sans);cursor:pointer;field-sizing:content;
   appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 11px) 50%,calc(100% - 7px) 50%;background-size:4px 4px;background-repeat:no-repeat}
-.project-navigator .navigator-scope select:hover{background-color:var(--hover);color:var(--ink)}
-.project-navigator .navigator-status{margin:0;padding:0 18px 4px;min-height:20px;font-size:var(--t-xs);color:var(--ink-2);flex:none}
+.project-navigator .navigator-scope select:hover{background-color:color-mix(in srgb, var(--ink) 5%, transparent);color:var(--ink)}
+.project-navigator .navigator-status{margin:0;padding:0 18px 4px;min-height:20px;font-size:11px;color:var(--ink-2);flex:none}
 
 .project-navigator .navigator-content{flex:1;min-height:0;min-width:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:0 10px 14px;scrollbar-width:thin}
 .project-navigator .navigator-section{padding-top:8px}
 .project-navigator .navigator-section+.navigator-section{margin-top:10px;padding-top:12px;border-top:1px solid var(--line-hair)}
 .project-navigator h3.tk-eyebrow{margin:0;padding:4px 8px 6px}
-.project-navigator .navigator-count{font-size:var(--t-xs);color:var(--ink-2);font-variant-numeric:tabular-nums;padding-right:8px}
+.project-navigator .navigator-count{font-size:11px;color:var(--ink-2);font-variant-numeric:tabular-nums;padding-right:8px}
 /* Boards and On this board are two data sets: each opens with a sticky band (chevron, icon, label, count). */
 .project-navigator{--navigator-band:color-mix(in srgb,var(--surface-frame) 72%,var(--surface-frame))}
 .project-navigator .navigator-section-head{position:sticky;top:0;z-index:2;margin:0 -2px;padding:0 2px 6px;background:var(--surface-frame)}
@@ -47,27 +47,27 @@
 .project-navigator .navigator-section-toggle>svg+svg{color:var(--ink-2)}
 .project-navigator .navigator-section-label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .project-navigator .navigator-section-toggle .navigator-count{padding:0;letter-spacing:0;font-weight:500;color:var(--ink-2)}
-.project-navigator .navigator-selected-count{flex:none;padding:2px 7px;border-radius:var(--shape-cap);background:var(--surface-chosen);color:var(--mark-blue);font:600 var(--t-xs)/1.2 var(--type-sans);letter-spacing:0;text-transform:none;white-space:nowrap}
+.project-navigator .navigator-selected-count{flex:none;padding:2px 7px;border-radius:var(--shape-cap);background:var(--surface-chosen);color:var(--mark-blue);font:600 11px/1.2 var(--type-sans);letter-spacing:0;text-transform:none;white-space:nowrap}
 .project-navigator .navigator-selected-count[hidden]{display:none}
 .project-navigator .navigator-section-body[hidden]{display:none}
-.project-navigator .navigator-location{margin:0 8px 6px;font-size:var(--t-xs);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.project-navigator .navigator-location{margin:0 8px 6px;font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
 .project-navigator .navigator-location>bdi{direction:ltr;unicode-bidi:isolate}
 
 .project-navigator .navigator-recent{display:flex;flex-wrap:wrap;gap:6px;padding:0 4px 2px;min-width:0}
 .project-navigator .navigator-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;height:28px;padding:0 10px 0 8px;border-radius:var(--shape-key);color:var(--ink);text-decoration:none;font:500 var(--type-ui)/1 var(--type-serif);white-space:nowrap}
 .project-navigator .navigator-chip>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.project-navigator .navigator-chip-window{flex:none;width:12px;height:12px;border-radius:3px;background-color:var(--surface-frame);background-image:radial-gradient(circle,var(--dot) .8px,transparent 1px);background-size:4px 4px;box-shadow:inset 0 0 0 1px var(--line-hair)}
+.project-navigator .navigator-chip-window{flex:none;width:12px;height:12px;border-radius:3px;background-color:var(--surface-frame);background-image:radial-gradient(circle,var(--ground-pattern) .8px,transparent 1px);background-size:4px 4px;box-shadow:inset 0 0 0 1px var(--line-hair)}
 
 .project-navigator .navigator-tree,.project-navigator .navigator-outline,.project-navigator .navigator-outline ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:1px}
 .project-navigator .navigator-tree li{position:relative;display:flex;align-items:center;gap:2px;min-height:32px;padding:0 4px 0 calc(2px + min(var(--nav-depth),8) * 16px);border-radius:var(--shape-cell);color:var(--ink-2)}
-.project-navigator .navigator-tree li:hover{background:var(--hover);color:var(--ink)}
+.project-navigator .navigator-tree li:hover{background:color-mix(in srgb, var(--ink) 5%, transparent);color:var(--ink)}
 .project-navigator .navigator-disc,.project-navigator .navigator-branch{flex:none;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--shape-cap);background:transparent;color:var(--ink-2);cursor:pointer}
 .project-navigator .navigator-branch{cursor:default}
-.project-navigator .navigator-disc:hover{background:var(--press);color:var(--ink)}
+.project-navigator .navigator-disc:hover{background:color-mix(in srgb, var(--ink) 9%, transparent);color:var(--ink)}
 .project-navigator .navigator-disc svg,.project-navigator .navigator-branch svg{width:14px;height:14px}
 .project-navigator .navigator-tree a{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;padding:7px 4px;color:inherit;text-decoration:none;border-radius:var(--shape-cap)}
 .project-navigator .navigator-name{flex:1;min-width:0;font:500 14.5px/1.2 var(--type-serif);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.project-navigator .navigator-tree small{flex:none;font-size:var(--t-xs);color:var(--ink-2)}
+.project-navigator .navigator-tree small{flex:none;font-size:11px;color:var(--ink-2)}
 .project-navigator .navigator-tree .navigator-current{background:var(--surface-chosen)}
 .project-navigator .navigator-tree .navigator-current::before{content:'';position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:2px;background:var(--mark-blue)}
 .project-navigator .navigator-current .navigator-name,.project-navigator .navigator-current small{color:var(--mark-blue)}
@@ -78,7 +78,7 @@
 .project-navigator .navigator-region>.navigator-count{padding:0 8px}
 .project-navigator .navigator-region ul{grid-column:1/-1;padding-left:12px}
 .project-navigator .navigator-outline-row{position:relative;display:flex;align-items:center;gap:8px;width:100%;min-height:30px;padding:0 8px;border:0;border-radius:var(--shape-cell);background:transparent;color:var(--ink-2);font:var(--type-ui)/1.2 var(--type-sans);text-align:left;cursor:pointer}
-.project-navigator .navigator-outline-row:hover{background:var(--hover);color:var(--ink)}
+.project-navigator .navigator-outline-row:hover{background:color-mix(in srgb, var(--ink) 5%, transparent);color:var(--ink)}
 .project-navigator .navigator-outline-row svg{width:14px;height:14px;color:var(--ink-2)}
 .project-navigator .navigator-outline-row span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .project-navigator .navigator-outline-row.is-place span{font:500 14px/1.2 var(--type-serif);color:var(--ink)}
@@ -95,19 +95,19 @@
 .project-navigator .navigator-result-head svg{width:14px;height:14px;color:var(--ink-2)}
 .project-navigator .navigator-result h3{flex:1;min-width:0;margin:0;font:600 var(--type-ui)/1.3 var(--type-sans);color:var(--ink)}
 .project-navigator .navigator-result.is-place h3{font:500 15px/1.25 var(--type-serif)}
-.project-navigator .navigator-result-kind{flex:none;font-size:var(--t-xs);color:var(--ink-2);text-transform:capitalize}
+.project-navigator .navigator-result-kind{flex:none;font-size:11px;color:var(--ink-2);text-transform:capitalize}
 .project-navigator .navigator-result p{margin:3px 0 0 22px;font-size:var(--type-meta);line-height:1.45;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .project-navigator .navigator-result-locations{display:grid;gap:1px;margin:4px 0 0 14px}
 .project-navigator .navigator-result-locations a{display:flex;align-items:center;gap:6px;min-width:0;min-height:28px;padding:4px 8px;border-radius:var(--shape-cell);color:var(--mark-blue);font-size:var(--type-meta);line-height:1.35;text-decoration:none}
-.project-navigator .navigator-result-locations a:hover{background:var(--hover);text-decoration:underline;text-underline-offset:3px}
+.project-navigator .navigator-result-locations a:hover{background:color-mix(in srgb, var(--ink) 5%, transparent);text-decoration:underline;text-underline-offset:3px}
 .project-navigator .navigator-result-locations svg{width:13px;height:13px;color:var(--ink-2)}
 .project-navigator .navigator-result-locations a span{min-width:0}
-.project-navigator .navigator-result small{display:block;margin:4px 0 0 22px;font-size:var(--t-xs);color:var(--ink-2)}
+.project-navigator .navigator-result small{display:block;margin:4px 0 0 22px;font-size:11px;color:var(--ink-2)}
 .project-navigator mark{background:var(--surface-chosen);color:inherit;border-radius:3px;padding:0 1px}
 .project-navigator .navigator-empty{margin:0;padding:10px 8px;font-size:var(--type-meta);line-height:1.5;color:var(--ink-2)}
 .project-navigator .navigator-more{display:flex;width:calc(100% - 16px);margin:8px}
 
-.project-navigator .navigator-foot{flex:none;display:flex;align-items:center;gap:4px;padding:8px 18px;border-top:1px solid var(--line-hair);font-size:var(--t-xs);color:var(--ink-2);white-space:nowrap}
+.project-navigator .navigator-foot{flex:none;display:flex;align-items:center;gap:4px;padding:8px 18px;border-top:1px solid var(--line-hair);font-size:11px;color:var(--ink-2);white-space:nowrap}
 .project-navigator .navigator-foot span{padding:0 2px}
 .project-navigator :is(a,button,select,input):focus-visible{outline:2px solid var(--mark-blue);outline-offset:-2px}
 .project-navigator .navigator-search input:focus-visible{outline:none}

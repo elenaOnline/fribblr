@@ -1,6 +1,6 @@
 /* An opened Tinka: the board's header pattern and the same floating zoom pill, over the desk.
    The item stands on it as a slab, its side the item's kind (depth.css). Loaded after calm.css. */
-#reader-dialog { background: var(--bg-canvas); color: var(--ink); }
+#reader-dialog { background: var(--ground); color: var(--ink); }
 #reader-header { flex: none; }
 #reader-header .reader-up { flex: 0 1 auto; min-width: 44px; max-width: min(26vw, 260px); gap: 2px; overflow: visible; }  /* the label clips itself; the divider stands outside */
 #reader-header .reader-up svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -23,9 +23,9 @@
 #reader-header .reader-stepper svg, #reader-header .reader-down svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 #reader-header .reader-stepper .tk-btn:disabled { opacity: .35; }
 #reader-header .reader-count { min-width: 64px; padding: 0 6px; color: var(--ink-2); font: 400 12px/1 var(--type-mono); font-variant-numeric: tabular-nums; }
-#reader-header .reader-count[aria-expanded="true"] { background-color: var(--hover); }
-#reader-header .reader-down { flex: none; gap: 4px; padding: 0 8px; background-color: var(--hover); color: var(--ink-2); font: 400 var(--type-meta)/1 var(--type-sans); white-space: nowrap; }
-#reader-header .reader-down:hover { background-color: var(--press); color: var(--ink); }
+#reader-header .reader-count[aria-expanded="true"] { background-color: color-mix(in srgb, var(--ink) 5%, transparent); }
+#reader-header .reader-down { flex: none; gap: 4px; padding: 0 8px; background-color: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink-2); font: 400 var(--type-meta)/1 var(--type-sans); white-space: nowrap; }
+#reader-header .reader-down:hover { background-color: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); }
 #reader-header .item-actions { display: inline-flex; align-items: center; gap: 0; margin: 0; }
 #reader-header .item-star { font-size: 18px; line-height: 1; }
 /* The notes dot never changes the button's width, so the actions (and the stepper beside them) hold still. */
@@ -36,7 +36,7 @@
 #reader-dialog #reader-update.reader-update {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 24px);
   min-height: 32px; margin: 0; padding: 6px 14px; border: 0; border-radius: var(--shape-key);
-  background: var(--accent); color: var(--on-accent);  font: 400 var(--type-ui)/1.25 var(--type-sans); white-space: normal; cursor: pointer;
+  background: var(--mark-blue); color: var(--on-accent);  font: 400 var(--type-ui)/1.25 var(--type-sans); white-space: normal; cursor: pointer;
 }
 #reader-dialog #reader-update.reader-update[hidden] { display: none; }
 
@@ -54,18 +54,18 @@
 .reader-path-pop ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .reader-path-row {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; box-sizing: border-box;
-  padding: 4px 10px 4px calc(10px + var(--depth, 0) * 12px); border: 0; border-radius: var(--r-sm);
+  padding: 4px 10px 4px calc(10px + var(--depth, 0) * 12px); border: 0; border-radius: var(--shape-cell);
   background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
 }
-.reader-path-ladder .reader-path-row::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; corner-shape: round; background: var(--line-strong); }
+.reader-path-ladder .reader-path-row::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; corner-shape: round; background: var(--line-seam); }
 .reader-path-sibs .reader-path-row, .reader-path-section:not(.reader-path-sibs):not(:first-child) .reader-path-row { padding-left: 10px; }
 .reader-path-row:hover, .reader-path-row:focus-visible { background: var(--surface-chosen); outline: none; }
-.reader-path-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.reader-path-row:focus-visible { box-shadow: inset 0 0 0 2px var(--mark-blue); }
 .reader-path-row.is-current { background: var(--surface-chosen); color: var(--ink); font-weight: 500; }
 .reader-path-row.is-current::before { background: var(--mark-blue); }
 .reader-path-n { flex: none; min-width: 20px; color: var(--ink-2); font-family: var(--type-mono); font-variant-numeric: tabular-nums; }
 .reader-path-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reader-path-kind { flex: none; color: var(--ink-3); font-size: var(--t-xs); }
+.reader-path-kind { flex: none; color: var(--ink-2); font-size: 11px; }
 .reader-path-row.is-current .reader-path-kind { color: var(--ink-2); }
 @media (pointer: coarse) { .reader-path-row { min-height: 44px; } }
 
@@ -73,24 +73,24 @@
 #reader-dialog .reader-main { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
 #reader-dialog .reader-stage {
   position: relative; flex: 1; min-width: 0; min-height: 0; display: block; padding: 0; overflow: hidden; outline: none; touch-action: none;
-  background-color: var(--bg-canvas); background-image: none;
+  background-color: var(--ground); background-image: none;
   background-size: var(--reader-pattern-step, 22px) var(--reader-pattern-step, 22px); background-position: var(--reader-pattern-x, 0) var(--reader-pattern-y, 0);
 }
 /* The canvas follows the board's background choice (Plain unless Dots or Grid was chosen), with the board's values. */
 body:has(#viewport[data-canvas-pattern="dots"]) #reader-dialog .reader-stage {
-  --reader-pattern-ink: color-mix(in srgb, var(--dot) calc(var(--reader-pattern-fade, 1) * 100%), transparent);
+  --reader-pattern-ink: color-mix(in srgb, var(--ground-pattern) calc(var(--reader-pattern-fade, 1) * 100%), transparent);
   background-image: radial-gradient(circle, color-mix(in srgb, var(--reader-pattern-ink) 55%, transparent) .8px, transparent 1.05px);
 }
 body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
   --reader-pattern-major: calc(var(--reader-pattern-step, 22px) * 5);
-  --reader-pattern-minor: color-mix(in srgb, var(--grid-minor) calc(var(--reader-pattern-fade, 1) * 100%), transparent);
-  --reader-pattern-majorline: color-mix(in srgb, var(--grid-major) calc(var(--reader-pattern-fade, 1) * 100%), transparent);
+  --reader-pattern-minor: color-mix(in srgb, rgb(from var(--ground-cast) r g b / .06) calc(var(--reader-pattern-fade, 1) * 100%), transparent);
+  --reader-pattern-majorline: color-mix(in srgb, rgb(from var(--ground-cast) r g b / .11) calc(var(--reader-pattern-fade, 1) * 100%), transparent);
   background-image: linear-gradient(var(--reader-pattern-majorline) 1px, transparent 1px), linear-gradient(90deg, var(--reader-pattern-majorline) 1px, transparent 1px), linear-gradient(var(--reader-pattern-minor) 1px, transparent 1px), linear-gradient(90deg, var(--reader-pattern-minor) 1px, transparent 1px);
   background-size: var(--reader-pattern-major) var(--reader-pattern-major), var(--reader-pattern-major) var(--reader-pattern-major), var(--reader-pattern-step, 22px) var(--reader-pattern-step, 22px), var(--reader-pattern-step, 22px) var(--reader-pattern-step, 22px);
 }
 /* Focus is handed to the canvas after every step and load; its ring shows only when Tab brought it here. */
 #reader-dialog .reader-stage:focus-visible { box-shadow: none; }
-#reader-dialog .reader-stage[data-tab-focus]:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+#reader-dialog .reader-stage[data-tab-focus]:focus-visible { box-shadow: inset 0 0 0 2px var(--mark-blue); }
 #reader-dialog .reader-stage.panning, #reader-dialog .reader-stage.space-pan { cursor: grabbing; }
 #reader-dialog .reader-plane { position: absolute; left: 0; top: 0; width: max-content; transform-origin: 0 0; }
 #reader-dialog #reader-window {
@@ -113,17 +113,17 @@ body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
 #reader-dialog .reader-footer > * { pointer-events: auto; }
 #reader-dialog .reader-zoom-menu { width: 288px; max-height: calc(100dvh - var(--reader-header-h, 56px) - 84px); overflow: auto; overscroll-behavior: contain; }
 #reader-dialog .reader-zoom-menu .reader-sizes { display: flex; }
-#reader-dialog .reader-zoom-menu .reader-custom-size small { margin-left: auto; color: var(--ink-2); font: 400 var(--t-xs)/1 var(--type-mono); }
+#reader-dialog .reader-zoom-menu .reader-custom-size small { margin-left: auto; color: var(--ink-2); font: 400 11px/1 var(--type-mono); }
 #reader-dialog .reader-zoom-menu .reader-custom-size[aria-pressed="true"] { background: var(--surface-chosen); color: var(--ink); }
 #reader-dialog .reader-zoom-menu a.tk-mi { text-decoration: none; }
 #reader-dialog .reader-zoom-menu .revision-group { margin: 0; padding: 0; border: 0; }
 #reader-dialog .reader-zoom-menu #revision-options { display: grid; gap: 1px; }
 #reader-dialog .reader-zoom-menu #revision-options .tk-mi[aria-pressed="true"] { background: var(--surface-chosen); color: var(--ink); font-weight: 500; }
-.reader-menu-hint { margin: 2px 10px 6px; color: var(--ink-2); font: 400 var(--t-xs)/1.4 var(--type-sans); }
+.reader-menu-hint { margin: 2px 10px 6px; color: var(--ink-2); font: 400 11px/1.4 var(--type-sans); }
 .reader-type-row { display: flex; align-items: center; gap: 4px; padding: 2px 10px; }
 .reader-type-row .tk-mlabel { flex: 1; padding: 0; }
-.reader-type-row input[type=range] { width: 110px; accent-color: var(--accent); }
-.reader-type-row .type-glyph { color: var(--ink-3); }
+.reader-type-row input[type=range] { width: 110px; accent-color: var(--mark-blue); }
+.reader-type-row .type-glyph { color: var(--ink-2); }
 
 /* The Tinka's Inspector, where the board keeps its own actions too. */
 #reader-info.calm-side {
@@ -138,29 +138,29 @@ body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
 #reader-info .reader-info-body { display: grid; gap: 14px; }
 #reader-info .inspector-row [aria-pressed="true"]:not(.tk-seg > button) { background: var(--surface-chosen); color: var(--ink); }
 /* Where it lives: a browser tab (needs Tinka), the file itself (no server) and the boards that show it. */
-#reader-info .reader-where-card { display: grid; border-radius: var(--shape-key); background: var(--surface-paper); box-shadow: var(--e1); overflow: hidden; }
+#reader-info .reader-where-card { display: grid; border-radius: var(--shape-key); background: var(--surface-paper); box-shadow: 0 0 0 1px var(--line-seam); overflow: hidden; }
 #reader-info .reader-where-place { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 10px; padding: 12px; }
-#reader-info .reader-where-place + .reader-where-place { border-top: 1px solid var(--line); }
+#reader-info .reader-where-place + .reader-where-place { border-top: 1px solid var(--line-hair); }
 #reader-info .reader-where-place > svg { grid-column: 1; grid-row: 1 / span 4; width: 18px; height: 18px; margin-top: 1px; fill: none; stroke: var(--ink-2); stroke-width: 1.5; stroke-linejoin: round; }
 #reader-info .reader-where-place > :not(svg) { grid-column: 2; min-width: 0; }
-#reader-info .reader-where-place strong { font-size: var(--t-md); font-weight: 500; }
-#reader-info .reader-where-what { color: var(--ink-2); font-size: var(--t-xs); line-height: 1.35; }
-#reader-info .reader-where-path { margin-top: 4px; font: var(--t-xs)/1.4 var(--type-mono); color: var(--ink-2); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+#reader-info .reader-where-place strong { font-size: var(--type-ui); font-weight: 500; }
+#reader-info .reader-where-what { color: var(--ink-2); font-size: 11px; line-height: 1.35; }
+#reader-info .reader-where-path { margin-top: 4px; font: 11px/1.4 var(--type-mono); color: var(--ink-2); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
 #reader-info .reader-where-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 #reader-info .reader-where-acts a.tk-btn { text-decoration: none; }
-#reader-info .reader-where-acts .tk-btn:not(.tk-primary), #reader-info .reader-organize > .tk-btn, #reader-info .reader-more-wrap > .tk-btn { background: var(--hover); }
-#reader-info .reader-where-acts .tk-btn:not(.tk-primary):hover, #reader-info .reader-organize .tk-btn:hover { background: var(--line); }
+#reader-info .reader-where-acts .tk-btn:not(.tk-primary), #reader-info .reader-organize > .tk-btn, #reader-info .reader-more-wrap > .tk-btn { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+#reader-info .reader-where-acts .tk-btn:not(.tk-primary):hover, #reader-info .reader-organize .tk-btn:hover { background: var(--line-hair); }
 #reader-info .reader-where-boards { display: grid; gap: 1px; margin: 6px 0 0; padding: 0; list-style: none; }
-#reader-info .reader-where-boards button { display: flex; align-items: baseline; gap: 8px; width: calc(100% + 12px); margin: 0 -6px; padding: 5px 6px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink); font: var(--t-sm)/1.3 var(--font-ui); text-align: left; cursor: pointer; }
-#reader-info .reader-where-boards button:hover { background: var(--hover); }
+#reader-info .reader-where-boards button { display: flex; align-items: baseline; gap: 8px; width: calc(100% + 12px); margin: 0 -6px; padding: 5px 6px; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink); font: 12px/1.3 var(--type-sans); text-align: left; cursor: pointer; }
+#reader-info .reader-where-boards button:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 #reader-info .reader-where-boards button[aria-current="true"] { cursor: default; }
 #reader-info .reader-where-boards button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#reader-info .reader-where-boards button small { flex: none; max-width: 55%; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); font-size: var(--t-xs); }
+#reader-info .reader-where-boards button small { flex: none; max-width: 55%; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-size: 11px; }
 /* Feedback: one row per kind, with what it holds. */
-#reader-info .reader-feedback-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 0 12px; background: var(--hover); color: var(--ink); text-align: left; }
-#reader-info .reader-feedback-row small { grid-column: 3; justify-self: end; color: var(--ink-3); font-size: var(--t-xs); font-weight: 400; }
+#reader-info .reader-feedback-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 0 12px; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); text-align: left; }
+#reader-info .reader-feedback-row small { grid-column: 3; justify-self: end; color: var(--ink-2); font-size: 11px; font-weight: 400; }
 #reader-info .reader-count { min-width: 18px; padding: 1px 6px; border-radius: var(--shape-cap); background: transparent; color: var(--ink-2); font: 400 12px/1.4 var(--type-mono); text-align: center; }
-#reader-info .reader-feedback-note { margin: 0; color: var(--ink-3); font-size: var(--t-xs); }
+#reader-info .reader-feedback-note { margin: 0; color: var(--ink-2); font-size: 11px; }
 #reader-info .reader-version-seg { display: flex; flex-wrap: wrap; }
 #reader-info .reader-version-seg > button { flex: 1 1 auto; }
 /* Organize: its own board and one More menu. */
@@ -171,11 +171,11 @@ body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
 #reader-info .reader-more-menu.reader-more-down { top: calc(100% + 6px); bottom: auto; }
 #reader-info .reader-more-menu .tk-mi { text-align: left; }
 #reader-info .reader-more-menu .reader-mi2 { display: grid; gap: 1px; height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
-#reader-info .reader-more-menu .reader-mi2 small { color: var(--ink-3); font-size: var(--t-xs); font-weight: 400; }
+#reader-info .reader-more-menu .reader-mi2 small { color: var(--ink-2); font-size: 11px; font-weight: 400; }
 #reader-info .appearance-control { display: flex; width: 100%; }
 #reader-info .appearance-control .tk-seg { display: flex; width: 100%; }
 #reader-info .appearance-control .tk-seg > button { flex: 1; }
-#reader-info .reader-info-status { position: sticky; bottom: 0; justify-self: center; margin: 0; padding: 7px 12px; border-radius: var(--shape-key); background: var(--ink); color: var(--surface-frame); font-size: var(--t-xs); }
+#reader-info .reader-info-status { position: sticky; bottom: 0; justify-self: center; margin: 0; padding: 7px 12px; border-radius: var(--shape-key); background: var(--ink); color: var(--surface-frame); font-size: 11px; }
 #reader-info .reader-info-status[hidden] { display: none; }
 
 /* The Navigator and the path sit below the reader's header, however tall it wraps. */

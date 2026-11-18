@@ -34,7 +34,7 @@ a{color:inherit}
 
 /* Board canvas */
 /* An endless canvas: canvas.js pans the plane and zooms the world; the viewport never scrolls by itself. */
-#viewport{flex:1;position:relative;overflow:hidden;overflow-anchor:none;background-image:radial-gradient(var(--dot) .8px,transparent .8px);background-size:20px 20px;cursor:grab;outline:none;min-height:150px;touch-action:none}
+#viewport{flex:1;position:relative;overflow:hidden;overflow-anchor:none;background-image:radial-gradient(var(--ground-pattern) .8px,transparent .8px);background-size:20px 20px;cursor:grab;outline:none;min-height:150px;touch-action:none}
 #viewport.panning{cursor:grabbing;user-select:none;-webkit-user-select:none}
 /* An invisible cushion on every side, so the browser can still scroll to reveal focus or a find-in-page match. */
 #viewport::before{content:'';position:absolute;left:0;top:0;width:calc(100% + 2 * var(--cushion));height:calc(100% + 2 * var(--cushion));pointer-events:none}
@@ -56,11 +56,11 @@ a{color:inherit}
 .card-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .card-label .revision-button{background:var(--surface-chosen);border-color:var(--line-seam)}
 .handoff-link{display:inline-flex;align-items:center;padding:10px 12px;border:1px solid var(--line-hair);border-radius:6px;background:var(--surface-paper);color:var(--mark-blue);font-size:11px;text-decoration:none;white-space:nowrap}
-.handoff-link:hover{background:var(--hover)}
+.handoff-link:hover{background:color-mix(in srgb, var(--ink) 5%, transparent)}
 .preview{height:var(--frame-height);width:100%;border:1px solid var(--line-seam);border-radius:var(--shape-preview);overflow:hidden;background:var(--surface-paper);position:relative}
 .preview iframe{display:block;width:100%;height:100%;border:0;pointer-events:none}
 .preview-launch{position:absolute;inset:0;border:0;border-radius:0;display:flex;align-items:flex-end;justify-content:flex-end;background:transparent;padding:22px}
-.preview-launch:hover{background:var(--hover)}
+.preview-launch:hover{background:color-mix(in srgb, var(--ink) 5%, transparent)}
 .preview-launch span{background:var(--ink);color:var(--ink-on-mark);padding:12px 17px;border-radius:var(--shape-key);opacity:0;transform:translateY(4px);transition:.15s;font-size:13px}
 .preview-launch:hover span,.preview-launch:focus-visible span{opacity:1;transform:none}
 .card-copy{display:grid;grid-template-columns:1.1fr 1fr;gap:35px;padding:22px 0}
@@ -98,7 +98,7 @@ a{color:inherit}
 /* Experiment view */
 #reader-dialog{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;border:0;margin:0;padding:0;background:var(--ground);color:var(--ink);overflow:hidden}
 #reader-dialog[open]{display:flex;flex-direction:column}
-#reader-dialog::backdrop{background:var(--scrim)}
+#reader-dialog::backdrop{background:rgb(from var(--ground-cast) r g b / .22)}
 .experiment-crumb{font:400 20px/1.15 var(--type-serif);color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item-star{min-width:44px;min-height:44px;padding:0;font-size:20px;line-height:1;border-color:transparent;color:var(--mark-blue);border-radius:7px}
 .item-star[aria-pressed="true"]{color:var(--mark-red)}

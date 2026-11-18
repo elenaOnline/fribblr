@@ -120,62 +120,17 @@
   --type-board: 21px;           /* the board's name in the bar */
 
   /* ================= the app's older names, mapped ================= */
+  /* kept: still read by name outside public/ (tests/decoration-ink-browser.mjs --bg-canvas, tests/cover-layers-browser.mjs --canvas),
+     named in depth.css comments (--bg-canvas, --e-chrome), by calm.css --hover (hover fills inside a card keep the page's ink, not the
+     card's own --ink), and by reader.css --on-accent (dark has its own value). New CSS uses role tokens. */
   --bg-canvas: var(--ground);
-  --bg-chrome: var(--surface-frame);
-  --surface-1: var(--surface-paper);
-  --surface-2: var(--surface-paper);
-  --surface-sunken: var(--surface-frame);
-  --tile-surface: var(--surface-paper);
-  --tile-shadow: none;                       /* slabs draw their own height (depth.css) */
-  --field: var(--surface-paper);
-  --field-line: var(--line-seam);
-  --line: var(--line-hair);
-  --line-strong: var(--line-seam);
-  --ink-3: var(--ink-2);
+  --canvas: var(--bg-canvas);
   --hover: color-mix(in srgb, var(--ink) 5%, transparent);
-  --press: color-mix(in srgb, var(--ink) 9%, transparent);
-  --accent: var(--mark-blue);
-  --accent-hover: var(--mark-blue-deep);
-  --accent-text: var(--mark-blue);
-  --accent-soft: var(--surface-chosen);
-  --accent-soft-2: var(--surface-chosen);
-  --accent-ring: var(--mark-blue);
   --on-accent: var(--ink-on-mark);
-  --sage: var(--line-edge);
-  --danger: var(--ink);
-  --warn: var(--ink);
-  --dot: var(--ground-pattern);
-  --grid-minor: rgb(from var(--ground-cast) r g b / .06);
-  --grid-major: rgb(from var(--ground-cast) r g b / .11);
-  --scrim: rgb(from var(--ground-cast) r g b / .22);
-  --e1: 0 0 0 1px var(--line-seam);                         /* flush: a seam ring */
-  --e2: 0 0 0 1px var(--line-edge);                         /* flush, under the pointer */
-  --e3: 0 0 0 1px var(--line-edge), var(--cast-float);      /* float */
-  --e4: 0 0 0 1px var(--line-edge), var(--cast-dialog);     /* float: dialogs */
   --e-chrome: 0 1px 0 var(--line-seam);
-  --r-xs: var(--shape-cap); --r-sm: var(--shape-cell); --r-md: var(--shape-key); --r-lg: var(--shape-slab); --r-xl: var(--shape-float); --r-pill: 999px;
-  --font-ui: var(--type-sans);
-  --font-display: var(--type-serif);
-  --font-mono: var(--type-mono);
-  --t-xs: 11px; --t-sm: 12px; --t-md: var(--type-ui); --t-lg: 15px; --t-xl: 18px; --t-2xl: 24px; --t-3xl: 32px;
   --control-h: 32px; --control-h-sm: 28px;
   --chrome-h: 52px;
   --ease: cubic-bezier(.2, .7, .2, 1);
-  /* oldest names (canvas.css, workspace.css) */
-  --canvas: var(--bg-canvas);
-  --paper: var(--surface-1);
-  --card: var(--surface-1);
-  --muted: var(--ink-2);
-  --green: var(--accent);
-  --olive: var(--accent);
-  --soft: var(--surface-sunken);
-  --wash: var(--surface-sunken);
-  --focus: var(--accent-ring);
-  --control-line: var(--field-line);
-  --night: var(--field);
-  --white: var(--surface-2);
-  --serif: var(--font-display);
-  --sans: var(--font-ui);
 }
 
 /* ---------- ground: white. A flat white board; the desk's job (separating things) moves to rims and sides ---------- */
