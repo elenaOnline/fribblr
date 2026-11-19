@@ -47,7 +47,7 @@ ui-menu-content.whiteboard-menu { position: revert-layer; width: auto; min-width
 ui-menu-content.reader-more-menu { width: max-content; min-width: 260px; max-width: min(320px, calc(100vw - 16px)); }
 .reader-more-menu .reader-mi2 { display: grid; gap: 1px; height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
 .reader-more-menu .reader-mi2 small { color: var(--ink-2); font-size: 11px; font-weight: 400; }
-ui-menu-content.reader-path-pop { position: revert-layer; width: min(380px, calc(100vw - 16px)); font: 400 var(--type-ui)/1.35 var(--type-sans); }
+ui-menu-content.reader-path-pop { position: revert-layer; animation: none; width: min(380px, calc(100vw - 16px)); font: 400 var(--type-ui)/1.35 var(--type-sans); }
 .reader-path-pop ui-menu-group-label.tk-eyebrow { display: block; }
 .reader-path-pop .reader-path-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
 .reader-path-pop .reader-path-row { cursor: default; user-select: none; }

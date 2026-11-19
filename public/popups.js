@@ -124,7 +124,7 @@ function watchConsumedPresses(root) {
 export function guardMenu(root) { watchConsumedPresses(root); return root; }
 // True while one of the app's menus is open: board handlers that run before the SDK's (window capture) check it.
 export function menuOpen() { return !!document.querySelector('ui-menu-content[data-open]'); }
-document.addEventListener('pointerdown', event => { if (consumed.has(event)) event.stopImmediatePropagation(); }, true);
+if (typeof document !== 'undefined') document.addEventListener('pointerdown', event => { if (consumed.has(event)) event.stopImmediatePropagation(); }, true);
 // (Pointer-event compatibility mousedowns never fire for a press whose pointerdown the SDK prevented.)
 
 // True when a key or press comes from inside an open SDK popup (menu, popover …). The board's capture-phase Escape

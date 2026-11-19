@@ -460,7 +460,7 @@ try{
   assert.equal(await h.locator('#canvas-header button:visible').count(),3);
   // One floating view pill: − · percent menu (with the precise slider) · + · Fit.
   assert.equal(await h.locator('.canvas-footer .zoom-pill #zoom-menu-toggle').isVisible(),true);
-  assert.equal(await h.locator('.canvas-footer #zoom-slider').count(),1);
+  assert.equal(await h.locator('#zoom-popover #zoom-slider').count(),1);
   assert.equal(await h.locator('.canvas-footer #fit').isVisible(),true);
   assert.equal(await h.locator('#dot-track').isVisible(),false);
   assert.equal(await zoomPercent(),50);
