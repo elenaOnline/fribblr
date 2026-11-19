@@ -1690,7 +1690,7 @@ $('fit').onclick = event => runFit(event.altKey ? 'board' : smartFitTarget());
 $('view-back').onclick = goBack;
 $('board-info-toggle').onclick = () => setInfoOpen($('board-info').hidden, { focus: true });
 $('board-info-close').onclick = () => setInfoOpen(false, { focus: true });
-$('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open'));
+$('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('chrome-search') } }));
 // ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
 document.addEventListener('keydown', event => {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'i' || event.repeat) return;
@@ -1984,8 +1984,8 @@ $('reader-down').onclick = () => goDown();
 $('notes-toggle').onclick = () => setNotesOpen(!notesOpen);
 $('notes-close').onclick = () => setNotesOpen(false);
 $('reader-type').addEventListener('input', () => setType($('reader-type').value));
-$('reader-navigator').onclick = () => { if (!projectNavigator) return; if (projectNavigator.isOpen) projectNavigator.hide(); else projectNavigator.open(); };
-$('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open'));
+$('reader-navigator').onclick = () => { if (!projectNavigator) return; if (projectNavigator.isOpen) projectNavigator.hide(); else projectNavigator.open({ opener: $('reader-navigator') }); };
+$('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('reader-search') } }));
 $('reader-info-toggle').onclick = () => setReaderInfoOpen(readerInfo.hidden, { focus: true });
 // The pill: − · % menu (zoom, window and version, light, type size, standalone) · + · Back · Fit.
 $('reader-zoom-toggle').onclick = () => setReaderMenuOpen($('reader-zoom-menu').hidden);
