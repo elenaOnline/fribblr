@@ -72,8 +72,8 @@
 
   /* ---------- palette: marks are deep and carry state; material is mid and carries kind ---------- */
   --mark-blue: #005E8B;         /* on, selected, focused, the primary key, links in documents */
-  --mark-blue-deep: #005077;
-  --mark-blue-side: #003A57;
+  --mark-blue-deep: color-mix(in srgb, var(--mark-blue) 85%, #000);   /* #005077 */
+  --mark-blue-side: color-mix(in srgb, var(--mark-blue) 62%, #000);   /* #003A57 */
   --mark-red: #B33830;          /* her voice: her comments, replies, review notes, stars, votes, the note dot */
   --mark-red-deep: #922C26;
   --mark-red-side: #791A16;

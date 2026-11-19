@@ -261,7 +261,15 @@ html[data-appearance="dark"] .whiteboard-markdown-editor { outline-color:color-m
 .whiteboard-format-status:empty { display:none; }
 /* Arrows: a FigJam/Miro-style contextual bar, draggable ends that snap to a
    highlighted target, and the label typed in place on the line. */
-.decoration-line.selected .whiteboard-line-hit { stroke:color-mix(in srgb,var(--mark-blue) 13%,transparent); }
+/* selected: the same blue line as other selections, drawn around the stroke and its heads with a gap of ground
+   (zero-blur offset shadows, so it is a crisp line, not a halo), in screen pixels at any zoom */
+.decoration-line.selected .workspace-decoration-line {
+  --sel-gap:calc(2px / var(--canvas-zoom,1)); --sel-w:calc(1.5px / var(--canvas-zoom,1));
+  filter:drop-shadow(var(--sel-gap) 0 0 var(--ground)) drop-shadow(calc(-1 * var(--sel-gap)) 0 0 var(--ground))
+    drop-shadow(0 var(--sel-gap) 0 var(--ground)) drop-shadow(0 calc(-1 * var(--sel-gap)) 0 var(--ground))
+    drop-shadow(var(--sel-w) 0 0 var(--mark-blue)) drop-shadow(calc(-1 * var(--sel-w)) 0 0 var(--mark-blue))
+    drop-shadow(0 var(--sel-w) 0 var(--mark-blue)) drop-shadow(0 calc(-1 * var(--sel-w)) 0 var(--mark-blue));
+}
 .workspace-decoration.decoration-line > :is(.workspace-endpoint,.workspace-bend) {
   --handle-hit:calc(24px / var(--canvas-zoom,1));
   --handle-mark:calc(11px / var(--canvas-zoom,1));
