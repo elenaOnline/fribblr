@@ -1,3 +1,4 @@
+import './vendor/ui-sdk/web/dialog.js';
 // Tinka's own updates, where Tinka already says "Live": the board's floating
 // status line and Home's live line (on phones, a pill). A compatible update is
 // quiet grey text; a major one has the accent and a dot and asks first in a
@@ -144,11 +145,12 @@ async function later(status) {
 // ---- The major update asks first ---------------------------------------------
 function consent(notice) {
   closePopover();
-  document.querySelector('dialog.update-dialog')?.remove();
-  const dialog = document.createElement('dialog');
-  dialog.className = 'update-dialog';
-  dialog.setAttribute('aria-labelledby', 'update-dialog-title');
-  dialog.innerHTML = `<form method="dialog"><button class="close" aria-label="Close" value="close">×</button></form><p class="eyebrow">Major update · ${esc(view.project)}</p><h2 id="update-dialog-title">Update to Tinka ${esc(notice.display)}?</h2>
+  document.querySelector('.update-dialog')?.closest('ui-dialog')?.remove();
+  const root = document.createElement('ui-dialog');
+  root.innerHTML = '<ui-dialog-backdrop hidden></ui-dialog-backdrop><ui-dialog-content class="update-dialog" hidden></ui-dialog-content>';
+  const dialog = root.querySelector('ui-dialog-content');
+  // Focus starts on Later (autofocus), so Enter never approves by accident; Escape and a press outside mean Later too, without asking again.
+  dialog.innerHTML = `<ui-dialog-close><button class="close" type="button" aria-label="Close">×</button></ui-dialog-close><p class="eyebrow">Major update · ${esc(view.project)}</p><ui-dialog-title as-child><h2>Update to Tinka ${esc(notice.display)}?</h2></ui-dialog-title>
   <p class="dialog-copy">Tinka ${esc(notice.display)} is a major update, so Tinka asks before installing it. You have ${esc(view.display)}. Some things may look or work differently afterwards.</p>
   <ul class="update-facts">
   <li>${ICON.check}<span>Your boards, notes and files stay exactly as they are.</span></li>
@@ -159,16 +161,14 @@ function consent(notice) {
   <div class="dialog-bottom"><span>Not now? Later asks again tomorrow.</span><div class="dialog-buttons"><button class="tk-btn tk-tonal" type="button" data-update="later" autofocus>Later</button><button class="tk-btn tk-primary" type="button" data-update="yes">Update to ${esc(notice.display)}</button></div></div>
   <p class="update-status" role="status"></p>
   <div class="update-alt"><span>Rather have your agent do it?</span><button class="tk-btn tk-sm" type="button" data-update="agent">${ICON.copy}<span>Copy the request</span></button></div>`;
-  document.body.append(dialog);
+  document.body.append(root);
   const status = dialog.querySelector('.update-status');
-  const returnTo = document.activeElement;
-  dialog.addEventListener('close', () => { dialog.remove(); if (returnTo?.isConnected && phase === 'idle') returnTo.focus({preventScroll: true}); });
+  dialog.close = () => root.api.close();
+  root.addEventListener('openchangecomplete', event => { if (!event.detail.value) root.remove(); });
   dialog.querySelector('[data-update=later]').onclick = async () => { try { await preference({action: 'later'}); dialog.close(); } catch (error) { status.textContent = error.message; } };
   dialog.querySelector('[data-update=yes]').onclick = event => install(notice, {status, button: event.currentTarget, consent: true, dialog});
   dialog.querySelector('[data-update=agent]').onclick = () => copy(request(notice), status, 'Request copied, with your yes. Paste it into your agent conversation.');
-  dialog.showModal();
-  // Focus starts on Later, so Enter never approves by accident.
-  dialog.querySelector('[data-update=later]').focus();
+  root.api.open();
 }
 
 // ---- Installing: editing waits, then Refresh ---------------------------------

@@ -56,9 +56,96 @@ helpers in one primitive and rendered with `createParts` (SPEC A3, B5 § 0). The
    the instance and its Tab stop survive live updates. Anything that isn't an item (an empty-state line, a "New"
    card) sits beside the root, not inside it, so the role's children stay options.
 
+## Popups: menus and popovers
+
+Every menu and popover follows one pattern, in `popups.js` (helpers) and `popups.css` (looks; linked last on
+`board.html` and `home.html`). Follow it for any new popup.
+
+- **Menu or Popover.** A list of actions or choices is a `ui-menu` (plain, checkbox and radio items, groups,
+  separators). Anything holding a field, a slider or a segmented control is a `ui-popover` (menu.md § Keyboard
+  Navigation: a menu holds items only). A colour choice in a menu is an item that opens the system picker.
+- **Where content lives.** A popup's root and content sit at the end of `<body>`, never inside a card, a toolbar or any
+  clickable container: popup events bubble to their DOM ancestors. Inside the reader (a modal `<dialog>`, which makes
+  the rest of the page inert) popups live in the dialog: `sharedMenu({host: dialog})`.
+- **Triggers.** A fixed button reaches its popup with `<ui-menu-trigger for=id>` / `<ui-popover-trigger for=id>` around
+  our button (inside a toolbar: `<ui-toolbar-button><ui-menu-trigger for=…><button>`). The SDK then writes
+  `aria-haspopup`, `aria-expanded`, `aria-controls`, opens on click / Enter / Space / ↓ / ↑ and returns focus. Don't
+  write those attributes or a click handler yourself. A button that is rebuilt with its container (a card's ⋯, a
+  drawn-object bar) and every point-anchored context menu open the popup from code: `openMenu(root, {anchor, event,
+  payload, returnTo})`. `anchor` is the element, an `{x, y}` point, or an object with `getBoundingClientRect()` (use
+  that when the button may re-render while open). `returnTo` is a selector that finds the opener again after a
+  re-render; focus goes back there on Escape, a choice, or Tab. `openFocus(event)` gives the SDK's rule: a keyboard
+  open focuses the first item (↑: the last), a pointer open focuses the menu itself.
+- **One menu, many openers.** One shared menu element serves every card (`payload` = the card's placement id, read
+  with `api.getPayload()` in the `action` handler). Fill the content just before `api.open()`.
+- **Menu buttons in a toolbar** open on ↓ (`openOnArrowDown(toolbar, selector, open)`), the toolbar norm.
+- **Context menus.** Our own `contextmenu` listener calls `openMenu` with the pointer; Shift+F10 / the context-menu key
+  are handled as keys (macOS fires no `contextmenu` for them). A second right-click re-anchors: the first press closes
+  the menu (consumed), the `contextmenu` that follows opens it at the new point.
+- **The consumed press.** Menu's default `modal="pointer"` swallows the outside press that closes it, but only its click:
+  the `pointerdown` still reaches the board, which would select or drag the card under it. Every menu made with
+  `sharedMenu()` (or passed to `guardMenu()`) records that press, and a document capture listener in `popups.js`,
+  registered before the board's, stops it. Board handlers that run on `window` capture (before the SDK) check
+  `menuOpen()`.
+- **Keys.** The board's capture-phase Escape ladders and command keys step aside for an open popup: `widgetOwnsKey()`
+  (`ui-sdk.js`) for command keys, `inPopup(event)` (`popups.js`) for handlers that must keep their keys in our other
+  dialogs (the Inspector is `role=dialog`). Letters inside a menu are typeahead, never board shortcuts.
+- **Looks.** Content gets `.tk-menu` (the menu face and the float height in `depth.css`); items keep `.tk-mi`,
+  separators `.tk-msep`, group labels `.tk-mlabel`. `popups.css` removes the UA popover box Menu content keeps, lights
+  the highlighted item from `data-highlighted` (`:hover` alone no longer does, so pointer and keys never light two rows),
+  draws no focus ring on menu items (the fill is the indicator, as in native menus), and shows checks from
+  `data-checked`. Where an old class set `display` or `position` on the hand-rolled popup, `popups.css` puts back
+  `revert-layer`, or a closed popup would show. Shortcut hints are keycaps: `menuItem(value, label, {shortcut:"mod+d"})`
+  writes `aria-keyshortcuts` and a `<kbd class="tk-kbd">`.
+- **SDK gaps found (0.1.0-beta.10).** (1) An item's `shortcut` attribute sets `aria-keyshortcuts="Control+…"` on a Mac
+  while its hint reads ⌘, so we write both ourselves. (2) `final-focus` on menu content is ignored for a menu opened
+  from code: focus returns to "the element focused before", so `openMenu` focuses the opener just before opening.
+  (3) A Popover trigger does not open on ↓; the toolbar norm is added by `openOnArrowDown`.
+- **Hazard for every stream:** SDK parts carry a `data-open` state attribute. The app's `[data-open]` (open this item)
+  selectors must exclude SDK parts: `[data-open]:not([data-slot])` (fixed in `canvas.js`).
+
 ## Surfaces
 
 Each surface lists its files and the SDK components it uses. Added as surfaces land.
+
+### Toasts, dialogs, confirmations, notes popover, Quick jot (overlays stream)
+
+Files: `toasts.js` (new), `workspace.js` (`makeDialog`, `confirmDialog`, re-exports `toast`), `agent-prompt.js`,
+`update-notice.js`, `home.html`, `tile-ui.js` (`TileNotes`), `quick-jot.js`, `comment-pins.js` (send-prompt dialog);
+CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop, `.workspace-alert`), `home.css`,
+`update-notice.css`, `whiteboard.css`.
+
+- **Toast** (`ui-toast-region` + the default toaster). `toast(message, options)` from `workspace.js` is the only call
+  site API; it stays synchronous and returns the toast's id (`dismissToast(id)` closes it). `toasts.js` builds one
+  region per page on first use (bottom centre, where the old status node sat) with a close button and an action slot;
+  duration is kept at 6 s. Live status regions that are not toasts (connection, form status) are untouched. Tests find
+  toasts by `.workspace-toast`; several can be on screen at once, so use `.first()`/`.last()`/`filter`.
+- **Dialog** (`ui-dialog`, modal). `makeDialog(title, body, onSubmit, {className})` keeps its shape: it returns the
+  `ui-dialog-content` element (class `workspace-dialog`), which has `close()` and fires a `close` event once closed.
+  Focus opens on the first field (`autofocus` is set on it), else the close key; Tab wraps; Escape and a press on the
+  backdrop close; focus returns to what had it. A form with typed-in changes asks "Discard your changes?" (an alert
+  dialog) before Escape or the backdrop throw them away; the × key never asks. ⌘↩ still saves (`bindForm`). A dialog
+  opened over another dialog, or over the reader's native modal `<dialog>`, is appended inside it, otherwise the
+  parent's inert page would include it.
+- **Alert dialog** (`ui-alert-dialog`). `confirmDialog({title, description, confirmLabel, cancelLabel, onConfirm})`
+  resolves true for the confirming answer. Focus opens on Cancel, Escape means no, a backdrop press does nothing.
+  `onConfirm` (async) keeps the dialog open with the confirm key pending and shows a failure inside it. Used for
+  Remove placements, Remove from home, Archive/Restore everywhere, Enable flexible boards.
+- **Agent prompt, update consent, Home new-board dialogs** are `ui-dialog` with their own classes
+  (`agent-dialog`, `update-dialog`, `home-dialog`); the update dialog starts on Later (`autofocus`).
+- **Tile notes** (`TileNotes`): `ui-popover` (non-modal) in the body, anchored by a temporary
+  `data-note-anchor` attribute on the opener, so card handlers never hear it. Saving holds it open; Escape, a press
+  outside, Tab out and × keep the draft; Cancel drops it. Focus returns to the opener control.
+- **Quick jot**: a non-modal `ui-dialog` (a persistent bar, the board stays usable around it); Escape closes it from
+  inside and focus returns to where it came from.
+- **Gotcha: `data-open`.** The SDK marks every open popup with `data-open`, which the app already used for its own
+  card openers (`data-open="<key>"`). Document-level handlers must ask for `[data-open]:not([data-slot])`
+  (`canvas.js` click handler, `board-document.js`); a bare `closest('[data-open]')` treats any click inside a popup as
+  "open that experiment".
+- **Gotcha: open-dialog checks.** Code that asked `document.querySelector('dialog[open]')` now also asks
+  `ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]`. The `aria-modal` part matters:
+  the Navigator and Quick jot are non-modal `ui-dialog-content`, and must not pause the board (the SDK writes
+  `aria-modal="true"` only on modal dialogs).
 
 ### Home: the board grid and its selection
 
@@ -159,3 +246,113 @@ rules at the end of `ui-sdk.css`.
     `ui-toolbar` and `ui-toggle-group`, as it already excluded `.tk-seg`.
 - **Kind legend** (`kind-legend.js`): a `ui-toggle-group` (not `multiple`: one family can be lit at a time, as before)
   of `ui-toggle` around the existing entry buttons. Space or Enter presses, arrows move focus, Escape still lets go.
+
+### Board canvas: keyboard and focus on cards and drawn elements (`ux/canvas`)
+
+Files: `workspace-board.js` (the roving group: `rovingCard`, `setFocusStop`, `ensureFocusStop`, `rovingItems`,
+`focusKey`, `itemKey`, `nudgeKey`, `resizeKey`, `keyMoveRunning`; the key queue's `queueableKey`), `whiteboard.js`
+(one line in `markup()`: a drawn element's `tabindex` comes from the host's stop), `canvas.js` (`revealBox`, the
+viewport's `+`/`−`/`0`, the board step's focus, focus back to the card after the reader), `board-step.js` (step keys),
+`calm.css` (focus ring). Core helpers, standalone, from `vendor/ui-sdk/web/core.js` (a dynamic import, so the board's
+start never waits for it): `nearestInDirection`, `announce`, `moveMessage`, `resizeMessage`, `keepFocus`.
+
+**How it is built, and why not as a primitive.** The SDK's norms for a canvas (SPEC C.18a, C.19; B5 § 1.2 spatial
+focus, § 4.1 `createMove` keys, § 4.2 `createResize` keys, § 6 announcements; B6.1 viewport keys) are implemented on
+top of the board's own pan, drag, resize and marquee engine, not with `createRovingFocus`/`spatialMove`,
+`createMove`, `createResize` or `createViewport`. Those are context helpers that need a primitive with parts around
+every card (the Collections pattern above); adopting them means rewriting the most performance-sensitive code in the
+app, which this experiment was told not to do. Everything added runs on key and focus events; nothing runs per card
+on wheel, pointer pan, drag or marquee, and no observer was added. A later overhaul to a primitive would replace
+`rovingCard`/`setFocusStop` with `createRovingFocus({ move: spatialMove({ rect }) })` (the rect function is
+`rovingItems()`'s board-unit boxes), `nudgeKey` with `createMove({ step: 1, group })`, `resizeKey` with
+`createResize`, and `revealBox` with `viewport.reveal`.
+
+- **One Tab stop for the board's items.** Cards and drawn elements are one roving group. The item focused last
+  (`focusStop`, its reconcile key, e.g. `placement:<id>`) has `tabindex=0`; every other card and drawn element has
+  `-1`. The stop is written into the render markup (so `reconcileChildren` never fights it) and moved in place on
+  `focusin` (two elements' attributes). Before anything is focused the first card holds it. A pointer press that
+  focuses a card makes it the stop. If the focused item goes away in a rebuild (deleted, moved into a board, filtered
+  out), focus goes to the item nearest where it was (the SDK's focus-recovery idea) instead of dropping to `<body>`.
+  The dense board went from 612 Tab stops in `#world` to 1 card plus its own controls.
+- **Controls inside a card (composite items).** The SDK's rule for items holding links and buttons (Timeline:
+  "Tab moves from an event to the links and buttons inside it, and arrow keys pressed on them stay with them") is
+  applied to the stop card only: its select circle, ⋯, Open, title, resize corner and hover-toolbar buttons follow it
+  in Tab order; on every other card they carry `tabindex=-1` (added to the card's markup by `rovingCard`, removed when
+  it becomes the stop). So Tab goes: card → its controls → out of the board. Arrows pressed on an inner control are
+  not focus moves (they still pan, as before); the hover toolbar (`role=toolbar`) owns its own arrows.
+- **Arrows move focus, not things.** Plain arrows (Shift too) on a focused card or drawn element move focus to the
+  nearest item that way: `nearestInDirection` on board units from the board's data (no layout read; Grid layout uses
+  screen boxes), so zoom never matters and Left is always screen-left. The view glides just enough to bring it in,
+  clear of the floating footer (`revealBox`, the SDK's `focus-in` reveal). Home / End go to the first card / the last
+  item (cards in reading order, then drawn elements; drawn elements come first in the DOM only for stacking). A held
+  arrow keeps moving. Connector arrows are items too, so moving between two joined cards can land on the arrow
+  between them first (what `spatialMove` does with every item in the group).
+- **Focus is not selection.** Space toggles the focused item's selection and focus stays; Enter opens the focused
+  card (not "the one selected", which still works with focus off the cards); a drawn element's Enter / F2 stay
+  Whiteboard's (inspect, edit text). ⌘/Ctrl-click toggles. **⇧-click stays a toggle on the canvas** (lead's decision,
+  2026-11-18): the SDK's ⇧-range needs an order, and a 2-D board has none to follow (Home's grid does, and gets ranges).
+  Focus ring: an ink ring outside the blue selection line, so a focused selected card shows both.
+- **Option/Alt + arrow moves the focused item**, 1 unit, 10 with Shift (`createMove`'s keys and default steps). A
+  focused item that is selected carries the whole selection (and a mixed group's drawn elements); one that isn't
+  moves alone; with no item focused, the selection moves (the old arrow behaviour, now on Option). One undo step per
+  press. Plain arrows never move anything. Each move is announced with `moveMessage` ("A2 moved to 299, 0." /
+  "2 items moved to 301, 270.").
+- **Resize corner:** a button named "Resize bottom right of <title>". Arrows move that corner, 1 unit, 10 with Shift
+  (`createResize`'s keys), within the card's minimum size; announced with `resizeMessage` ("A1 resized to 241 by
+  170."). Escape still cancels a pointer drag or marquee and puts things back; there is no keyboard pick-up to cancel.
+- **Writes queue instead of racing.** A keyboard move or resize holds the board busy until its write and refresh land
+  (`keyMoveRunning` sets `movePending`), and `installKeyQueue` now queues Option-arrows and arrows on a resize corner
+  meanwhile and replays them in order. Before this, a second quick press read the old geometry and overwrote the
+  first. Plain arrows (focus, panning) are never queued, so they act at once while a write is in flight; nor are
+  Space and Enter on a button or link (queuing them cancelled the button's native press: a select circle pressed
+  during a save did nothing).
+- **Zoom keys:** `+`/`=`, `−` and `0` (100%, position kept about the centre) with the canvas or a card or drawn
+  element focused; announced in the board's existing `#view-announce` region ("Zoom 115%"). ⇧0, ⇧1, ⇧2, F and M are
+  unchanged. Arrows / Page keys / Space still pan when the canvas itself has focus.
+- **Board step moved to `[` / `]` on a Mac.** ⌥←/→ used to select the previous / next Tinka on a board; it is the
+  SDK's move chord, so on the board it now moves the focused item, and stepping is `[` / `]` (the opened Tinka's own
+  fallback step keys, so they still mean the same thing on a board and inside a Tinka). Ctrl+←/→ still steps on
+  Windows and Linux, where Alt+arrow moves (or stays browser Back when there is nothing to move). Inside an opened
+  Tinka ⌥←/→ is unchanged. A step with focus on the board takes focus to the stepped card.
+- **Focus comes back.** Opening a card (Enter, or a click) and closing the reader returns focus to the card last
+  viewed when the reader was opened from the board's items (A5's return-to-trigger rule), instead of to the canvas.
+- Help text, the canvas's `aria-label` and the Keyboard shortcuts sheet describe all of this.
+
+### Menus and popovers (`ux/menus`)
+
+Shared: `popups.js`, `popups.css` (see § Popups). Components: Menu, Popover.
+
+- **Card ⋯ and right-click** (`workspace-board.js` `tileMenu`, `runTileMenu`): one `ui-menu#workspace-tile-menu` at the
+  end of `<body>`. ⋯ opens it under the button (right edges aligned), right-click at the pointer (selecting the card
+  first, as before), Shift+F10 / context-menu key on a focused card under its ⋯; ↓/↑ on a focused ⋯ open at the first /
+  last item. A second right-click re-anchors (on another card it becomes that card's menu). Items keep
+  `data-tile-menu`; Handoff is a link item. Wheel, a scroll that moves the card, or a resize closes it, as before (the
+  SDK says nothing about scrolling). The legacy canvas's `.legacy-tile-menu` (`canvas.js`) is not converted.
+- **Add and the board context menu** (`addMenuItems`, `addMenuElement`, `addMenu`, `runAdd`): `#workspace-add-menu`
+  with the Add button as its trigger; `#board-context-menu`, the same items, opened by a right-click on empty canvas
+  (an object lands at the pointer), by Shift+F10 on the focused canvas (centre), and beside the edit tools' More. Two
+  elements so a right-click never marks Add expanded. Items keep `data-add`.
+- **Arrange** (`arrangeMenu`): `#arrange-menu`, opened from the selection bar or the drawn-object bar. A menu is a
+  vertical list, so the old 6-column icon grid became Align and Distribute groups whose items carry their names
+  (typeahead: "d" finds Distribute). Disabled choices stay focusable.
+- **Zoom** (`board.html` `#zoom-popover`, `canvas.js`): a Popover (it holds a slider and the Pattern segmented
+  control), outside the pill. Focus goes to the first control, ↑/↓ still step through its buttons, Tab walks through and
+  out (closing it), Escape returns to %, an outside press closes it and reaches its target (Popover is non-modal).
+  The reader's % menu (`#reader-zoom-menu`) is not converted.
+- **Comments** (`comment-pins.js` `mountMenus`, `renderMenu`, `openCluster`): `#comment-layer-menu` (trigger: the
+  Comments button) with checkbox items Show comments (⇧C) and Show resolved, which stay open as they toggle, then the
+  threads waiting on you; `#comment-cluster-menu` beside a cluster pin (flips when there is no room). "Nothing right
+  now" is a disabled item.
+- **Reader More…** (`canvas.js` `setReaderMoreOpen`, `readerAct`): `#reader-more` inside the reader dialog, above the
+  button, flipping down when there is no room. Inspector buttons and menu items run through one `readerAct()`.
+- **Reader path** (`reader-path.js`, `board.html` `#reader-path-menu`): a **Menu**, not a Popover or Hover Card: each row
+  is a place to go (a list of actions, like a Finder path menu); a Hover Card needs a link trigger and never opens on
+  touch; a Popover is for fields. Its two triggers are the title and the count. The SDK has no hover-open menu, so the
+  old hover delay is gone: it opens on a press. "… n more" unfolds in place (`close-on-select="false"`).
+- **Whiteboard More** (`whiteboard.js` `mountMenu`, `openMenu`, `runMenu`): `#whiteboard-menu` under the bar's More,
+  anchored to whichever More button the bar currently has. Custom colour is an item that opens the system colour
+  picker (an off-screen `input[type=color]` beside the bar); the rest keep `data-whiteboard-action` for tests but run
+  through the menu's `action` event.
+- **Home Appearance** (`appearance.js`): a menu of two radio groups, Mode and Background; radio items stay open; the
+  Background items are disabled (focusable, inert, titled) while the page is dark. The Inspectors keep their
+  segmented rows.

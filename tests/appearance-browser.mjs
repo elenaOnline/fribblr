@@ -105,12 +105,12 @@ try{
   await appearance.selectOption('system');assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   await page.emulateMedia({colorScheme:'dark'});await page.waitForFunction(()=>document.documentElement.dataset.appearance==='dark');
   await page.locator('#board-info-toggle').click();
-  await page.setViewportSize({width:390,height:844});await page.goto(base+`/boards/round/?reveal=${placements.town}`);await page.locator(`[data-placement="${placements.town}"]`).waitFor();await page.waitForFunction(half=>Number(document.querySelector('#zoom-slider').value)>half,sliderFromZoom(.5));await page.locator('#workspace-toast').waitFor({state:'hidden'});
+  await page.setViewportSize({width:390,height:844});await page.goto(base+`/boards/round/?reveal=${placements.town}`);await page.locator(`[data-placement="${placements.town}"]`).waitFor();await page.waitForFunction(half=>Number(document.querySelector('#zoom-slider').value)>half,sliderFromZoom(.5));await page.locator('.workspace-toast').first().waitFor({state:'hidden'});
   await page.screenshot({path:path.join(evidence,'mixed-dark-narrow.png')});
   await openItemDetails(page.locator(`[data-placement="${placements.town}"] [data-item-controls]`));await page.screenshot({path:path.join(evidence,'item-popup-dark-narrow.png')});await page.locator('[data-context-close]').click();
   await page.getByRole('button',{name:'Navigator',exact:true}).click();await page.locator('#project-navigator').waitFor({state:'visible'});await page.getByText('Loading project boards…',{exact:true}).waitFor({state:'hidden'});await check('.navigator-status','#project-navigator');
   await page.screenshot({path:path.join(evidence,'navigator-dark-narrow.png')});await page.keyboard.press('Escape');
-  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('radiogroup',{name:'Appearance mode'}).getByRole('radio',{name:'System'}).getAttribute('aria-checked'),'true');
+  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name:'System'}).getAttribute('aria-checked'),'true');
   assert.deepEqual(errors,[]);
   await writeFile(path.join(evidence,'appearance-report.json'),JSON.stringify({passed:true,contrasts,checks:['system/light/dark persistence','mixed building and review cards','explicit white and dark paper','popup field text and boundary','authored media retains source colors','home and navigator','normal and narrow'],errors},null,2));
   console.log(JSON.stringify({passed:true,evidence,contrasts,errors}));

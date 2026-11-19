@@ -115,7 +115,7 @@ try {
   const onBoard=()=>page.locator('#viewport').focus();
   const settle=()=>page.waitForTimeout(350);
   const cardCount=()=>page.locator('#world .workspace-card').count();
-  const toastText=()=>page.locator('.workspace-toast').last().textContent({timeout:2000}).catch(()=>'');
+  const toastText=()=>page.locator('.workspace-toast').first().textContent({timeout:2000}).catch(()=>'');
   const notePlacement=snapshot.placements.find(p=>p.itemId==='note-1').id,noteCard=page.locator(`[data-placement="${notePlacement}"]`);
   const at=async id=>{const p=(await getBoardSnapshot(config,'mixed')).placements.find(p=>p.id===id);return `${p.x},${p.y}`;};
   const keyed=[];

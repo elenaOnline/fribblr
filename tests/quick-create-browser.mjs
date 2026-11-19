@@ -78,7 +78,7 @@ try{
     const editingCard=page.locator('.workspace-card.doc-editing');await editingCard.waitFor({timeout:6000});
     const frame=page.frameLocator('.workspace-card.doc-editing iframe');
     // No modal and no toolbar: the card's own page is editable, with "Untitled" selected.
-    assert.equal(await page.locator('dialog[open]').count(),0,'no dialog opens');
+    assert.equal(await page.locator('[data-slot$=dialog-content][data-open]').count(),0,'no dialog opens');
     await frame.locator('article.doc-editing h1').waitFor();
     assert.ok(await until(()=>frame.locator('body').evaluate(()=>getSelection().toString()==='Untitled')),'the title is selected');
     await page.keyboard.type('Hi');await page.keyboard.press('Escape');
@@ -121,7 +121,7 @@ try{
     await page.locator('.workspace-card.doc-editing').waitFor({timeout:6000});
     await page.keyboard.press('Escape');await page.locator('.workspace-card.doc-editing').waitFor({state:'detached'});
     await palette.locator('[data-edit-tool=jot]').click();await page.locator('.quick-jot input').waitFor();await page.keyboard.press('Escape');
-    await palette.locator('[data-edit-tool=more]').click();await page.locator('.workspace-add-menu').waitFor();await page.keyboard.press('Escape');
+    await palette.locator('[data-edit-tool=more]').click();await page.locator('#board-context-menu .workspace-add-menu').waitFor();await page.keyboard.press('Escape');
     await page.reload();await page.locator('#edit-tools').waitFor({state:'visible',timeout:8000});
     await page.locator('#edit-tools-toggle').click();await page.reload();await page.waitForSelector('#edit-tools-toggle');await page.waitForTimeout(500);
     assert.equal(await page.locator('#edit-tools').isVisible(),false,'off state survives reload');

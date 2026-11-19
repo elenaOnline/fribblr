@@ -129,18 +129,18 @@ footer{display:flex;justify-content:space-between;gap:16px;padding:28px 0 40px;c
 
 /* ---------- New board prompt and other Home dialogs ---------- */
 /* a dialog floats: frame grey, an edge, a soft shadow, no side */
-dialog{width:calc(100% - 32px);max-width:600px;max-height:calc(100dvh - 36px);padding:32px 38px;border:0;border-radius:var(--shape-float);background:var(--surface-frame);color:var(--ink);--float-cast: var(--cast-dialog);}
-dialog::backdrop{background:rgb(from var(--ground-cast) r g b / .22)}
+:is(dialog,ui-dialog-content){position:fixed;inset:0;margin:auto;height:fit-content;box-sizing:border-box;width:calc(100% - 32px);max-width:600px;max-height:calc(100dvh - 36px);padding:32px 38px;border:0;border-radius:var(--shape-float);background:var(--surface-frame);color:var(--ink);--float-cast: var(--cast-dialog);}
+:is(dialog,ui-dialog-content)::backdrop{background:rgb(from var(--ground-cast) r g b / .22)}
 .eyebrow{display:none}
-dialog h2{margin:0 30px 12px 0;font:400 30px/1.2 var(--type-serif);letter-spacing:0;color:var(--ink)}
+:is(dialog,ui-dialog-content) h2{margin:0 30px 12px 0;font:400 30px/1.2 var(--type-serif);letter-spacing:0;color:var(--ink)}
 .dialog-copy{max-width:450px;margin:0 0 20px;color:var(--ink-2);font-size:var(--type-ui);line-height:1.6}
 .close{position:absolute;top:24px;right:30px;width:32px;height:32px;border:0;border-radius:var(--shape-key);background:transparent;color:var(--ink);font-size:26px;font-weight:300;line-height:1}
 .close:hover{background:color-mix(in srgb, var(--ink) 5%, transparent);color:var(--ink)}
-dialog label{display:block;margin:16px 0 8px;color:var(--ink-2);font:400 var(--type-ui)/1.3 var(--type-sans)}
+:is(dialog,ui-dialog-content) label{display:block;margin:16px 0 8px;color:var(--ink-2);font:400 var(--type-ui)/1.3 var(--type-sans)}
 /* fields sink (depth.css) */
-dialog input:not([type=checkbox]):not([type=radio]),dialog textarea{display:block;width:100%;padding:12px 16px;border:0;border-radius:var(--shape-key);color:var(--ink);font:400 15px/1.5 var(--type-sans)}
-dialog :is(input,textarea)::placeholder{color:var(--ink-2);opacity:1}
-dialog textarea{min-height:68px;resize:vertical}
+:is(dialog,ui-dialog-content) input:not([type=checkbox]):not([type=radio]),:is(dialog,ui-dialog-content) textarea{display:block;width:100%;padding:12px 16px;border:0;border-radius:var(--shape-key);color:var(--ink);font:400 15px/1.5 var(--type-sans)}
+:is(dialog,ui-dialog-content) :is(input,textarea)::placeholder{color:var(--ink-2);opacity:1}
+:is(dialog,ui-dialog-content) textarea{min-height:68px;resize:vertical}
 .prompt-label{display:flex!important;justify-content:space-between;gap:12px}
 .prompt-label span{color:var(--ink-2);font-size:11px;font-weight:400}
 #agent-prompt{min-height:120px;--sink-floor:var(--surface-frame);font:400 12.5px/1.6 var(--type-mono)}
@@ -159,12 +159,12 @@ dialog textarea{min-height:68px;resize:vertical}
   .masthead .appearance-control{margin-right:2px}
   .masthead .appearance-control span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   footer{flex-direction:column;gap:6px}
-  dialog{padding:26px 22px}
+  :is(dialog,ui-dialog-content){padding:26px 22px}
   .home-selection-bar{left:8px;right:8px;bottom:8px;transform:none;max-width:none;flex-wrap:wrap;justify-content:flex-start;row-gap:2px;overflow-x:visible;animation:none}
   .home-selection-bar .tk-divider{display:none}
   .home-selection-bar [data-home-action="clear"]{margin-left:auto}
   body.home-selecting main{padding-bottom:104px}
-  dialog h2{font-size:25px}
+  :is(dialog,ui-dialog-content) h2{font-size:25px}
   .dialog-bottom{align-items:flex-start}
   .prompt-label span{display:none}
 }

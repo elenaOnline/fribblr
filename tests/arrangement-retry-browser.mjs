@@ -51,7 +51,7 @@ try{
   const until=async(check,ms=6000)=>{const end=Date.now()+ms;while(Date.now()<end){if(await check())return true;await page.waitForTimeout(100);}return false;};
   const centre=async locator=>{const b=await locator.boundingBox();return {x:b.x+b.width/2,y:b.y+b.height/2};};
   const settle=async()=>{await page.waitForFunction(()=>!document.querySelector('.workspace-dragging'));await page.waitForTimeout(400);};
-  const closeDialog=async()=>{const open=await page.locator('dialog[open]').count();if(open){await page.keyboard.press('Escape');await page.locator('dialog[open]').waitFor({state:'detached'}).catch(()=>{});}return open;};
+  const closeDialog=async()=>{const open=await page.locator('[data-slot$=dialog-content][data-open]').count();if(open){await page.keyboard.press('Escape');await page.locator('[data-slot$=dialog-content][data-open]').waitFor({state:'detached'}).catch(()=>{});}return open;};
   const record=async(name,ok,extra={})=>{const shown=await closeDialog();results[name]={saved:ok,requests:requests.map(r=>`${r.type}:${r.status}`),dialogOpenAfter:shown,...extra};console.log(name.padEnd(30),JSON.stringify(results[name]));if(!ok)failures.push(`${name}: action was not saved after an unrelated revision change (${results[name].requests.join(', ')})`);await settle();};
   const lost=async(name,type,action,check,extra)=>{requests=[];armed={type,inject:bump};await action();await record(name,await until(check),extra?await extra():{});armed=null;};
   const drag=async(from,to,{hold=0}={})=>{await page.mouse.move(from.x,from.y);await page.mouse.down();if(hold){await page.waitForTimeout(hold);await page.locator('#workspace-child-drag').waitFor({timeout:3000});}await page.mouse.move(from.x+12,from.y+12,{steps:3});await page.mouse.move(to.x,to.y,{steps:10});await page.waitForTimeout(80);await page.mouse.up();};
@@ -91,25 +91,25 @@ try{
   await page.keyboard.press('Escape');
   // 5. Keyboard nudges: a card and a sticky.
   await select(A.id);const ax=(await placement(P,A.id)).x;
-  await lost('nudge-card','translatePlacements',()=>page.keyboard.press('ArrowRight'),async()=>(await placement(P,A.id)).x===ax+1);
+  await lost('nudge-card','translatePlacements',()=>page.keyboard.press('Alt+ArrowRight'),async()=>(await placement(P,A.id)).x===ax+1);
   await page.keyboard.press('Escape');
   await page.locator('[data-decoration=start] [data-decoration-label]').click();await page.keyboard.press('Escape');await page.locator('[data-decoration=start] [data-decoration-label]').click();
   const sy=(await decoration('start')).y;
-  await lost('nudge-sticky','updateDecoration',()=>page.keyboard.press('ArrowDown'),async()=>(await decoration('start')).y===sy+1);
+  await lost('nudge-sticky','updateDecoration',()=>page.keyboard.press('Alt+ArrowDown'),async()=>(await decoration('start')).y===sy+1);
   // 6. Move / resize dialogs: a card and a sticky.
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
   await openItemDetails(page.locator(`[data-placement="${A.id}"] [data-item-controls]`));await page.locator('[data-context-geometry]').click();
-  await page.locator('dialog[open] input[name=x]').fill('40');
-  await lost('dialog-card','updatePlacement',()=>page.locator('dialog[open] button[type=submit]').click(),async()=>(await placement(P,A.id)).x===40);
+  await page.locator('[data-slot$=dialog-content][data-open] input[name=x]').fill('40');
+  await lost('dialog-card','updatePlacement',()=>page.locator('[data-slot$=dialog-content][data-open] button[type=submit]').click(),async()=>(await placement(P,A.id)).x===40);
   await page.locator('[data-decoration=start] [data-decoration-label]').click();await page.locator('[data-whiteboard-action=more]').click();await page.locator('[data-whiteboard-action=inspect]').click();
-  await page.locator('dialog[open] input[name=x]').fill('12');
-  await lost('dialog-sticky','updateDecoration',()=>page.locator('dialog[open] button[type=submit]').click(),async()=>(await decoration('start')).x===12);
+  await page.locator('[data-slot$=dialog-content][data-open] input[name=x]').fill('12');
+  await lost('dialog-sticky','updateDecoration',()=>page.locator('[data-slot$=dialog-content][data-open] button[type=submit]').click(),async()=>(await decoration('start')).x===12);
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
   // 7. Undo and redo replay a fresh, uncontested movement of the card.
   await show(P);
   while(await page.locator('.workspace-card.selected [data-placement-select]').count())await page.locator('.workspace-card.selected [data-placement-select]').first().click();
   await select(A.id);const before=(await placement(P,A.id)).x;
-  await page.keyboard.press('ArrowRight');await until(async()=>(await placement(P,A.id)).x===before+1);await settle();
+  await page.keyboard.press('Alt+ArrowRight');await until(async()=>(await placement(P,A.id)).x===before+1);await settle();
   await page.keyboard.press('Escape');await page.evaluate(()=>document.activeElement?.blur());
   await page.waitForFunction(()=>document.getElementById('workspace-undo')?.disabled===false);
   await lost('undo','restoreMovement',()=>page.keyboard.press('ControlOrMeta+z'),async()=>(await placement(P,A.id)).x===before);
@@ -124,9 +124,9 @@ try{
     await page.waitForFunction(()=>!document.querySelector('.workspace-toast'),null,{timeout:15000}).catch(()=>{});
     requests=[];armed={type,inject};await action();
     // Wait for the action's final response, then for its failure feedback.
-    await until(async()=>requests.some(r=>r.type===type)&&(await page.locator('dialog[open]').count()>0||(await page.locator('.workspace-toast').allTextContents()).some(t=>/could not apply|changed/i.test(t))),8000);
+    await until(async()=>requests.some(r=>r.type===type)&&(await page.locator('[data-slot$=dialog-content][data-open]').count()>0||(await page.locator('.workspace-toast').allTextContents()).some(t=>/could not apply|changed/i.test(t))),8000);
     await page.waitForTimeout(300);
-    const dialog=await page.locator('dialog[open]').count(),toast=await page.locator('.workspace-toast').allTextContents();armed=null;
+    const dialog=await page.locator('[data-slot$=dialog-content][data-open]').count(),toast=await page.locator('.workspace-toast').allTextContents();armed=null;
     const kept=await until(expect,3000);await closeDialog();
     results[name]={dialog,toast:toast.join(' | ').slice(0,160),otherWriterKept:kept,requests:requests.map(r=>`${r.type}:${r.status}`)};console.log(name.padEnd(30),JSON.stringify(results[name]));
     if(!kept)failures.push(`${name}: another writer's change was overwritten`);
@@ -138,17 +138,17 @@ try{
   while(await page.locator('.workspace-card.selected [data-placement-select]').count())await page.locator('.workspace-card.selected [data-placement-select]').first().click();
   await select(A.id);assert.deepEqual(await page.locator('.workspace-card.selected').evaluateAll(cards=>cards.map(c=>c.dataset.placement)),[A.id]);
   await conflict('conflict-placement','translatePlacements',()=>op({type:'updatePlacement',boardId:P,placementId:A.id,patch:{x:500,y:700}}),
-    ()=>page.keyboard.press('ArrowRight'),{expect:async()=>(await placement(P,A.id)).x===500,message:'dialog'});
+    ()=>page.keyboard.press('Alt+ArrowRight'),{expect:async()=>(await placement(P,A.id)).x===500,message:'dialog'});
   const rendered=await until(async()=>(await page.locator(`[data-placement="${A.id}"]`).evaluate(el=>el.style.left))===`${500+70}px`,4000);
   if(!rendered)failures.push('conflict-placement: the board did not reconcile to the latest position');
   await page.keyboard.press('Escape');
   await page.locator('[data-decoration=then] [data-decoration-label]').click();
   await conflict('conflict-decoration','updateDecoration',()=>op({type:'updateDecoration',boardId:P,decorationId:'then',patch:{x:620}}),
-    ()=>page.keyboard.press('ArrowDown'),{expect:async()=>(await decoration('then')).x===620&&(await decoration('then')).y===320,message:'dialog'});
+    ()=>page.keyboard.press('Alt+ArrowDown'),{expect:async()=>(await decoration('then')).x===620&&(await decoration('then')).y===320,message:'dialog'});
   await page.keyboard.press('Escape');await page.evaluate(()=>document.activeElement?.blur());
   // Record a fresh movement to undo, then let another writer change the same board.
   await openItemDetails(page.locator(`[data-placement="${A.id}"] [data-item-controls]`));await page.locator('[data-context-geometry]').click();
-  await page.locator('dialog[open] input[name=x]').fill('80');await page.locator('dialog[open] button[type=submit]').click();
+  await page.locator('[data-slot$=dialog-content][data-open] input[name=x]').fill('80');await page.locator('[data-slot$=dialog-content][data-open] button[type=submit]').click();
   await until(async()=>(await placement(P,A.id)).x===80);await page.keyboard.press('Escape');await page.evaluate(()=>document.activeElement?.blur());await settle();
   await page.waitForFunction(()=>document.getElementById('workspace-undo')?.disabled===false);
   await conflict('conflict-history','restoreMovement',()=>op({type:'updatePlacement',boardId:P,placementId:A.id,patch:{x:520}}),

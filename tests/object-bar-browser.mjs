@@ -55,7 +55,7 @@ try{
  assert.equal(await eventually(async()=>(await find('note')).textAlign,v=>v==='center'),'center');
  assert.equal(await eventually(()=>css('[data-decoration=note] .workspace-decoration-label','textAlign'),v=>v==='center'),'center');
  await idle();assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'center');
- await bar('more').click();assert.deepEqual(await page.locator('.whiteboard-menu button').allTextContents(),['Position & size…']);await page.keyboard.press('Escape');
+ await bar('more').click();assert.deepEqual((await page.locator('#whiteboard-menu [role=menuitem]').allTextContents()).map(t=>t.trim()),['Color…','Position & size…']);await page.keyboard.press('Escape');
  await bar('connect').click();assert.equal(await eventually(()=>bar('connect').getAttribute('aria-pressed'),v=>v==='true'),'true');
  assert.equal(await page.locator('.whiteboard-port').count(),4);await page.keyboard.press('Escape');
 
