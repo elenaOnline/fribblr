@@ -116,7 +116,7 @@ try {
   await chip(page).waitFor();
   eq(await chip(page).evaluate(b => [b.dataset.kind, b.textContent.trim(), getComputedStyle(b, '::before').width]), ['major', `Tinka ${display(MAJOR)} available`, '6px'], 'A major update has the accent and a dot');
   await chip(page).click();
-  const dialog = page.locator('dialog.update-dialog[open]'); await dialog.waitFor();
+  const dialog = page.locator('.update-dialog[data-open]'); await dialog.waitFor();
   eq(await dialog.locator('h2').textContent(), `Update to Tinka ${display(MAJOR)}?`, 'The consent question');
   eq(await dialog.locator('.update-facts li').count(), 4, 'Four facts');
   ok(await dialog.getByRole('link', {name: `What's new in ${display(MAJOR)}`}).isVisible(), "What's new");
@@ -186,10 +186,10 @@ try {
   ({context, page} = await open(1440, 'light', `${base}/`));
   await chip(page).waitFor();
   ok(await chip(page).evaluate(b => b.closest('.masthead .live') !== null), "Home shows it on the live line");
-  await chip(page).click(); await page.locator('dialog.update-dialog[open]').waitFor();
+  await chip(page).click(); await page.locator('.update-dialog[data-open]').waitFor();
   eq(await page.evaluate(() => document.activeElement?.dataset.update), 'later', 'Home: focus starts on Later');
   await shot(page, 'home-major-consent-1440-light');
-  await page.locator('dialog.update-dialog').getByRole('button', {name: `Update to ${display(MAJOR)}`}).click();
+  await page.locator('.update-dialog').getByRole('button', {name: `Update to ${display(MAJOR)}`}).click();
   await page.locator('.masthead .live .update-chip[data-kind="busy"]').waitFor();
   finish(); await page.locator('.masthead .live .update-refresh').waitFor({timeout: 5000});
   eq(await page.locator('.update-refresh').textContent(), `Tinka ${display(MAJOR)} is ready · Refresh`, 'Home: ready · Refresh');
@@ -199,7 +199,7 @@ try {
   // (7) Every state at 1440 and 390, light and dark.
   const states = {
     compatible: async page => { await chip(page).click(); await page.locator('.update-pop').waitFor(); },
-    'major-consent': async page => { await chip(page).click(); await page.locator('dialog.update-dialog[open]').waitFor(); },
+    'major-consent': async page => { await chip(page).click(); await page.locator('.update-dialog[data-open]').waitFor(); },
     updating: async page => { await page.locator('.update-chip[data-kind="busy"]').waitFor(); },
     ready: async page => { finish(); await page.locator('#live-refresh:not([hidden])').waitFor({timeout: 5000}); },
     failed: async page => { await chip(page).click(); await page.locator('.update-pop').waitFor(); },
@@ -217,7 +217,7 @@ try {
       ({context, page} = await open(width, scheme));
       if (name !== 'ready' && name !== 'updating') await chip(page).waitFor();
       await act(page);
-      if (width === 390 && name !== 'ready') ok(await page.locator('.update-chip, dialog.update-dialog[open]').first().isVisible(), `Phone ${scheme} ${name}: visible`);
+      if (width === 390 && name !== 'ready') ok(await page.locator('.update-chip, .update-dialog[data-open]').first().isVisible(), `Phone ${scheme} ${name}: visible`);
       if (width === 390 && ['compatible', 'failed'].includes(name)) ok(await page.locator('.update-pop').evaluate(element => { const box = element.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth && box.top >= 0; }), `Phone ${scheme} ${name}: the popover fits`);
       await shot(page, `${name}-${width}-${scheme}`);
       await context.close();

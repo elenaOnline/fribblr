@@ -196,12 +196,12 @@ try{
  const more=async label=>{if(await page.locator('#reader-more').isHidden())await info.getByRole('button',{name:'More…'}).click();return page.locator('#reader-more').getByRole('menuitem',{name:new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}`)});};
  for(const label of ['Add board…','Edit details…','Move to another board…','Also show on another board…','Feature on Product…','Vote…','Copy for an agent','Reload content','Keyboard shortcuts'])ok(await (await more(label)).isVisible(),`More offers ${label}`);
  await (await more('Move to another board…')).click();
- await page.locator('dialog.workspace-dialog[open]').waitFor();ok(true,'Move to board… opens its dialog');
- await page.locator('dialog.workspace-dialog[open] .workspace-close').click();
- await (await more('Edit details…')).click();await page.locator('dialog.workspace-dialog[open]').waitFor();checks++;
- await page.locator('dialog.workspace-dialog[open] .workspace-close').click();
+ await page.locator('.workspace-dialog[data-open]').waitFor();ok(true,'Move to board… opens its dialog');
+ await page.locator('.workspace-dialog[data-open] .workspace-close').click();
+ await (await more('Edit details…')).click();await page.locator('.workspace-dialog[data-open]').waitFor();checks++;
+ await page.locator('.workspace-dialog[data-open] .workspace-close').click();
  await (await more('Keyboard shortcuts')).click();
- const sheet=page.locator('dialog.workspace-dialog[open]');await sheet.waitFor();
+ const sheet=page.locator('.workspace-dialog[data-open]');await sheet.waitFor();
  ok((await sheet.textContent()).includes(`${mac?'⌥':'Ctrl+'}← · ${mac?'⌥':'Ctrl+'}→`),'The shortcut sheet names this platform\'s step keys');
  await sheet.locator('.workspace-close').click();
  await page.keyboard.press('Escape');await page.locator('#reader-info').waitFor({state:'hidden'});checks++;

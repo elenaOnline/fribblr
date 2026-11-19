@@ -52,7 +52,7 @@ try{
  await page.locator('.feedback-composer textarea').click();
  const composer=page.locator('.feedback-composer textarea');
  assert.equal(await page.locator('.feedback-panel [data-feedback-vote]').count(),0,'conversation contains no ballot');
- assert.equal(await page.locator('dialog.workspace-dialog[open]').count(),0,'writing is inline');
+ assert.equal(await page.locator('.workspace-dialog[data-open]').count(),0,'writing is inline');
  await composer.fill('Please make the arrows easier to read.');await composer.press('Enter');await composer.type('Keep the names clear.');
  assert.match(await composer.inputValue(),/read\.\nKeep/);
  let attempts=[];let failNext=true;
