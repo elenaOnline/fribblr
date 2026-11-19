@@ -112,7 +112,11 @@ try {
   // and pressing that key (from the board) does what clicking the control does.
   const mac=process.platform==='darwin',mod=mac?'Meta':'Control';
   const cap=locator=>locator.locator('kbd.keycap-printed').textContent();
-  const onBoard=()=>page.locator('#viewport').focus();
+  // A key pressed on the board, with the pointer resting on the board. Where a click left the pointer on a control, its
+  // tooltip shows, and Escape then closes only the tooltip (UI SDK tooltip norm; tooltips-browser checks it), so every
+  // key here starts with the pointer parked on bare board and no tooltip showing.
+  const onBoard=async()=>{const box=await page.locator('#viewport').boundingBox();await page.mouse.move(box.x+4,box.y+box.height/2);
+    await page.waitForFunction(()=>!document.querySelector('ui-tooltip-content[data-open]'));await page.locator('#viewport').focus();};
   const settle=()=>page.waitForTimeout(350);
   const cardCount=()=>page.locator('#world .workspace-card').count();
   const toastText=()=>page.locator('.workspace-toast').first().textContent({timeout:2000}).catch(()=>'');

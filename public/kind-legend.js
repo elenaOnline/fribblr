@@ -53,7 +53,7 @@ export class KindLegend {
     if (boardId !== this.board) { this.board = boardId; this.keep(null); }
     const counts = this.counts(), present = FAMILIES.filter(family => counts[family]);
     // Update in place, so an entry that has focus keeps it through live updates.
-    const existing = new Map([...this.el.children].map(button => [button.dataset.family, button]));
+    const existing = new Map([...this.el.children].map(button => [button.dataset.legendEntry, button]));
     for (const [family, button] of existing) if (!counts[family]) button.remove();
     let cursor = this.el.firstElementChild;
     for (const family of present) {
@@ -76,12 +76,12 @@ export class KindLegend {
     const toggle = document.createElement("ui-toggle");
     const name = familyTitle(family);
     toggle.setAttribute("value", family);
-    toggle.dataset.family = family;
     toggle.innerHTML = `<button type="button" class="kind-legend-entry" data-family="${family}" data-tip="Pick out the ${name.toLowerCase()} on this board"><span class="kind-swatch" aria-hidden="true"></span><span class="kind-legend-name">${name}</span><span class="kind-legend-count"></span></button>`;
-    // Each entry sits in its tooltip trigger (tips.js), the outermost wrapper, which carries the family key.
+    // Each entry sits in its tooltip trigger (tips.js), the outermost wrapper, which carries the entry's key. Only the button
+    // carries data-family (the kind's side colour, and what [data-family] queries find): wrappers never repeat it.
     const trigger = document.createElement("ui-tooltip-trigger");
     trigger.setAttribute("for", TIP_ID);
-    trigger.dataset.family = family;
+    trigger.dataset.legendEntry = family;
     trigger.append(toggle);
     return trigger;
   }

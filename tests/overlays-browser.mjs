@@ -53,13 +53,13 @@ try{
  assert.equal(await page.locator('ui-dialog-content[data-open]').count(),1,'Escape on the question keeps the form');
  assert.equal(await page.locator('ui-dialog-content[data-open] input').inputValue(),'typed');
  await page.mouse.click(4,500);await page.locator('ui-alert-dialog-content[data-open]').waitFor();
- await page.getByRole('button',{name:'Discard',exact:true}).click();await page.locator('ui-dialog-content').waitFor({state:'detached'});
+ await page.getByRole('button',{name:'Discard',exact:true}).click();await page.locator('ui-dialog-content.workspace-dialog').waitFor({state:'detached'});
  assert.equal((await active()).id,'qa-opener');
  ok('dialog focus, Tab wrap, dirty discard question, focus return');
  await makeForm();await page.locator('ui-dialog-content[data-open] input').fill('saved');await page.keyboard.press('ControlOrMeta+Enter');
- await page.locator('ui-dialog-content').waitFor({state:'detached'});assert.deepEqual(await page.evaluate(()=>qaSaves),['saved']);
+ await page.locator('ui-dialog-content.workspace-dialog').waitFor({state:'detached'});assert.deepEqual(await page.evaluate(()=>qaSaves),['saved']);
  assert.equal((await active()).id,'qa-opener');
- await makeForm();await page.mouse.click(4,500);await page.locator('ui-dialog-content').waitFor({state:'detached'});
+ await makeForm();await page.mouse.click(4,500);await page.locator('ui-dialog-content.workspace-dialog').waitFor({state:'detached'});
  ok('submit shortcut, backdrop closes a clean dialog');
 
  // ---- Keyboard shortcuts dialog (?)

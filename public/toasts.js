@@ -14,7 +14,7 @@ const TEMPLATE = `<ui-toast class="workspace-toast">
   <ui-toast-title></ui-toast-title>
   <ui-toast-action><button type="button" class="workspace-toast-action"></button></ui-toast-action>
   <ui-toast-close><button type="button" class="workspace-toast-close" aria-label="Close notification"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"/></svg></button></ui-toast-close>
-</ui-toast>`;
+</ui-toast>`.replace(/>\s+</g, '><'); // no whitespace text nodes: a toast's text is its message and nothing else
 
 function ensure() {
   ready ??= (async () => {

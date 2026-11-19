@@ -1,7 +1,7 @@
 // Keep existing media documents alive while updating their surrounding cards.
 export function reconcileChildren(parent, fresh) {
     const key = node => node.nodeType === Node.ELEMENT_NODE
-      ? ["placement", "decoration", "round", "cover-tile", "home-board"].map(name =>
+      ? ["placement", "decoration", "round", "cover-tile", "home-entry", "home-board"].map(name =>
           node.hasAttribute(`data-${name}`) ? `${name}:${node.getAttribute(`data-${name}`)}` : "").find(Boolean)
       : null;
     const compatible = (before, after) => before.nodeType === after.nodeType &&
