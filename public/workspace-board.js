@@ -3350,7 +3350,17 @@ export class WorkspaceBoard {
       if (e.key === "Escape") {
         if (this.context) { this.closeContext(true); e.preventDefault(); e.stopImmediatePropagation(); return; }
         if (this.activeDecoration) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); e.preventDefault(); return; }
-        if (this.selection.size) { this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault(); return; }
+        if (this.selection.size) {
+          // Escape inside the selection bar clears the selection and the bar goes: focus returns to the board's roving
+          // item (the one focused last) rather than falling to <body>.
+          const fromBar = !!e.target.closest?.("#workspace-selection");
+          this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault();
+          if (fromBar) {
+            const back = () => { this.ensureFocusStop(null); const stop = this.rovingElement(this.focusStop); if (stop && (document.activeElement === document.body || !document.activeElement?.isConnected)) stop.focus({preventScroll:true}); };
+            back(); requestAnimationFrame(back);
+          }
+          return;
+        }
       }
       // A focused UI SDK widget (toolbar, radio group, listbox …) owns its other keys. Escape is handled above first:
       // the item Inspector is role=dialog, and its Escape must still close it.
