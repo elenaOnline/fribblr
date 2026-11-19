@@ -55,7 +55,8 @@ try{
       assert.equal(await card.locator('[data-for-agent]').isChecked(),true,'For the agent on by default');
       await page.keyboard.type('Borrow the tone of @hero');
       const picker=page.locator('.cref-picker');await picker.waitFor();
-      assert.deepEqual(await picker.locator('h6').allTextContents(),['Items'],'filtered to items');
+      assert.deepEqual(await picker.locator('ui-trigger-menu-group-label:visible').allTextContents(),['Items'],'filtered to items');
+      const compose=page.locator('.ct-card .ct-composer');assert.equal(await compose.getAttribute('aria-controls'),await picker.getAttribute('id'),'the composer points at the list');assert.equal(await page.evaluate(()=>document.activeElement.className),'ct-composer','the caret stays in the composer');
       await page.keyboard.press('Enter');assert.equal(await composer.locator('.cref').count(),1,'chip inserted');
       await page.keyboard.type('please');
       // board keys stay quiet while typing (t would add a text block)
@@ -71,9 +72,9 @@ try{
     });
     await check(`${tag} reply with a drawn-element chip`,async()=>{
       await composer.click();await page.keyboard.type('Also see @annual');
-      await page.locator('.cref-picker button').first().waitFor();
-      assert.equal(await page.locator('.cref-picker h6').first().textContent(),'Drawn');
-      assert.ok((await page.locator('.cref-picker button').first().textContent()).startsWith('Sticky · Annual pricing note'),'readable drawn label');
+      await page.locator('.cref-picker ui-trigger-menu-item:visible').first().waitFor();
+      assert.equal(await page.locator('.cref-picker ui-trigger-menu-group-label:visible').first().textContent(),'Drawn');
+      assert.ok((await page.locator('.cref-picker ui-trigger-menu-item:visible').first().textContent()).trim().startsWith('Sticky · Annual pricing note'),'readable drawn label');
       await page.keyboard.press('Enter');await page.keyboard.press(`${MOD}+Enter`);
       await until(async()=>await card.locator('.ct-msg').count()===2);
       const t=await thread(threadId);assert.equal(t.replies[0].refs[0].kind,'decoration');assert.equal(t.replies[0].refs[0].boardId,boardId);
@@ -130,7 +131,7 @@ try{
       // a new comment at a point inside the target: the card clears the pin drawn there
       const at={x:box.x+box.width/2,y:box.y+box.height/2};
       await page.evaluate(([placementId,at])=>{window.__ct.createThread(window.__board,{kind:'point',placementId,x:120,y:90,relative:{x:.5,y:.5}},{left:at.x,top:at.y,right:at.x,bottom:at.y,width:0,height:0},{targetLabel:'Pricing hero'});},[placementId,at]);
-      await card.waitFor();await page.waitForFunction(()=>{const c=document.querySelector('.ct-card');return c&&c.style.left!==''||c?.classList.contains('ct-sheet');});
+      await card.waitFor();await page.waitForFunction(()=>{const c=document.querySelector('.ct-card');return c&&!c.hidden&&c.getBoundingClientRect().width>0&&c.hasAttribute('data-side')||c?.classList.contains('ct-sheet');});await page.waitForTimeout(300);
       const pin={left:at.x-8,right:at.x+32,top:at.y-36,bottom:at.y+6},c=await card.boundingBox();
       if(width>760){assert.ok(c.x>=pin.right||c.x+c.width<=pin.left||c.y>=pin.bottom||c.y+c.height<=pin.top,`card ${JSON.stringify(c)} clears the pin ${JSON.stringify(pin)}`);assert.ok(c.x>=pin.right,'prefers the right side');}
       assert.equal(await card.locator('.ct-keys').isVisible(),width>760,'⌘↵ hint only with a keyboard-sized screen');
@@ -143,6 +144,30 @@ try{
         const t=await pinEl.count()&&await pinEl.isVisible()?await pinEl.boundingBox():await page.locator(`[data-placement="${placementId}"]`).first().boundingBox();
         assert.ok(b.x>=t.x+t.width||b.x+b.width<=t.x||b.y>=t.y+t.height||b.y+b.height<=t.y,`card ${JSON.stringify(b)} clears ${JSON.stringify(t)}`);}
       await page.screenshot({path:path.join(evidence,`placement-${scheme}-${width}.png`)});
+    });
+    await check(`${tag} Escape peels one layer at a time; focus returns to what opened the card; outside press closes`,async()=>{
+      await page.keyboard.press('Escape').catch(()=>{});await card.waitFor({state:'detached'}).catch(()=>{});
+      await page.evaluate(()=>{const b=document.createElement('button');b.id='ct-opener';b.textContent='opener';b.style.cssText='position:fixed;left:4px;top:70px;z-index:5';document.body.append(b);b.focus();});
+      const open=()=>page.evaluate(id=>{window.__ct.openThreadCard(window.__board,id,{left:420,top:200,right:450,bottom:230,width:30,height:30});},threadId);
+      await open();await card.locator('.ct-state').waitFor();
+      assert.equal(await page.evaluate(()=>document.activeElement.className),'ct-composer','focus goes into the composer');
+      assert.equal(await card.getAttribute('role'),'dialog');
+      const mine=card.locator('.ct-msg.ct-human').first();
+      await mine.hover();await mine.locator('[data-act=edit]').click();await card.locator('.ct-edit').waitFor();
+      await page.keyboard.press('Escape');await card.locator('.ct-edit').waitFor({state:'detached'});assert.equal(await card.isVisible(),true,'Escape cancels the edit, the card stays');
+      await mine.hover();await mine.locator('[data-act=delete]').click();await card.locator('[data-act=delete-yes]').waitFor();
+      await page.keyboard.press('Escape');await card.locator('[data-act=delete-yes]').waitFor({state:'detached'});assert.equal(await card.isVisible(),true,'Escape cancels the delete confirm, the card stays');
+      await composer.click();await page.keyboard.type('see @');
+      const picker=page.locator('.cref-picker');await picker.waitFor();
+      await page.keyboard.press('ArrowDown');
+      assert.ok(await composer.getAttribute('aria-activedescendant'),'the highlight is announced through aria-activedescendant');
+      await page.keyboard.press('Escape');await picker.waitFor({state:'hidden'});assert.equal(await card.isVisible(),true,'Escape closes only the @ list');
+      await page.keyboard.press('Escape');await card.waitFor({state:'detached'});
+      assert.equal(await page.evaluate(()=>document.activeElement.id||document.activeElement.outerHTML.slice(0,120)),'ct-opener','focus returns to what opened the card');
+      await open();await card.locator('.ct-state').waitFor();
+      assert.ok((await composer.textContent()).endsWith('see @'),'the draft was kept');
+      await page.mouse.click(width>600?900:20,width>600?820:60);await card.waitFor({state:'detached'});
+      await page.evaluate(()=>document.getElementById('ct-opener').remove());
     });
     await check(`${tag} a deleted target's chip is struck through`,async()=>{
       await page.keyboard.press('Escape');
