@@ -211,6 +211,8 @@ export class Whiteboard {
     // A host keyed build that was already in flight must retain this native form.
     // Its live value/selection remain properties of the existing textarea node.
     if(this.editor?.id===d.id)rendered=rendered.replace(/<\/div>$/,this.editor.form.outerHTML+'</div>');
+    // One Tab stop for the board's items: only the host's roving stop keeps tabindex 0 (workspace-board.js rovingCard).
+    if(this.host.rovingTabIndex)rendered=rendered.replace('tabindex="0"',()=>`tabindex="${this.host.rovingTabIndex(`decoration:${d.id}`)}"`);
     return rendered;
   }
   patch(d) {

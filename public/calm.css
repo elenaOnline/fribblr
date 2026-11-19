@@ -236,6 +236,16 @@ body .workspace-add-menu button > span { width: 18px; color: var(--ink-2); text-
 #world .workspace-select-dot:hover { color: var(--ink-2); }
 #world .workspace-card.selected .workspace-select-dot { opacity: 1; color: var(--ink-on-mark); --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-deep); }
 #world .workspace-select-dot:focus-visible { opacity: 1; outline: 2px solid var(--mark-blue); outline-offset: 2px; }
+/* Keyboard focus on a board item (UI SDK canvas: focus is not selection). Selection is the blue line on the
+   ground; focus is an ink ring just outside it, so a focused, selected card shows both. */
+#world .workspace-card:focus-visible:not(.selected):not(.inspected) { outline: none; }
+#world .workspace-card:focus-visible::after {
+  content: ""; position: absolute; pointer-events: none; z-index: 7;
+  inset: calc(-1 * (var(--select-out, 6px) + var(--lift, 0px) + var(--select-line, 2px) + 3px));
+  border: 2px solid var(--ink);
+}
+.workspace-board #world .workspace-decoration:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
+#world [data-pointer-focus]:focus-visible::after { content: none; }
 
 /* A floating toolbar on hover or selection; at rest only state badges show. */
 #world .workspace-tile-toolbar {

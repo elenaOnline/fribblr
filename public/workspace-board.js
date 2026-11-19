@@ -11,6 +11,8 @@ import {KindLegend} from "./kind-legend.js";
 import {eventFiles,hasFileDrag,validateImportFiles,importLayout,pdfSupported,pdfPreviewURL} from "./file-import.js";
 import {CutIntent} from "./cut-intent.js";
 import {widgetOwnsKey} from "./ui-sdk.js";
+// UI SDK standalone Core helpers for the canvas keyboard (ui-sdk.md § Surfaces › Board canvas).
+import {nearestInDirection,announce,keepFocus,moveMessage,resizeMessage} from "./vendor/ui-sdk/web/core.js";
 import {MovementHistory} from "./movement-history.js";
 import {timeHTML} from "./relative-dates.js";
 import {navigationGraph} from "./navigator-graph.js";
@@ -258,10 +260,10 @@ export class WorkspaceBoard {
     document.body.classList.add("workspace-board");
     $("viewport").setAttribute(
       "aria-label",
-      "Board canvas: scroll to pan, pinch or Control-scroll to zoom; drag a card to move it or drop it into a board",
+      "Board canvas: scroll or arrow keys to pan, pinch or Control-scroll to zoom, plus and minus zoom, 0 shows 100%; Tab to the items, then arrow keys go to the nearest item that way, Option or Alt with an arrow moves it, Space selects it, Enter opens it; drag a card to move it or drop it into a board",
     );
     $("help-panel").innerHTML =
-      "<strong>Make yourself at home.</strong> Scroll with your mouse or trackpad, or swipe the background on a touch screen, to move around Canvas; Shift-scroll moves sideways. Pinch, or hold Control or ⌘ while scrolling, to zoom. Drag a card’s body to move it; drop inside a highlighted board to move the item into it. Escape cancels a drag. Notes and buttons keep their usual behavior. A click opens a preview. Select an item and use arrow keys to move it, or drag its corner to resize. Move… in the selection toolbar also moves items into boards. Double-click text or a region label to edit it. Grid shows newer boards first, keeping other items in comparison order. Open an item to try it, then step with Previous, Next or the dots. Escape returns here. Stars and notes follow the item across references.";
+      "<strong>Make yourself at home.</strong> Scroll with your mouse or trackpad, or swipe the background on a touch screen, to move around Canvas; Shift-scroll moves sideways. Pinch, or hold Control or ⌘ while scrolling, to zoom. Drag a card’s body to move it; drop inside a highlighted board to move the item into it. Escape cancels a drag. Notes and buttons keep their usual behavior. A click opens a preview. Tab to the board’s items, then use the arrow keys to go to the nearest item that way; Option (Alt) with an arrow moves the focused item, and anything selected with it, 1 unit, 10 with Shift. Space selects the focused item and Enter opens it. Drag a card’s corner to resize it, or focus the corner and use the arrow keys. Move… in the selection toolbar also moves items into boards. Double-click text or a region label to edit it. Grid shows newer boards first, keeping other items in comparison order. Open an item to try it, then step with Previous, Next or the dots. Escape returns here. Stars and notes follow the item across references.";
     const bar = document.createElement("section");
     $("help-panel").append(" Use ⌘/Ctrl-X to cut selected Tinkas, then paste on another board to move them together. Originals stay safe until paste succeeds. Escape or ⌘/Ctrl-Z cancels a pending cut; text fields keep their normal cut.");
     $("help-panel").append(" Copy selected Tinkas with ⌘/Ctrl-C, then paste here or in another board with ⌘/Ctrl-V. Copies retain their arrangement and use the same files. A pasted link gets a saved representation; pasted text becomes a document. Undo also reverses paste. Text fields keep their normal clipboard.");
@@ -661,7 +663,7 @@ export class WorkspaceBoard {
     return this.snapshot.placements.filter(p => rendered.has(p.id) && !p.removedAt && !p.deletedAt &&
       this.snapshot.items[p.itemId] && !this.snapshot.items[p.itemId].deletedAt);
   }
-  // One Tinka selected on its own, as ⌥← / ⌥→ leave it.
+  // One Tinka selected on its own, as the board step ([ / ]) leaves it.
   selectOnly(id) {
     this.whiteboard?.clearSelection({finishEdit:true,focus:false});
     this.selection = new Set([id]);
@@ -777,7 +779,7 @@ export class WorkspaceBoard {
           this.selectionMenu();
         };
       else if (!command && !event.shiftKey && key === "enter" &&
-          !event.target.closest?.("button,a,[role=button],.board-map-stage") && this.clipboardCandidates().length === 1) {
+          !event.target.closest?.("button,a,[role=button],.board-map-stage,#world .workspace-card,#world [data-decoration]") && this.clipboardCandidates().length === 1) {
         const id = this.clipboardCandidates()[0].id;
         const card = [...$("world").querySelectorAll(".workspace-card[data-placement]")].find(card => card.dataset.placement === id);
         const open = card?.querySelector("[data-open]:not(:disabled)");
@@ -827,14 +829,17 @@ export class WorkspaceBoard {
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
       <dt>⌘/Ctrl-D</dt><dd>Duplicate selection</dd>
-      <dt>${MOD}← · ${MOD}→</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
-      <dt>Enter</dt><dd>Open one selected Tinka</dd>
+      <dt>${isMacPlatform() ? "[ · ]" : `${MOD}← · ${MOD}→ or [ · ]`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
+      <dt>Tab, then arrow keys</dt><dd>Go to the board’s items: the arrows move to the nearest item that way; Home · End go to the first · last</dd>
+      <dt>Space</dt><dd>Select or deselect the focused item</dd>
+      <dt>Enter</dt><dd>Open the focused Tinka, or the one selected</dd>
       <dt>⌘/Ctrl-K or /</dt><dd>Find across this project (Navigator)</dd>
       <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka or this board</dd>
       <dt>Shift-click · ⌘/Ctrl-click</dt><dd>Add a Tinka to the selection</dd>
       <dt>F</dt><dd>Fit the selection, then the whole board (⌥-click Fit always fits the board)</dd>
       <dt>Hold F · Z while drawing a selection box</dt><dd>When you let go: fit what the box selected · zoom to the box itself</dd>
       <dt>Shift-1 · Shift-2 · Shift-0</dt><dd>Fit the canvas · Fit the selection · Zoom to 100%</dd>
+      <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused</dd>
       <dt>M</dt><dd>Show or hide the board map (click or drag in it to move there)</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
@@ -846,7 +851,8 @@ export class WorkspaceBoard {
       <dt>Shift-⌘/Ctrl-C</dt><dd>Copy this board's notes as Markdown (text, stickies and linked item titles)</dd>
       <dt>Delete / Backspace</dt><dd>Remove selection from this board</dd>
       <dt>⌘/Ctrl-Z · Shift-⌘/Ctrl-Z</dt><dd>Undo · Redo</dd>
-      <dt>Arrow keys · Shift-Arrow</dt><dd>Move selection 1 · 10 units</dd>
+      <dt>${isMacPlatform() ? "⌥" : "Alt+"}Arrow · ${isMacPlatform() ? "⌥⇧" : "Alt+Shift+"}Arrow</dt><dd>Move the focused item, and the selection with it if it is selected, 1 · 10 units</dd>
+      <dt>Arrow keys on a resize corner</dt><dd>Resize the card 1 unit, 10 with Shift</dd>
       <dt>Escape</dt><dd>Close the newest panel or menu, then cancel a gesture, pending Cut or selection</dd>
       <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ]</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
     dialog.addEventListener("close", () => {
@@ -1358,7 +1364,7 @@ export class WorkspaceBoard {
       const tileNumber = String(c.shownNumber ?? "").trim().slice(0, 8);
       const titleButton = `${tileNumber ? `<span class="workspace-concept-number workspace-caption-number">${esc(tileNumber)}</span>` : ""}<button type="button" class="workspace-panel-title" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" title="${esc(item.title)}">${esc(item.title)}</button>`;
       const select = `<button type="button" class="workspace-select-dot" data-placement-select="${esc(p.id)}" aria-pressed="${selected}" aria-label="${selected ? "Deselect" : "Select"} ${esc(item.title)}" title="${selected ? "Deselect" : "Select"} (or Shift-click the item)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10.2 3 3 6-6.4"/></svg></button>`;
-      const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize ${esc(item.title)}" title="Resize">◢</button>` : ""}</footer>`;
+      const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize bottom right of ${esc(item.title)}" title="Resize: drag, or use the arrow keys">◢</button>` : ""}</footer>`;
       const more = `<button type="button" class="workspace-tile-more" data-item-controls="${esc(p.id)}" data-controls-focus="menu" aria-label="Actions for ${esc(item.title)}" aria-haspopup="menu" aria-expanded="${this.tileMenuPlacement === p.id}" title="Item actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>${review.note ? '<span class="workspace-note-dot" aria-hidden="true"></span>' : ""}</button>`;
       const toolbar = `<div class="workspace-tile-toolbar" role="toolbar" aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" title="Edit document (E)">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" title="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" title="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" title="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`;
       const visual = unavailable
@@ -1375,7 +1381,9 @@ export class WorkspaceBoard {
         : panel || icon ? `width:${p.width}px;height:${p.height}px;` : "";
       return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)} data-build-state="${esc(item.build?.state || "ready")}" style="${dimensions}--item-paper:${paper};${paperColors(paper)}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}</article>`;
     };
-    const cards = concepts.map(renderCard).join("");
+    // The roving group (rovingCard below): one Tab stop for the board's items.
+    const card = c => this.rovingCard(renderCard(c), c.placement, c.graphItem.title);
+    const cards = concepts.map(card).join("");
     const groups = new Map();
     for (const c of concepts) {
       if (!groups.has(c.round)) groups.set(c.round, []);
@@ -1386,14 +1394,16 @@ export class WorkspaceBoard {
         const r = this.snapshot.rounds.find((r) => r.id === id) || {
           title: "On this board",
         };
-        return `<section class="workspace-grid-round" data-round="${esc(id)}"><header><p class="workspace-eyebrow">${r.number ? "ROUND " + esc(r.number) : "ITEMS"}${r.date ? " · " + esc(r.date) : ""}</p><h2>${esc(r.title || "Exploration")}</h2>${r.description ? `<p>${esc(r.description)}</p>` : ""}</header><div class="workspace-cards">${newestBoardsFirst(entries, c => this.snapshot.childBoardCreatedAt?.[c.graphItem.childBoardId], c => !!c.graphItem.childBoardId).map(renderCard).join("")}</div></section>`;
+        return `<section class="workspace-grid-round" data-round="${esc(id)}"><header><p class="workspace-eyebrow">${r.number ? "ROUND " + esc(r.number) : "ITEMS"}${r.date ? " · " + esc(r.date) : ""}</p><h2>${esc(r.title || "Exploration")}</h2>${r.description ? `<p>${esc(r.description)}</p>` : ""}</header><div class="workspace-cards">${newestBoardsFirst(entries, c => this.snapshot.childBoardCreatedAt?.[c.graphItem.childBoardId], c => !!c.graphItem.childBoardId).map(card).join("")}</div></section>`;
       })
       .join("");
     // On Canvas, stickies, shapes, text, regions and arrows also make a board non-empty.
     const canvasEmpty = !cards && !(this.snapshot.decorations || []).length;
+    const lostFocus = this.focusLostBox();
     this.reconcile(world, `${this.mode === "canvas" ? this.decorations() : ""}${this.mode === "grid" ? grid || '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : `<div class="workspace-cards">${canvasEmpty ? '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : cards}</div>`}`);
     // The foot's kind legend counts exactly the cards just drawn.
     (this.kindLegend ||= new KindLegend(world)).update(this.snapshot.id);
+    this.ensureFocusStop(lostFocus);
     // A card being edited in place keeps its editing state across re-renders.
     if (this.documentEditing) import("./board-document.js").then(m => m.reapplyEditing(this)).catch(() => {});
     if (this.mode === "canvas") {
@@ -2656,7 +2666,7 @@ export class WorkspaceBoard {
       if (e.key === "Escape") { this.keyQueue.length = 0; return; }
       if (this.replayingKey || !this.keysBusy() || !this.queueableKey(e)) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      this.keyQueue.push({at:Date.now(), init:{key:e.key, code:e.code, keyCode:e.keyCode, shiftKey:e.shiftKey, metaKey:e.metaKey, ctrlKey:e.ctrlKey, altKey:false}});
+      this.keyQueue.push({at:Date.now(), init:{key:e.key, code:e.code, keyCode:e.keyCode, shiftKey:e.shiftKey, metaKey:e.metaKey, ctrlKey:e.ctrlKey, altKey:e.altKey}});
       this.watchKeyQueue();
     }, true);
   }
@@ -2678,12 +2688,15 @@ export class WorkspaceBoard {
   // Board commands only: plain keys, arrows, Delete/Backspace/Enter, and ⌘/Ctrl-Z, -D, -A. Native
   // clipboard and browser shortcuts, fields, editors, dialogs and IME composition pass through.
   queueableKey(e) {
-    if (e.isComposing || e.keyCode === 229 || e.repeat || e.altKey || this.editorHold || this.whiteboard?.editing || this.documentEditing) return false;
+    const arrow = e.key?.startsWith("Arrow");
+    if (e.isComposing || e.keyCode === 229 || e.repeat || (e.altKey && !arrow) || this.editorHold || this.whiteboard?.editing || this.documentEditing) return false;
     if (document.querySelector("dialog[open]") || document.activeElement?.tagName === "IFRAME" ||
         e.target.closest?.("input,textarea,select,[contenteditable],[role=dialog],[role=textbox]")) return false;
     const key = e.key.toLowerCase();
     if (e.metaKey || e.ctrlKey) return ["z","d","a"].includes(key);
-    return key.length === 1 || ["arrowleft","arrowright","arrowup","arrowdown","delete","backspace","enter"].includes(key);
+    // Arrows write only as Option/Alt-arrow moves and on a resize handle; plain arrows move focus or pan at once.
+    if (arrow) return e.altKey || !!e.target.closest?.("#world .workspace-resize");
+    return key.length === 1 || ["delete","backspace","enter"].includes(key);
   }
   // Replays queued keys while the board is idle (or while a new text or sticky is holding keys
   // for its editor, which then receives them); stops again as soon as one makes it busy.
@@ -3001,6 +3014,241 @@ export class WorkspaceBoard {
     return import("./board-document.js").then(m => m.createBoardDocument(this, point)).catch(showFailure);
   }
   editDecoration(id, select = false) { return this.whiteboard.edit(id,select); }
+  // ---- Keyboard focus on the board: UI SDK canvas norms (ui-sdk.md § Surfaces › Board canvas) ----
+  // The board's cards and drawn elements are one roving group. Only the item focused last (this.focusStop, its
+  // reconcile key) is a Tab stop, and its own controls follow it in Tab order; every other item, and the controls
+  // inside it, take tabindex -1 and are reached with the arrow keys. Plain arrows move focus to the nearest item
+  // that way (UI SDK nearestInDirection, on board units, so zoom never matters), Option/Alt with an arrow moves the
+  // focused item (and the selection with it, if it is selected), Space selects, Enter opens. Everything here runs
+  // on key and focus events; nothing runs per card on pan, drag or marquee.
+  rovingKey(el) {
+    if (el?.matches?.(".workspace-card[data-placement]")) return `placement:${el.dataset.placement}`;
+    if (el?.matches?.("[data-decoration]")) return `decoration:${el.dataset.decoration}`;
+    return null;
+  }
+  rovingItem(target) { return target?.closest?.("#world .workspace-card[data-placement], #world [data-decoration]") || null; }
+  rovingElement(key) {
+    const at = key?.indexOf(":") ?? -1;
+    if (at < 0) return null;
+    const kind = key.slice(0, at), id = CSS.escape(key.slice(at + 1));
+    return $("world")?.querySelector(kind === "placement" ? `.workspace-card[data-placement="${id}"]` : `[data-decoration="${id}"]`) || null;
+  }
+  rovingTabIndex(key) { return key === this.focusStop ? 0 : -1; }
+  // A card's markup with its place in the roving group: the stop card is tabbable and keeps its controls in Tab
+  // order after it; any other card and its controls leave the Tab order.
+  rovingCard(html, placement, title) {
+    const stop = this.focusStop === `placement:${placement.id}`;
+    const open = `<article tabindex="${stop ? 0 : -1}" aria-label="${esc(title || "Untitled")}"`;
+    html = html.replace('<article tabindex="-1"', () => open);
+    return stop ? html : html.replace(/<(button|a)\b(?![^>]*\btabindex=)/g, '<$1 tabindex="-1"');
+  }
+  setFocusStop(key) {
+    if (!key || key === this.focusStop) return;
+    const old = this.rovingElement(this.focusStop), next = this.rovingElement(key);
+    this.focusStop = key;
+    if (old) {
+      old.tabIndex = -1;
+      if (old.matches(".workspace-card")) for (const el of old.querySelectorAll("button:not([tabindex]),a:not([tabindex])")) el.tabIndex = -1;
+    }
+    if (next) {
+      next.tabIndex = 0;
+      if (next.matches(".workspace-card")) for (const el of next.querySelectorAll('button[tabindex="-1"],a[tabindex="-1"]')) el.removeAttribute("tabindex");
+    }
+  }
+  // Before a rebuild: where the focused item was, in case the rebuild removes it.
+  focusLostBox() {
+    const el = this.rovingElement(this.focusStop);
+    if (!el || !el.contains(document.activeElement)) return null;
+    return this.rovingItems().find(item => item.el === el)?.rect || {left:el.offsetLeft,top:el.offsetTop,right:el.offsetLeft + el.offsetWidth,bottom:el.offsetTop + el.offsetHeight};
+  }
+  // After a rebuild: the stop still names a rendered item, else the first card (or drawn element) takes it. If the
+  // focused item went away (removed, moved into a board, filtered out), focus goes to the item nearest to where it
+  // was, as UI SDK's focus recovery does, instead of dropping to the page.
+  ensureFocusStop(lost) {
+    if (this.rovingElement(this.focusStop)) return;
+    const world = $("world");
+    let next = world.querySelector(".workspace-card[data-placement]") || world.querySelector("[data-decoration]");
+    if (lost && next) {
+      const centre = r => [(r.left + r.right) / 2, (r.top + r.bottom) / 2], [x, y] = centre(lost);
+      let best = Infinity;
+      for (const item of this.rovingItems()) {
+        const [cx, cy] = centre(item.rect), d = Math.hypot(cx - x, cy - y);
+        if (d < best) { best = d; next = item.el; }
+      }
+    }
+    this.focusStop = null;
+    if (!next) return;
+    this.setFocusStop(this.rovingKey(next));
+    if (lost && (!document.activeElement || document.activeElement === document.body)) next.focus({preventScroll:true});
+  }
+  // The rendered items with their boxes: board units on Canvas (from the board, no layout read), screen boxes in Grid.
+  rovingItems() {
+    const grid = this.mode !== "canvas";
+    const placements = new Map(this.snapshot.placements.map(p => [p.id, p]));
+    const decorations = new Map((this.snapshot.decorations || []).map(d => [d.id, d]));
+    const items = [];
+    for (const el of $("world").querySelectorAll(".workspace-card[data-placement], [data-decoration]")) {
+      let box = null;
+      if (grid) { const r = el.getBoundingClientRect(); box = {x:r.left,y:r.top,width:r.width,height:r.height}; }
+      else if (el.dataset.placement) box = placements.get(el.dataset.placement) || null;
+      else if (decorations.has(el.dataset.decoration)) box = decorationBounds(decorations.get(el.dataset.decoration), this.snapshot);
+      if (!box) continue;
+      items.push({key:this.rovingKey(el), el, box, rect:{left:box.x,top:box.y,right:box.x + box.width,bottom:box.y + box.height}});
+    }
+    return items;
+  }
+  focusItem(item, {reveal = true} = {}) {
+    this.setFocusStop(item.key);
+    item.el.focus({preventScroll:true});
+    if (!reveal) return;
+    // The view pans to bring it in (UI SDK viewport: focus-in).
+    if (this.mode === "canvas") this.hooks.revealBox?.(item.box);
+    else item.el.scrollIntoView?.({block:"nearest", inline:"nearest"});
+  }
+  // Focus the card for a placement (the board step uses this), keeping the stop in step.
+  focusPlacement(id, options) {
+    const item = this.rovingItems().find(item => item.key === `placement:${id}`);
+    if (item) this.focusItem(item, options);
+  }
+  itemLabel(el) {
+    if (el?.dataset.placement) {
+      const p = this.snapshot.placements.find(p => p.id === el.dataset.placement);
+      return this.snapshot.items[p?.itemId]?.title || "Item";
+    }
+    const d = (this.snapshot.decorations || []).find(d => d.id === el?.dataset.decoration);
+    return d ? String(d.text || "").trim().split("\n")[0].slice(0, 80) || (d.type === "line" ? "Arrow" : d.shape || d.type) : "Item";
+  }
+  // Plain arrows (Shift too), Home and End on a focused item move focus: arrows to the nearest item that way, Left
+  // always screen-left; Home and End to the first and last item (UI SDK spatial focus).
+  focusKey(e) {
+    const item = this.rovingItem(e.target);
+    if (!item || e.target !== item || e.altKey || e.ctrlKey || e.metaKey) return false;
+    const direction = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[e.key];
+    if (!direction && e.key !== "Home" && e.key !== "End") return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const items = this.rovingItems();
+    let next;
+    // Cards first, in their reading order, then drawn elements (drawn elements come first in the DOM only to sit below).
+    const ordered = [...items.filter(entry => entry.el.dataset.placement), ...items.filter(entry => !entry.el.dataset.placement)];
+    if (!direction) next = e.key === "Home" ? ordered[0] : ordered.at(-1);
+    else {
+      const from = items.find(entry => entry.el === item);
+      const key = from && nearestInDirection(from.rect, items.filter(entry => entry !== from), direction);
+      next = key && items.find(entry => entry.key === key);
+    }
+    if (next && next.el !== item) this.focusItem(next);
+    return true;
+  }
+  // Space toggles the focused item's selection (focus is not selection); Enter opens the focused card. A drawn
+  // element's Enter and F2 stay Whiteboard's (inspect, edit).
+  itemKey(e) {
+    const item = this.rovingItem(e.target);
+    if (!item || e.target !== item || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return false;
+    if (e.key === " ") {
+      e.preventDefault(); e.stopImmediatePropagation();
+      const label = this.itemLabel(item);
+      if (item.dataset.placement) {
+        const id = item.dataset.placement, on = !this.selection.has(id);
+        this.whiteboard?.clearSelection({finishEdit:true,focus:false});
+        on ? this.selection.add(id) : this.selection.delete(id);
+        this.syncSelection(); this.selectionMenu();
+        announce(`${label} ${on ? "selected" : "deselected"}. ${this.selectedCount()} selected.`);
+      } else if (this.whiteboard) {
+        const id = item.dataset.decoration, current = this.whiteboard.selectedDecorations().map(d => d.id), on = !current.includes(id);
+        this.whiteboard.selectDecorations(on ? [...current, id] : current.filter(other => other !== id));
+        announce(`${label} ${on ? "selected" : "deselected"}`);
+      }
+      return true;
+    }
+    if (e.key === "Enter" && item.dataset.placement) {
+      const open = item.querySelector("[data-open]:not(:disabled)");
+      if (!open) return false;
+      e.preventDefault(); e.stopImmediatePropagation();
+      open.click();
+      return true;
+    }
+    return false;
+  }
+  // Arrows on a focused resize handle move its edge: the card's bottom-right corner, 1 unit, 10 with Shift
+  // (UI SDK createResize keyboard). One undo step per press.
+  resizeKey(e) {
+    const handle = e.target.closest?.("#world .workspace-resize[data-resize]");
+    const delta = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[e.key];
+    if (!handle || !delta || e.altKey || e.ctrlKey || e.metaKey) return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (this.pointerGesture || this.movePending || this.historyBusy || this.hooks.viewOnly) return true;
+    const p = this.snapshot.placements.find(p => p.id === handle.dataset.resize);
+    if (!p) return true;
+    const step = e.shiftKey ? 10 : 1, icon = p.presentation?.mode === "icon";
+    const patch = {width:Math.max(icon ? 190 : 160, p.width + delta[0] * step), height:Math.max(icon ? 90 : 120, p.height + delta[1] * step)};
+    if (patch.width === p.width && patch.height === p.height) return true;
+    const label = this.itemLabel(handle.closest(".workspace-card"));
+    this.keyMoveRunning(async () => {
+        await this.writeArrangement("updatePlacement", {boardId:this.snapshot.id, placementId:p.id, patch}, latest => placementsUnchanged(latest, [p]));
+        await this.refresh({saveReview:false});
+        keepFocus(() => $("world").querySelector(`.workspace-resize[data-resize="${CSS.escape(p.id)}"]`));
+        announce(resizeMessage({label, handle:"se", box:{x:p.x, y:p.y, ...patch}}));
+    });
+    return true;
+  }
+  // Option/Alt + arrow moves the focused item 1 unit, with Shift 10 (UI SDK createMove keyboard). A focused item that
+  // is selected carries the selection; one that is not moves alone. With nothing focused on the board, the
+  // selection moves. Plain arrows never move anything.
+  nudgeKey(e) {
+    const delta = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[e.key];
+    if (!delta || !e.altKey || e.ctrlKey || e.metaKey) return false;
+    const item = this.rovingItem(e.target);
+    const id = item?.dataset.placement, decorationId = item?.dataset.decoration;
+    const live = this.snapshot.placements.filter(p => !p.removedAt && !p.deletedAt);
+    const grouped = this.keyboardDecorations();
+    let placements = [], decorations = [], single = null;
+    if (id && !this.selection.has(id)) placements = live.filter(p => p.id === id);
+    else if (decorationId && this.activeDecoration !== decorationId && !grouped.some(d => d.id === decorationId))
+      single = (this.snapshot.decorations || []).find(d => d.id === decorationId) || null;
+    else if (grouped.length) { placements = live.filter(p => this.selection.has(p.id)); decorations = grouped; }
+    else if (this.activeDecoration) single = (this.snapshot.decorations || []).find(d => d.id === this.activeDecoration) || null;
+    else placements = live.filter(p => this.selection.has(p.id));
+    if (!single && !placements.length && !decorations.length) return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (this.pointerGesture || this.movePending || this.historyBusy || this.hooks.viewOnly) return true;
+    const [dx, dy] = delta.map(v => v * (e.shiftKey ? 10 : 1));
+    const focusKey = item && item.contains(document.activeElement) ? this.rovingKey(item) : null;
+    this.keyMoveRunning(async () => {
+        let keys, label, at;
+        if (single) {
+          const d = single;
+          let patch = {x:d.x + dx, y:d.y + dy};
+          if (d.type === "line") { const r = resolveLine(d,this.snapshot), from = {x:r.from.x + dx,y:r.from.y + dy}, to = {x:r.to.x + dx,y:r.to.y + dy}; patch = {...lineBox(from,to),from,to}; }
+          await this.whiteboard.save(d.id, patch, undefined, decorationUnchanged(d));
+          keys = [d.id]; label = this.itemLabel(this.rovingElement(`decoration:${d.id}`)) ; at = {x:patch.x, y:patch.y};
+        } else {
+          await this.writeArrangement("translatePlacements", {boardId:this.snapshot.id, placementIds:placements.map(p => p.id),
+            ...(decorations.length ? {decorationIds:decorations.map(d => d.id)} : {}), dx, dy},
+            latest => placementsUnchanged(latest, placements));
+          await this.refresh({saveReview:false});
+          const first = placements.find(p => p.id === id) || placements[0];
+          keys = [...placements.map(p => p.id), ...decorations.map(d => d.id)];
+          label = first ? this.snapshot.items[first.itemId]?.title || "Item" : this.itemLabel(this.rovingElement(`decoration:${decorations[0].id}`));
+          at = first ? {x:first.x + dx, y:first.y + dy} : {x:decorations[0].x + dx, y:decorations[0].y + dy};
+        }
+        if (focusKey) keepFocus(() => this.rovingElement(focusKey));
+        announce(moveMessage({keys, label, at}));
+    });
+    return true;
+  }
+  // A keyboard move or resize holds the board busy until its write and refresh land, so the next press (queued by
+  // installKeyQueue while busy) starts from the new geometry instead of overwriting it.
+  async keyMoveRunning(work) {
+    this.movePending = true;
+    this.updateHistoryControls();
+    try { await work(); }
+    catch (error) { showFailure(error); }
+    finally {
+      this.movePending = false;
+      this.updateHistoryControls();
+      this.drainGeometryRefresh();
+    }
+  }
   canvasEditing() {
     const viewport = $("viewport");
     document.addEventListener("pointerdown", e => {
@@ -3023,7 +3271,9 @@ export class WorkspaceBoard {
       if (e.target.closest?.(".board-map-stage")) return;
       // A focused UI SDK widget (menu, toolbar, radio group …) owns its own keys.
       if (widgetOwnsKey(e)) return;
-      if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
+      if (e.isComposing || e.keyCode === 229 || e.defaultPrevented) return;
+      // A held arrow keeps moving focus across the board; nothing else repeats.
+      if (e.repeat) { if (!e.target.closest("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]")) this.focusKey(e); return; }
       if (this.feedback?.consumeEscape(e)) return;
       if (this.whiteboard?.handleEscape(e)) return;
       if (e.key === "Escape") {
@@ -3033,8 +3283,11 @@ export class WorkspaceBoard {
         if (this.selection.size) { this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault(); return; }
       }
       if (e.target.closest("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]")) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const delta = { ArrowLeft: [-1,0], ArrowRight: [1,0], ArrowUp: [0,-1], ArrowDown: [0,1] }[e.key];
+      if (e.metaKey || e.ctrlKey) return;
+      // UI SDK canvas keys: arrows move focus, Space selects, Enter opens, arrows on a resize handle resize.
+      if (this.focusKey(e) || this.itemKey(e) || this.resizeKey(e)) return;
+      if (e.altKey && !["Delete", "Backspace"].includes(e.key)) { this.nudgeKey(e); return; }
+      if (e.altKey) return;
       if ((this.activeDecoration || !this.selection.size && this.decorationSelection.size > 1) && ["Delete", "Backspace"].includes(e.key)) { e.preventDefault(); this.deleteDecoration(); return; }
       if (["Delete", "Backspace"].includes(e.key)) {
         if (e.repeat || e.shiftKey || this.clipboardBlocked() || this.history?.busy) return;
@@ -3044,32 +3297,13 @@ export class WorkspaceBoard {
         this.removePlacements(ids);
         return;
       }
-      if (!delta || (!this.activeDecoration && !this.selection.size && !this.keyboardDecorations().length)) return;
-      e.preventDefault(); e.stopImmediatePropagation();
-      if (this.pointerGesture || this.movePending || this.historyBusy) return;
-      const [dx,dy] = delta.map(v => v * (e.shiftKey ? 10 : 1));
-      try {
-        if (this.keyboardDecorations().length) {
-          const placements = this.snapshot.placements.filter(p => this.selection.has(p.id) && !p.removedAt && !p.deletedAt);
-          await this.writeArrangement("translatePlacements", {boardId:this.snapshot.id,placementIds:placements.map(p => p.id),
-            decorationIds:this.keyboardDecorations().map(d => d.id),dx,dy},latest=>placementsUnchanged(latest,placements));
-          await this.refresh({saveReview:false});
-        }
-        else if (this.activeDecoration) {
-          const d=this.snapshot.decorations.find(d=>d.id===this.activeDecoration);
-          let patch={x:d.x+dx,y:d.y+dy};
-          if(d.type === "line"){const r=resolveLine(d,this.snapshot),from={x:r.from.x+dx,y:r.from.y+dy},to={x:r.to.x+dx,y:r.to.y+dy};patch={...lineBox(from,to),from,to};}
-          await this.whiteboard.save(d.id,patch,undefined,decorationUnchanged(d));
-        }
-        else {
-          const placements = this.snapshot.placements.filter(p => this.selection.has(p.id) && !p.removedAt && !p.deletedAt);
-          if (!placements.length) return;
-          const placementIds = [...this.selection].filter(id => placements.some(p => p.id === id));
-          await this.writeArrangement("translatePlacements", {boardId:this.snapshot.id,placementIds,dx,dy},latest=>placementsUnchanged(latest,placements));
-          await this.refresh({saveReview:false});
-        }
-      } catch (error) { showFailure(error); }
     }, true);
+    // The focused card or drawn element keeps the board's Tab stop (UI SDK roving focus: the item focused last).
+    // Focus bookkeeping runs on focus events only, never on pointer moves.
+    $("world").addEventListener("focusin", e => {
+      const item = this.rovingItem(e.target);
+      if (item) this.setFocusStop(this.rovingKey(item));
+    });
   }
   async deleteDecoration() { return this.whiteboard.remove(); }
   backgroundForm() {

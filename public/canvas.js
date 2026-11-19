@@ -139,6 +139,7 @@ async function fetchBoard() {
   const data = await response.json();
   if (data.schemaVersion === 2) {
     if (!graph) graph = new WorkspaceBoard(appConfig, data, { concepts:()=>all, active:()=>active, zoom:()=>zoom, shiftOrigin:(dx,dy)=>{if(dx||dy){view.x-=dx*zoom;view.y-=dy*zoom;resting=false;shiftSavedViews(dx,dy);}}, shiftViewport:(dx,dy)=>{if(dx||dy)moveView(view.x+dx,view.y+dy);}, holdView:()=>{resting=false;}, revealPlacements:revealPlacements, revealTarget:placement=>{const fit=Math.min((viewport.clientWidth-80)/placement.width,(viewport.clientHeight-80)/placement.height,1);changeZoom(fit);const rect=world.getBoundingClientRect(),region=viewport.getBoundingClientRect();moveView(view.x+region.left+viewport.clientWidth/2-(rect.left+(placement.x+graph.origin.x+placement.width/2)*zoom),view.y+region.top+viewport.clientHeight/2-(rect.top+(placement.y+graph.origin.y+placement.height/2)*zoom));}, preview:c=>previewHref(c), layout:()=>{ if(resting)rest();else applyView(); contentChanged(); }, mode:mode=>{ if(mode==='canvas'){zoom=1;settleCushion();}else{viewport.scrollLeft=0;viewport.scrollTop=0;} requestAnimationFrame(syncMapAvailability); }, fit:(kind,area)=>runFit(kind==='smart'?smartFitTarget():kind,area), toggleMap:()=>setMapOpen(!boardMap.visible,{remember:true}), reloadReader:()=>loadRevision(), saveStatus:setSaveStatus, openOwner:()=>{const c=graph.ownerConcept();if(c)openReader(c.key);}, closeReader:()=>closeReader(), flushNotes:flushNoteEdits, liveReady:()=>{void drainLiveUpdates().catch(()=>{});}, data:acceptGraphData, editNote:(key,anchor)=>openTileNote(key,anchor), readerChanged:()=>{if(active&&dialog.open)renderReaderChrome();}, viewOnly:overview });
+    graph.hooks.revealBox = revealBox;
     if (overview) graph.mode = 'canvas';
     return graph.adapt(data);
   }
@@ -341,6 +342,26 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
   moveView(cx - (cx - view.x) * scale, cy - (cy - view.y) * scale);
 }
 
+// Pan just enough to bring a box (board units) into view, as UI SDK's viewport reveal does for focus moved by
+// the arrow keys (focus-in). The zoom stays; the floating footer is kept clear.
+function revealBox(box, { padding = 24 } = {}) {
+  if (!graph || graph.mode === 'grid' || !box) return;
+  const area = fitArea();
+  const footer = document.querySelector('.canvas-footer');
+  const bottomInset = footer && !footer.hidden ? Math.max(0, viewport.getBoundingClientRect().bottom - footer.getBoundingClientRect().top) : 0;
+  const left = view.x + (box.x + graph.origin.x) * zoom, top = view.y + (box.y + graph.origin.y) * zoom;
+  const width = box.width * zoom, height = box.height * zoom;
+  const fit = (start, size, room, before, after) => {
+    if (size > room - before - after) return before - start;
+    if (start < before) return before - start;
+    if (start + size > room - after) return room - after - (start + size);
+    return 0;
+  };
+  const dx = fit(left, width, area.width, padding, padding), dy = fit(top, height, area.height, padding, padding + bottomInset);
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+  if (graph) graph.revealedPlacement = null;
+  glideTo({ x: view.x + dx, y: view.y + dy });
+}
 // Reveal one newly pasted group, keeping the normal zoom whenever it fits.
 function revealPlacements(placements) {
   if (graph?.mode === 'grid' || !placements.length) return;
@@ -837,6 +858,8 @@ function openReader(key, revision = 'original', { history: mode = 'push', focus 
     return true;
   }
   const opening = !dialog.open;
+  // Opened from a card on the board (keyboard or pointer): closing returns focus to the board's items.
+  if (opening) readerFromBoardItem = !!document.activeElement?.closest?.('#world');
   setInfoOpen(false);
   active = concept;
   activeVariantId = variantId;
@@ -888,8 +911,16 @@ function closeReader({ history: mode = 'push' } = {}) {
   Object.assign(view, left);
   applyView();
   // Land on the tile last viewed (after any arrowing between siblings).
-  if (returnKey) requestAnimationFrame(() => returnToTile(returnKey));
+  const toItem = readerFromBoardItem;
+  readerFromBoardItem = false;
+  if (returnKey) requestAnimationFrame(() => {
+    if (!returnToTile(returnKey) || !toItem || document.activeElement !== viewport) return;
+    // Focus goes back to that card, which keeps the board's Tab stop (UI SDK: focus returns where it came from).
+    const placementId = world.querySelector(`[data-key="${CSS.escape(returnKey)}"]`)?.dataset.placement;
+    if (placementId) graph?.focusPlacement?.(placementId, { reveal: false });
+  });
 }
+var readerFromBoardItem = false;  // var: openReader may run before this line during start-up
 
 // ---- The path: hover or click the title for where you are and what sits beside it ----
 let readerPathExpanded = false;
@@ -1758,7 +1789,7 @@ function centerOn(wx, wy, { glide = false } = {}) {
   const x = viewport.clientWidth / 2 - wx * zoom, y = viewport.clientHeight / 2 - wy * zoom;
   if (glide) flyTo(zoom, x, y); else moveView(x, y);
 }
-// ⌥← / ⌥→ on a board (Ctrl+← / → on Windows and Linux) select the previous / next Tinka in
+// [ / ] on a board (also Ctrl+← / → on Windows and Linux) select the previous / next Tinka in
 // the opened Tinka's stepper order and bring it into view: a smooth pan that centres it at
 // the current zoom, zooming out only as far as it takes to fit it with Fit's margin. After
 // a Tinka too big for that zoom, the next one that fits returns to it, unless the zoom was
@@ -1781,7 +1812,7 @@ function stepOrder() {
   return all.filter(c => c.placement && rendered.has(c.placement.id)).map(c => ({ id: c.placement.id, concept: c }));
 }
 // The board's "current Tinka": the last one opened or viewed inside (stepping), stepped to
-// with ⌥←/→, or selected on its own. With nothing selected, ⌥←/→ continue from it. Kept per
+// with [ / ], or selected on its own. With nothing selected, [ / ] continue from it. Kept per
 // board for this tab, across reloads; nothing is written to the board.
 const CURSOR_KEY = () => workspaceId && boardId ? `tinka/${workspaceId}/${boardId}/step-cursor` : null;
 let stepCursor, cursorLoaded = false;
@@ -1822,10 +1853,11 @@ function boardStep(direction) {
     announceView(direction > 0 ? 'Last Tinka on this board' : 'First Tinka on this board');
     return;
   }
-  // Keys keep acting on the board, not on a button inside the previously selected tile.
-  if (document.activeElement?.closest?.('#world')) viewport.focus({ preventScroll: true });
+  // Focus that was on the board follows the step to the new Tinka's card (it keeps the board's Tab stop).
+  const focusOnBoard = !!document.activeElement?.closest?.('#world');
   graph.selectOnly(target.id);
   revealStep(target.concept.placement);
+  if (focusOnBoard) graph.focusPlacement?.(target.id, { reveal: false });
   announceView(`${target.concept.name}, ${sequence.indexOf(target) + 1} of ${sequence.length}`);
 }
 document.addEventListener('keydown', event => {
@@ -2220,8 +2252,12 @@ viewport.addEventListener('keydown', event => {
   const key = event.key === ' ' && onCanvas ? (event.shiftKey ? 'PageUp' : 'PageDown') : event.key;
   const step = { ArrowLeft: [80, 0], ArrowRight: [-80, 0], ArrowUp: [0, 80], ArrowDown: [0, -80], PageUp: [0, page], PageDown: [0, -page] }[key];
   if (event.shiftKey && (event.code === 'Digit0' || key === ')' || key === '0')) { changeZoom(1); event.preventDefault(); return; }
-  if (onCanvas && (key === '+' || key === '=')) changeZoom(zoom * 1.15);
-  else if (onCanvas && (key === '-' || key === '_')) changeZoom(zoom / 1.15);
+  // + / − zoom and 0 shows 100% (UI SDK viewport keys) from the canvas or a focused card or drawn element.
+  const zoomKeys = onCanvas || !!event.target.matches?.('#world .workspace-card, #world [data-decoration]');
+  if (zoomKeys && (key === '+' || key === '=' || key === '-' || key === '_' || key === '0')) {
+    changeZoom(key === '0' ? 1 : key === '+' || key === '=' ? zoom * 1.15 : zoom / 1.15);
+    announceView(`Zoom ${Math.round(zoom * 100)}%`);
+  }
   else if (key.startsWith('Arrow') && step) moveView(view.x + step[0], view.y + step[1]);
   else if (step) { const from = glideTarget || view; glideTo({ x: from.x + step[0], y: from.y + step[1] }, { track: true }); }
   else if ((key === 'Home' || key === 'End') && rounds.length) { currentRound = key === 'Home' ? 0 : rounds.length - 1; renderNav(); glideTo(restingView()); }
