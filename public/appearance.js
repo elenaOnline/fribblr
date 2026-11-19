@@ -5,6 +5,7 @@
 import './appearance-boot.js';
 import {sharedMenu, menuRadioGroup, menuSeparator} from './popups.js';
 import { segmentedHTML, setSegmented, onSegmented } from './ui-segmented.js';
+import { setTip } from './tips.js';
 const MODES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 const GROUNDS = [['desk', 'Blue'], ['white', 'White']];
 const KEY = { mode: 'tinka/appearance', ground: 'tinka/ground' };
@@ -15,7 +16,8 @@ function sync() {
   const mode = read('mode'), ground = read('ground'), dark = document.documentElement.dataset.appearance === 'dark';
   document.querySelectorAll('[data-appearance-seg]').forEach(seg => setSegmented(seg, mode));
   document.querySelectorAll('[data-ground-seg]').forEach(seg => { setSegmented(seg, ground); seg.disabled = dark; });
-  document.querySelectorAll('.appearance-ground').forEach(row => { row.title = dark ? 'Dark mode has one background' : ''; });
+  // Why the row is disabled, on the shared UI SDK tooltip (tips.js); silent in light mode.
+  document.querySelectorAll('.appearance-ground').forEach(row => setTip(row, dark ? 'Dark mode has one background' : ''));
   // Home's Appearance menu: two radio groups follow the same choice.
   document.querySelectorAll('ui-menu-radio-group[name="appearance-mode"]').forEach(group => { if (group.value !== mode) group.value = mode; });
   document.querySelectorAll('ui-menu-radio-group[name="appearance-ground"]').forEach(group => {
