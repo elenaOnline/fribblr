@@ -172,6 +172,9 @@ function tabbablesIn(content) {
   });
 }
 function triggerOf(content) {
+  // A popup whose trigger the page can't point at (the comment card's pin is rebuilt as pins regroup) names it itself.
+  const named = content.tabTrigger?.();
+  if (named instanceof HTMLElement && !content.contains(named)) return named;
   const root = content.parentElement;
   const found = (content.id && document.querySelector(`[aria-controls="${CSS.escape(content.id)}"]`))
     || (root?.id && document.querySelector(`ui-popover-trigger[for="${CSS.escape(root.id)}"] button, ui-dialog-trigger[for="${CSS.escape(root.id)}"] button`));

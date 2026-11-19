@@ -311,6 +311,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   // only a selector it reads before the card is gone. Only when focus is lost: a press on another control keeps it.
   const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
   card.setAttribute("final-focus", "none");
+  // Tab out of the card (popups.js, "Tab out of a popup at the end of <body>"): the trigger is the pin.
+  card.tabTrigger = () => threadId && document.querySelector(`.comment-pins [data-comment-pin="${CSS.escape(threadId)}"]`);
   const returnFocus = () => requestAnimationFrame(() => {
     const now = document.activeElement, lost = !now || now === document.body || pop.contains(now);
     pop.remove();
