@@ -134,6 +134,20 @@ try{
  await page.keyboard.press(']');
  ok(await until(async()=>(await selected()).length===1),'] selects one card');
  ok(await until(async()=>(await focused())===`card:${(await selected())[0]}`),'Focus follows the step to its card');
+ // While a keyboard move is still being written, Space on a select circle still presses it (the key queue must not
+ // swallow a button's native press), and a second Option-arrow waits its turn instead of racing the first.
+ await page.keyboard.press('Escape');
+ let release,barrier;const hold=()=>{barrier=new Promise(r=>{release=r;});};hold();
+ await page.route('**/api/operations',async route=>{if(route.request().postDataJSON()?.type==='translatePlacements')await barrier;await route.continue().catch(()=>{});});
+ await page.locator(`.workspace-card[data-placement="${c.a3}"]`).focus();const a3=await placement(c.a3);
+ await page.keyboard.press('Alt+ArrowRight');await page.keyboard.press('Alt+ArrowRight');await page.waitForTimeout(150);
+ release();
+ ok(await until(async()=>(await placement(c.a3)).x===a3.x+2,6000),'Both Option-arrow presses land, the second after the first: 2 units');
+ await page.waitForTimeout(300);hold();
+ await page.keyboard.press('Alt+ArrowLeft');await page.waitForTimeout(150);
+ await page.locator(`.workspace-card[data-placement="${c.b1}"] [data-placement-select]`).focus();await page.keyboard.press('Space');
+ ok(await until(async()=>(await selected()).includes('B1')),'Space on a select circle works while a move is being saved');
+ release();await page.waitForTimeout(500);await page.unroute('**/api/operations');
  assert.deepEqual(errors,[]);checks++;
  console.log(`Canvas keyboard browser checks passed: ${checks} assertions. Evidence: ${evidence}`);
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

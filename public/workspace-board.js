@@ -13,8 +13,11 @@ import {KindLegend} from "./kind-legend.js";
 import {eventFiles,hasFileDrag,validateImportFiles,importLayout,pdfSupported,pdfPreviewURL} from "./file-import.js";
 import {CutIntent} from "./cut-intent.js";
 import {widgetOwnsKey} from "./ui-sdk.js";
-// UI SDK standalone Core helpers for the canvas keyboard (ui-sdk.md § Surfaces › Board canvas).
-import {nearestInDirection,announce,keepFocus,moveMessage,resizeMessage} from "./vendor/ui-sdk/web/core.js";
+// UI SDK standalone Core helpers for the canvas keyboard (ui-sdk.md § Surfaces › Board canvas): nearestInDirection,
+// announce, moveMessage, resizeMessage, keepFocus. Loaded without blocking the board's start (core.js pulls in most of
+// the SDK's chunks); every use is on a key press, long after it has arrived.
+let sdk = null;
+const sdkReady = import("./vendor/ui-sdk/web/core.js").then(module => (sdk = module));
 import {MovementHistory} from "./movement-history.js";
 import {timeHTML} from "./relative-dates.js";
 import {navigationGraph} from "./navigator-graph.js";
@@ -3136,6 +3139,7 @@ export class WorkspaceBoard {
     const direction = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[e.key];
     if (!direction && e.key !== "Home" && e.key !== "End") return false;
     e.preventDefault(); e.stopImmediatePropagation();
+    if (!sdk) { sdkReady.then(() => this.focusKey({key:e.key, target:e.target, altKey:false, ctrlKey:false, metaKey:false, preventDefault() {}, stopImmediatePropagation() {}})); return true; }
     const items = this.rovingItems();
     let next;
     // Cards first, in their reading order, then drawn elements (drawn elements come first in the DOM only to sit below).
@@ -3143,7 +3147,7 @@ export class WorkspaceBoard {
     if (!direction) next = e.key === "Home" ? ordered[0] : ordered.at(-1);
     else {
       const from = items.find(entry => entry.el === item);
-      const key = from && nearestInDirection(from.rect, items.filter(entry => entry !== from), direction);
+      const key = from && sdk.nearestInDirection(from.rect, items.filter(entry => entry !== from), direction);
       next = key && items.find(entry => entry.key === key);
     }
     if (next && next.el !== item) this.focusItem(next);
@@ -3162,11 +3166,11 @@ export class WorkspaceBoard {
         this.whiteboard?.clearSelection({finishEdit:true,focus:false});
         on ? this.selection.add(id) : this.selection.delete(id);
         this.syncSelection(); this.selectionMenu();
-        announce(`${label} ${on ? "selected" : "deselected"}. ${this.selectedCount()} selected.`);
+        sdkReady.then(({announce}) => announce(`${label} ${on ? "selected" : "deselected"}. ${this.selectedCount()} selected.`));
       } else if (this.whiteboard) {
         const id = item.dataset.decoration, current = this.whiteboard.selectedDecorations().map(d => d.id), on = !current.includes(id);
         this.whiteboard.selectDecorations(on ? [...current, id] : current.filter(other => other !== id));
-        announce(`${label} ${on ? "selected" : "deselected"}`);
+        sdkReady.then(({announce}) => announce(`${label} ${on ? "selected" : "deselected"}`));
       }
       return true;
     }
@@ -3196,6 +3200,7 @@ export class WorkspaceBoard {
     this.keyMoveRunning(async () => {
         await this.writeArrangement("updatePlacement", {boardId:this.snapshot.id, placementId:p.id, patch}, latest => placementsUnchanged(latest, [p]));
         await this.refresh({saveReview:false});
+        const {keepFocus, announce, resizeMessage} = await sdkReady;
         keepFocus(() => $("world").querySelector(`.workspace-resize[data-resize="${CSS.escape(p.id)}"]`));
         announce(resizeMessage({label, handle:"se", box:{x:p.x, y:p.y, ...patch}}));
     });
@@ -3241,6 +3246,7 @@ export class WorkspaceBoard {
           label = first ? this.snapshot.items[first.itemId]?.title || "Item" : this.itemLabel(this.rovingElement(`decoration:${decorations[0].id}`));
           at = first ? {x:first.x + dx, y:first.y + dy} : {x:decorations[0].x + dx, y:decorations[0].y + dy};
         }
+        const {keepFocus, announce, moveMessage} = await sdkReady;
         if (focusKey) keepFocus(() => this.rovingElement(focusKey));
         announce(moveMessage({keys, label, at}));
     });
