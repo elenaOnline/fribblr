@@ -347,7 +347,9 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
 }
 
 // Pan just enough to bring a box (board units) into view, as UI SDK's viewport reveal does for focus moved by
-// the arrow keys (focus-in). The zoom stays; the floating footer is kept clear.
+// the arrow keys (focus-in). The zoom stays; the floating footer is kept clear. Like the SDK's reveal (a panBy) and
+// the browser's own focus scrolling, it moves in one step: the view is where the focus is on the next frame, with
+// no glide to trail behind fast or repeated arrows.
 function revealBox(box, { padding = 24 } = {}) {
   if (!graph || graph.mode === 'grid' || !box) return;
   const area = fitArea();
@@ -364,7 +366,7 @@ function revealBox(box, { padding = 24 } = {}) {
   const dx = fit(left, width, area.width, padding, padding), dy = fit(top, height, area.height, padding, padding + bottomInset);
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
   if (graph) graph.revealedPlacement = null;
-  glideTo({ x: view.x + dx, y: view.y + dy });
+  moveView(view.x + dx, view.y + dy);
 }
 // Reveal one newly pasted group, keeping the normal zoom whenever it fits.
 function revealPlacements(placements) {
