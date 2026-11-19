@@ -1955,7 +1955,13 @@ document.addEventListener('tinka:selection', () => { readSelection(); syncFitCon
 // while the bar shows), otherwise raised above the footer row. Given less room than
 // its actions need, it wraps them (it never squeezes them), and it never starts off
 // screen. On a phone it spans the width and the open map stacks above it instead.
+// The drawing tools then sit above the bar wherever it went: an open Navigator or
+// Inspector moves the bar and resizes the footer, which brings us back here.
 function placeSelectionBar() {
+  fitSelectionBar();
+  graph?.positionEditTools();
+}
+function fitSelectionBar() {
   const bar = $('workspace-selection'), pill = document.querySelector('.canvas-footer .zoom-pill'), root = document.documentElement;
   const footer = document.querySelector('.canvas-footer');
   if (!bar || !footer) return;
