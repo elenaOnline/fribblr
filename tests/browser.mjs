@@ -181,7 +181,7 @@ try{
   await a.page.screenshot({path:path.join(evidence,'removal-prompt-narrow.png')});
   assert.equal(await a.page.locator('#agent-prompt-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await a.page.locator('.agent-dialog-close').click();
-  assert.deepEqual(await a.page.locator('#canvas-header').evaluate(el=>{const title=el.querySelector('#board-title'),tools=el.querySelector('#board-info-toggle');const t=title.getBoundingClientRect(),b=tools.getBoundingClientRect();return {overflow:el.scrollWidth>el.clientWidth,oneLine:t.height<=parseFloat(getComputedStyle(title).lineHeight)*1.5,named:title.title===title.textContent,overlap:t.left<b.right&&t.right>b.left&&t.top<b.bottom&&t.bottom>b.top};}),{overflow:false,oneLine:true,named:true,overlap:false});  // a narrow bar keeps the name on one line, its full text in the title
+  assert.deepEqual(await a.page.locator('#canvas-header').evaluate(el=>{const title=el.querySelector('#board-title'),tools=el.querySelector('#board-info-toggle');const t=title.getBoundingClientRect(),b=tools.getBoundingClientRect();return {overflow:el.scrollWidth>el.clientWidth,oneLine:t.height<=parseFloat(getComputedStyle(title).lineHeight)*1.5,named:title.dataset.tip===title.textContent&&!title.hasAttribute('title'),overlap:t.left<b.right&&t.right>b.left&&t.top<b.bottom&&t.bottom>b.top};}),{overflow:false,oneLine:true,named:true,overlap:false});  // a narrow bar keeps the name on one line, its full text in the title
   assert.equal(await a.page.locator('#project-label').textContent(),'Home');
   assert.equal(await a.page.locator('.canvas-footer').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await a.page.locator('#fit').click();
@@ -579,7 +579,7 @@ try{
   // Up names the board, as ‹ Parent does on a board.
   assert.equal(await h.locator('#reader-dialog .reader-header #reader-up-label').textContent(),'History');
   assert.equal(await h.locator('#reader-hint').textContent(),'Try the first thing.');
-  assert((await h.locator('#reader-path').getAttribute('title')).includes('Try the first thing.'));
+  assert((await h.locator('#reader-path').getAttribute('data-tip')).includes('Try the first thing.'));
   assert.equal(await h.locator('#reader-standalone').getAttribute('href'),'/boards/history/files/alpha-one.html');
   assert.equal(await h.locator('#reader-standalone').getAttribute('target'),'_blank');
   // The stepper and the path's neighbour list follow board order across rounds; endpoints are disabled.
@@ -609,7 +609,7 @@ try{
   await h.screenshot({path:path.join(evidence,'history-size-popover.png')});
   await h.locator('#size-menu [data-size="standard"]').click();
   assert.deepEqual(await h.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#size-menu [data-size="standard"]').getAttribute('aria-checked')]),['standard','true']);
-  assert((await h.locator('#reader-zoom-toggle').getAttribute('title')).includes('Window: Standard'));
+  assert((await h.locator('#reader-zoom-toggle').getAttribute('data-tip')).includes('Window: Standard'));
   await h.keyboard.press('Escape');
   assert.equal(await h.locator('#size-menu').isVisible(),false);
   assert.equal(await h.evaluate(()=>document.activeElement.id),'reader-zoom-toggle');
@@ -706,6 +706,11 @@ try{
   await h.goBack();
   await waitReader('Two');
   await h.locator('#reader-next').focus();
+  // Focus that follows a key press counts as keyboard focus, which shows the button's UI SDK tooltip; Escape closes
+  // that first and leaves the reader open (tooltip.md § Keyboard), the next Escape goes up.
+  assert.equal(await h.evaluate(()=>document.querySelector('ui-tooltip-content[data-open]')?.textContent.includes('Next')),true);
+  await h.keyboard.press('Escape');
+  assert.equal(await h.evaluate(()=>!document.querySelector('ui-tooltip-content[data-open]')&&document.querySelector('#reader-dialog').open),true);
   await h.keyboard.press('Escape');
   await waitBoard();
   await h.goBack();
@@ -981,7 +986,7 @@ try{
   assert.equal(otherNotes['first/one-step'].note,'Runway only');
   await stalePage.close();
   await a.page.goto(`${a.url}boards/first-steps/`);
-  await a.page.waitForFunction(()=>document.querySelector('.canvas-header .brand').title.includes('Runway'));
+  await a.page.waitForFunction(()=>(document.querySelector('.canvas-header .brand').dataset.tip||'').includes('Runway'));
   await a.page.waitForFunction(()=>document.querySelector('#save-status').textContent==='Notes saved on this Mac');
   assert.equal(await (await legacyNote(a.page,'first/one-step')).inputValue(),'Runway only');
   assert.equal(errors.length,0,errors.join('\n'));

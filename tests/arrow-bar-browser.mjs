@@ -47,7 +47,7 @@ try{
  assert.equal(await page.locator('.whiteboard-arrow-bar [role=group]').count(),6);
  assert.equal(await bar('route','straight').getAttribute('aria-pressed'),'true');
  assert.equal(await bar('heads','end').getAttribute('aria-pressed'),'true');
- for(const b of await page.locator('.whiteboard-arrow-bar button').all())assert.ok(await b.getAttribute('title'),'every bar control has a tooltip');
+ for(const b of await page.locator('.whiteboard-arrow-bar button').all()){assert.ok(await b.getAttribute('data-tip'),'every bar control has a tooltip');assert.equal(await b.getAttribute('title'),null,'on the UI SDK tooltip, not a native title');}
  await page.screenshot({path:path.join(evidence,'arrow-bar-light.png')});
 
  // Each control saves one field and marks itself current.

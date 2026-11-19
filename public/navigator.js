@@ -1,3 +1,4 @@
+import {tip, tipOuter} from './tips.js';
 import {escape as esc} from './workspace.js';
 import {navigationGraph} from './navigator-graph.js';
 import './vendor/ui-sdk/web/dialog.js';
@@ -69,9 +70,10 @@ export class ProjectNavigator {
   mount(anchor) {
     const button=this.button=document.createElement('button');
     button.id='project-navigator-toggle'; button.type='button'; button.className='project-navigator-toggle tk-btn tk-icon';
-    button.innerHTML=svg(ICON.sidebar); button.setAttribute('aria-label','Navigator'); button.title=`Navigator (${SHORTCUT})`;
+    button.innerHTML=svg(ICON.sidebar); button.setAttribute('aria-label','Navigator'); button.setAttribute('aria-keyshortcuts','Meta+K Control+K'); button.dataset.tip='Navigator';
     button.setAttribute('aria-controls','project-navigator'); button.setAttribute('aria-expanded','false'); button.setAttribute('aria-haspopup','dialog');
-    anchor.before(button);
+    tipOuter(anchor).before(button);
+    tip(button);
     button.onclick=()=>this.isOpen?this.close():this.open({opener:button});
     const scopes=Object.entries(SCOPES).filter(([value])=>this.boardId||value==='project');
     const dialog=this.dialog=document.createElement('ui-dialog');

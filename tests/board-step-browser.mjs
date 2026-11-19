@@ -149,6 +149,9 @@ try{
   await page.waitForFunction(()=>document.getElementById('reader-count').textContent.trim()==='4 / 8');
   await page.keyboard.press('Alt+ArrowRight');await page.keyboard.press('Alt+ArrowRight');
   await page.waitForFunction(()=>document.getElementById('reader-count').textContent.trim()==='6 / 8');
+  // The pointer is left where the board's + was, over the reader's own +: resting there opens its UI SDK tooltip,
+  // which would take the first Escape (tooltip.md § Keyboard). Rest it on the stage instead.
+  await page.mouse.move(700,420);await page.waitForTimeout(50);if(await page.evaluate(()=>!!document.querySelector('ui-tooltip-content[data-open]'))){await page.keyboard.press('Escape');}
   await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});await page.waitForTimeout(300);};
  await openAndStep();
  assert.deepEqual(await selected(),[],'Back on the board nothing stays selected (unchanged)');checks++;

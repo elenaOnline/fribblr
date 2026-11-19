@@ -132,6 +132,8 @@ if (typeof document !== 'undefined') document.addEventListener('pointerdown', ev
 // run after them. widgetOwnsKey() (ui-sdk.js) covers the board command keys; this narrower check is for handlers that
 // must keep their keys in non-popup dialogs such as the Inspector.
 export function inPopup(event) {
+  // Escape with a tooltip showing belongs to the tooltip: it closes only the tooltip (tooltip.md § Keyboard).
+  if (event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
   const target = event?.target instanceof Element ? event.target : document.activeElement;
   if (target?.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])')) return true;
   // The trigger of a popup that has just opened: focus moves into it a frame later, and a key pressed in that frame
