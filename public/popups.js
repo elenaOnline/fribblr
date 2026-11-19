@@ -127,6 +127,8 @@ export function guardMenu(root) { watchConsumedPresses(root); return root; }
 // tooltip"): the SDK does that for its own trigger wrappers, but a popup opened from code (Arrange) has none, so tips.js
 // asks here.
 let lastPopupClose = -Infinity;
+// Code that returns focus to a control after closing something that is not an SDK popup (the Inspector) says so here.
+export const notePopupClosed = () => { lastPopupClose = performance.now(); };
 export const popupJustClosed = (within = 400) => performance.now() - lastPopupClose < within;
 if (typeof document !== 'undefined') for (const type of ['openchange', 'openchangecomplete'])
   document.addEventListener(type, event => { if (event.detail?.value === false && !/^tooltip/.test(event.target?.dataset?.slot || event.target?.tagName?.toLowerCase().replace(/^ui-/, '') || '')) lastPopupClose = performance.now(); }, true);
@@ -175,7 +177,7 @@ const TABBABLE = 'a[href],button,input,select,textarea,summary,[tabindex],[conte
 function tabbablesIn(content) {
   return [...content.querySelectorAll(TABBABLE)].filter(element => {
     if (element.disabled || element.hidden || element.closest('[hidden],[inert]')) return false;
-    if (element.tabIndex < 0) return false;
+    if (element.tabIndex < 0 && !element.isContentEditable) return false;
     const box = element.getBoundingClientRect();
     return box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== 'hidden';
   });

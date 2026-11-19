@@ -1,4 +1,4 @@
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,notePopupClosed} from './popups.js';
 import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tip, tips, setTip, tipOuter} from './tips.js';
@@ -1926,7 +1926,7 @@ export class WorkspaceBoard {
     const opener = this.contextReturnTo && document.querySelector(this.contextReturnTo);
     const barButton = opener && !opener.closest("[hidden]") && opener.getClientRects().length ? opener : null;
     const card = (this.contextReturnToCard || this.contextReturnTo) && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
-    if (focus) (barButton || card || buttons[0])?.focus({ preventScroll: true });
+    if (focus) { notePopupClosed(); (barButton || card || buttons[0])?.focus({ preventScroll: true }); }
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
