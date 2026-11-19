@@ -7,6 +7,7 @@
 // replyComment, setCommentStatus, editComment, deleteComment; GET /api/feedback).
 import "./vendor/ui-sdk/web/popover.js";
 import {defined} from "./ui-sdk.js";
+import {tips} from "./tips.js";
 import {esc, attachPicker, bindChips, chipElement, chipLabel, composerEmpty, composerValue, renderBody, setComposerValue, decorationLabel, itemLabel, refState} from "./comment-refs.js";
 
 const STATUS = {open:"Open", sent:"Sent to agent", working:"Agent working", addressed:"Addressed · check it", question:"Agent asks you", resolved:"Resolved"};
@@ -33,8 +34,8 @@ const when = iso => {
   return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(undefined, {month:"short", day:"numeric"});
 };
 const avatar = author => author?.kind === "agent"
-  ? `<span class="ct-avatar agent" title="${esc(author.label)} (agent)">${ICON.agent}</span>`
-  : `<span class="ct-avatar" title="${esc(author?.label || "")}">${esc((author?.label || "?").trim()[0] || "?").toUpperCase()}</span>`;
+  ? `<span class="ct-avatar agent" data-tip="${esc(author.label)} (agent)">${ICON.agent}</span>`
+  : `<span class="ct-avatar" data-tip="${esc(author?.label || "")}">${esc((author?.label || "?").trim()[0] || "?").toUpperCase()}</span>`;
 const sameActor = (a, b) => !!a && !!b && a.id === b.id && (a.kind || "human") === (b.kind || "human");
 
 // Drafts survive Escape, closing and reloading the tab (session only).
@@ -209,8 +210,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     const forAgent = isNew ? `<label class="ct-for-agent"><input type="checkbox" data-for-agent ${anchor?.forAgent === false ? "" : "checked"}> For the agent</label>` : "";
     card.dataset.status = isNew ? "draft" : st;
     card.innerHTML = `<header class="ct-head">${isNew ? '<b class="ct-title">New comment</b>' : `<span class="ct-state" data-state="${esc(st)}">${esc(STATUS[st] || st)}</span>`}
-        ${!isNew ? `<button type="button" class="tk-btn tk-icon ct-icon" data-act="toggle" aria-label="${st === "resolved" ? "Reopen" : "Resolve"}" title="${st === "resolved" ? "Reopen" : "Resolve"}">${st === "resolved" ? ICON.reopen : ICON.check}</button>` : ""}
-        <button type="button" class="tk-btn tk-icon ct-icon" data-act="close" aria-label="Close" title="Close (Esc)">${ICON.close}</button>
+        ${!isNew ? `<button type="button" class="tk-btn tk-icon ct-icon" data-act="toggle" aria-label="${st === "resolved" ? "Reopen" : "Resolve"}" data-tip="${st === "resolved" ? "Reopen" : "Resolve"}">${st === "resolved" ? ICON.reopen : ICON.check}</button>` : ""}
+        <button type="button" class="tk-btn tk-icon ct-icon" data-act="close" aria-label="Close" aria-keyshortcuts="Escape" data-tip="Close">${ICON.close}</button>
         <span class="ct-on">${on}</span></header>
       <div class="ct-scroll">${target.gone ? '<p class="ct-detached">The thing this was pinned to is gone. The pin stays where it was.</p>' : ""}${activity}${messages.map(m => messageHTML(m, !!m.root)).join("")}${decide}</div>
       <footer class="ct-foot"><div class="ct-composer" contenteditable="true" role="textbox" aria-multiline="true" aria-label="${isNew ? "Comment" : "Reply"}" data-placeholder="${isNew ? "Comment… type @ to reference" : addressedMine ? "Reply… goes back to the agent" : "Reply… @ to reference"}"></div>
@@ -234,6 +235,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (saved) setComposerValue(composer, board, saved.text, saved.refs);
     picker = attachPicker(composer, board, {onChange:persist});
     composer.addEventListener("input", persist);
+    tips(card);
     if (had && !card.contains(document.activeElement)) {
       const same = hadKey && [...card.querySelectorAll("[data-act]")].find(el => el.dataset.act === hadKey.act && el.dataset.id === hadKey.id && !el.disabled);
       (same || composer)?.focus({preventScroll:true});
