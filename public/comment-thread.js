@@ -235,6 +235,9 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (saved) setComposerValue(composer, board, saved.text, saved.refs);
     picker = attachPicker(composer, board, {onChange:persist});
     composer.addEventListener("input", persist);
+    // Chips in posted messages carry their hint as a native title: move it to the SDK tooltip too (the composer's own
+    // chips sit in editable text, where a wrapper element would get in the way, and keep theirs).
+    for (const chip of card.querySelectorAll(".ct-msg [title]")) { chip.dataset.tip = chip.title; chip.removeAttribute("title"); }
     tips(card);
     if (had && !card.contains(document.activeElement)) {
       const same = hadKey && [...card.querySelectorAll("[data-act]")].find(el => el.dataset.act === hadKey.act && el.dataset.id === hadKey.id && !el.disabled);
