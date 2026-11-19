@@ -20,6 +20,7 @@ import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
+import {followVisibility} from './ui-toolbar.js';
 import { segmentedHTML, setSegmented } from './ui-segmented.js';
 
 const $ = id => document.getElementById(id);
@@ -1137,7 +1138,7 @@ function readerEditable(target) {
 // Tinka (not the content, a panel or a menu) has focus.
 function readerTinkaFocus(target) {
   if (!target?.closest || !dialog.contains(target) || target === $('active-reader')) return false;
-  return !target.closest('#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg');
+  return !target.closest('#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
 function readerBlocked() { return !dialog.open || !!document.querySelector('dialog.workspace-dialog[open]'); }
 function runReaderCommand(command, { fromFrame = false } = {}) {
@@ -1702,7 +1703,8 @@ document.addEventListener('keydown', event => {
   if (graph?.context) { graph.closeContext(true); return; }
   setInfoOpen($('board-info').hidden, { focus: true });
 }, true);
-// The floating view pill: − · percent menu · + · Fit.
+// The floating view pill: − · percent menu · + · Fit. Both pills are ui-toolbars.
+for (const pill of document.querySelectorAll('.zoom-pill')) followVisibility(pill);
 function setZoomMenuOpen(open, { focus = false } = {}) {
   $('zoom-menu').hidden = !open;
   $('zoom-menu-toggle').setAttribute('aria-expanded', String(open));

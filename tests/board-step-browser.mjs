@@ -135,8 +135,10 @@ try{
  // A panel opened with the mouse and closed with Escape hands focus back without a ring.
  await page.locator('#board-info-toggle').click();await page.keyboard.press('Escape');
  const back=await ring('#board-info-toggle');ok(back.focused&&back.outline==='none',`Escape back to a clicked toggle shows no ring: ${JSON.stringify(back)}`);
- await page.locator('#zoom-plus').click();
- await page.keyboard.press('Shift+Tab');
+
+// The view pill is one Tab stop: after a click on zoom-plus, the arrow keys (not Shift+Tab) reach its other buttons.
+ await page.locator("#zoom-plus").click();
+ await page.keyboard.press('ArrowLeft');
  const tabbed=await page.evaluate(()=>({id:document.activeElement.id,outline:getComputedStyle(document.activeElement).outlineStyle}));
  ok(tabbed.id==='zoom-menu-toggle'&&tabbed.outline==='solid',`Tab focus keeps its ring: ${JSON.stringify(tabbed)}`);
  // The board remembers the current Tinka: open 4, step inside to 6, go back; ⌥→ is 7, ⌥← is 5.

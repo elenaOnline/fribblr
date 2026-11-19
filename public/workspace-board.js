@@ -2819,8 +2819,11 @@ export class WorkspaceBoard {
     toggle.title = "Edit tools (A)";
     toggle.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><circle cx="14" cy="6" r="3"/><path d="M6 11.5 9 16.5H3z"/><path d="M14 11.5v5M11.5 14h5"/></svg>';
     toggle.onclick = () => this.toggleEditTools();
-    const map = $("board-map-toggle");
-    map?.parentElement?.insertBefore(toggle, map);
+    // The toggle sits in the zoom pill (a ui-toolbar), before the map toggle, in its own ui-toolbar-button.
+    const map = $("board-map-toggle")?.closest("ui-toolbar-button") || $("board-map-toggle");
+    const part = document.createElement("ui-toolbar-button");
+    part.append(toggle);
+    map?.parentElement?.insertBefore(part, map);
     this.syncEditTools();
   }
   toggleEditTools(open = !this.editToolsOpen) {
