@@ -179,6 +179,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     } catch (error) { status(error.message, true); return null; }
     finally { busy = false; card.removeAttribute("aria-busy"); }
   }
+  // Focus the control a message's action opened from (its Edit or Delete), else the composer.
+  function focusAct(act, id) { (card.querySelector(`[data-act="${act}"][data-id="${CSS.escape(id || "")}"]`) || composer)?.focus({preventScroll:true}); }
   function status(message, error = false) { const el = card.querySelector(".ct-status"); if (el) { el.textContent = message; el.setAttribute("role", error ? "alert" : "status"); } }
 
   function messageHTML(m, root) {
@@ -192,6 +194,9 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   function render() {
     if (closed) return;
     picker?.close(); persist();
+    // The render replaces every control: remember which one had focus so it can go to its new copy (never to <body>).
+    const had = card.contains(document.activeElement) ? document.activeElement : null;
+    const hadAct = had?.closest?.("[data-act]"), hadKey = hadAct && {act:hadAct.dataset.act, id:hadAct.dataset.id};
     const isNew = !thread, st = thread?.status || (thread?.resolved ? "resolved" : "open");
     const target = thread ? targetOf(board, thread) : targetOf(board, {anchor, itemId, targetLabel, boardId:board.snapshot?.id});
     const on = target.gone ? `Was on <b>${esc(target.label)}</b> · deleted` : target.ref ? `On <button type="button" class="ct-on-target" data-act="target">${esc(target.label)}</button>` : "On the board";
@@ -229,6 +234,10 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (saved) setComposerValue(composer, board, saved.text, saved.refs);
     picker = attachPicker(composer, board, {onChange:persist});
     composer.addEventListener("input", persist);
+    if (had && !card.contains(document.activeElement)) {
+      const same = hadKey && [...card.querySelectorAll("[data-act]")].find(el => el.dataset.act === hadKey.act && el.dataset.id === hadKey.id && !el.disabled);
+      (same || composer)?.focus({preventScroll:true});
+    }
     settlePlace();
   }
   async function post() {
@@ -269,10 +278,10 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (act === "looks-good") { await setStatus("resolved"); return; }
     if (act === "not-yet") { await setStatus("open"); composer?.focus(); return; }
     if (act === "edit") { editing = id; confirmDelete = null; render(); const box = card.querySelector(".ct-edit"); box?.focus(); caretToEnd(box); return; }
-    if (act === "edit-cancel") { editing = null; render(); return; }
+    if (act === "edit-cancel") { const was = editing; editing = null; render(); focusAct("edit", was); return; }
     if (act === "edit-save") return saveEdit(id);
     if (act === "delete") { confirmDelete = id; editing = null; render(); card.querySelector('[data-act="delete-yes"]')?.focus(); return; }
-    if (act === "delete-no") { confirmDelete = null; render(); return; }
+    if (act === "delete-no") { const was = confirmDelete; confirmDelete = null; render(); focusAct("delete", was); return; }
     if (act === "delete-yes") {
       const result = await write("deleteComment", {threadId:thread.id, ...(id !== thread.id ? {messageId:id} : {}), actor});
       if (!result) return;
@@ -329,8 +338,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (event.detail.value) return;
     if (event.detail.reason === "escape-key") {
       if (picker?.open || (pickerEscape && event.detail.event === pickerEscape)) { event.preventDefault(); return; }
-      if (editing) { event.preventDefault(); editing = null; render(); composer?.focus(); return; }
-      if (confirmDelete) { event.preventDefault(); confirmDelete = null; render(); return; }
+      if (editing) { event.preventDefault(); const was = editing; editing = null; render(); focusAct("edit", was); return; }
+      if (confirmDelete) { event.preventDefault(); const id = confirmDelete; confirmDelete = null; render(); focusAct("delete", id); return; }
     }
     finish();
   });
