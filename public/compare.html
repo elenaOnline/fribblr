@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Before and after: UI SDK</title>
+<link rel="icon" href="/app/mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app/tokens.css">
+<style>
+/* The side-by-side page for the UI SDK experiment (ux-sdk branch only). Left: the app before the experiment, served by
+   the "before" instance (?before=URL, default: this host, next port). Right: this instance. Built from
+   team/ux/guide/guide.json by compare.py; edit those, not this file. */
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { display: grid; grid-template-rows: auto auto 1fr; background: var(--surface-frame); color: var(--ink); font: 400 13.5px/1.4 var(--type-sans); }
+header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line-hair); flex-wrap: wrap; }
+header h1 { font-size: 14px; font-weight: 500; margin: 0 8px 0 0; white-space: nowrap; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+nav button, .tools button, .tools select { font: inherit; font-size: 12.5px; height: 28px; padding: 0 10px; border-radius: var(--shape-cell); border: 0; background: var(--surface-paper); color: var(--ink); box-shadow: inset 0 -1.5px 0 var(--key-side), inset 0 0 0 1px var(--line-seam); cursor: pointer; }
+nav button[aria-current="true"] { background: var(--surface-chosen); box-shadow: inset 0 0 0 1px var(--mark-blue); }
+.tools { display: flex; gap: 6px; align-items: center; margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+.try { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 8px 14px; border-bottom: 1px solid var(--line-hair); background: var(--surface-paper); }
+.try h2 { margin: 0; font-size: 13.5px; font-weight: 500; }
+.try p { margin: 0; white-space: pre-line; color: var(--ink); max-width: 110ch; }
+.try details { grid-column: 1 / -1; color: var(--ink-2); }
+.try details p { color: var(--ink-2); }
+.try[hidden] { display: none; }
+main { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+.half { display: grid; grid-template-rows: auto 1fr; min-width: 0; min-height: 0; border-top: 2px solid transparent; }
+.half + .half { border-left: 1px solid var(--line-edge); }
+.half:focus-within { border-top-color: var(--ink); }
+.label { display: flex; gap: 8px; align-items: baseline; padding: 6px 12px; font-weight: 500; }
+.label small { font-weight: 400; color: var(--ink-2); }
+.label .keys { margin-left: auto; font-weight: 400; color: var(--ink-2); font-size: 12px; }
+.half:focus-within .label .keys { color: var(--ink); }
+.frame { position: relative; min-height: 0; overflow: hidden; background: var(--ground); }
+iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: var(--ground); }
+.note { padding: 6px 12px; color: var(--ink-2); font-size: 12px; border-top: 1px solid var(--line-hair); }
+</style></head>
+<body>
+<header>
+  <h1>Before and after: UI SDK</h1>
+  <nav id="surfaces" aria-label="Send both halves to"></nav>
+  <div class="tools">
+    <label>Size <select id="scale" aria-label="Size of both halves">
+      <option value="fit">Fit desktop width</option><option value="1">100%</option><option value="0.9">90%</option><option value="0.8">80%</option><option value="0.7">70%</option>
+    </select></label>
+    <button type="button" id="reload">Reload both</button>
+    <button type="button" id="hide-try" aria-expanded="true" aria-controls="try">Hide steps</button>
+  </div>
+</header>
+<section class="try" id="try" aria-live="polite">
+  <h2 id="try-title">Pick a place above</h2>
+  <span></span>
+  <p id="try-text">Each button sends both halves to the same board. Do the same thing with your hands on each side. Keys go to the side under the pointer (its label is underlined).</p>
+  <details><summary>Keys that changed, what was not converted, and how these frames differ from real windows</summary><p>Arrow keys on the board move focus between cards. To move a card: Option + arrow (add Shift for 10 steps).
+
+Previous / next Tinka on a board: [ and ]. Option + ← / → now moves the focused card.
+
+The path menu in an opened item opens on click, not on hover.</p><p>Left as they were: the top bar of a board, the opened-item view itself, the Inspector panels (their controls did change), the board map, the marquee, the opened item&#x27;s zoom % menu, the card menu on legacy boards, and the hints on buttons inside cards.
+
+Pointer pan, zoom and drag were not changed on purpose.</p><p>Both sides are the real app, each on its own copy of your boards, laid out at a desktop width and scaled to fit (made for a full-screen window, 1440 px wide or more; Size changes the scale). What you change on one side does not happen on the other, and Reload both does not undo it. Settings such as Appearance are kept separately from your other windows. A few keys the browser keeps for itself (F6 among them) may not reach a side; try them in the 44221 window if so.</p></details>
+</section>
+<main>
+  <section class="half" aria-label="Before">
+    <div class="label">Before <small>fribblr as it was, without UI SDK</small><span class="keys" id="before-url"></span></div>
+    <div class="frame"><iframe id="before" title="Before: fribblr without UI SDK"></iframe></div>
+  </section>
+  <section class="half" aria-label="After">
+    <div class="label">After <small>fribblr with UI SDK behaviour</small><span class="keys" id="after-url"></span></div>
+    <div class="frame"><iframe id="after" title="After: fribblr with UI SDK"></iframe></div>
+  </section>
+</main>
+<script>
+const SURFACES = [{"id": "home", "label": "Home: board grid", "path": "/", "title": "Home", "text": "Try: Tab once into the boards, use the arrow keys, type the start of a board name, Space to select, Shift-click a second board, Enter to open.\n\nDifferent: one Tab stop for all boards, arrows follow the grid, Shift-click selects the range between. Before, each board was two Tab stops and Shift-click selected one board."}, {"id": "segmented", "label": "Segmented controls", "path": "/", "title": "Segmented controls", "text": "Try: Home's sort (Newest / Recently edited / A–Z), the Inspector's Layout and appearance rows. Tab to the group, then ← →.\n\nDifferent: one Tab stop per group and the arrows change the choice, like radio buttons. Before, every option was a Tab stop and arrows did nothing."}, {"id": "dialogs", "label": "Dialogs", "path": "/", "title": "Dialogs and confirmations", "text": "Try: New board on Home; Remove from board on a card; Escape or click outside a dialog after typing in it.\n\nDifferent: focus starts in the first field; Escape or a click outside closes, and asks before throwing away what you typed; Remove asks with Cancel focused. Before, focus started on × and clicking outside did nothing."}, {"id": "canvas", "label": "Board: keyboard", "path": "/boards/showcase-dense/", "title": "Board: moving with the keyboard", "text": "Try: on Dense board, click the empty board, press Tab once. Use the arrow keys, then Space, then Enter. Option + arrow moves the card.\n\nDifferent: Tab is one stop for all cards; arrows go to the nearest card that way and the board follows. Before, Tab visited every button on every card (612 stops here) and arrows moved the selected cards."}, {"id": "resize", "label": "Card resize", "path": "/boards/showcase-ideas-notes/", "title": "Card resize from the keyboard", "text": "Try: Tab to a card, Tab again through its own buttons to the resize corner, then press the arrow keys (Shift for bigger steps).\n\nDifferent: the card resizes and the new size is read out. Before, arrows on the corner moved the card."}, {"id": "card-menu", "label": "Card menu", "path": "/boards/showcase-ideas-notes/", "title": "Card menu", "text": "Try: right-click a card (or its ⋯). Use ↑ ↓, type the first letter of an item, press Escape. Right-click another card while it is open. Click away on a card.\n\nDifferent: arrows move through the menu and letters jump to items; Escape returns to ⋯; a second right-click moves the menu; clicking away only closes it. Before, arrows moved the card and letters ran board shortcuts."}, {"id": "add-menu", "label": "Add menu", "path": "/boards/showcase-empty/", "title": "Add menu and right-click on the board", "text": "Try: click Add, or right-click empty board. Type t, s or d; press Escape.\n\nDifferent: letters jump to items instead of adding things straight away; Escape puts focus back on Add. Before, Escape sent focus to the Inspector button."}, {"id": "toolbars", "label": "Toolbars", "path": "/boards/showcase-layout/", "title": "Toolbars", "text": "Try: select two cards and Tab into the selection bar; also the zoom bar at the lower right, the drawing bar on a sticky, and Edit tools (A). Use ← → and Home / End.\n\nDifferent: Tab enters a bar once and the arrows move along it; the next Tab leaves. Before, each button was its own Tab stop and arrows moved the selected cards."}, {"id": "arrange", "label": "Arrange", "path": "/boards/showcase-layout/", "title": "Arrange", "text": "Try: select two or more cards and open Arrange in the selection bar.\n\nDifferent: a vertical list with names (Align, Distribute) that takes arrow keys and letters. Before, a grid of icons."}, {"id": "zoom", "label": "Zoom menu", "path": "/boards/showcase/", "title": "Zoom menu", "text": "Try: click the zoom % at the lower right, or focus it and press ↓. Tab through it, then Escape.\n\nDifferent: focus goes into the menu and comes back to % on Escape; it stays on screen at the window edge. Before, Tab walked past it while it stayed open."}, {"id": "navigator", "label": "Find (⌘K)", "path": "/boards/showcase/", "title": "Find (⌘K)", "text": "Try: ⌘K, type part of a name, use ↓ ↑ and Enter. Press Escape twice. Without typing, Tab into the Boards list and use → ← and letters. Open Scope by pressing, dragging to a choice and releasing.\n\nDifferent: the cursor stays in the field while the arrows move a highlight, so you can keep typing. Before, ↓ moved out of the field."}, {"id": "toasts", "label": "Messages", "path": "/boards/showcase-ideas-notes/", "title": "Messages at the bottom", "text": "Try: remove a card, then undo; trigger a few messages in a row. Hover over them; press F6; press Escape.\n\nDifferent: messages stack instead of replacing each other, wait while you hover, have a close button, and F6 jumps to the newest. Before, one message at a time for 6 seconds."}, {"id": "notes", "label": "Notes, Quick jot", "path": "/boards/showcase-ideas-notes/", "title": "Notes on a card and Quick jot", "text": "Try: open a card's notes from its ⋯ menu, type, press Escape. Press N for Quick jot, then Escape.\n\nDifferent: focus goes back to where you were, and the draft is kept. Before, Quick jot's Escape left focus nowhere."}, {"id": "reader", "label": "Opened item", "path": "/boards/showcase-documents/", "title": "Opened item menus", "text": "Try: open an item, open More… and the path menu beside the title.\n\nDifferent: the path menu opens on click (not on hover) and both menus take arrow keys and letters and return focus on Escape."}, {"id": "comments", "label": "Comments", "path": "/boards/showcase-review/", "title": "Comments", "text": "Try: press C and click a card, type @ and use ↓ ↑ and Enter, then Escape twice. Open a pin's thread and press Escape.\n\nDifferent: the @ list follows the cursor and Escape closes it first, then the card; focus goes back to the pin. Before, closing the card left focus nowhere."}, {"id": "tooltips", "label": "Hints on buttons", "path": "/boards/showcase/", "title": "Hints on buttons", "text": "Try: rest the pointer on a button in the top bar or the zoom bar, then slide along the row. Tab to a button. Press Escape while a hint shows.\n\nDifferent: the first hint waits a moment, the next ones follow the pointer at once, and only one shows; keyboard focus shows it too, with the shortcut. Before, the browser's own slow hints, never on focus.\n\nButtons on the cards themselves keep the browser's hints: the SDK version made the board slower."}];
+// Both halves must be cross-origin to this page, so neither can take focus from the other by script: the page runs on
+// localhost and the halves on 127.0.0.1 (the app answers both names).
+if (location.hostname === '127.0.0.1') location.replace(location.href.replace('//127.0.0.1', '//localhost'));
+const params = new URLSearchParams(location.search);
+const BEFORE = (params.get('before') || `http://127.0.0.1:${Number(location.port) + 1}`).replace(/\/$/, '');
+const AFTER = (params.get('after') || `http://127.0.0.1:${location.port}`).replace(/\/$/, '');
+const before = document.getElementById('before'), after = document.getElementById('after');
+document.getElementById('before-url').textContent = BEFORE.replace(/^https?:\/\//, '');
+document.getElementById('after-url').textContent = AFTER.replace(/^https?:\/\//, '');
+// Each half lays the app out at a desktop width: the frame is drawn larger and scaled down to fit its half.
+const DESKTOP = 1024;
+let scale = 'fit';
+function layout() {
+  for (const frame of [before, after]) {
+    const box = frame.parentElement.getBoundingClientRect();
+    const s = scale === 'fit' ? Math.min(1, box.width / DESKTOP) : Number(scale);
+    frame.style.width = `${box.width / s}px`; frame.style.height = `${box.height / s}px`;
+    frame.style.transform = s === 1 ? '' : `scale(${s})`;
+  }
+}
+addEventListener('resize', layout);
+// The side under the pointer takes the keys, as the window under the pointer would if they were two windows. (A press on
+// the board's ground doesn't move focus into a frame by itself: the board cancels the press's default.)
+for (const frame of [before, after]) frame.parentElement.addEventListener('pointerenter', () => {
+  if (document.activeElement !== frame) { frame.focus(); frame.contentWindow?.focus(); }
+});
+document.getElementById('scale').addEventListener('change', e => { scale = e.target.value; layout(); });
+const nav = document.getElementById('surfaces');
+function go(surface, push = true) {
+  before.src = BEFORE + surface.path; after.src = AFTER + surface.path;
+  for (const b of nav.children) b.setAttribute('aria-current', String(b.dataset.id === surface.id));
+  document.getElementById('try-title').textContent = surface.title;
+  document.getElementById('try-text').textContent = surface.text;
+  if (push) history.replaceState(null, '', `#${surface.id}`);
+}
+for (const s of SURFACES) {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = s.label; b.dataset.id = s.id;
+  b.addEventListener('click', () => go(s)); nav.append(b);
+}
+document.getElementById('reload').addEventListener('click', () => { before.src = before.src; after.src = after.src; });
+document.getElementById('hide-try').addEventListener('click', e => {
+  const t = document.getElementById('try'); t.hidden = !t.hidden;
+  e.target.textContent = t.hidden ? 'Show steps' : 'Hide steps'; e.target.setAttribute('aria-expanded', String(!t.hidden)); layout();
+});
+const start = SURFACES.find(s => s.id === location.hash.slice(1)) || SURFACES[0];
+go(start, false); layout();
+</script>
+</body></html>
