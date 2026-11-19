@@ -7,6 +7,7 @@
 // the CLI's own (`update policy notify|auto|off`, `update later`), shown in the
 // board Inspector as Ask first / Automatic / Off.
 import {holdWrites, releaseWrites} from './update-hold.js';
+import {segmentedHTML, onSegmented} from './ui-segmented.js';
 
 const ICON = {
   up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 12.5v-9M4.5 7 8 3.5 11.5 7"/></svg>',
@@ -281,7 +282,7 @@ function renderAbout() {
   const updated = view.install?.state === 'updated' && phase === 'idle' && Date.now() - view.install.startedAt < 24 * 60 * 60 * 1000;
   section.innerHTML = `<h3 id="update-about-title">Tinka <span>this project</span></h3>
   <div class="update-about-row"><span class="update-about-status">${aboutStatus()}</span>${view.installed && phase === 'idle' ? `<button class="tk-btn tk-sm" type="button" data-update="${actionable ? 'open' : 'check'}">${actionable ? 'Update…' : 'Check now'}</button>` : ''}</div>
-  ${view.installed ? `<div class="update-about-row"><span>Updates</span><div class="tk-seg" role="group" aria-label="Tinka updates for this project">${[['notify', 'Ask first'], ['auto', 'Automatic'], ['off', 'Off']].map(([value, label]) => `<button type="button" data-policy="${value}" aria-pressed="${view.policy === value}"${phase !== 'idle' ? ' disabled' : ''}>${label}</button>`).join('')}</div></div>
+  ${view.installed ? `<div class="update-about-row"><span>Updates</span>${segmentedHTML({label: 'Tinka updates for this project', value: view.policy, items: [['notify', 'Ask first'], ['auto', 'Automatic'], ['off', 'Off']].map(([value, label]) => ({value, label, disabled: phase !== 'idle', attrs: {'data-policy': value}}))})}</div></div>
   <small>Automatic installs compatible updates as Tinka starts. Major updates always ask.</small>` : '<small>A source checkout updates through Git, not from here.</small>'}
   ${updated && view.pin ? `<small>Updated from ${esc(view.install.from)} on this Mac. Commit the changed tinka/project.json with your project.</small>` : ''}
   <small class="update-about-message" role="status">${esc(aboutMessage)}</small>`;
@@ -295,14 +296,14 @@ function renderAbout() {
     const state = localFailure || view.notice;
     open({...state, kind: state.kind === 'deferred' ? 'compatible' : state.kind}, document.querySelector('.update-chip') || event.currentTarget);
   });
-  section.querySelectorAll('[data-policy]').forEach(button => button.addEventListener('click', async () => {
-    if (button.getAttribute('aria-pressed') === 'true') return;
-    const policy = button.dataset.policy;
+  const policySeg = section.querySelector('.tk-seg');
+  if (policySeg) onSegmented(policySeg, async policy => {
+    if (policy === view.policy) return;
     try { await preference({action: 'policy', policy}); aboutMessage = {notify: 'Tinka asks before installing updates.', auto: 'Compatible updates install as Tinka starts. Major updates still ask.', off: 'Tinka no longer checks for updates.'}[policy]; }
     catch (error) { aboutMessage = error.message; }
     renderAbout();
     section.querySelector(`[data-policy="${policy}"]`)?.focus({preventScroll: true});
-  }));
+  });
 }
 
 async function refreshView() {

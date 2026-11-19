@@ -1,3 +1,4 @@
+import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
 import {positionTilePopover,bindTileMenu} from './tile-ui.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {Whiteboard,decorationMarkup,decorationUnchanged,lineBox} from "./whiteboard.js";
@@ -271,7 +272,7 @@ export class WorkspaceBoard {
     bar.id = "workspace-toolbar";
     bar.className = "workspace-toolbar";
     bar.setAttribute("aria-label", "Organize this board");
-    bar.innerHTML = `<div class="workspace-segments"><button data-mode="grid">Grid</button><button data-mode="canvas">Canvas</button></div><label class="workspace-search"><span class="sr-only">Filter visible canvas items</span><input type="search" placeholder="Filter this canvas…" id="workspace-search"></label><button id="workspace-favorites" aria-pressed="false">☆ Favorites</button><button id="workspace-recent" aria-pressed="false">Last 6 weeks</button><button id="workspace-archive" aria-pressed="false">Archive</button><button id="workspace-owner" hidden>Open primary content</button><button id="workspace-retry-drafts" hidden>Retry unsaved feedback</button>`;
+    bar.innerHTML = `${segmentedHTML({ label: "Layout", className: "workspace-segments", items: [{ value: "grid", label: "Grid", attrs: { "data-mode": "grid" } }, { value: "canvas", label: "Canvas", attrs: { "data-mode": "canvas" } }] })}<label class="workspace-search"><span class="sr-only">Filter visible canvas items</span><input type="search" placeholder="Filter this canvas…" id="workspace-search"></label><button id="workspace-favorites" aria-pressed="false">☆ Favorites</button><button id="workspace-recent" aria-pressed="false">Last 6 weeks</button><button id="workspace-archive" aria-pressed="false">Archive</button><button id="workspace-owner" hidden>Open primary content</button><button id="workspace-retry-drafts" hidden>Retry unsaved feedback</button>`;
     $("board-info").prepend(bar);
     const add = document.createElement("button");
     add.id = "workspace-add";
@@ -335,9 +336,7 @@ export class WorkspaceBoard {
     selected.hidden = true;
     selected.setAttribute("aria-label", "Selected placements");
     $("canvas-header").after(selected);
-    document
-      .querySelectorAll("[data-mode]")
-      .forEach((b) => (b.onclick = () => this.setMode(b.dataset.mode)));
+    onSegmented(bar.querySelector(".workspace-segments"), (mode) => this.setMode(mode));
     $("workspace-search").oninput = (e) => {
       this.filters.search = e.target.value;
       this.rebuild();
@@ -442,20 +441,19 @@ export class WorkspaceBoard {
       return el;
     };
     const pick = selector => bar.querySelector(selector) || panel.querySelector(selector);
+    // Show the board's current background, whether this panel is built before or after it loads. (canvas.js hears the
+    // control's valuechange and keeps every copy in step.)
     const pattern = document.createElement("div");
-    pattern.className = "tk-seg canvas-pattern"; pattern.setAttribute("role", "group"); pattern.setAttribute("aria-label", "Pattern");
-    pattern.innerHTML = '<button type="button" data-canvas-pattern="dots">Dots</button><button type="button" data-canvas-pattern="grid">Grid</button><button type="button" data-canvas-pattern="plain">Plain</button>';
-    // Show the board's current background, whether this panel is built before or after it loads.
-    const current = $("viewport")?.dataset.canvasPattern || "plain";
-    pattern.querySelectorAll("[data-canvas-pattern]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.canvasPattern === current)));
+    pattern.innerHTML = segmentedHTML({ label: "Pattern", className: "canvas-pattern", value: $("viewport")?.dataset.canvasPattern || "plain", items: ["dots", "grid", "plain"].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1), attrs: { "data-canvas-pattern": v } })) });
+    const patternSeg = pattern.firstElementChild;
     const segments = pick(".workspace-segments");
-    if (segments) { segments.classList.add("tk-seg"); segments.setAttribute("role", "group"); segments.setAttribute("aria-label", "Layout"); }
+    if (segments) segments.classList.add("tk-seg");
     const tonal = nodes => nodes.filter(Boolean).forEach(node => (node.matches("button") ? [node] : [...node.querySelectorAll("button")]).forEach(button => button.classList.add("tk-btn", "tk-sm", "tk-tonal")));
     const toggles = [pick("#workspace-favorites"), pick("#workspace-recent"), pick("#workspace-archive")];
     tonal(toggles);
     const edits = [pick(".workspace-history-actions"), pick(".workspace-clipboard-actions"), pick("#workspace-owner"), pick("#workspace-retry-drafts")];
     tonal(edits);
-    const view = section("View", "this board, this browser", [choice("Layout", segments), choice("Pattern", pattern)], "inspector-view");
+    const view = section("View", "this board, this browser", [choice("Layout", segments), choice("Pattern", patternSeg)], "inspector-view");
     const filter = section("Filter", "", [pick(".workspace-search"), row("inspector-toggles", toggles)], "inspector-filter");
     const edit = section("Edit", "", [row("inspector-edit-row", edits)], "inspector-edit");
     // Feedback: board-wide Comments as one full-width row (as in the opened Tinka's
@@ -1283,9 +1281,7 @@ export class WorkspaceBoard {
       );
     } catch {}
     document.body.dataset.boardLayout = mode;
-    document
-      .querySelectorAll("[data-mode]")
-      .forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+    setSegmented(document.querySelector(".workspace-segments"), mode);
     this.hooks.mode(mode);
     this.syncEditTools?.();
     if (mode !== "canvas" && this.commentPins?.armed) this.commentPins.arm(false);
@@ -1752,7 +1748,7 @@ export class WorkspaceBoard {
         <div class="inspector-open"><button type="button" class="tk-btn tk-primary" data-context-open ${["reserved","building"].includes(item.build?.state) && !placeOnly ? "disabled" : ""}>${placeOnly ? "Open board" : "Open"}</button>${item.childBoardId && item.content ? `<button type="button" class="tk-btn tk-tonal" data-context-board>Open board</button>` : ""}${resourceURL(item.resources?.find(r=>r.role==="handoff")?.resource)?`<a class="tk-btn" href="${esc(resourceURL(item.resources.find(r=>r.role==="handoff").resource))}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}<button type="button" class="tk-btn tk-tonal" data-context-edit>Edit item…</button></div>
         <section class="inspector-sec"><h3>Notes <span>saved as you type</span></h3><label class="workspace-context-note"><span class="inspector-label">Notes</span><textarea data-note="items/${esc(id)}" aria-label="Notes on ${esc(item.title)}" placeholder="A thought to return to…">${esc(note)}</textarea></label></section>
         <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
-        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span><div class="workspace-appearance-buttons tk-seg" role="group" aria-label="Item appearance">${[["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => `<button type="button" data-presentation="${value}" aria-label="${label}" title="${label}" aria-pressed="${mode === value}"><svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span></button>`).join("")}</div></div><div class="workspace-context-row"><span class="inspector-label">Paper</span><div class="workspace-paper-swatches" role="group" aria-label="Paper color">${[["#f6f7f1", "Paper"], ["#e4ebdc", "Sage"], ["#f1e8d5", "Sand"], ["#f1e0dc", "Rose"], ["#e7e4ee", "Lilac"]].map(([color,label]) => `<button type="button" data-paper="${color}" aria-label="${label} paper" title="${label}" aria-pressed="${paper === color}" style="--swatch:${color}"></button>`).join("")}</div></div></section>
+        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, title: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div><div class="workspace-context-row"><span class="inspector-label">Paper</span><div class="workspace-paper-swatches" role="group" aria-label="Paper color">${[["#f6f7f1", "Paper"], ["#e4ebdc", "Sage"], ["#f1e8d5", "Sand"], ["#f1e0dc", "Rose"], ["#e7e4ee", "Lilac"]].map(([color,label]) => `<button type="button" data-paper="${color}" aria-label="${label} paper" title="${label}" aria-pressed="${paper === color}" style="--swatch:${color}"></button>`).join("")}</div></div></section>
         <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
         <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button><button type="button" class="tk-mi" data-context-geometry>Move / resize…</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
       </div>`;
@@ -1764,22 +1760,24 @@ export class WorkspaceBoard {
     popover.querySelector("[data-context-edit]").onclick = () => { this.closeContext(); itemForm(this.client, { item, refresh: () => this.refresh() }); };
     popover.querySelector("[data-context-open]").onclick = () => { const open = document.querySelector(`[data-placement="${CSS.escape(id)}"] [data-open]:not(:disabled)`); this.closeContext(); open?.click(); };
     popover.querySelector("[data-context-board]")?.addEventListener("click", () => { this.closeContext(); this.navigate(item.childBoardId); });
-    popover.querySelectorAll("[data-presentation], [data-paper]").forEach(button => button.onclick = async () => {
+    const applyAppearance = async change => {
       const placement = this.snapshot.placements.find(p => p.id === id);
-      const presentation = { mode: "card", ...(placement.presentation || {}), ...(button.dataset.presentation ? { mode: button.dataset.presentation } : { paper: button.dataset.paper }) };
+      const presentation = { mode: "card", ...(placement.presentation || {}), ...change };
       const patch = { presentation };
-      if (button.dataset.presentation && button.dataset.presentation !== (placement.presentation?.mode || "card")) {
+      if (change.mode && change.mode !== (placement.presentation?.mode || "card")) {
         const [width, height] = { panel: [560, 420], card: [320, 260], icon: [218, 112] }[presentation.mode];
         Object.assign(patch, { width, height });
       }
       try {
         await this.client.write("updatePlacement", { boardId: this.snapshot.id, placementId: id, patch });
         Object.assign(placement, patch);
-        popover.querySelectorAll("[data-presentation]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.presentation === (presentation.mode || "card"))));
+        setSegmented(popover.querySelector(".workspace-appearance-buttons"), presentation.mode || "card");
         popover.querySelectorAll("[data-paper]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.paper === (presentation.paper || "#f6f7f1"))));
         await this.refresh();
       } catch (error) { showFailure(error); }
-    });
+    };
+    onSegmented(popover.querySelector(".workspace-appearance-buttons"), value => applyAppearance({ mode: value }));
+    popover.querySelectorAll("[data-paper]").forEach(button => button.onclick = () => applyAppearance({ paper: button.dataset.paper }));
     const actions = popover.querySelector(".inspector-acts");
     actions.querySelector('[data-context-select]').onclick=()=>{this.whiteboard?.clearSelection({finishEdit:true,focus:false});this.selection.has(id)?this.selection.delete(id):this.selection.add(id);this.closeContext();this.build(this.hooks.concepts());};
     popover.querySelector('[data-context-star]').onclick=event=>{const button=document.querySelector(`[data-placement="${CSS.escape(id)}"] [data-star]`);button?.click();const on=button?.getAttribute('aria-pressed')==='true';event.currentTarget.textContent=on?'Unfavorite':'Favorite';event.currentTarget.setAttribute('aria-pressed',String(on));};

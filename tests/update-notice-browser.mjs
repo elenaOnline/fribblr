@@ -100,8 +100,8 @@ try {
   await page.locator('#board-info-toggle').click();
   const about = page.locator('.update-about'); await about.waitFor();
   ok((await about.textContent()).includes(`${display(COMPATIBLE)} installs next time Tinka starts`), 'The Inspector says when it installs');
-  eq(await about.locator('[data-policy]').evaluateAll(buttons => buttons.map(b => [b.textContent, b.getAttribute('aria-pressed')])), [['Ask first', 'false'], ['Automatic', 'true'], ['Off', 'false']], 'Ask first / Automatic / Off show the policy');
-  await about.getByRole('button', {name: 'Ask first'}).click();
+  eq(await about.locator('[data-policy]').evaluateAll(buttons => buttons.map(b => [b.textContent, b.getAttribute('aria-checked')])), [['Ask first', 'false'], ['Automatic', 'true'], ['Off', 'false']], 'Ask first / Automatic / Off show the policy');
+  await about.getByRole('radio', {name: 'Ask first'}).click();
   await page.locator('.update-chip').waitFor();
   eq(S.posts.at(-1), ['preference', {action: 'policy', policy: 'notify'}], 'Ask first is the notify policy');
   await page.locator('#board-info-close').click();
@@ -175,7 +175,7 @@ try {
   await page.locator('.update-pop').getByRole('button', {name: 'Copy request for your agent'}).click();
   ok((await page.evaluate(() => window.__copied)).includes('local changes'), 'The request says why');
   await page.keyboard.press('Escape');
-  await page.locator('#board-info-toggle').click(); await page.locator('.update-about').getByRole('button', {name: 'Off'}).click();
+  await page.locator('#board-info-toggle').click(); await page.locator('.update-about').getByRole('radio', {name: 'Off'}).click();
   await page.waitForFunction(() => !document.querySelector('.update-chip'));
   eq(S.posts.at(-1), ['preference', {action: 'policy', policy: 'off'}], 'Off is the off policy');
   ok((await page.locator('.update-about').textContent()).includes('updates are off'), 'The Inspector says updates are off');

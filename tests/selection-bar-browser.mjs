@@ -32,7 +32,7 @@ try{
  const overlap=(a,b)=>a&&b&&a.x<b.x+b.width-.5&&a.x+a.width>b.x+.5&&a.y<b.y+b.height-.5&&a.y+a.height>b.y+.5;
  const settle=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  const open=async(id,width,height=900)=>{await page.setViewportSize({width,height});await page.goto(base+`/boards/${id}/`,{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
   await settle();};
  const selectOne=async placement=>{await page.locator(`.workspace-card[data-placement="${placement}"] h3 button`).click({modifiers:['Shift']});await bar.waitFor();await settle();
   assert.match(await bar.locator('strong').innerText(),/^1 selected/);};
