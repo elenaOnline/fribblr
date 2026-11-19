@@ -26,3 +26,6 @@ ui-toolbar-button, ui-toolbar-link, ui-toggle { display: contents; }
 :is(ui-toolbar-button, ui-toolbar-link, ui-toggle)[hidden] { display: none; }
 ui-toolbar, ui-toggle-group, ui-toolbar-group { display: flex; }
 ui-toolbar[hidden], ui-toggle-group[hidden], ui-toolbar-group[hidden] { display: none; }
+
+/* On a phone-width window the board title needs the room; the tab title still says which window this is. */
+@media (max-width: 600px) { .sdk-chip { display: none; } }
