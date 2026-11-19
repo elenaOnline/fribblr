@@ -1,12 +1,12 @@
 .preset-scrub { min-width:0; }
 .preset-scrub-row {
+  --sink-floor:var(--surface-frame);   /* a segmented track, as .tk-seg: the chosen cell is the white one */
   display:grid;
   grid-template-columns:repeat(4,minmax(26px,1fr));
   gap:3px;
   padding:3px;
-  border:1px solid var(--line);
-  border-radius:var(--r-sm);
-  background:var(--field);
+  border:1px solid transparent;   /* keeps its box; the sunken track (depth.css) draws the rim */
+  border-radius:var(--shape-key);
 }
 .whiteboard-menu .preset-scrub-row > button,
 .preset-scrub-row > button {
@@ -18,18 +18,18 @@
   padding:0;
   margin:0;
   border:0;
-  border-radius:calc(var(--r-sm) - 2px);
+  border-radius:var(--shape-cell);
   background:transparent;
   color:var(--ink);
-  font:600 12px/1 var(--font-ui);
+  font:600 12px/1 var(--type-sans);
 }
 .whiteboard-menu .preset-scrub-row > button[aria-pressed=true],
 .whiteboard-menu .preset-scrub-row > button[data-active=true],
 .preset-scrub-row > button[aria-pressed=true],
 .preset-scrub-row > button[data-active=true] {
-  background:var(--accent-soft);
-  color:var(--accent-text);
+  color:var(--ink);   /* the chosen preset is a raised cell in its sunken track (depth.css), like any segmented choice */
 }
+.preset-scrub-row > button:focus-visible { outline:2px solid var(--mark-blue); outline-offset:-2px; }
 .preset-scrub-row svg { width:16px; height:16px; }
 .preset-scrub-custom {
   cursor:ew-resize;
