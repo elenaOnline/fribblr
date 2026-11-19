@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/app/canvas.css">
   <link rel="stylesheet" href="/app/live.css">
   <link rel="stylesheet" href="/app/agent-prompt.css">
-<link rel="stylesheet" href="/app/workspace.css"><link rel="stylesheet" href="/app/navigator.css"><link rel="stylesheet" href="/app/appearance.css"><link rel="stylesheet" href="/app/tokens.css"><link rel="stylesheet" href="/app/calm.css"><link rel="stylesheet" href="/app/depth.css"><link rel="stylesheet" href="/app/reader.css"><link rel="stylesheet" href="/app/update-notice.css"><link rel="stylesheet" href="/app/legend.css"><link rel="icon" href="/app/mark.svg" type="image/svg+xml"></head>
+<link rel="stylesheet" href="/app/workspace.css"><link rel="stylesheet" href="/app/navigator.css"><link rel="stylesheet" href="/app/appearance.css"><link rel="stylesheet" href="/app/tokens.css"><link rel="stylesheet" href="/app/calm.css"><link rel="stylesheet" href="/app/depth.css"><link rel="stylesheet" href="/app/reader.css"><link rel="stylesheet" href="/app/update-notice.css"><link rel="stylesheet" href="/app/legend.css"><link rel="stylesheet" href="/app/popups.css"><link rel="icon" href="/app/mark.svg" type="image/svg+xml"></head>
 <body>
   <header id="canvas-header" class="canvas-header">
     <nav class="identity" aria-label="Board navigation">
@@ -26,7 +26,7 @@
       <p id="board-description"></p>
       <p class="info-meta"><span id="experiment-count">Experiments</span><span id="round-count">Explorations</span><span>Notes saved on this Mac</span></p>
       <details class="board-help"><summary>How to use this board</summary>
-        <div id="help-panel"><strong>Make yourself at home.</strong> Drag or scroll to move anywhere on the canvas, past the edges of the board too. Pinch, or hold Control or ⌘ while scrolling, to zoom; the zoom controls and Fit float at the lower right. With items selected, Fit (or F) frames the selection, then the whole board; ⌥-click fits the board. Back returns to where you were before a fit. The map button (M) shows the whole board: click or drag in it to move there. With the canvas focused, the arrow keys and Page Up / Page Down pan, Home and End go to the first and last exploration, and + / − zoom. Open an experiment to try it: it keeps this header pattern and the same zoom controls. Step through the others with ‹ › beside its title, ⌥← / ⌥→ (Ctrl+← / Ctrl+→ on Windows and Linux) or [ and ]; hover or click its title for where you are and what sits beside it. Escape returns here, as does ⌥↑ (Ctrl+↑ on Windows and Linux). Stars and notes are saved on this Mac.</div>
+        <div id="help-panel"><strong>Make yourself at home.</strong> Drag or scroll to move anywhere on the canvas, past the edges of the board too. Pinch, or hold Control or ⌘ while scrolling, to zoom; the zoom controls and Fit float at the lower right. With items selected, Fit (or F) frames the selection, then the whole board; ⌥-click fits the board. Back returns to where you were before a fit. The map button (M) shows the whole board: click or drag in it to move there. With the canvas focused, the arrow keys and Page Up / Page Down pan, Home and End go to the first and last exploration, and + / − zoom. Open an experiment to try it: it keeps this header pattern and the same zoom controls. Step through the others with ‹ › beside its title, ⌥← / ⌥→ (Ctrl+← / Ctrl+→ on Windows and Linux) or [ and ]; click its title for where you are and what sits beside it. Escape returns here, as does ⌥↑ (Ctrl+↑ on Windows and Linux). Stars and notes are saved on this Mac.</div>
       </details>
       <div class="info-actions"><button id="export" type="button">Export notes</button></div>
     </section>
@@ -42,8 +42,20 @@
     <section class="view-tools zoom-pill" role="toolbar" aria-label="Board view controls">
       <button id="zoom-minus" class="tk-btn tk-icon" type="button" aria-label="Zoom out" title="Zoom out (−)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10"/></svg></button>
       <span class="zoom-menu-wrap">
-        <button id="zoom-menu-toggle" class="tk-btn zoom-percent" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="zoom-menu" title="Zoom and pattern">50%</button>
-        <div id="zoom-menu" class="tk-menu zoom-menu" role="group" aria-label="Zoom and pattern" hidden>
+        <ui-popover-trigger for="zoom-popover"><button id="zoom-menu-toggle" class="tk-btn zoom-percent" type="button" title="Zoom and pattern">50%</button></ui-popover-trigger>
+      </span>
+      <button id="zoom-plus" class="tk-btn tk-icon" type="button" aria-label="Zoom in" title="Zoom in (+)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10"/></svg></button>
+      <span class="tk-divider" aria-hidden="true"></span>
+      <button id="view-back" class="tk-btn view-back" type="button" aria-label="Back to the previous view" title="Back to where you were before this fit" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5 4.5 8.5 8 12"/><path d="M5 8.5h7a4 4 0 0 1 0 8h-2"/></svg><span class="view-back-label">Back</span></button>
+      <button id="board-map-toggle" class="tk-btn tk-icon board-map-toggle" type="button" aria-pressed="false" aria-controls="board-map" aria-label="Board map" aria-keyshortcuts="M" title="Board map (M)" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2"/><rect x="9.5" y="7.5" width="5.5" height="5" rx="1"/></svg></button>
+      <button id="fit" class="fit tk-btn" type="button" aria-label="Fit board" aria-keyshortcuts="F Shift+1" title="Fit every item in view (F or ⇧1)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4"/></svg><span class="fit-label">Fit</span><span class="fit-count" aria-hidden="true" hidden></span></button>
+    </section>
+    <span id="view-announce" class="sr-only" role="status" aria-live="polite"></span>
+  </footer>
+  <!-- The zoom popover: zoom choices, a slider and the pattern control, so a Popover (a menu holds only items). Outside
+       the pill, which is a toolbar: popup events bubble to their DOM ancestors (popups.js). -->
+  <ui-popover id="zoom-popover">
+    <ui-popover-content id="zoom-menu" class="tk-menu zoom-menu" aria-label="Zoom and pattern" side="top" align="center" side-offset="10" collision-padding="8">
           <button class="tk-mi" type="button" data-zoom-to="0.5">Zoom to 50%</button>
           <button class="tk-mi" type="button" data-zoom-to="1">Zoom to 100%<kbd class="tk-kbd" aria-hidden="true">⇧0</kbd></button>
           <button class="tk-mi" type="button" data-zoom-to="1.25">Zoom to 125%</button>
@@ -54,16 +66,8 @@
           <div class="tk-msep"></div>
           <div class="tk-mlabel" id="canvas-pattern-label">Pattern · this board</div>
           <div class="tk-seg canvas-pattern" role="group" aria-labelledby="canvas-pattern-label"><button type="button" data-canvas-pattern="dots" aria-pressed="false">Dots</button><button type="button" data-canvas-pattern="grid" aria-pressed="false">Grid</button><button type="button" data-canvas-pattern="plain" aria-pressed="true">Plain</button></div>
-        </div>
-      </span>
-      <button id="zoom-plus" class="tk-btn tk-icon" type="button" aria-label="Zoom in" title="Zoom in (+)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10"/></svg></button>
-      <span class="tk-divider" aria-hidden="true"></span>
-      <button id="view-back" class="tk-btn view-back" type="button" aria-label="Back to the previous view" title="Back to where you were before this fit" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5 4.5 8.5 8 12"/><path d="M5 8.5h7a4 4 0 0 1 0 8h-2"/></svg><span class="view-back-label">Back</span></button>
-      <button id="board-map-toggle" class="tk-btn tk-icon board-map-toggle" type="button" aria-pressed="false" aria-controls="board-map" aria-label="Board map" aria-keyshortcuts="M" title="Board map (M)" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2"/><rect x="9.5" y="7.5" width="5.5" height="5" rx="1"/></svg></button>
-      <button id="fit" class="fit tk-btn" type="button" aria-label="Fit board" aria-keyshortcuts="F Shift+1" title="Fit every item in view (F or ⇧1)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4"/></svg><span class="fit-label">Fit</span><span class="fit-count" aria-hidden="true" hidden></span></button>
-    </section>
-    <span id="view-announce" class="sr-only" role="status" aria-live="polite"></span>
-  </footer>
+    </ui-popover-content>
+  </ui-popover>
   <dialog id="reader-dialog" aria-labelledby="reader-name">
     <header id="reader-header" class="reader-header">
       <nav class="identity" aria-label="Where you are">
@@ -71,9 +75,9 @@
         <a class="brand" id="reader-home" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="reader-project">Home</span></a><span class="sdk-chip" title="This window runs the UI SDK experiment">UI SDK</span>
         <a id="close-reader" class="workspace-parent reader-up" href="#" aria-keyshortcuts="Escape Alt+ArrowUp" title="Up to the board (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg><span id="reader-up-label" class="reader-up-label">Board</span></a>
         <span class="reader-title-row">
-          <button id="reader-path" class="reader-path" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop" title="Where you are: hover or click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button>
+          <ui-menu-trigger for="reader-path-menu"><button id="reader-path" class="reader-path" type="button" title="Where you are: click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button></ui-menu-trigger>
           <button id="reader-down" class="tk-btn reader-down" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5"/></svg><span id="reader-down-label">Board</span></button>
-          <span id="reader-stepper" class="reader-stepper" role="group" aria-label="Step through this board" hidden><button id="reader-previous" class="tk-btn tk-icon" type="button" aria-label="Previous Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button><button id="reader-count" class="tk-btn reader-count" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop">1 / 1</button><button id="reader-next" class="tk-btn tk-icon" type="button" aria-label="Next Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></span>
+          <span id="reader-stepper" class="reader-stepper" role="group" aria-label="Step through this board" hidden><button id="reader-previous" class="tk-btn tk-icon" type="button" aria-label="Previous Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button><ui-menu-trigger for="reader-path-menu"><button id="reader-count" class="tk-btn reader-count" type="button">1 / 1</button></ui-menu-trigger><button id="reader-next" class="tk-btn tk-icon" type="button" aria-label="Next Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></span>
         </span>
       </nav>
       <div class="chrome-actions">
@@ -82,7 +86,7 @@
         <button id="reader-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="reader-info" aria-label="Inspector" title="Inspector: this Tinka's details and actions (⌘I)"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
       </div>
     </header>
-    <div id="reader-path-pop" class="reader-path-pop" role="dialog" aria-modal="false" aria-label="Where you are" hidden></div>
+    <ui-menu id="reader-path-menu"><ui-menu-content id="reader-path-pop" class="tk-menu reader-path-pop" aria-label="Where you are" align="start" side-offset="6"></ui-menu-content></ui-menu>
     <section id="reader-info" class="reader-info calm-side calm-side-right" role="dialog" aria-modal="false" aria-labelledby="reader-info-name" hidden></section>
     <div class="reader-area">
       <div class="reader-main">
