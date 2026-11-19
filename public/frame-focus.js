@@ -17,7 +17,8 @@ if (window.top !== window) {
   HTMLElement.prototype.focus = hold(focusOf);
   SVGElement.prototype.focus = hold(svgFocusOf);
   addEventListener('focusin', event => { if (active()) last = event.target; }, true);
-  addEventListener('pointerdown', () => { if (!active()) { wanted = null; window.focus(); } }, true);
+  // Becoming active by a press first restores the focus this page asked for or had, then the press does its own thing.
+  addEventListener('pointerdown', () => { if (!active()) window.focus(); }, true);
   addEventListener('focus', () => {
     const target = [wanted, last].find(el => el?.isConnected);
     wanted = null;
