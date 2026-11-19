@@ -20,6 +20,7 @@ if (window.top !== window) {
   // Becoming active by a press first restores the focus this page asked for or had, then the press does its own thing.
   addEventListener('pointerdown', () => { if (!active()) window.focus(); }, true);
   addEventListener('focus', () => {
+    window.parent.postMessage({type: 'frame-focus-active'}, '*');  // the page notes which half has the keys
     const target = [wanted, last].find(el => el?.isConnected);
     wanted = null;
     if (target && (document.activeElement === document.body || !document.activeElement)) (target instanceof SVGElement ? svgFocusOf : focusOf).call(target, {preventScroll: true});

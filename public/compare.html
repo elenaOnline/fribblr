@@ -106,6 +106,7 @@ const nav = document.getElementById('surfaces');
 let lastHalf = null;
 const noteHalf = () => { if (document.activeElement === before || document.activeElement === after) lastHalf = document.activeElement; };
 document.addEventListener('focusin', noteHalf); addEventListener('blur', () => setTimeout(noteHalf));
+addEventListener('message', e => { if (e.data?.type !== 'frame-focus-active') return; lastHalf = e.source === before.contentWindow ? before : e.source === after.contentWindow ? after : lastHalf; });
 function go(surface, push = true) {
   const back = lastHalf;
   if (back) back.addEventListener('load', () => { back.focus(); back.contentWindow?.focus(); }, {once: true});
