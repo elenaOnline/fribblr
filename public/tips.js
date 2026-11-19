@@ -16,6 +16,9 @@
 // lives in the dialog.
 import './vendor/ui-sdk/web/tooltip.js';
 import {capFor, capLabel} from './keycaps.js';
+import {isMacPlatform} from './reader-keys.js';
+
+const FOREIGN = isMacPlatform() ? /(^|\+)Control\+/ : /(^|\+)Meta\+/;
 
 const WRAPPERS = new Set(['UI-TOOLBAR-BUTTON', 'UI-TOOLBAR-LINK', 'UI-MENU-TRIGGER', 'UI-POPOVER-TRIGGER', 'UI-TOGGLE', 'UI-DIALOG-TRIGGER']);
 export const TIP_ID = 'tk-tip';
@@ -69,7 +72,7 @@ function keysOf(el) {
   const first = capFor(el), rest = [];
   for (const key of all) {
     const label = capLabel(key);
-    if (label === first || /(^|\+)(Meta|Control)\+/.test(key)) continue;
+    if (label === first || FOREIGN.test(key)) continue;
     if (!rest.includes(label)) rest.push(label);
   }
   return [first, ...rest].filter(Boolean);
