@@ -91,14 +91,19 @@
      World lengths are at 100 % zoom; a -min is a floor in screen pixels, held when the board is zoomed out. */
   --depth-sunk: 1px;            /* a field's shade along its top inner edge */
   --depth-raised: 2px;          /* a key's lower side */
-  --depth-slab: 8px;            /* a slab's lower side */
-  --depth-slab-min: 6;          /* ...never thinner than this on screen: the strength holds zoomed out */
-  --depth-edge-low: 1px;        /* the contour under a slab's side is this much heavier than at its ends */
-  --depth-lift: 4px;            /* how far a slab she drags rises */
-  --depth-lift-min: 3;
-  --depth-hair-min: 1;          /* rims, contours and the selection gap never fall under a screen pixel */
+  /* A slab is one object: its side, contour, lift, cast and selection gap are world lengths that zoom with the card.
+     The only floors are against vanishing (a -min, in screen pixels), well under what any reading zoom shows. */
+  --depth-slab: 10px;           /* a slab's lower side */
+  --depth-slab-min: 2.5;        /* ...only so far out (under 25 %) does it stop shrinking */
+  --depth-edge-low: 1.5px;      /* the contour under a slab's side is this much heavier than at its ends */
+  --depth-lift: 5px;            /* how far a slab she drags rises */
+  --depth-lift-min: 1.5;
+  --depth-hair-min: 1;          /* hairlines (rims, contours) never fall under a screen pixel, so they never vanish */
   --select-width: 2px;          /* the selection line around a slab */
-  --select-gap: 2px;            /* ...drawn this far outside the slab's side */
+  --select-width-min: 1.5;
+  --select-gap: 3px;            /* ...drawn this far outside the slab's side */
+  --slab-top-edge: 0;           /* the face's edge in its side's dark colour: 0 = left, right and front, the far edge pale; 1 = all round */
+  --slab-front-edge: 1;         /* 1 = the front (lower) edge dark too; 0 = left and right only */
   --cast-float: 0 4px 14px rgba(0, 0, 0, .16);     /* floats are held above, not standing: a soft shadow, no side */
   --cast-dialog: 0 10px 32px rgba(0, 0, 0, .2);
 
