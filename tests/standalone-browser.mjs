@@ -79,13 +79,13 @@ try{
  await more.getByRole('menuitem',{name:/^Copy for an agent/}).click();
  eq(await page.evaluate(()=>window.__copied),`Calm form: ${filePath}`,'Copy for an agent copies its name and path');
  ok(await more.isHidden(),'Choosing an item closes More');
- const seg=info.getByRole('group',{name:'Appearance'});
- eq(await seg.getByRole('button').allTextContents(),['System','Light','Dark'],'Appearance is a segmented control');
+ const seg=info.getByRole('radiogroup',{name:'Appearance'});
+ eq(await seg.getByRole('radio').allTextContents(),['System','Light','Dark'],'Appearance is a segmented control');
  eq(await info.locator('select').count(),0,'No native select in the Inspector');
- await seg.getByRole('button',{name:'Dark'}).click();
- eq(await page.locator('html').getAttribute('data-appearance'),'dark');eq(await seg.getByRole('button',{name:'Dark'}).getAttribute('aria-pressed'),'true');
+ await seg.getByRole('radio',{name:'Dark'}).click();
+ eq(await page.locator('html').getAttribute('data-appearance'),'dark');eq(await seg.getByRole('radio',{name:'Dark'}).getAttribute('aria-checked'),'true');
  await page.screenshot({path:path.join(evidence,'standalone-inspector-1244-dark.png')});
- await seg.getByRole('button',{name:'Light'}).click();eq(await page.locator('html').getAttribute('data-appearance'),'light');
+ await seg.getByRole('radio',{name:'Light'}).click();eq(await page.locator('html').getAttribute('data-appearance'),'light');
  // Inside Tinka's frame the page is untouched: no tag, no mark.
  const frame=page.frames().find(f=>f.url().includes('/resources/assets/calm.html'));ok(frame,'The opened Tinka frames the file');
  eq(await frame.evaluate(()=>[!!document.querySelector('tinka-return'),!!document.querySelector('script[src="/app/return-mark.js"]')]),[false,false],'No mark inside Tinka\'s frame');

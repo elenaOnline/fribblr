@@ -59,7 +59,7 @@ try{
  const waitName=title=>page.waitForFunction(t=>document.querySelector('#reader-name')?.textContent===t,title,{timeout:5000});
  const plane=()=>page.evaluate(()=>{const m=new DOMMatrix(getComputedStyle(document.getElementById('reader-plane')).transform);return {zoom:m.a,x:m.e,y:m.f};});
  const openLab=async()=>{await page.goto(base+'/boards/lab/?from=product',{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}};
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}};
  const openItem=async placementId=>{await page.locator(`[data-placement="${placementId}"] [data-open]`).first().click();await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(150);};
  const pill=['#reader-zoom-minus','#reader-zoom-toggle','#reader-zoom-plus','#reader-fit'];
  const visible=async selector=>page.locator(selector).isVisible();
@@ -178,7 +178,7 @@ try{
  await page.locator('#reader-zoom-menu [data-size="compact"]').click();
  eq(await page.locator('#reader-window').getAttribute('data-size'),'compact');
  eq(Math.round((await page.locator('#reader-window').boundingBox()).width),440,'Compact is a true 440-wide window at 100%');
- await page.locator('#reader-theme').click();eq(await page.locator('#reader-theme').getAttribute('aria-pressed'),'true','Night');
+ await page.locator('#reader-theme').click();eq(await page.locator('#reader-theme').getAttribute('aria-checked'),'true','Night');
  await page.locator('[data-reader-light="paper"]').click();
  await page.locator('#reader-type').fill('115');eq(await page.locator('#reader-type').getAttribute('aria-valuetext'),'115%');
  await page.locator('#revision-options').getByText('Second version').click();await waitName('Bold opening · Second version');checks++;
@@ -191,7 +191,7 @@ try{
  for(const label of ['Open standalone ↗','Copy link','Copy path','More…'])ok(await info.getByRole('button',{name:label,exact:true}).or(info.getByRole('link',{name:label,exact:true})).first().isVisible(),`Inspector offers ${label}`);
  ok(await info.getByRole('button',{name:/^Comments/}).isVisible(),'Inspector offers Comments');
  ok(await info.locator('[data-revision-choice]').count()===2,'Versions are in the Inspector too');
- ok(await info.getByRole('group',{name:'Appearance'}).isVisible(),'Appearance is in the Inspector');
+ ok(await info.getByRole('radiogroup',{name:'Appearance'}).isVisible(),'Appearance is in the Inspector');
  await page.screenshot({path:path.join(evidence,'tinka-view-1440-light-inspector.png')});
  const more=async label=>{if(await page.locator('#reader-more').isHidden())await info.getByRole('button',{name:'More…'}).click();return page.locator('#reader-more').getByRole('menuitem',{name:new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}`)});};
  for(const label of ['Add board…','Edit details…','Move to another board…','Also show on another board…','Feature on Product…','Vote…','Copy for an agent','Reload content','Keyboard shortcuts'])ok(await (await more(label)).isVisible(),`More offers ${label}`);

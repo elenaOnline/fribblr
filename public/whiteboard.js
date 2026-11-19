@@ -3,6 +3,7 @@ import {escape as esc, makeDialog, showFailure} from './workspace.js';
 import {resolveEndpoint, resolveLine, decorationBounds, linePath, targetBox} from './whiteboard-geometry.js';
 import {formatToHTMLString} from './deco-format.js';
 import {snapBox, snapDisabled} from './snap-guides.js';
+import {followVisibility} from './ui-toolbar.js';
 import {isMacPlatform} from './reader-keys.js';
 import {token} from './tokens.js';
 
@@ -48,9 +49,10 @@ const icons = {
   arrange:'<path d="M2.5 2V14"/><rect x="4.5" y="3.5" width="9" height="3.5" rx=".6"/><rect x="4.5" y="9" width="6" height="3.5" rx=".6"/>',
   more:'<circle cx="3.5" cy="8" r=".8" fill="currentColor"/><circle cx="8" cy="8" r=".8" fill="currentColor"/><circle cx="12.5" cy="8" r=".8" fill="currentColor"/>',
 };
+// The object bar is a ui-toolbar: one Tab stop, arrows move between its buttons (each wrapped in a ui-toolbar-button).
 const barParts = {
-  button:(action,label,body,{value,pressed,extra=''}={})=>`<button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" title="${esc(label)}"${pressed!==undefined?` aria-pressed="${pressed}"`:''}${extra}>${body}</button>`,
-  group:(label,body)=>`<div class="whiteboard-bar-group" role="group" aria-label="${label}">${body}</div>`,
+  button:(action,label,body,{value,pressed,extra=''}={})=>`<ui-toolbar-button><button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" title="${esc(label)}"${pressed!==undefined?` aria-pressed="${pressed}"`:''}${extra}>${body}</button></ui-toolbar-button>`,
+  group:(label,body)=>`<ui-toolbar-group class="whiteboard-bar-group" aria-label="${label}">${body}</ui-toolbar-group>`,
 };
 // Preset palettes per kind; More keeps a custom colour picker for anything else.
 const paletteSpecs = {
@@ -131,12 +133,13 @@ export class Whiteboard {
       link.dataset.whiteboardStyle=''; document.head.append(link);
     }
     this.ports=document.createElement('div'); this.ports.className='whiteboard-ports';
-    this.toolbar=document.createElement('div'); this.toolbar.className='whiteboard-toolbar';
-    this.toolbar.setAttribute('role','toolbar'); this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
+    this.toolbar=document.createElement('ui-toolbar'); this.toolbar.className='whiteboard-toolbar';
+    this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
     this.menu=document.createElement('div'); this.menu.className='whiteboard-menu'; this.menu.hidden=true;
     this.menu.setAttribute('role','menu'); this.menu.setAttribute('aria-label','Object actions');
     this.hint=document.createElement('div'); this.hint.className='whiteboard-connect-hint'; this.hint.hidden=true;
     this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.menu,this.hint);
+    followVisibility(this.toolbar);
     document.addEventListener('pointerdown',e=>this.down(e),true);
     document.addEventListener('pointermove',e=>this.move(e),true);
     document.addEventListener('pointerup',e=>this.up(e),true);
@@ -281,7 +284,7 @@ export class Whiteboard {
       this.toolbar.classList.toggle('whiteboard-arrow-bar',!this.editor);
       this.toolbar.setAttribute('aria-label',this.groupName(list));
       this.toolbar.innerHTML=this.editor
-        ? `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
+        ? `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><ui-toolbar-button><button type="button" data-whiteboard-action="done">Done</button></ui-toolbar-button><ui-toolbar-button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button></ui-toolbar-button>`
         : this.bar(list,draft);
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }
@@ -690,11 +693,7 @@ export class Whiteboard {
   keydown(e) {
     if(this.editor&&e.key==='Escape'&&(e.isComposing||e.keyCode===229||this.editor.composing)){e.stopImmediatePropagation();return;}
     if(this.handleEscape(e)){e.preventDefault();e.stopImmediatePropagation();return;}
-    if(e.target.closest('.whiteboard-toolbar')&&['ArrowRight','ArrowLeft','Home','End'].includes(e.key)) {
-      const buttons=[...this.toolbar.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
-      e.preventDefault();e.stopImmediatePropagation();
-      buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length]?.focus();return;
-    }
+    // Arrows, Home and End on the bar belong to ui-toolbar (it is one Tab stop and moves focus along its buttons).
     if(e.target.closest('.whiteboard-menu')) {
       const buttons=[...this.menu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
       if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}

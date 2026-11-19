@@ -35,7 +35,7 @@ try{
  const pageScale=()=>page.evaluate(()=>visualViewport.scale);
  const setZoom=percent=>page.locator('#zoom-slider').evaluate((el,value)=>{el.value=String(value);el.dispatchEvent(new Event('input',{bubbles:true}));},sliderFromZoom(percent/100));
  const open=async id=>{await page.goto(base+`/boards/${id}/`);await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}};
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}};
  // Fit never magnifies a small board past 125%, even though zoom itself now goes much further.
  await open('tiny');await page.locator('#fit').click();
  ok(Math.abs(await zoom()-FIT_MAX_ZOOM)<1e-6,`Fit board stays at 125% for one small card: ${await zoom()}`);
