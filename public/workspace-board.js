@@ -288,18 +288,20 @@ export class WorkspaceBoard {
     add.className = "tk-btn tk-primary chrome-add";
     add.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg><span class="chrome-add-label">Add</span>';
     add.setAttribute("aria-label", "Add");
-    add.title = "Add text, shapes, arrows, items and boards";
+    add.dataset.tip = "Add text, shapes, arrows, items and boards";
     const actions = $("chrome-actions");
     const quick = document.createElement("span");
     quick.className = "chrome-history";
-    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
-    actions.insertBefore(quick, $("board-info-toggle"));
+    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" data-tip="Undo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" data-tip="Redo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
+    actions.insertBefore(quick, tipOuter($("board-info-toggle")));
     // Add opens the shared Add menu (popups.js); the trigger wrapper is display:contents, so the button lays out as
     // before and the SDK writes aria-expanded, aria-controls and the open/close keys onto it.
     const addTrigger = document.createElement("ui-menu-trigger");
     addTrigger.setAttribute("for", "workspace-add-menu");
     addTrigger.append(add);
     actions.append(addTrigger);
+    tip(add);
+    tips(quick);
     this.addMenuElement();
     this.installEditTools();
     const history = document.createElement("div");
@@ -546,7 +548,8 @@ export class WorkspaceBoard {
         crumb = document.createElement("a");
         crumb.id = "workspace-parent";
         crumb.className = "workspace-parent";
-        $("board-title").before(crumb);
+        // The title may sit in its tooltip trigger (tips.js): the crumb goes before that wrapper, not inside it.
+        tipOuter($("board-title")).before(crumb);
       }
       crumb.hidden = !parents.length;
       crumb.onclick = null;
@@ -556,14 +559,14 @@ export class WorkspaceBoard {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parent"}));
         crumb.href = `/boards/${encodeURIComponent(parent.id)}/`;
         crumb.setAttribute("aria-label", "Return to parent board " + parent.title);
-        crumb.title = "Return to " + parent.title +
-          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : "");
+        setTip(crumb, "Return to " + parent.title +
+          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : ""));
       } else if (parents.length > 1) {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parents"}));
         crumb.href = "#parents";
         crumb.setAttribute("role", "button");
         crumb.setAttribute("aria-label", "Choose a parent board");
-        crumb.title = "Choose from " + parents.length + " parent boards";
+        setTip(crumb, "Choose from " + parents.length + " parent boards");
         crumb.onclick = event => {
           event.preventDefault();
           makeDialog("This board appears on", parents.map(p =>
@@ -1240,7 +1243,7 @@ export class WorkspaceBoard {
       button.disabled = !!busy || !this.history?.available(direction);
       button.title = direction === "undo" ? "Undo movement, paste or removal (⌘/Ctrl Z)" : "Redo movement, paste or removal (⌘/Ctrl Shift Z)";
       const quick = $("chrome-" + direction);
-      if (quick) { quick.disabled = button.disabled; quick.title = `${label ? `${verb} ${label.toLowerCase()}` : verb} (${direction === "undo" ? "⌘Z" : "⇧⌘Z"})`; }
+      if (quick) { quick.disabled = button.disabled; setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     if (copy) copy.disabled = !!busy || !this.clipboardCandidates().length;
@@ -2872,14 +2875,16 @@ export class WorkspaceBoard {
     toggle.setAttribute("aria-controls", "edit-tools");
     toggle.setAttribute("aria-label", "Edit tools");
     toggle.setAttribute("aria-keyshortcuts", "A");
-    toggle.title = "Edit tools (A)";
+    toggle.dataset.tip = "Edit tools";
     toggle.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><circle cx="14" cy="6" r="3"/><path d="M6 11.5 9 16.5H3z"/><path d="M14 11.5v5M11.5 14h5"/></svg>';
     toggle.onclick = () => this.toggleEditTools();
     // The toggle sits in the zoom pill (a ui-toolbar), before the map toggle, in its own ui-toolbar-button.
-    const map = $("board-map-toggle")?.closest("ui-toolbar-button") || $("board-map-toggle");
+    // (The map toggle may already sit in its tooltip trigger, the outermost wrapper.)
+    const map = tipOuter($("board-map-toggle"));
     const part = document.createElement("ui-toolbar-button");
     part.append(toggle);
     map?.parentElement?.insertBefore(part, map);
+    tip(toggle);
     this.syncEditTools();
   }
   toggleEditTools(open = !this.editToolsOpen) {

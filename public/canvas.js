@@ -166,7 +166,7 @@ async function loadAppTitle() {
   loadCanvasPattern();
   $('project-label').textContent = 'Home';
   $('reader-project').textContent = 'Home';
-  document.querySelectorAll('.brand').forEach(brand => { brand.setAttribute('aria-label', `${appTitle} home`); brand.title = `${appTitle} · all boards`; });
+  document.querySelectorAll('.brand').forEach(brand => { brand.setAttribute('aria-label', `${appTitle} home`); setTip(brand, `${appTitle} · all boards`); });
   if (board) updateMetadata();
 }
 
@@ -180,7 +180,7 @@ function updateMetadata() {
   $('board-title').textContent = title;
   $('board-number').textContent = boardNumber;
   $('board-number').hidden = !boardNumber;
-  $('board-title').title = title;
+  setTip($('board-title'), title);
   if (active) renderReaderChrome();
   $('board-description').textContent = board.description || 'Working experiments and the questions they invite.';
   $('experiment-count').textContent = `${all.length} ${all.length === 1 ? 'experiment' : 'experiments'}`;
@@ -485,7 +485,7 @@ function syncFitControls() {
   fit.dataset.target = target;
   fit.setAttribute('aria-label', target === 'selection' ? `Fit ${count} selected` : 'Fit board');
   fit.setAttribute('aria-keyshortcuts', target === 'selection' ? 'F Shift+2' : 'F Shift+1');
-  fit.title = target === 'selection' ? `Fit the ${count} selected (F or ⇧2) · ⌥-click fits the board` : 'Fit every item in view (F or ⇧1)';
+  setTip(fit, target === 'selection' ? `Fit the ${count} selected · ⌥-click fits the board` : 'Fit every item in view');
   $('view-back').hidden = !backView || !canvasMode;
   const fitSelected = boardMapElement()?.querySelector('[data-map-fit="selection"]');
   if (fitSelected) { fitSelected.hidden = !count; fitSelected.textContent = `Fit ${count} selected`; }
@@ -668,7 +668,7 @@ function renderSizeControls() {
   sizeMenu.querySelector('[data-size="custom"]').setAttribute('aria-pressed', String(size === 'custom'));
   sizeMenu.querySelector('[data-size="custom"]').hidden = size !== 'custom';
   $('custom-size').textContent = customText;
-  $('reader-zoom-toggle').title = `Zoom and view · Window: ${SIZE_NAMES[size]}${size === 'custom' ? ` ${customText}` : ''}${variant ? ` · Version: ${variant.name}` : ''}`;
+  setTip($('reader-zoom-toggle'), `Zoom and view · Window: ${SIZE_NAMES[size]}${size === 'custom' ? ` ${customText}` : ''}${variant ? ` · Version: ${variant.name}` : ''}`);
 }
 
 function setReaderSize(size) {
@@ -731,7 +731,7 @@ function syncReaderNotes() {
   document.querySelector('.note-dot').hidden = !hasNote;
   $('notes-toggle').setAttribute('aria-label', hasNote ? 'Notes (this experiment has a note)' : 'Notes');
   const starred = Boolean(notes[active.key]?.star);
-  $('reader-star').title = starred ? 'Favorite · remove from favorites' : 'Favorite';
+  setTip($('reader-star'), starred ? 'Favorite · remove from favorites' : 'Favorite');
 }
 
 function renderReaderHeader() {
@@ -743,7 +743,7 @@ function renderReaderHeader() {
   $('reader-name').textContent = name;
   // The opened item carries its kind, as its card on the board does.
   markKind(document.querySelector('.reader-title-row'), active.graphItem || null);
-  $('reader-path').title = `${name}${hint ? ` · ${hint}` : ''} · click for where you are`;
+  setTip($('reader-path'), `${name}${hint ? ` · ${hint}` : ''} · click for where you are`);
   const number = shownNumber(active);
   $('reader-number').textContent = number;
   $('reader-number').hidden = !number;
@@ -789,7 +789,8 @@ function renderReaderChrome() {
   if (!active) return;
   const title = readerBoardTitle();
   $('reader-up-label').textContent = title;
-  $('close-reader').title = `Up to ${title} (Esc · ${MOD}↑)`;
+  setTip($('close-reader'), `Up to ${title}`);
+  $('close-reader').setAttribute('aria-keyshortcuts', `Escape ${readerKeysMac ? 'Alt' : 'Control'}+ArrowUp`);
   $('close-reader').setAttribute('aria-label', `Up to board ${title}`);
   $('close-reader').href = `${location.pathname}${location.search}${rounds[currentRound] ? `#round-${rounds[currentRound].id}` : ''}`;
   const child = graph?.childInfo(active.graphItem);
@@ -797,7 +798,8 @@ function renderReaderChrome() {
   down.hidden = !child;
   if (child) {
     $('reader-down-label').textContent = child.count == null ? 'Board' : `Board · ${child.count}`;
-    down.title = `Go down into its board, ${child.title} (${MOD}↓)`;
+    setTip(down, `Go down into its board, ${child.title}`);
+    down.dataset.tipKeys = `${readerKeysMac ? 'Alt' : 'Control'}+ArrowDown`; // a labelled key: aria-keyshortcuts would print a keycap
     down.setAttribute('aria-label', `Open its board ${child.title}${child.count == null ? '' : `, ${child.count} ${child.count === 1 ? 'item' : 'items'}`}`);
   }
   readerPath.refresh();
@@ -813,12 +815,13 @@ function updateReaderNavigation() {
   $('reader-stepper').setAttribute('aria-label', `Step through ${title}`);
   $('reader-count').textContent = index < 0 ? '' : `${index + 1} / ${sequence.length}`;
   $('reader-count').setAttribute('aria-label', index < 0 ? 'Neighbours' : `${index + 1} of ${sequence.length} on ${title}: show them`);
-  $('reader-count').title = `${sequence.length} on ${title} · show them`;
+  setTip($('reader-count'), `${sequence.length} on ${title} · show them`);
   for (const [id, offset, label, arrow, bracket] of [['reader-previous', -1, 'Previous', '←', '['], ['reader-next', 1, 'Next', '→', ']']]) {
     const neighbor = index < 0 ? null : sequence[index + offset];
     const button = $(id);
     button.disabled = !neighbor;
-    button.title = neighbor ? `${label}: ${neighbor.name} (${MOD}${arrow} or ${bracket})` : `No ${label.toLowerCase()} Tinka`;
+    setTip(button, neighbor ? `${label}: ${neighbor.name}` : `No ${label.toLowerCase()} Tinka`);
+    if (neighbor) button.setAttribute('aria-keyshortcuts', `${readerKeysMac ? 'Alt' : 'Control'}+Arrow${offset < 0 ? 'Left' : 'Right'} ${bracket}`); else button.removeAttribute('aria-keyshortcuts');
     button.setAttribute('aria-label', neighbor ? `${label} Tinka: ${neighbor.name}` : `${label} Tinka`);
   }
   if (dialog.open && (document.activeElement === document.body || document.activeElement?.disabled)) focusTinka();
