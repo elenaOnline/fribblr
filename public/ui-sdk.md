@@ -166,8 +166,8 @@ Files: `workspace-board.js` (the roving group: `rovingCard`, `setFocusStop`, `en
 `focusKey`, `itemKey`, `nudgeKey`, `resizeKey`, `keyMoveRunning`; the key queue's `queueableKey`), `whiteboard.js`
 (one line in `markup()`: a drawn element's `tabindex` comes from the host's stop), `canvas.js` (`revealBox`, the
 viewport's `+`/`−`/`0`, the board step's focus, focus back to the card after the reader), `board-step.js` (step keys),
-`calm.css` (focus ring). Core helpers, standalone, from `vendor/ui-sdk/web/core.js`: `nearestInDirection`, `announce`,
-`moveMessage`, `resizeMessage`, `keepFocus`.
+`calm.css` (focus ring). Core helpers, standalone, from `vendor/ui-sdk/web/core.js` (a dynamic import, so the board's
+start never waits for it): `nearestInDirection`, `announce`, `moveMessage`, `resizeMessage`, `keepFocus`.
 
 **How it is built, and why not as a primitive.** The SDK's norms for a canvas (SPEC C.18a, C.19; B5 § 1.2 spatial
 focus, § 4.1 `createMove` keys, § 4.2 `createResize` keys, § 6 announcements; B6.1 viewport keys) are implemented on
@@ -216,7 +216,9 @@ on wheel, pointer pan, drag or marquee, and no observer was added. A later overh
 - **Writes queue instead of racing.** A keyboard move or resize holds the board busy until its write and refresh land
   (`keyMoveRunning` sets `movePending`), and `installKeyQueue` now queues Option-arrows and arrows on a resize corner
   meanwhile and replays them in order. Before this, a second quick press read the old geometry and overwrote the
-  first. Plain arrows (focus, panning) are never queued, so they act at once while a write is in flight.
+  first. Plain arrows (focus, panning) are never queued, so they act at once while a write is in flight; nor are
+  Space and Enter on a button or link (queuing them cancelled the button's native press: a select circle pressed
+  during a save did nothing).
 - **Zoom keys:** `+`/`=`, `−` and `0` (100%, position kept about the centre) with the canvas or a card or drawn
   element focused; announced in the board's existing `#view-announce` region ("Zoom 115%"). ⇧0, ⇧1, ⇧2, F and M are
   unchanged. Arrows / Page keys / Space still pan when the canvas itself has focus.
