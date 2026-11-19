@@ -141,9 +141,10 @@ dialog label{display:block;margin:16px 0 8px;color:var(--ink-2);font:400 var(--t
 dialog input:not([type=checkbox]):not([type=radio]),dialog textarea{display:block;width:100%;padding:12px 16px;border:0;border-radius:var(--shape-key);color:var(--ink);font:400 15px/1.5 var(--type-sans)}
 dialog :is(input,textarea)::placeholder{color:var(--ink-2);opacity:1}
 dialog textarea{min-height:68px;resize:vertical}
-.prompt-label{display:flex!important;justify-content:space-between;gap:12px}
-.prompt-label span{color:var(--ink-2);font-size:11px;font-weight:400}
-#agent-prompt{min-height:120px;--sink-floor:var(--surface-frame);font:400 12.5px/1.6 var(--type-mono)}
+.new-board-optional{color:var(--ink-2);font-weight:400}
+#agent-prompt{min-height:90px;--sink-floor:var(--surface-frame);font:400 12.5px/1.5 var(--type-mono)}
+#new-dialog #copy-status:empty{display:none}
+#new-dialog #show-board-prompt{color:var(--ink-2)}
 .dialog-bottom{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:18px}
 .dialog-bottom>span{max-width:260px;color:var(--ink-2);font:400 var(--type-meta)/1.4 var(--type-sans)}
 .primary:not(.tk-btn){display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:var(--control-h);padding:0 16px;border:0;border-radius:var(--shape-key);color:var(--ink-on-mark);font:400 var(--type-ui)/1 var(--type-sans);white-space:nowrap}
@@ -166,7 +167,6 @@ dialog textarea{min-height:68px;resize:vertical}
   body.home-selecting main{padding-bottom:104px}
   dialog h2{font-size:25px}
   .dialog-bottom{align-items:flex-start}
-  .prompt-label span{display:none}
 }
 @media(max-width:640px){.board-grid{grid-template-columns:minmax(0,1fr);gap:26px}.empty-card{min-height:140px}}
 @media(max-width:560px){.masthead{padding:0 10px 0 6px;gap:4px}.live #connection{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.live{margin-left:0}}

@@ -27,6 +27,6 @@
 }
 
 /* ---------- dark ---------- */
-/* An item on authored paper: the renderer picks its ink per appearance against that paper (workspace-board.js
-   paperColors); workspace.css applies the light pick, this applies the dark one. */
-html[data-appearance="dark"] .workspace-board .workspace-card[style*="--item-paper:#"] { --ink: var(--item-ink-dark); --ink-2: var(--item-muted-dark); }
+/* An item on authored paper: the renderer picks its paper and ink per appearance (theme-colors.js paperVariables);
+   workspace.css applies the light pick, this applies the dark one. */
+html[data-appearance="dark"] .workspace-board .workspace-card[data-custom-paper] { --item-paper: var(--item-paper-dark); --ink: var(--item-ink-dark); --ink-2: var(--item-muted-dark); --muted: var(--item-muted-dark); }
