@@ -1623,8 +1623,9 @@ export class WorkspaceBoard {
       ids.forEach(id => this.selection.delete(id));
       if (ids.includes(this.contextPlacement)) this.closeContext();
       await this.refresh({saveReview:false});
-      toast(drawn.length ? `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}. Undo to restore.`
-        : `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} from this board. Undo to restore.`);
+      toast(drawn.length ? `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}.`
+        : `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} from this board.`,
+        {action:{label:"Undo", onAction:() => this.replayMovement("undo", {explicit:true})}});
     } catch (error) {
       try { await this.refresh({saveReview:false}); } catch {}
       if (confirmedRemoved) toast("Removed from this board. Reload to see the latest board; Undo remains available.");
