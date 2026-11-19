@@ -45,7 +45,7 @@ try{
  const context=await browser.newContext({viewport:{width:1244,height:820},colorScheme:'light',reducedMotion:'reduce'});
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  const open=async id=>{await page.goto(base+`/boards/${id}/`,{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
   await page.waitForTimeout(150);};
  const selected=()=>page.evaluate(()=>[...document.querySelectorAll('#world .workspace-card.selected')].map(c=>c.dataset.placement));
  const zoom=()=>page.evaluate(()=>new DOMMatrix(getComputedStyle(document.getElementById('world')).transform).a);
@@ -115,13 +115,13 @@ try{
  let pat=await pattern();
  ok(pat.value==='plain'&&pat.image==='none',`A fresh board has no dots: ${JSON.stringify(pat)}`);
  await page.locator('#zoom-menu-toggle').click();
- ok(await page.locator('#zoom-menu [data-canvas-pattern="plain"]').getAttribute('aria-pressed')==='true','The zoom menu shows Plain chosen');
+ ok(await page.locator('#zoom-menu [data-canvas-pattern="plain"]').getAttribute('aria-checked')==='true','The zoom menu shows Plain chosen');
  await page.locator('#zoom-menu [data-canvas-pattern="dots"]').click();await page.keyboard.press('Escape');
  await open('plain');
  pat=await pattern();
  ok(pat.value==='dots'&&pat.image.includes('radial-gradient'),`An explicit Dots choice is kept: ${JSON.stringify(pat)}`);
  await page.locator('#board-info-toggle').click();
- ok(await page.locator('#board-info [data-canvas-pattern="dots"]').getAttribute('aria-pressed')==='true','The Inspector shows Dots chosen');
+ ok(await page.locator('#board-info [data-canvas-pattern="dots"]').getAttribute('aria-checked')==='true','The Inspector shows Dots chosen');
  await page.keyboard.press('Escape');await page.waitForTimeout(100);
  await page.screenshot({path:path.join(evidence,'board-dots-1244-light.png')});
 
@@ -135,8 +135,10 @@ try{
  // A panel opened with the mouse and closed with Escape hands focus back without a ring.
  await page.locator('#board-info-toggle').click();await page.keyboard.press('Escape');
  const back=await ring('#board-info-toggle');ok(back.focused&&back.outline==='none',`Escape back to a clicked toggle shows no ring: ${JSON.stringify(back)}`);
- await page.locator('#zoom-plus').click();
- await page.keyboard.press('Shift+Tab');
+
+// The view pill is one Tab stop: after a click on zoom-plus, the arrow keys (not Shift+Tab) reach its other buttons.
+ await page.locator("#zoom-plus").click();
+ await page.keyboard.press('ArrowLeft');
  const tabbed=await page.evaluate(()=>({id:document.activeElement.id,outline:getComputedStyle(document.activeElement).outlineStyle}));
  ok(tabbed.id==='zoom-menu-toggle'&&tabbed.outline==='solid',`Tab focus keeps its ring: ${JSON.stringify(tabbed)}`);
  // The board remembers the current Tinka: open 4, step inside to 6, go back; ⌥→ is 7, ⌥← is 5.
