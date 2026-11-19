@@ -44,12 +44,13 @@ try{
   const page=await browser.newPage({viewport:{width:1440,height:960},colorScheme:'dark'});page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+'/');await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
-  const homeAppearance=page.getByRole('combobox',{name:'Appearance'});
-  assert.equal(await homeAppearance.inputValue(),'light');
-  await homeAppearance.selectOption('dark');
+  // Home's Appearance is a menu (fribblr): one button opening the Mode and Background rows.
+  const homeMode=async name=>{const menu=page.getByRole('button',{name:'Appearance',exact:true});if(await menu.getAttribute('aria-expanded')!=='true')await menu.click();return page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name,exact:true});};
+  assert.equal(await (await homeMode('Light')).getAttribute('aria-pressed'),'true');
+  await (await homeMode('Dark')).click();
   await page.reload();await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'dark');
-  assert.equal(await homeAppearance.inputValue(),'dark');
+  assert.equal(await (await homeMode('Dark')).getAttribute('aria-pressed'),'true');
   await page.screenshot({path:path.join(evidence,'home-dark.png')});
   // Preview launch buttons cover the artwork. Their hover backgrounds must
   // remain translucent in both appearances, including the legacy viewer.

@@ -176,7 +176,7 @@ try {
   await onBoard();await page.keyboard.press(`${mod}+z`);await page.waitForTimeout(700);assert.equal(await at(leftPlacement),rest,'Undo by its key');keyed.push('undo');
   await page.keyboard.press(`${mod}+Shift+z`);await page.waitForTimeout(700);assert.equal(await at(leftPlacement),moved,'Redo by its key');keyed.push('redo');
   await leftCard.locator('[data-placement-select]').click();await settle();
-  await inspector();await copy.click();await settle();const copiedByClick=await toastText();assert.match(copiedByClick,/^Copied 1 /);
+  await inspector();await copy.click();await settle();const copiedByClick=await toastText();assert.match(copiedByClick,/^Copied (selection\.|1 )/);   // Tinka 1.3: "Copied selection."
   await page.evaluate(()=>document.querySelectorAll('.workspace-toast').forEach(t=>t.remove()));   // the key must make its own
   await onBoard();await page.keyboard.press(`${mod}+c`);await settle();
   assert.equal(await toastText(),copiedByClick);keyed.push('copy selection');
