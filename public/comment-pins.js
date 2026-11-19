@@ -7,6 +7,7 @@ import {pointAnchorAt, resolveCommentPoint, alongAnchorAt} from './feedback-geom
 import {toast, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {token} from './tokens.js';
+import {sharedMenu, openMenu, menuCheckbox, menuGroup, menuItem, inPopup} from './popups.js';
 
 // ---- API adapter (comment API, Tinka 1.1). Field and operation names live only here.
 export const commentApi = {
@@ -71,14 +72,13 @@ export class CommentPins {
     const pill = document.querySelector('.canvas-footer .zoom-pill');
     if (pill && !document.getElementById('comment-layer-toggle')) {
       const group = document.createElement('span');group.className = 'comment-bar';
-      group.innerHTML = `<button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-haspopup="menu" aria-expanded="false" aria-label="Comments" title="Comments (⇧C)">${ICON.comment}<span class="comment-count" hidden></span></button><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" title="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button><span class="tk-divider" aria-hidden="true"></span>`;
+      group.innerHTML = `<ui-menu-trigger for="comment-layer-menu"><button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-label="Comments" title="Comments (⇧C)">${ICON.comment}<span class="comment-count" hidden></span></button></ui-menu-trigger><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" title="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button><span class="tk-divider" aria-hidden="true"></span>`;
       pill.prepend(group);
-      group.querySelector('#comment-layer-toggle').onclick = e => { e.stopPropagation();this.menu ? this.closeMenu() : this.openMenu(); };
       group.querySelector('#comment-send').onclick = () => this.sendToAgent();
     }
     this.layer.addEventListener('click', e => {
       const cluster = e.target.closest('[data-comment-cluster]');
-      if (cluster) { e.preventDefault();e.stopPropagation();this.openCluster(cluster);return; }
+      if (cluster) { e.preventDefault();e.stopPropagation();this.openCluster(cluster, e);return; }
       const pin = e.target.closest('[data-comment-pin]');if (!pin) return;
       e.preventDefault();e.stopPropagation();
       if (this.draggedAt && Date.now() - this.draggedAt < 400) return;
@@ -109,11 +109,10 @@ export class CommentPins {
     window.addEventListener('hashchange', () => { if (/^#comments\//.test(location.hash)) this.reload().then(() => this.openLinked()); });
     window.addEventListener('click', e => { if (this.swallowClick && Date.now() < this.swallowClick) { e.preventDefault();e.stopImmediatePropagation();this.swallowClick = 0; } }, true);
     window.addEventListener('keydown', e => {
-      if (e.key !== 'Escape') return;
-      if (this.menu) { e.preventDefault();e.stopImmediatePropagation();this.closeMenu(true); }
-      else if (this.armed) { e.preventDefault();e.stopImmediatePropagation();this.arm(false); }
+      if (e.key !== 'Escape' || inPopup(e)) return;
+      if (this.armed) { e.preventDefault();e.stopImmediatePropagation();this.arm(false); }
     }, true);
-    document.addEventListener('pointerdown', e => { if (this.menu && !this.menu.contains(e.target) && !e.target.closest('#comment-layer-toggle')) this.closeMenu(); }, true);
+    this.mountMenus();
     this.sync();this.renderBar();
   }
   // ---- data
@@ -121,7 +120,7 @@ export class CommentPins {
     const boardId = this.snapshot.id;
     try { const threads = await commentApi.list(this.client, boardId);if (boardId !== this.snapshot.id) return;this.threads = threads; }
     catch (error) { console.warn('Comments unavailable:', error.message); }
-    this.sync();this.renderBar();if (this.menu) this.renderMenu();
+    this.sync();this.renderBar();if (this.menuOpen) this.renderMenu();
     if (!this.linkHandled) { this.linkHandled = true;this.openLinked(); }
   }
   // A thread link (…/boards/BOARD/#comments/ID, from the inbox and the agent prompt) pans to
@@ -175,32 +174,22 @@ export class CommentPins {
     }
     return `<button type="button" class="comment-pin comment-cluster" data-comment-cluster="${esc(group.map(g => g.t.id).join(' '))}" data-status="${status}" style="left:${x + origin.x}px;top:${y + origin.y}px" aria-haspopup="menu" aria-label="${group.length} comments here · ${STATUS_LABEL[status] || status}">${group.length}<span class="comment-pin-badge" aria-hidden="true"></span></button>`;
   }
-  // A cluster opens a small list of its threads to pick from.
-  openCluster(button) {
-    this.closeMenu();
+  // A cluster opens a small list of its threads to pick from: a shared UI SDK menu (popups.js) beside the pin, which
+  // flips to the other side or shifts when there is no room. The cluster button is rebuilt as pins regroup, so it opens
+  // from code against the pressed button.
+  openCluster(button, event) {
     const ids = button.dataset.commentCluster.split(' '), threads = ids.map(id => this.threads.find(t => t.id === id)).filter(Boolean);
-    this.menu = document.createElement('div');this.menu.className = 'tk-menu comment-menu comment-cluster-menu';this.menu.setAttribute('role', 'menu');this.menu.setAttribute('aria-label', `${threads.length} comments here`);
-    this.menu.innerHTML = `<h6 class="comment-menu-head">${threads.length} comments here</h6>` + threads.map(t => `<button type="button" role="menuitem" class="tk-mi comment-waiting" data-comment-pick="${esc(t.id)}" data-status="${this.status(t)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${esc(commentApi.isAgent(t) ? 'Agent' : t.author?.label || 'Someone')} · ${STATUS_LABEL[this.status(t)]}</b>${esc((t.body || t.excerpt || '').slice(0, 70))}</span></button>`).join('');
-    document.body.append(this.menu);
-    this.menu.addEventListener('click', e => { const pick = e.target.closest('[data-comment-pick]');if (!pick) return;this.closeMenu();this.open(pick.dataset.commentPick, button); });
-    // Beside the pin (right, else left, else below or above it), clear of the bottom bar.
-    Object.assign(this.menu.style, {position:'fixed', left:'0px', top:'0px'});// measure at its real (fixed) size
-    const r = button.getBoundingClientRect(), w = this.menu.offsetWidth, h = this.menu.offsetHeight, gap = 8;
-    const floor = Math.min(innerHeight, document.querySelector('.canvas-footer .zoom-pill')?.getBoundingClientRect().top ?? innerHeight) - gap, ceiling = (document.getElementById('viewport')?.getBoundingClientRect().top ?? 0) + gap;
-    let left, top;
-    if (r.right + gap + w <= innerWidth - gap) left = r.right + gap;
-    else if (r.left - gap - w >= gap) left = r.left - gap - w;
-    if (left !== undefined) top = Math.max(ceiling, Math.min(floor - h, r.top + r.height / 2 - h / 2));
-    else {
-      left = Math.max(gap, Math.min(innerWidth - w - gap, r.left + r.width / 2 - w / 2));
-      top = r.bottom + gap + h <= floor ? r.bottom + gap : Math.max(ceiling, r.top - gap - h);
-    }
-    Object.assign(this.menu.style, {position:'fixed', left:`${left}px`, top:`${top}px`});
-    this.menu.querySelector('button')?.focus({preventScroll:true});
+    const {root, content} = this.clusterMenu;
+    content.setAttribute('aria-label', `${threads.length} comments here`);
+    content.innerHTML = menuGroup(`${threads.length} comments here`, threads.map(t => this.threadItem(t, `${commentApi.isAgent(t) ? 'Agent' : t.author?.label || 'Someone'} · ${STATUS_LABEL[this.status(t)]}`, (t.body || t.excerpt || '').slice(0, 70))).join(''));
+    openMenu(root, {anchor: button, event, payload: button.dataset.commentCluster, returnTo: `[data-comment-cluster="${CSS.escape(button.dataset.commentCluster)}"]`});
+  }
+  threadItem(t, head, text) {
+    return `<ui-menu-item class="tk-mi comment-waiting" value="${esc(t.id)}" data-status="${this.status(t)}" label="${esc(`${head} ${text}`)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${esc(head)}</b>${esc(text)}</span></ui-menu-item>`;
   }
   setVisible(visible) {
     this.visible = visible;try { localStorage.setItem(this.key, visible ? 'shown' : 'hidden'); } catch {}
-    this.sync();this.renderBar();if (this.menu) this.renderMenu();
+    this.sync();this.renderBar();if (this.menuOpen) this.renderMenu();
   }
   toggleVisible() { this.setVisible(!this.visible);toast(this.visible ? 'Comments shown.' : 'Comments hidden. ⇧C shows them.'); }
   renderBar() {
@@ -336,30 +325,50 @@ export class CommentPins {
     return this.open(threadId, this.layer?.querySelector(`[data-comment-pin="${CSS.escape(threadId)}"]`));
   }
   // ---- layer menu and "Waiting on you"
-  openMenu() {
-    this.menu = document.createElement('div');this.menu.className = 'tk-menu comment-menu';this.menu.setAttribute('role', 'menu');this.menu.setAttribute('aria-label', 'Comments');
-    document.body.append(this.menu);document.getElementById('comment-layer-toggle')?.setAttribute('aria-expanded', 'true');
-    this.menu.addEventListener('change', e => {
-      if (e.target.dataset.commentOption === 'visible') this.setVisible(e.target.checked);
-      if (e.target.dataset.commentOption === 'resolved') { this.showResolved = e.target.checked;this.sync(); }
+  // The Comments button in the view pill opens a UI SDK menu (popups.js): two checkbox items that stay open as they
+  // toggle, then the threads waiting on you. The cluster menu is a second shared menu of the same kind.
+  mountMenus() {
+    const layer = sharedMenu({id:'comment-layer-menu', label:'Comments', className:'comment-menu'});
+    layer.content.setAttribute('side', 'top');
+    layer.content.setAttribute('align', 'start');
+    layer.content.setAttribute('side-offset', '8');
+    layer.root.addEventListener('openchange', e => { if (e.detail.value) this.renderMenu(); });
+    layer.content.addEventListener('checkedchange', e => {
+      const option = e.target.closest('[value]')?.getAttribute('value');
+      if (option === 'visible') this.setVisible(e.detail.value);
+      if (option === 'resolved') { this.showResolved = e.detail.value; this.sync(); }
+    }, true);
+    layer.root.addEventListener('action', e => this.reveal(e.detail.value));
+    this.layerMenu = layer;
+    const cluster = this.clusterMenu = sharedMenu({id:'comment-cluster-menu', className:'comment-menu comment-cluster-menu'});
+    cluster.content.setAttribute('side', 'right');
+    cluster.content.setAttribute('align', 'center');
+    cluster.content.setAttribute('side-offset', '8');
+    cluster.root.addEventListener('action', e => {
+      const ids = cluster.root.api.getPayload(), button = this.layer.querySelector(`[data-comment-cluster="${CSS.escape(ids || '')}"]`);
+      this.open(e.detail.value, button);
     });
-    this.menu.addEventListener('click', e => {
-      const item = e.target.closest('[data-comment-waiting]');if (!item) return;
-      this.closeMenu();this.reveal(item.dataset.commentWaiting);
-    });
-    this.renderMenu();this.menu.querySelector('input,button')?.focus({preventScroll:true});
   }
+  get menuOpen() { return !!(this.layerMenu?.root.open || this.clusterMenu?.root.open); }
+  openMenu() { this.layerMenu?.root.api.open({anchor: document.getElementById('comment-layer-toggle')}); }
+  // While the menu is open, its checkboxes follow the model (⇧C, the Comments panel) and the waiting list is rebuilt;
+  // a rebuild never takes the checkbox rows away from under the pointer or the keys.
   renderMenu() {
-    const waiting = this.waiting();
-    this.menu.innerHTML = `<h6 class="comment-menu-head">Comments</h6><label class="tk-mi"><input type="checkbox" data-comment-option="visible" ${this.visible ? 'checked' : ''}> Show comments <kbd class="tk-kbd" aria-hidden="true">⇧C</kbd></label><label class="tk-mi"><input type="checkbox" data-comment-option="resolved" ${this.showResolved ? 'checked' : ''}> Show resolved</label><h6 class="comment-menu-head">Waiting on you</h6>${waiting.length ? waiting.map(t => `<button type="button" role="menuitem" class="tk-mi comment-waiting" data-comment-waiting="${esc(t.id)}" data-status="${this.status(t)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${STATUS_LABEL[this.status(t)]}</b>${esc(commentApi.targetLabel(t) || (t.body || t.excerpt || '').slice(0, 60))}</span></button>`).join('') : '<p class="comment-menu-empty">Nothing right now.</p>'}`;
-    Object.assign(this.menu.style, {position:'fixed', left:'0px', top:'0px'});
-    const anchor = document.getElementById('comment-layer-toggle')?.getBoundingClientRect();
-    if (anchor) Object.assign(this.menu.style, {position:'fixed', left:`${Math.max(8, Math.min(innerWidth - this.menu.offsetWidth - 8, anchor.left))}px`, top:`${Math.max(8, anchor.top - this.menu.offsetHeight - 8)}px`});
+    const {content} = this.layerMenu, waiting = this.waiting();
+    const options = content.querySelector('ui-menu-group[data-comment-options]');
+    if (options) {
+      for (const [value, checked] of [['visible', this.visible], ['resolved', this.showResolved]]) { const item = options.querySelector(`[value="${value}"]`); if (item && item.getAttribute('checked') !== String(checked)) item.setAttribute('checked', String(checked)); }
+    } else {
+      content.innerHTML = menuGroup('Comments', menuCheckbox('visible', 'Show comments', {checked:this.visible, shortcut:'shift+c'}) + menuCheckbox('resolved', 'Show resolved', {checked:this.showResolved})).replace('<ui-menu-group>', '<ui-menu-group data-comment-options>')
+        + '<ui-menu-group data-comment-waiting-list></ui-menu-group>';
+    }
+    const list = content.querySelector('[data-comment-waiting-list]');
+    const html = '<ui-menu-group-label class="tk-mlabel">Waiting on you</ui-menu-group-label>' + (waiting.length
+      ? waiting.map(t => this.threadItem(t, STATUS_LABEL[this.status(t)], commentApi.targetLabel(t) || (t.body || t.excerpt || '').slice(0, 60))).join('')
+      : menuItem('none', 'Nothing right now', {disabled:true, className:'comment-menu-empty'}));
+    if (list.rendered !== html) { list.innerHTML = html; list.rendered = html; }
   }
-  closeMenu(focus = false) {
-    this.menu?.remove();this.menu = null;
-    const toggle = document.getElementById('comment-layer-toggle');toggle?.setAttribute('aria-expanded', 'false');if (focus) toggle?.focus({preventScroll:true});
-  }
+  closeMenu() { for (const menu of [this.layerMenu, this.clusterMenu]) if (menu?.root.open) menu.root.api.close({reason:'imperative'}); }
   // ---- Send to agent: mark open threads sent, then copy a prompt naming them.
   async sendToAgent() {
     const threads = this.unsent();if (!threads.length) { if (commentApi.watching(this.presence)) toast('Agent is watching: comments you send are picked up right away.');return; }
