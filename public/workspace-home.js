@@ -3,6 +3,7 @@ import {newestBoardsFirst} from "./board-order.js";
 import {reconcileChildren} from "./reconcile.js";
 import {coverMarkup,observeCovers} from "./board-covers.js";
 import {timeHTML,toDate} from "./relative-dates.js";
+import {tips, tipTrigger} from "./tips.js";
 import {kindsLine} from "./kinds.js";
 import "./home-board-list.js";
 import {
@@ -55,13 +56,13 @@ export function boardInfo(board, { description = "", counts = [], kinds = null, 
   const fresh = Number.isFinite(created) && Date.now() - created < DAY;
   const byEdit = homeView.sort === "updated" && Number.isFinite(edited);
   const primary = byEdit
-    ? timeHTML(edited, { prefix: "Edited ", verb: "Edited" })
-    : timeHTML(board.createdAt, { prefix: "Created ", verb: "Created" });
+    ? timeHTML(edited, { prefix: "Edited ", verb: "Edited", tip: true })
+    : timeHTML(board.createdAt, { prefix: "Created ", verb: "Created", tip: true });
   const secondary = !Number.isFinite(edited) ? ""
-    : byEdit ? timeHTML(board.createdAt, { prefix: "created ", verb: "Created" })
-    : timeHTML(edited, { prefix: "edited ", verb: "Edited" });
+    : byEdit ? timeHTML(board.createdAt, { prefix: "created ", verb: "Created", tip: true })
+    : timeHTML(edited, { prefix: "edited ", verb: "Edited", tip: true });
   const line = [...counts, primary].filter(Boolean).join('<span class="board-sep" aria-hidden="true"> · </span>');
-  return `<div class="board-info"><div class="board-title-row"><h3${id("title")} title="${esc(board.title)}">${esc(board.title)}</h3>${fresh ? '<span class="tk-new">New</span>' : ""}</div><p${id("desc")}>${esc(description)}</p>${kinds ? kindsLine(kinds) : ""}<div class="card-bottom"${id("meta")}><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
+  return `<div class="board-info"><div class="board-title-row">${tipTrigger(`<h3${id("title")} data-tip="${esc(board.title)}" data-tip-truncated>${esc(board.title)}</h3>`)}${fresh ? '<span class="tk-new">New</span>' : ""}</div><p${id("desc")}>${esc(description)}</p>${kinds ? kindsLine(kinds) : ""}<div class="card-bottom"${id("meta")}><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
 }
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 8.5 2.6 2.6L12.2 5.4"/></svg>';
 const CLOSE = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>';
@@ -206,6 +207,7 @@ export class WorkspaceHome {
     const grid = document.getElementById("board-grid"), template = document.createElement("template");
     template.innerHTML = markup;
     reconcileChildren(grid,template.content);
+    tips(grid);
     this.coverObserver = observeCovers(grid,this.coverObserver);
     document.getElementById("shelf-status").textContent =
       boards.length + (boards.length === 1 ? " board" : " boards") + " · shared items, project-owned files";
@@ -242,11 +244,12 @@ export class WorkspaceHome {
       if (hadFocus) this.list?.api?.focus();
       return;
     }
-    const markup = `<strong role="status">${n} selected</strong><button type="button" class="tk-btn tk-sm" data-home-action="move">Move…</button><button type="button" class="tk-btn tk-sm" data-home-action="reference">Add reference…</button><button type="button" class="tk-btn tk-sm" data-home-action="archive">${this.archive ? "Restore everywhere" : "Archive everywhere"}</button><button type="button" class="tk-btn tk-sm" data-home-action="remove">Remove from home…</button><span class="tk-divider" aria-hidden="true"></span><button type="button" class="tk-btn tk-sm tk-icon" data-home-action="clear" aria-label="Clear selection" title="Clear selection (Esc)">${CLOSE}</button>`;
+    const markup = `<strong role="status">${n} selected</strong><button type="button" class="tk-btn tk-sm" data-home-action="move">Move…</button><button type="button" class="tk-btn tk-sm" data-home-action="reference">Add reference…</button><button type="button" class="tk-btn tk-sm" data-home-action="archive">${this.archive ? "Restore everywhere" : "Archive everywhere"}</button><button type="button" class="tk-btn tk-sm" data-home-action="remove">Remove from home…</button><span class="tk-divider" aria-hidden="true"></span>${tipTrigger(`<button type="button" class="tk-btn tk-sm tk-icon" data-home-action="clear" aria-label="Clear selection" aria-keyshortcuts="Escape" data-tip="Clear selection">${CLOSE}</button>`)}`;
     if (bar.hidden || bar.dataset.markup !== markup) {
       const template = document.createElement("template");
       template.innerHTML = markup;
       reconcileChildren(bar, template.content);
+      tips(bar);
       bar.dataset.markup = markup;
     }
     bar.hidden = false;
