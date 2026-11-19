@@ -64,9 +64,9 @@ try {
   await tile(first).locator('[data-placement-select]').evaluate(el=>el.click());
   await draw('caption').click({modifiers:['Shift']});
   await draw('holder').locator('[data-decoration-label]').click({modifiers:['Shift']});
-  await groupButton.getByText('Group',{exact:true}).waitFor();
+  await groupButton.filter({hasText:/^Group/}).waitFor();
   const group=await action('groupOccurrences',()=>page.keyboard.press(`${mod}+g`));
-  await groupButton.getByText('Ungroup',{exact:true}).waitFor();
+  await groupButton.filter({hasText:/^Ungroup/}).waitFor();
   assert.deepEqual(new Set(group.decorationIds),new Set(['caption','holder']));
   assert.deepEqual(group.placementIds,[first]);
   const grouped=await snapshot();
@@ -78,7 +78,7 @@ try {
   await tile(first).waitFor();
   await page.locator('#fit').click();
   await tile(first).locator('.workspace-preview-launch').click();
-  await groupButton.getByText('Ungroup',{exact:true}).waitFor();
+  await groupButton.filter({hasText:/^Ungroup/}).waitFor();
   assert.equal(await draw('caption').evaluate(el=>el.classList.contains('selected')),true);
   assert.equal(await draw('holder').evaluate(el=>el.classList.contains('selected')),true);
   assert.equal(await tile(second).evaluate(el=>el.classList.contains('selected')),false);
@@ -92,7 +92,7 @@ try {
   assert.equal(moved.decorations.find(d=>d.id==='inside').x,grouped.decorations.find(d=>d.id==='inside').x+10);
   assert.deepEqual(moved.groups,grouped.groups);
   await action('restoreMovement',()=>page.keyboard.press(`${mod}+z`));
-  await groupButton.getByText('Ungroup',{exact:true}).waitFor();
+  await groupButton.filter({hasText:/^Ungroup/}).waitFor();
   await page.waitForFunction(()=>!document.querySelector('#chrome-redo').disabled);
 
   const start=await center(draw('caption'));
@@ -114,9 +114,9 @@ try {
   await tile(copyId).waitFor({state:'detached'});
 
   await tile(first).locator('.workspace-preview-launch').click();
-  await groupButton.getByText('Ungroup',{exact:true}).waitFor();
+  await groupButton.filter({hasText:/^Ungroup/}).waitFor();
   await action('ungroupOccurrences',()=>groupButton.click());
-  await groupButton.getByText('Group',{exact:true}).waitFor();
+  await groupButton.filter({hasText:/^Group/}).waitFor();
   const ungrouped=await snapshot();
   assert.equal(ungrouped.groups,undefined);
   assert.deepEqual(ungrouped.placements,original.placements);
@@ -125,11 +125,11 @@ try {
   await page.keyboard.press('Escape');
   await draw('caption').click({modifiers:['Shift']});
   await draw('spare').click({modifiers:['Shift']});
-  await drawingGroup.getByText('Group',{exact:true}).waitFor();
+  await drawingGroup.filter({hasText:/^Group/}).waitFor();
   await action('groupOccurrences',()=>drawingGroup.click());
-  await drawingGroup.getByText('Ungroup',{exact:true}).waitFor();
+  await drawingGroup.filter({hasText:/^Ungroup/}).waitFor();
   await action('ungroupOccurrences',()=>page.keyboard.press(`${mod}+g`));
-  await drawingGroup.getByText('Group',{exact:true}).waitFor();
+  await drawingGroup.filter({hasText:/^Group/}).waitFor();
 
   await draw('caption').dblclick();
   await page.locator('.whiteboard-editor textarea').waitFor();
