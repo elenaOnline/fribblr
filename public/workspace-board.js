@@ -1722,9 +1722,10 @@ export class WorkspaceBoard {
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
   editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes") {
+  itemControls(id, focus = "notes", {returnToCard = false} = {}) {
     if (this.contextPlacement === id) { this.closeContext(); return; }
     this.closeContext();
+    this.contextReturnToCard = returnToCard;
     const p = this.snapshot.placements.find(p => p.id === id);
     const item = this.snapshot.items[p?.itemId];
     if (!item) return;
@@ -1858,8 +1859,12 @@ export class WorkspaceBoard {
     control?.setAttribute("aria-expanded", "true");
     this.tileMenuAnchor = anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
     this.tileMenuOrigin = this.tileMenuAnchor?.getBoundingClientRect() || null;
+    // Focus goes back to what opened the menu: the ⋯ when it was opened from the ⋯, else the card (a right-click or
+    // Shift+F10 on the card), where the arrows keep moving between cards.
+    const fromMore = !!control && !point && (!event || !!event.target?.closest?.('[data-controls-focus="menu"]'));
+    this.tileMenuFromCard = !fromMore;
     openMenu(root, {anchor: point || anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`), payload:id, event,
-      returnTo: control ? `[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]` : undefined});
+      returnTo: fromMore ? `[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]` : `[data-placement="${CSS.escape(id)}"]`});
   }
   tileMenuClosed() {
     if(this.tileMenuPlacement)document.querySelectorAll(`[data-item-controls="${CSS.escape(this.tileMenuPlacement)}"]`).forEach(b=>b.setAttribute('aria-expanded','false'));
@@ -1874,7 +1879,7 @@ export class WorkspaceBoard {
     else if (action === "edit-document") this.editDocument(item.id, {placementId:id});
     else if (action === "edit-document-source") this.editDocument(item.id, {placementId:id, source:true});
     else if (action === "notes") this.hooks.editNote?.(`items/${id}`,card()?.querySelector("[data-item-controls]"));
-    else if (action === "details") this.itemControls(id, "notes");
+    else if (action === "details") this.itemControls(id, "notes", {returnToCard:this.tileMenuFromCard});
     else if (action === "star") card()?.querySelector("[data-star]")?.click();
     else if (action === "move") this.bulk("move");
     else if (action === "duplicate") this.duplicateSelection({explicit:true});
@@ -1905,7 +1910,9 @@ export class WorkspaceBoard {
     document.querySelectorAll(".workspace-card.inspected").forEach(card => card.classList.remove("inspected"));
     const buttons = document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`);
     buttons.forEach(b => b.setAttribute("aria-expanded", "false"));
-    if (focus) buttons[0]?.focus({ preventScroll: true });
+    // Back to what opened it: the card when it came from the card's menu, else the ⋯.
+    const card = this.contextReturnToCard && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
+    if (focus) (card || buttons[0])?.focus({ preventScroll: true });
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
