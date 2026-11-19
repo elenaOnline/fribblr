@@ -87,3 +87,43 @@ Applies to the organized Home (`WorkspaceHome`); the legacy shelf in `home.js` (
   click opens a board, and a 2-D grid doesn't wrap top to bottom. Escape clearing the selection is the app's
   existing behaviour (the SDK's selection helper maps no Escape; Listbox leaves the selection alone).
 
+### Navigator (⌘K, `/`, the header toggle, Find boards and items, the reader's toggle)
+
+Files: `navigator.js`, `navigator.css`; openers in `canvas.js` (`#chrome-search`, `#reader-search` and `#reader-navigator`
+pass themselves as the opener). Components: Dialog, Command, Tree, Select.
+
+- **Panel: a non-modal `ui-dialog`** (`modal="false" close-on-outside-press`), content `#project-navigator` with
+  `inline` so it keeps its fixed place, its z-index and its float look instead of moving to the top layer. Opened from code
+  (`api.open()`); focus goes to the field (`initial-focus`, or `none` when the docked panel opens on page load) and
+  returns on close to the opener (`final-focus="#id"` for a button, otherwise the element focused before, the SDK's rule).
+  Escape closes only while focus is inside; Tab can leave and it stays open. Docked ("Keep open"), the dialog gets
+  `dismissible="false"`: Escape and click-away are refused, and the `dismissattempt` for Escape moves focus to the
+  toggle. A press on a toggle or a Find button is not a click-away: `openchange` with reason `outside-press` from those
+  is cancelled, and their own click toggles or focuses the field. Close (`ui-dialog-close`) also un-docks. On close the
+  slide-in animation is finished, because the SDK otherwise keeps a closing popup until its animations end.
+  `tinka:navigator-open` takes `detail.opener`.
+- **Field and results: `ui-command filter="false"`.** The server filters, so the query goes to `/api/search` after a
+  150 ms pause, with stale requests aborted; the previous results stay until the next arrive (status line and the
+  command's `status="loading"` say "Searching…"). The caret never leaves the field: arrows move the highlight
+  (`aria-activedescendant`), Home/End move the caret, Enter runs the highlighted result, Escape empties the field and
+  then closes. Enter typed before the results arrive runs the first fresh result. Each result is a `ui-command-group`
+  (title, kind and description are its label) holding one `ui-command-item as-child` link per place it can be opened.
+  Links (results, Recent, board rows) navigate through the panel's click handler (`follow()`, which saves feedback first);
+  the SDK's Enter clicks the link, so both paths meet there. Our status line announces counts, so
+  `command.announcement` returns null. Marks ignore case and accents (`fold()` in `navigator.js`); the server's own
+  matching ignores case only (`lib/discovery.mjs`), not accents.
+- **Recent** boards are command items while the field is empty (the SDK's `emptyItems` idea, rendered as markup): ↓ and
+  Enter reach them without leaving the field. The highlight shows only while the field has focus.
+- **Boards and On this board: two `ui-tree`s**, each one Tab stop; the section band is the root item, so → / ← open and
+  close a section, and its open state is saved as before. Boards is `mode="none"` with `current` (the current board gets
+  `aria-current="page"`); rows are links (`ui-tree-item-label as-child`). On this board is `mode="multiple"` and mirrors
+  the board's selection as `aria-selected` (`tree.value` set from `tinka:selection`); every `valuechange` is cancelled,
+  and choosing a row (`action`) selects it on the board through `reveal`. Regions are branches. Both trees use
+  `expand-on-press="false"` and toggle bands and regions in `action`. The SDK manages a tree item's `style` attribute
+  (`--tree-level`), so nothing else may be set inline on `ui-tree-item`. The browse container stops keydown from
+  reaching the Command root around it.
+- **Scope: `ui-select`** with a `tk-menu` list (press, drag to a choice, release; typing on the closed trigger changes
+  the value). Hidden on Home, where only Whole project applies.
+- **Shared fix in `canvas.js`:** the board's document click handler opened a card for any `[data-open]` element, and
+  `data-open` is also the SDK's open-state attribute on triggers, so opening the scope Select opened the board owner's
+  reader. It now skips elements with `data-slot`. Every surface with an SDK trigger on a board page needs this.
