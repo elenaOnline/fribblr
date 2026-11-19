@@ -1626,7 +1626,8 @@ document.addEventListener('pointerdown', event => {
 }, true);
 let pendingDocumentOpen = 0;
 document.addEventListener('click', event => {
-  const open = event.target.closest('[data-open]');
+  // data-open is also UI SDK's open-state attribute on popup triggers (they carry data-slot); only ours open a card.
+  const open = event.target.closest('[data-open]:not([data-slot])');
   const star = event.target.closest('[data-star]');
   const remove = event.target.closest('[data-remove-experiment]');
   if (remove && appConfig) {
