@@ -1373,7 +1373,7 @@ export class WorkspaceBoard {
       const dimensions = this.mode === "canvas"
         ? `left:${p.x + this.origin.x}px;top:${p.y + this.origin.y}px;width:${p.width}px;height:${p.height}px;z-index:${p.z};`
         : panel || icon ? `width:${p.width}px;height:${p.height}px;` : "";
-      return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)} data-build-state="${esc(item.build?.state || "ready")}" style="${dimensions}--item-paper:${paper};${paperColors(paper)}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}</article>`;
+      return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)} data-build-state="${esc(item.build?.state || "ready")}" style="${dimensions}--item-paper:${paper};${paperColors(paper)}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" tabindex="-1" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}</article>`;
     };
     // The roving group (rovingCard below): one Tab stop for the board's items.
     const card = c => this.rovingCard(renderCard(c), c.placement, c.graphItem.title);
@@ -1628,8 +1628,9 @@ export class WorkspaceBoard {
       ids.forEach(id => this.selection.delete(id));
       if (ids.includes(this.contextPlacement)) this.closeContext();
       await this.refresh({saveReview:false});
-      toast(drawn.length ? `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}. Undo to restore.`
-        : `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} from this board. Undo to restore.`);
+      toast(drawn.length ? `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}.`
+        : `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} from this board.`,
+        {action:{label:"Undo", onAction:() => this.replayMovement("undo", {explicit:true})}});
     } catch (error) {
       try { await this.refresh({saveReview:false}); } catch {}
       if (confirmedRemoved) toast("Removed from this board. Reload to see the latest board; Undo remains available.");
@@ -1727,9 +1728,10 @@ export class WorkspaceBoard {
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
   editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes") {
+  itemControls(id, focus = "notes", {returnToCard = false} = {}) {
     if (this.contextPlacement === id) { this.closeContext(); return; }
     this.closeContext();
+    this.contextReturnToCard = returnToCard;
     const p = this.snapshot.placements.find(p => p.id === id);
     const item = this.snapshot.items[p?.itemId];
     if (!item) return;
@@ -1864,8 +1866,12 @@ export class WorkspaceBoard {
     control?.setAttribute("aria-expanded", "true");
     this.tileMenuAnchor = anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
     this.tileMenuOrigin = this.tileMenuAnchor?.getBoundingClientRect() || null;
+    // Focus goes back to what opened the menu: the ⋯ when it was opened from the ⋯, else the card (a right-click or
+    // Shift+F10 on the card), where the arrows keep moving between cards.
+    const fromMore = !!control && !point && (!event || !!event.target?.closest?.('[data-controls-focus="menu"]'));
+    this.tileMenuFromCard = !fromMore;
     openMenu(root, {anchor: point || anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`), payload:id, event,
-      returnTo: control ? `[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]` : undefined});
+      returnTo: fromMore ? `[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]` : `[data-placement="${CSS.escape(id)}"]`});
   }
   tileMenuClosed() {
     if(this.tileMenuPlacement)document.querySelectorAll(`[data-item-controls="${CSS.escape(this.tileMenuPlacement)}"]`).forEach(b=>b.setAttribute('aria-expanded','false'));
@@ -1880,7 +1886,7 @@ export class WorkspaceBoard {
     else if (action === "edit-document") this.editDocument(item.id, {placementId:id});
     else if (action === "edit-document-source") this.editDocument(item.id, {placementId:id, source:true});
     else if (action === "notes") this.hooks.editNote?.(`items/${id}`,card()?.querySelector("[data-item-controls]"));
-    else if (action === "details") this.itemControls(id, "notes");
+    else if (action === "details") this.itemControls(id, "notes", {returnToCard:this.tileMenuFromCard});
     else if (action === "star") card()?.querySelector("[data-star]")?.click();
     else if (action === "move") this.bulk("move");
     else if (action === "duplicate") this.duplicateSelection({explicit:true});
@@ -1911,7 +1917,9 @@ export class WorkspaceBoard {
     document.querySelectorAll(".workspace-card.inspected").forEach(card => card.classList.remove("inspected"));
     const buttons = document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`);
     buttons.forEach(b => b.setAttribute("aria-expanded", "false"));
-    if (focus) buttons[0]?.focus({ preventScroll: true });
+    // Back to what opened it: the card when it came from the card's menu, else the ⋯.
+    const card = this.contextReturnToCard && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
+    if (focus) (card || buttons[0])?.focus({ preventScroll: true });
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
@@ -3094,7 +3102,8 @@ export class WorkspaceBoard {
   }
   rovingTabIndex(key) { return key === this.focusStop ? 0 : -1; }
   // A card's markup with its place in the roving group: the stop card is tabbable and keeps its controls in Tab
-  // order after it; any other card and its controls leave the Tab order.
+  // order after it; any other card and its controls leave the Tab order. The preview's big "Open" is a pointer
+  // target that duplicates the title button and the hover toolbar's Open, so it never takes a Tab stop.
   rovingCard(html, placement, title) {
     const stop = this.focusStop === `placement:${placement.id}`;
     const open = `<article tabindex="${stop ? 0 : -1}" aria-label="${esc(title || "Untitled")}"`;
@@ -3111,7 +3120,7 @@ export class WorkspaceBoard {
     }
     if (next) {
       next.tabIndex = 0;
-      if (next.matches(".workspace-card")) for (const el of next.querySelectorAll('button[tabindex="-1"],a[tabindex="-1"]')) el.removeAttribute("tabindex");
+      if (next.matches(".workspace-card")) for (const el of next.querySelectorAll('button[tabindex="-1"]:not(.workspace-preview-launch),a[tabindex="-1"]')) el.removeAttribute("tabindex");
     }
   }
   // Before a rebuild: where the focused item was, in case the rebuild removes it.
@@ -3352,7 +3361,17 @@ export class WorkspaceBoard {
       if (e.key === "Escape") {
         if (this.context) { this.closeContext(true); e.preventDefault(); e.stopImmediatePropagation(); return; }
         if (this.activeDecoration) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); e.preventDefault(); return; }
-        if (this.selection.size) { this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault(); return; }
+        if (this.selection.size) {
+          // Escape inside the selection bar clears the selection and the bar goes: focus returns to the board's roving
+          // item (the one focused last) rather than falling to <body>.
+          const fromBar = !!e.target.closest?.("#workspace-selection");
+          this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault();
+          if (fromBar) {
+            const back = () => { this.ensureFocusStop(null); const stop = this.rovingElement(this.focusStop); if (stop && (document.activeElement === document.body || !document.activeElement?.isConnected)) stop.focus({preventScroll:true}); };
+            back(); requestAnimationFrame(back);
+          }
+          return;
+        }
       }
       // A focused UI SDK widget (toolbar, radio group, listbox …) owns its other keys. Escape is handled above first:
       // the item Inspector is role=dialog, and its Escape must still close it.

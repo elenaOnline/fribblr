@@ -92,10 +92,12 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-divider { margin: 0 3px;
 .zoom-menu { position: absolute; right: -40px; bottom: calc(100% + 10px); width: 244px; z-index: 60; }
 .zoom-menu[hidden] { display: none; }
 .zoom-menu .tk-mi { min-height: 32px; }
+/* the popover sits at the end of <body>, outside the pill: it keeps the pill's 44px hit rows and its slider theme itself */
+.zoom-menu :is(.tk-mi, .tk-seg > *) { box-sizing: border-box; height: 44px; min-height: 44px; border: 6px solid transparent; background-clip: padding-box; border-radius: 14px; }
 .zoom-menu .tk-seg { display: flex; margin: 2px 6px 6px; }
 .zoom-menu .tk-seg > :is(button, ui-segmented-control-item) { flex: 1; }
 .zoom-slider-row { display: flex; align-items: center; gap: 10px; padding: 4px 10px; color: var(--ink-2); font: var(--type-meta)/1 var(--type-sans); }
-body .canvas-footer .zoom-slider-row input[type=range] { flex: 1; width: auto; min-width: 0; height: 28px; margin: 0; accent-color: var(--mark-blue); }
+body .zoom-menu .zoom-slider-row input[type=range] { flex: 1; width: auto; min-width: 0; height: 28px; margin: 0; accent-color: var(--mark-blue); }
 
 /* ---------- Side panels: left is where, right is what ---------- */
 #board-info.calm-side, #workspace-item-controls.calm-side {
@@ -242,8 +244,11 @@ body .workspace-add-menu button > span { width: 18px; color: var(--ink-2); text-
 #world .workspace-card, #world .workspace-decoration { scroll-margin: 24px; }  /* focus scrolled into view keeps its ring clear */
 #world .workspace-card:focus-visible::after {
   content: ""; position: absolute; pointer-events: none; z-index: 7;
-  inset: calc(-1 * (var(--select-out, 6px) + var(--lift, 0px) + var(--select-line, 2px) + 3px));
+  --ring-out: calc(var(--select-out, 6px) + var(--lift, 0px) + var(--select-line, 2px) + 3px);
+  inset: calc(-1 * var(--ring-out));
   border: 2px solid var(--ink);
+  /* the card's own corner (a squircle, depth.css) grown by the distance the ring stands off, so it runs parallel */
+  border-radius: calc(var(--shape-slab) + var(--ring-out));
 }
 .workspace-board #world .workspace-decoration:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
 #world [data-pointer-focus]:focus-visible::after { content: none; }
