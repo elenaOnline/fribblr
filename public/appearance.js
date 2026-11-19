@@ -3,6 +3,7 @@
 // writes the choice, re-applies it, and keeps every copy of the controls in step (Home's menu, the board's and an opened
 // Tinka's Inspector). Background is a light-mode choice: dark has one ground, so the row is disabled while the page is dark.
 import './appearance-boot.js';
+import {sharedMenu, menuRadioGroup, menuSeparator} from './popups.js';
 const MODES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 const GROUNDS = [['desk', 'Blue'], ['white', 'White']];
 const KEY = { mode: 'tinka/appearance', ground: 'tinka/ground' };
@@ -14,6 +15,13 @@ function sync() {
   document.querySelectorAll('[data-appearance-set]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.appearanceSet === mode)));
   document.querySelectorAll('[data-ground-set]').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.groundSet === ground)); button.disabled = dark; });
   document.querySelectorAll('.appearance-ground').forEach(row => { row.title = dark ? 'Dark mode has one background' : ''; });
+  // Home's Appearance menu: two radio groups follow the same choice.
+  document.querySelectorAll('ui-menu-radio-group[name="appearance-mode"]').forEach(group => { if (group.value !== mode) group.value = mode; });
+  document.querySelectorAll('ui-menu-radio-group[name="appearance-ground"]').forEach(group => {
+    if (group.value !== ground) group.value = ground;
+    group.title = dark ? 'Dark mode has one background' : '';
+    group.querySelectorAll('ui-menu-radio-item').forEach(item => item.toggleAttribute('disabled', dark));
+  });
 }
 function choose(kind, value) {
   if (!LISTS[kind].some(([choice]) => choice === value)) return;
@@ -48,20 +56,21 @@ export function mountAppearance(host, { control = 'segmented' } = {}) {
     sync();
     return;
   }
+  // Home: a UI SDK menu (popups.js) of two radio groups. Radio items stay open as they change, so Mode and Background
+  // can both be set in one visit; arrows, Home/End and typeahead move through them, Escape returns to the button.
   const id = `appearance-menu-${++menus}`;
   wrap.className = 'appearance-control appearance-menu';
-  wrap.innerHTML = `<button type="button" class="tk-btn appearance-trigger" aria-expanded="false" aria-controls="${id}" aria-label="Appearance">${ICON}<span>Appearance</span></button>`
-    + `<div class="appearance-pop" id="${id}" hidden>${rows()}</div>`;
-  const trigger = wrap.querySelector('.appearance-trigger'), pop = wrap.querySelector('.appearance-pop');
-  const show = (open, { focus = false } = {}) => {
-    pop.hidden = !open; trigger.setAttribute('aria-expanded', String(open));
-    if (open && focus) pop.querySelector('[aria-pressed="true"]')?.focus();
-    if (!open && focus) trigger.focus();
-  };
-  trigger.addEventListener('click', event => show(pop.hidden, { focus: event.detail === 0 }));
-  wrap.addEventListener('keydown', event => { if (event.key === 'Escape' && !pop.hidden) { event.stopPropagation(); show(false, { focus: true }); } });
-  wrap.addEventListener('focusout', event => { if (!pop.hidden && event.relatedTarget && !wrap.contains(event.relatedTarget)) show(false); });
-  document.addEventListener('pointerdown', event => { if (!pop.hidden && !wrap.contains(event.target)) show(false); }, { capture: true });
+  wrap.innerHTML = `<ui-menu-trigger for="${id}"><button type="button" class="tk-btn appearance-trigger" aria-label="Appearance">${ICON}<span>Appearance</span></button></ui-menu-trigger>`;
+  const {root, content} = sharedMenu({id, label: 'Appearance', className: 'appearance-menu-content'});
+  content.setAttribute('align', 'end');
+  content.setAttribute('side-offset', '8');
+  content.innerHTML = menuRadioGroup('appearance-mode', 'Mode', MODES, read('mode')) + menuSeparator + menuRadioGroup('appearance-ground', 'Background', GROUNDS, read('ground'));
+  content.addEventListener('valuechange', event => {
+    const group = event.target.closest('ui-menu-radio-group');
+    if (group?.getAttribute('name') === 'appearance-mode') choose('mode', event.detail.value);
+    else if (group?.getAttribute('name') === 'appearance-ground') choose('ground', event.detail.value);
+  }, true);
+  root.addEventListener('openchange', event => { if (event.detail.value) sync(); });
   host.append(wrap);
   sync();
 }
