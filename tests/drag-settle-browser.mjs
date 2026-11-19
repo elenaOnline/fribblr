@@ -104,11 +104,11 @@ try{
   await page.keyboard.press('Escape');
   const stale=await dragCase('stale-revision-sticky',{grabSelector:grab.sticky,watch:[sel.sticky],kinds:['sticky'],dx:40,dy:40,
     during:()=>op({type:'updateItem',itemId:anchor.itemId,patch:{title:'Renamed by another writer'}})});
-  results.staleDialog=await page.locator('dialog.workspace-dialog[open]').count();
+  results.staleDialog=await page.locator('.workspace-dialog[data-open]').count();
   if(results.staleDialog)await page.keyboard.press('Escape');
   const stalePanel=await dragCase('stale-revision-panel',{grabSelector:grab.panel,watch:[sel.panel],kinds:['panel'],dx:30,dy:30,
     during:()=>op({type:'updateItem',itemId:anchor.itemId,patch:{title:'Renamed again'}})});
-  results.stalePanelDialog=await page.locator('dialog.workspace-dialog[open]').count();
+  results.stalePanelDialog=await page.locator('.workspace-dialog[data-open]').count();
   if(results.stalePanelDialog)await page.keyboard.press('Escape');
   await writeFile(path.join(evidence,'drag-settle-results.json'),JSON.stringify(results,null,2));
   const failures=[];
@@ -128,7 +128,7 @@ try{
   // Real conflicts and failed saves stay visible: a dialog, then the latest saved position.
   const rendered=(kind)=>page.evaluate(({s,anchor})=>{const a=document.querySelector(anchor).getBoundingClientRect(),r=document.querySelector(s).getBoundingClientRect();return {x:Math.round(r.left-a.left),y:Math.round(r.top-a.top)};},{s:sel[kind],anchor:sel.anchor});
   const expectRolledBack=async(name,kind)=>{
-    const dialog=await page.locator('dialog.workspace-dialog[open]').count();
+    const dialog=await page.locator('.workspace-dialog[data-open]').count();
     if(dialog)await page.keyboard.press('Escape');
     const saved=await geometry(kind),a=(await snapshot()).placements.find(p=>p.id===ids.anchor);
     const want={x:saved.x-a.x,y:saved.y-a.y};let got;

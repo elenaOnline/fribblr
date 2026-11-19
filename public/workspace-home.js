@@ -11,6 +11,7 @@ import {
   resourceURL,
   destinationDialog,
   makeDialog,
+  confirmDialog,
   enableOrganization,
   toast,
   showFailure,
@@ -141,9 +142,9 @@ export class WorkspaceHome {
     this.render();
   }
   async drainLive() {
-    if(!this.liveDirty||this.liveRunning||this.client.pendingWrites||document.querySelector("dialog[open]"))return;
+    if(!this.liveDirty||this.liveRunning||this.client.pendingWrites||document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]"))return;
     this.liveRunning=true;
-    try{while(this.liveDirty&&!document.querySelector("dialog[open]")){this.liveDirty=false;await this.refresh();}}
+    try{while(this.liveDirty&&!document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]")){this.liveDirty=false;await this.refresh();}}
     catch{this.liveDirty=true;document.getElementById("connection").textContent="Reconnecting";}
     finally{this.liveRunning=false;}
   }
@@ -344,7 +345,7 @@ export class WorkspaceHome {
       suppressClick = false;
       if (this.marquee) { finish(true); return; }
       if (!this.active || e.button !== 0 || !e.isPrimary || !["mouse", "pen"].includes(e.pointerType) ||
-          e.ctrlKey || e.metaKey || e.altKey || document.querySelector("dialog[open]")) return;
+          e.ctrlKey || e.metaKey || e.altKey || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]")) return;
       const main = e.target.closest?.("main");
       if (!main || e.target.closest(NOT_EMPTY)) return;
       this.marquee = { pointerId: e.pointerId, start: { x: e.clientX, y: e.clientY }, last: { x: e.clientX, y: e.clientY },
@@ -386,7 +387,7 @@ export class WorkspaceHome {
     }, true);
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || !this.selected.size || e.defaultPrevented || e.isComposing ||
-          document.querySelector("dialog[open]") || e.target.closest?.(FIELD)) return;
+          document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") || e.target.closest?.(FIELD)) return;
       e.preventDefault();
       this.selected.clear();
       this.syncSelection();
@@ -428,10 +429,11 @@ export class WorkspaceHome {
         return;
       }
       if (type === "remove") {
-        makeDialog(
-          "Remove boards from home?",
-          '<p>Remove these home placements. Their boards, items, references, notes and resource files remain intact. You can still reach them through existing links or references.</p><button type="submit" class="workspace-primary">Remove from home</button>',
-          async () => {
+        confirmDialog({
+          title: "Remove boards from home?",
+          description: "Remove these home placements. Their boards, items, references, notes and resource files remain intact. You can still reach them through existing links or references.",
+          confirmLabel: "Remove from home",
+          onConfirm: async () => {
             const homes = this.workspace.homeBoardIds.filter(
               (id) =>
                 !ids.includes(
@@ -444,15 +446,16 @@ export class WorkspaceHome {
             this.selected.clear();
             await this.refresh();
           },
-        );
+        });
         return;
       }
-      makeDialog(
-        this.archive
+      confirmDialog({
+        title: this.archive
           ? "Restore these boards everywhere?"
           : "Archive these boards everywhere?",
-        `<p>${this.archive ? "Restore these canonical board items on home and every board where they are referenced." : "Archive these canonical board items on home and every board where they are referenced. Their content and resource files remain intact."}</p><button type="submit" class="workspace-primary">${this.archive ? "Restore everywhere" : "Archive everywhere"}</button>`,
-        async () => {
+        description: this.archive ? "Restore these canonical board items on home and every board where they are referenced." : "Archive these canonical board items on home and every board where they are referenced. Their content and resource files remain intact.",
+        confirmLabel: this.archive ? "Restore everywhere" : "Archive everywhere",
+        onConfirm: async () => {
           await this.client.write("archiveItem", {
             itemIds: ids,
             archived: !this.archive,
@@ -465,7 +468,7 @@ export class WorkspaceHome {
               : "Boards archived everywhere. Open Archive to restore.",
           );
         },
-      );
+      });
     } catch (e) {
       showFailure(e);
     }

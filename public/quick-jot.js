@@ -1,9 +1,11 @@
 // Quick Jot: a floating single-line input; each Enter adds the line as a small
 // Sticky. Jots fill a tidy grid (up to 4 across, as many as fit the view, wrapping) in a clear area near the
 // current view, skipping cells that would overlap anything on the board, and
-// the view pans gently to keep the newest jot visible. Esc closes it.
+// the view pans gently to keep the newest jot visible. It is a non-modal UI SDK ui-dialog: the board stays usable around
+// it, Tab can leave it, Escape closes it from inside and focus returns to where it came from.
 
 import { token } from "./tokens.js";
+import "./vendor/ui-sdk/web/dialog.js";
 
 const STYLE_ID = "quick-jot-style";
 const GAP = 16, MAX_COLS = 4, JOT_W = 180, JOT_H = 140, MARGIN = 24;
@@ -16,11 +18,12 @@ function injectStyle() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-.quick-jot{position:fixed;left:50%;bottom:var(--quick-jot-bottom,72px);transform:translateX(-50%);z-index:1000;
-  display:flex;align-items:center;width:min(440px,calc(100vw - 32px));box-sizing:border-box;
+.quick-jot{position:fixed;inset:auto auto var(--quick-jot-bottom,72px) 50%;margin:0;height:auto;transform:translateX(-50%);z-index:1000;overflow:visible;
+  display:block;width:min(440px,calc(100vw - 32px));box-sizing:border-box;padding:0;
   background:var(--surface-frame);color:var(--ink);border:0;
   border-radius:var(--shape-bar);box-shadow:0 0 0 1px var(--line-edge), var(--cast-float)}
 .quick-jot:focus-within{box-shadow:0 0 0 2px var(--mark-blue),0 0 0 1px var(--line-edge), var(--cast-float)}
+.quick-jot form{display:flex;align-items:center;margin:0}
 .quick-jot input{flex:1;min-width:0;margin:0;border:0;border-radius:inherit;background:transparent;
   color:var(--mark-red);caret-color:var(--mark-red);font:inherit;font-family:var(--type-sans);
   font-size:15px;padding:11px 14px;appearance:none}
@@ -59,7 +62,7 @@ function viewBox(board, form) {
 
 // First clear spot for a block of jots (up to MAX_COLS across, as many as fit the view, 2 rows): scan the view nearest its
 // centre, then fall back to just right of (or below) everything on the board.
-function findAnchor(board, form) {
+function findAnchor(board, panel) {
   const rects = occupied(board), v = viewBox(board, form);
   const COLS = Math.max(1, Math.min(MAX_COLS, Math.floor((v.right - v.x + GAP) / (JOT_W + GAP))));
   const blockW = COLS * JOT_W + (COLS - 1) * GAP, blockH = 2 * JOT_H + GAP;
@@ -101,17 +104,19 @@ function reveal(board, id, form) {
 export function openQuickJot(board) {
   if (open) { open.input.focus(); return open; }
   injectStyle();
-  const form = document.createElement("form");
-  form.className = "quick-jot";
-  form.innerHTML = `<input type="text" aria-label="Quick jot" placeholder="Jot a note… Enter adds, Esc closes" autocomplete="off">`;
+  const root = document.createElement("ui-dialog");
+  root.setAttribute("modal", "false");
+  root.innerHTML = `<ui-dialog-content class="quick-jot" aria-label="Quick jot" hidden><form><input type="text" aria-label="Quick jot" placeholder="Jot a note… Enter adds, Esc closes" autocomplete="off" autofocus></form></ui-dialog-content>`;
+  const panel = root.querySelector("ui-dialog-content"), form = root.querySelector("form");
   const input = form.querySelector("input");
   let layout = null, queue = Promise.resolve();
 
-  const onResize = () => place(form);
-  const close = () => { form.remove(); removeEventListener("resize", onResize); open = null; };
+  const onResize = () => place(panel);
+  const close = () => root.api.close();
+  root.addEventListener("openchange", e => { if (!e.detail.value) { removeEventListener("resize", onResize); if (open?.root === root) open = null; } });
+  root.addEventListener("openchangecomplete", e => { if (!e.detail.value) root.remove(); });
   form.addEventListener("keydown", e => {
-    e.stopPropagation(); // keep board hotkeys (T, S, D, N…) out of the input
-    if (e.key === "Escape") { e.preventDefault(); close(); }
+    if (e.key !== "Escape") e.stopPropagation(); // keep board hotkeys (T, S, D, N…) out of the input; Escape reaches the dialog
   });
   form.addEventListener("submit", e => {
     e.preventDefault();
@@ -124,7 +129,7 @@ export function openQuickJot(board) {
     try {
       if (board.mode !== "canvas") board.setMode("canvas");
       board.whiteboard?.commitEdit?.({ focus: false });
-      if (!layout) layout = { anchor: findAnchor(board, form), index: 0 };
+      if (!layout) layout = { anchor: findAnchor(board, panel), index: 0 };
       const cell = nextCell(board, layout);
       const d = { id: crypto.randomUUID(), ...stickyDecoration(), x: cell.x, y: cell.y, width: JOT_W, height: JOT_H, text };
       await board.client.write("createDecoration", { boardId: board.snapshot.id, decoration: d });
@@ -132,7 +137,7 @@ export function openQuickJot(board) {
       board.whiteboard?.clearSelection?.({ finishEdit: false });
       board.activeDecoration = null; board.selection?.clear?.();
       await board.refresh({ saveReview: false });
-      if (open) reveal(board, d.id, form);
+      if (open) reveal(board, d.id, panel);
     } catch (error) {
       console.error("Quick Jot could not add a sticky", error);
       if (open && !input.value) input.value = text; // keep the words to retry
@@ -140,9 +145,9 @@ export function openQuickJot(board) {
       if (open && document.activeElement !== input) input.focus({ preventScroll: true });
     }
   };
-  document.body.append(form);
-  place(form); addEventListener("resize", onResize);
-  input.focus();
-  open = { form, input, close };
+  document.body.append(root);
+  place(panel); addEventListener("resize", onResize);
+  root.api.open();
+  open = { form: panel, root, input, close };
   return open;
 }

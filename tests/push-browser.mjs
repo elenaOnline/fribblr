@@ -31,9 +31,9 @@ try{
  await cli({type:'updateBoard',boardId:'live',patch:{title:'Pushed title'}});await page.waitForFunction(()=>document.querySelector('#board-title').textContent.includes('Pushed title'));
  assert.equal(await page.evaluate(()=>window.retainedCardFrame===document.querySelector('.workspace-live-preview iframe')),true,'metadata keeps mounted card iframe');
  // An unsaved form remains exact while a push waits; cancel then drains it.
- await openItemDetails(card.locator('[data-item-controls]'));await page.locator('[data-context-edit]').click();const field=page.locator('dialog.workspace-dialog [name=description]');await field.fill('Unsaved form draft');await field.focus();
+ await openItemDetails(card.locator('[data-item-controls]'));await page.locator('[data-context-edit]').click();const field=page.locator('.workspace-dialog [name=description]');await field.fill('Unsaved form draft');await field.focus();
  await cli({type:'updateBoard',boardId:'live',patch:{title:'Queued while editing'}});await page.waitForTimeout(1200);assert.equal(await field.inputValue(),'Unsaved form draft');assert.equal(await page.locator('#board-title').textContent(),'Pushed title');
- await page.locator('dialog.workspace-dialog .workspace-close').click();await page.waitForFunction(()=>document.querySelector('#board-title').textContent==='Queued while editing');
+ await page.locator('.workspace-dialog .workspace-close').click();await page.waitForFunction(()=>document.querySelector('#board-title').textContent==='Queued while editing');
  // Background metadata/resource changes defer throughout a native pointer gesture.
  const box=await card.boundingBox();await page.mouse.move(box.x+80,box.y+box.height-22);await page.mouse.down();await page.mouse.move(box.x+105,box.y+box.height-15);
  await cli({type:'updateBoard',boardId:'live',patch:{title:'Queued through gesture'}});await writeFile(path.join(assets,'index.html'),'<h1>Gesture resource</h1><input id="draft" value="original">');await page.waitForTimeout(1200);assert.equal(await page.evaluate(()=>window.retainedCardFrame===document.querySelector('.workspace-live-preview iframe')),true,'resource update waits for gesture');assert.equal(await page.locator('#board-title').textContent(),'Queued while editing');await page.keyboard.press('Escape');await page.mouse.up();

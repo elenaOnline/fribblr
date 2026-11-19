@@ -1,5 +1,8 @@
 import {writesReady} from './update-hold.js';
 import {bindForm,restoreFocus,commitShortcutLabel,setCommitHint} from './interaction.js';
+import {toast, dismissToast} from './toasts.js';
+import './vendor/ui-sdk/web/dialog.js';
+import './vendor/ui-sdk/web/alert-dialog.js';
 // Small shared primitives for graph workspaces; the legacy board stays independent.
 export const escape = (value) =>
   String(value ?? "").replace(
@@ -127,22 +130,7 @@ export class WorkspaceClient {
     }
   }
 }
-export function toast(message) {
-  let node = document.getElementById("workspace-toast");
-  if (!node) {
-    node = document.createElement("div");
-    node.id = "workspace-toast";
-    node.className = "workspace-toast";
-    node.setAttribute("role", "status");
-    document.body.append(node);
-  }
-  node.textContent = message;
-  node.hidden = false;
-  clearTimeout(node.timer);
-  node.timer = setTimeout(() => {
-    node.hidden = true;
-  }, 6000);
-}
+export { toast, dismissToast };
 export function showFailure(error) {
   const d = makeDialog(
     "Change not saved",
@@ -152,33 +140,50 @@ export function showFailure(error) {
     location.reload(),
   );
 }
-export function makeDialog(title, body, onSubmit) {
-  const opener = document.activeElement;
-  const d = document.createElement("dialog");
-  const titleId = "workspace-dialog-" + crypto.randomUUID();
-  d.className = "workspace-dialog";
-  d.setAttribute("aria-labelledby", titleId);
-  d.innerHTML = `<form><button class="workspace-close" type="button" aria-label="Close dialog">×</button><h2 id="${titleId}">${escape(title)}</h2>${body}<p class="workspace-form-status" role="status"></p></form>`;
-  document.body.append(d);
+// Dialogs and confirmations are UI SDK ui-dialog / ui-alert-dialog (modal: page inert, Tab wraps, Escape and a press
+// on the backdrop close, focus returns to what had it). makeDialog keeps its old shape: it returns the content
+// element, which has the old dialog's close() and a "close" event.
+// A dialog opened while another dialog is open goes inside it, so the first one's inert page doesn't include it.
+function dialogHost() {
+  const open = [...document.querySelectorAll('ui-dialog-content[data-open],ui-alert-dialog-content[data-open]')].pop();
+  if (open) return open;
+  return [...document.querySelectorAll('dialog[open]')].filter(d => d.matches(':modal')).pop() || document.body;
+}
+const FIRST_FIELD = 'input:not([type=hidden],[type=checkbox],[type=radio],[readonly],[disabled]),textarea:not([readonly],[disabled]),select:not([disabled])';
+export function makeDialog(title, body, onSubmit, {className = ''} = {}) {
+  const root = document.createElement('ui-dialog');
+  root.innerHTML = `<ui-dialog-backdrop hidden></ui-dialog-backdrop><ui-dialog-content class="workspace-dialog ${className}" hidden><form><ui-dialog-close><button class="workspace-close" type="button" aria-label="Close dialog">×</button></ui-dialog-close><ui-dialog-title as-child><h2>${escape(title)}</h2></ui-dialog-title>${body}<p class="workspace-form-status" role="status"></p></form></ui-dialog-content>`;
+  const d = root.querySelector('ui-dialog-content');
+  const form = d.querySelector('form');
+  // Focus opens on the first field of a form; with no field, UI SDK's first focusable (the close key).
+  d.querySelector(FIRST_FIELD)?.setAttribute('autofocus', '');
   if (onSubmit && d.querySelector('[type=submit]')) {
-    const hint=document.createElement('small');hint.className='workspace-submit-hint';
+    const hint = document.createElement('small'); hint.className = 'workspace-submit-hint';
     setCommitHint(hint, 'save');
     d.querySelector('.workspace-form-status').before(hint);
   }
-  let closed = false, controller;
-  const close = () => {
-    if (closed || controller?.pending) return;
-    closed = true; controller?.destroy(); d.close(); d.remove(); restoreFocus(opener);
+  let controller, dirty = false, done = false, saved = false;
+  const finish = () => {
+    if (done) return; done = true;
+    controller?.destroy(); d.dispatchEvent(new Event('close'));
   };
-  d.querySelector(".workspace-close").onclick = close;
-  d.addEventListener("cancel", event => { event.preventDefault(); close(); });
-  d.addEventListener("close", () => { controller?.destroy(); d.remove(); });
-  controller = bindForm(d.querySelector('form'), {
+  d.close = () => { if (!controller?.pending || saved) root.api.close(); };
+  // A form with typed-in changes asks before a stray Escape or backdrop press throws them away; the close key doesn't ask.
+  form.addEventListener('input', () => { if (onSubmit && !dirty) { dirty = true; root.dismissible = false; } });
+  form.addEventListener('change', () => { if (onSubmit && !dirty) { dirty = true; root.dismissible = false; } });
+  root.addEventListener('dismissattempt', async () => {
+    if (controller?.pending || !dirty) return;
+    if (await confirmDialog({title: 'Discard your changes?', description: 'What you typed in this dialog has not been saved.', confirmLabel: 'Discard', cancelLabel: 'Keep editing'})) { root.dismissible = true; root.api.close(); }
+  });
+  root.addEventListener('openchange', event => {
+    if (event.detail.value) return;
+    // A save in flight holds the dialog open; a finished save is no longer pending from the dialog's side.
+    if (controller?.pending && !saved) event.preventDefault();
+  });
+  root.addEventListener('openchangecomplete', event => { if (!event.detail.value) { finish(); root.remove(); } });
+  controller = bindForm(form, {
     submit: async data => { await onSubmit?.(data, d); },
-    onSuccess: () => {
-      // The successful form is no longer pending from the domain's perspective.
-      if (!closed) { closed = true; controller.destroy(); d.close(); d.remove(); restoreFocus(opener); }
-    },
+    onSuccess: () => { saved = true; if (!done) root.api.close(); },
     onError: error => {
       const status = d.querySelector(".workspace-form-status");
       status.textContent = error.message; status.setAttribute("role", "alert");
@@ -188,14 +193,39 @@ export function makeDialog(title, body, onSubmit) {
       }
     },
   });
-  d.showModal();
+  dialogHost().append(root);
+  // pending is the form's: the dialog can't be dismissed mid-save, so the close key is held too.
+  root.api.open();
   return d;
 }
+// A question that needs an answer: ui-alert-dialog. Focus opens on Cancel (the least destructive answer), Escape means
+// no, a press outside does nothing. confirmDialog resolves true for the confirming answer. With onConfirm (async), the
+// confirming button stays pending while it runs and a failure shows in the dialog and keeps it open to retry.
+export function confirmDialog({title, description = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, className = ''}) {
+  const root = document.createElement('ui-alert-dialog');
+  root.innerHTML = `<ui-alert-dialog-backdrop hidden></ui-alert-dialog-backdrop><ui-alert-dialog-content class="workspace-dialog workspace-alert ${className}" hidden><ui-alert-dialog-title as-child><h2></h2></ui-alert-dialog-title><ui-alert-dialog-description as-child><p></p></ui-alert-dialog-description><p class="workspace-form-status" role="status"></p><div class="workspace-alert-actions"><ui-alert-dialog-close><button type="button" class="workspace-alert-cancel"></button></ui-alert-dialog-close><ui-alert-dialog-close value="confirm"><button type="button" class="workspace-primary workspace-alert-confirm"></button></ui-alert-dialog-close></div></ui-alert-dialog-content>`;
+  const d = root.querySelector('ui-alert-dialog-content');
+  d.querySelector('h2').textContent = title;
+  d.querySelector('p').textContent = description;
+  d.querySelector('.workspace-alert-cancel').textContent = cancelLabel;
+  d.querySelector('.workspace-alert-confirm').textContent = confirmLabel;
+  const status = d.querySelector('.workspace-form-status');
+  if (!description) d.querySelector('p').remove();
+  if (onConfirm) d.querySelector('ui-alert-dialog-close[value=confirm]').action = async () => {
+    status.textContent = ''; status.setAttribute('role', 'status');
+    try { await onConfirm(); }
+    catch (error) { status.textContent = error.message || 'Change not saved. Try again.'; status.setAttribute('role', 'alert'); throw error; }
+  };
+  root.addEventListener('openchangecomplete', event => { if (!event.detail.value) { d.dispatchEvent(new Event('close')); root.remove(); } });
+  dialogHost().append(root);
+  return root.api.open().then(result => result.returnValue === 'confirm');
+}
 export async function enableOrganization(config) {
-  makeDialog(
-    "Enable flexible boards?",
-    '<p>Convert the existing board metadata to stable items and placements. Existing board files, prior rounds, revisions, stars and notes remain in place. New organization changes live beside your project data.</p><p>This is an explicit workspace conversion. Resource files are not moved or deleted.</p><button type="submit" class="workspace-primary">Enable organization</button>',
-    async () => {
+  confirmDialog({
+    title: "Enable flexible boards?",
+    description: "Convert the existing board metadata to stable items and placements. Existing board files, prior rounds, revisions, stars and notes remain in place. New organization changes live beside your project data. This is an explicit workspace conversion. Resource files are not moved or deleted.",
+    confirmLabel: "Enable organization",
+    onConfirm: async () => {
       const r = await fetch("/api/workspace/migrate", {
         method: "POST",
         headers: {
@@ -209,7 +239,7 @@ export async function enableOrganization(config) {
         throw new Error(data.error || "Could not enable organization.");
       location.reload();
     },
-  );
+  });
 }
 export async function destinationDialog(
   client,
@@ -238,7 +268,7 @@ export async function destinationDialog(
       !byItem.get(b.ownerItemId)?.deletedAt,
   );
   const isMove = kind === "move";
-  makeDialog(
+  const dialog = makeDialog(
     isMove ? "Move to a board" : "Add a reference",
     `<p>${isMove ? "Replace the selected placements with placements in the destination." : "Keep these placements and add references to the same items in the destination."} Content, stars and notes stay with each item.</p><label>Destination<select name="target"><option value="new">＋ Create a new board</option>${boards.map((b) => `<option value="${escape(b.id)}">${escape(b.title)}</option>`).join("")}${itemIds ? '<option value="home">Home</option>' : ""}</select></label><label data-new-title>New board title<input name="title" maxlength="1000" placeholder="A new series"></label><p class="workspace-scope">A reference shares the item. A duplicate makes a separate item.</p><button class="workspace-primary" type="submit">${isMove ? "Move items" : "Add references"}</button>`,
     async (f) => {
@@ -262,7 +292,6 @@ export async function destinationDialog(
       );
     },
   );
-  const dialog = document.querySelector("dialog.workspace-dialog:last-of-type");
   dialog.querySelector("[name=target]").onchange = (e) =>
     (dialog.querySelector("[data-new-title]").hidden =
       e.target.value !== "new");

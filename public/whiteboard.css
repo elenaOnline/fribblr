@@ -54,7 +54,7 @@ html[data-appearance="dark"] .workspace-decoration { --decoration-ink:var(--deco
 .workspace-add-menu { max-height:calc(100vh - 20px); overflow-y:auto; }
 @media(max-width:600px) { .whiteboard-toolbar { flex-wrap:wrap; } .whiteboard-toolbar button,.whiteboard-menu button { min-height:44px; } .whiteboard-edit-hint { flex-basis:100%; } .whiteboard-endpoint-form { padding:8px; } }
 /* Precision is secondary: a compact native form, with independent body scrolling. */
-dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); padding:16px; overflow:hidden; }
+.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); padding:16px; overflow:hidden; }
 .whiteboard-arrow-settings form { display:grid; grid-template-rows:auto minmax(0,1fr) auto; gap:12px; max-height:calc(100dvh - 58px); }
 .whiteboard-arrow-settings h2 { margin:0; padding:3px 36px 0 0; font:600 16px/1.4 var(--type-sans); }
 .whiteboard-arrow-settings .workspace-close { position:absolute; top:9px; right:9px; float:none; margin:0; min-width:32px; width:32px; min-height:32px; height:32px; font-size:20px; }
@@ -82,7 +82,8 @@ dialog.whiteboard-arrow-settings { width:min(700px,calc(100vw - 24px)); max-heig
 }
 .whiteboard-arrow-settings form { overflow:hidden; }
 .whiteboard-settings-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:32px; position:sticky; top:0; z-index:2; background:var(--surface-paper); }
-.whiteboard-settings-heading h2 { flex:1; padding:0; }
+.whiteboard-settings-heading ui-dialog-title { flex:1; min-width:0; }
+.whiteboard-settings-heading h2 { padding:0; }
 .whiteboard-settings-heading .workspace-close { position:static; flex:none; }
 .whiteboard-arrow-settings .whiteboard-settings-body { position:relative; contain:paint; }
 .whiteboard-arrow-settings .whiteboard-settings-actions { position:sticky; bottom:0; z-index:2; }
