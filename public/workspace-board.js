@@ -10,6 +10,7 @@ import {kindAttributes} from "./kinds.js";
 import {KindLegend} from "./kind-legend.js";
 import {eventFiles,hasFileDrag,validateImportFiles,importLayout,pdfSupported,pdfPreviewURL} from "./file-import.js";
 import {CutIntent} from "./cut-intent.js";
+import {widgetOwnsKey} from "./ui-sdk.js";
 import {MovementHistory} from "./movement-history.js";
 import {timeHTML} from "./relative-dates.js";
 import {navigationGraph} from "./navigator-graph.js";
@@ -673,7 +674,7 @@ export class WorkspaceBoard {
   boardCommandBlocked(event) {
     return this.clipboardBlocked() || this.history?.busy ||
       event?.target.closest?.("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]") ||
-      document.activeElement?.closest("[role=textbox]");
+      document.activeElement?.closest("[role=textbox]") || widgetOwnsKey(event);
   }
   installBoardCommands(bar) {
     const guide = document.createElement("button");
@@ -3020,6 +3021,8 @@ export class WorkspaceBoard {
       if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
       // The focused board map owns its arrows, Escape and +/−.
       if (e.target.closest?.(".board-map-stage")) return;
+      // A focused UI SDK widget (menu, toolbar, radio group …) owns its own keys.
+      if (widgetOwnsKey(e)) return;
       if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
       if (this.feedback?.consumeEscape(e)) return;
       if (this.whiteboard?.handleEscape(e)) return;

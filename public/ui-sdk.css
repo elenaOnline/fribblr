@@ -1,0 +1,12 @@
+/* UI SDK glue. Linked first on every page that uses the SDK, so this layer declaration comes before any other rule:
+   the SDK's own few rules (closed popups hidden, default display) live in @layer ui-sdk and every unlayered rule of
+   ours wins over them (vendor/ui-sdk/docs/styling-and-animation.md § The ui-sdk Layer).
+   The SDK supplies behaviour only. Looks come from the role tokens (tokens.css) and the depth model (depth.css):
+   popup content joins the float height with data-height="float" or an existing float class; keys stay raised. */
+@layer ui-sdk;
+
+/* Content parts can flash before their module upgrades them; keep them hidden until defined. */
+:is(ui-menu-content, ui-popover-content, ui-dialog-content, ui-alert-dialog-content, ui-tooltip-content, ui-select-content, ui-hover-card-content):not(:defined) { display: none; }
+
+/* Which window is which: the experiment's instance carries this tag beside the brand. */
+.sdk-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; margin-left: 8px; border-radius: var(--shape-cap, 4px); font: 600 11px/1 var(--type-sans); letter-spacing: .02em; color: var(--ink-on-mark); background: var(--mark-blue); white-space: nowrap; flex: none; }

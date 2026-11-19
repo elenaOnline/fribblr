@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tinka</title>
   <script src="/app/appearance-boot.js"></script>
+  <link rel="stylesheet" href="/app/ui-sdk.css">
   <link rel="stylesheet" href="/app/canvas.css">
   <link rel="stylesheet" href="/app/live.css">
   <link rel="stylesheet" href="/app/agent-prompt.css">
@@ -12,7 +13,7 @@
 <body>
   <header id="canvas-header" class="canvas-header">
     <nav class="identity" aria-label="Board navigation">
-      <a class="brand" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="project-label">Home</span></a>
+      <a class="brand" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="project-label">Home</span></a><span class="sdk-chip" title="This window runs the UI SDK experiment">UI SDK</span>
       <span id="board-number" class="item-number board-number" hidden></span><h1 id="board-title" class="board-name" aria-current="page">Loading board…</h1>
     </nav>
     <div id="chrome-actions" class="chrome-actions">
@@ -67,7 +68,7 @@
     <header id="reader-header" class="reader-header">
       <nav class="identity" aria-label="Where you are">
         <button id="reader-navigator" class="project-navigator-toggle tk-btn tk-icon" type="button" aria-label="Navigator" aria-controls="project-navigator" aria-expanded="false" title="Navigator (⌘K)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg></button>
-        <a class="brand" id="reader-home" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="reader-project">Home</span></a>
+        <a class="brand" id="reader-home" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="reader-project">Home</span></a><span class="sdk-chip" title="This window runs the UI SDK experiment">UI SDK</span>
         <a id="close-reader" class="workspace-parent reader-up" href="#" aria-keyshortcuts="Escape Alt+ArrowUp" title="Up to the board (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg><span id="reader-up-label" class="reader-up-label">Board</span></a>
         <span class="reader-title-row">
           <button id="reader-path" class="reader-path" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop" title="Where you are: hover or click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button>
