@@ -17,6 +17,7 @@
 import './vendor/ui-sdk/web/tooltip.js';
 import {capFor, capLabel} from './keycaps.js';
 import {isMacPlatform} from './reader-keys.js';
+import {popupJustClosed} from './popups.js';
 
 const FOREIGN = isMacPlatform() ? /(^|\+)Control\+/ : /(^|\+)Meta\+/;
 
@@ -36,7 +37,11 @@ function tooltipFor(host) {
   root.innerHTML = '<ui-tooltip-content class="tk-tip" data-height="float" collision-padding="8"><span class="tk-tip-text"></span><span class="tk-tip-keys"></span></ui-tooltip-content>';
   // A control marked data-tip-truncated (a title cut off with an ellipsis) shows its tip only while the text doesn't
   // fit (tooltip.md § Truncated Text), and an empty hint shows nothing. Handing over to one of those closes the tooltip.
-  root.addEventListener('openchange', event => { if (event.detail.value && quiet(root.api?.getPayload?.())) event.preventDefault(); });
+  root.addEventListener('openchange', event => {
+    if (!event.detail.value) return;
+    // Focus coming back to a trigger after its popup closed doesn't reopen the hint (tooltip.md § Focus).
+    if (quiet(root.api?.getPayload?.()) || (event.detail.reason === 'trigger-focus' && popupJustClosed())) event.preventDefault();
+  });
   root.addEventListener('payloadchange', event => {
     if (quiet(event.detail.value)) { event.preventDefault(); queueMicrotask(() => root.api?.close?.()); return; }
     fill(root, event.detail.value);

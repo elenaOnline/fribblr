@@ -122,6 +122,15 @@ function watchConsumedPresses(root) {
 }
 // A menu that keeps its own trigger in place (wrapped in <ui-menu-trigger>) joins the same guard.
 export function guardMenu(root) { watchConsumedPresses(root); return root; }
+// When a popup (menu, popover) last closed. Focus then goes back to the control that opened it, and a tooltip on that
+// control must not reopen for it (tooltip.md: "Focus returning to the trigger after its popover closes doesn't reopen the
+// tooltip"): the SDK does that for its own trigger wrappers, but a popup opened from code (Arrange) has none, so tips.js
+// asks here.
+let lastPopupClose = -Infinity;
+export const popupJustClosed = (within = 400) => performance.now() - lastPopupClose < within;
+if (typeof document !== 'undefined') for (const type of ['openchange', 'openchangecomplete'])
+  document.addEventListener(type, event => { if (event.detail?.value === false && !/^tooltip/.test(event.target?.dataset?.slot || event.target?.tagName?.toLowerCase().replace(/^ui-/, '') || '')) lastPopupClose = performance.now(); }, true);
+
 // True while one of the app's menus is open: board handlers that run before the SDK's (window capture) check it.
 export function menuOpen() { return !!document.querySelector('ui-menu-content[data-open]'); }
 if (typeof document !== 'undefined') document.addEventListener('pointerdown', event => { if (consumed.has(event)) event.stopImmediatePropagation(); }, true);
