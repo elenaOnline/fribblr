@@ -47,3 +47,27 @@ export async function shortcuts() {
 export async function defined(...tags) {
   await Promise.all(tags.map(tag => customElements.whenDefined(tag)));
 }
+
+// Restyle cost workaround for @ui-sdk/web 0.1.0-beta.10 (see ui-sdk.md § "Restyle cost: the default-display rules").
+// The SDK writes one rule per defined element with a default display into <style id="ui-sdk-web-N">:
+//   :where(TAG:not([hidden]), TAG[hidden="until-found"]) { display: contents }
+// Chrome can't bucket a two-argument :where() by tag, so each of these ~70 rules is tried against every element on
+// every style recalc; on the dense board that made each whole-board restyle (wheel pan, glide, drag) ~30% dearer.
+// We rewrite each to the same match at the same specificity (0), with the tag in a one-argument :where(), which Chrome
+// buckets by tag:
+//   :where(TAG):where(:not([hidden]), [hidden="until-found"]) { display: contents }
+// The SDK rewrites that <style> whenever another element is defined, so an observer on <head> re-applies it.
+const SLOW_DEFAULT_DISPLAY = /:where\(([a-z][a-z0-9]*-[a-z0-9-]*):not\(\[hidden\]\), \1\[hidden="until-found"\]\)/g;
+function fastDefaultDisplay(style) {
+  const css = style.textContent;
+  if (!css.includes(':not([hidden]), ')) return;
+  const fast = css.replace(SLOW_DEFAULT_DISPLAY, ':where($1):where(:not([hidden]), [hidden="until-found"])');
+  if (fast !== css) style.textContent = fast;
+}
+function watchSdkStyles(doc = globalThis.document) {
+  if (!doc?.head || typeof MutationObserver === 'undefined') return;
+  const pass = () => doc.head.querySelectorAll(':scope > style[id^="ui-sdk-web-"]').forEach(fastDefaultDisplay);
+  pass();
+  new MutationObserver(pass).observe(doc.head, {childList: true, subtree: true, characterData: true});
+}
+watchSdkStyles();
