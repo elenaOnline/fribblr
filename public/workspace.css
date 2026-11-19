@@ -450,6 +450,11 @@
 .workspace-toast-close:hover { opacity: 1; background: rgb(from var(--surface-paper) r g b / .16); }
 .workspace-toast :is(.workspace-toast-action, .workspace-toast-close):focus-visible { outline: 2px solid var(--surface-paper); outline-offset: 1px; }
 .workspace-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  box-sizing: border-box;
   width: min(620px, calc(100vw - 28px));
   max-height: calc(100dvh - 30px);
   padding: 28px;
@@ -465,6 +470,10 @@
 .workspace-dialog::backdrop {
   background: rgb(from var(--ground-cast) r g b / .22);
 }
+ui-dialog-backdrop, ui-alert-dialog-backdrop { position: fixed; inset: 0; background: rgb(from var(--ground-cast) r g b / .22); }
+.workspace-dialog.workspace-alert { width: min(440px, calc(100vw - 28px)); }
+.workspace-alert-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.workspace-dialog .workspace-alert-actions .workspace-primary { margin-top: 0; }
 .workspace-dialog form {
   margin: 0;
 }

@@ -27,6 +27,7 @@ import {
   featureOnParentDialog,
   itemForm,
   makeDialog,
+  confirmDialog,
   toast,
   showFailure,
 } from "./workspace.js";
@@ -305,7 +306,7 @@ export class WorkspaceBoard {
     this.installBoardCommands(bar);
     document.addEventListener("keydown", e => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== "z" ||
-          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector("dialog[open]")) return;
+          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]")) return;
       // Browser text editing keeps its own undo; movement replay is available
       // only when no pointer gesture or operation is still being committed.
       e.preventDefault(); e.stopImmediatePropagation();
@@ -632,7 +633,7 @@ export class WorkspaceBoard {
   liveBlocked() {
     return !!(this.documentEditing || this.pointerGesture || this.decorationGesture || this.decorationCommitting || this.moveCommitting || this.movePending ||
       this.whiteboard?.editing || this.whiteboard?.finishing || this.client.pendingWrites || this.historyBusy || this.history?.busy || this.pasteBusy || this.saving ||
-      document.activeElement?.closest("input,textarea,select,[contenteditable]") || document.querySelector("dialog.workspace-dialog[open]"));
+      document.activeElement?.closest("input,textarea,select,[contenteditable]") || document.querySelector(".workspace-dialog:is([open],[data-open])"));
   }
   // Arrangement writes survive an unrelated revision change: after a revision-only
   // rejection the affected board is re-read once, and the same operation is
@@ -733,7 +734,7 @@ export class WorkspaceBoard {
         const editing = "input,textarea,select,[contenteditable],[role=textbox],[role=dialog]";
         const drawnOnly = !this.clipboardCandidates().length && (this.keyboardDecorations?.().length || this.activeDecoration) && this.mode === "canvas";
         if (event.target.closest?.(editing) || document.activeElement?.closest(editing) ||
-            document.activeElement?.tagName === "IFRAME" || document.querySelector("dialog[open]") ||
+            document.activeElement?.tagName === "IFRAME" || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") ||
             !this.clipboardCandidates().length && !drawnOnly) return;
         if (drawnOnly) {
           event.preventDefault(); event.stopImmediatePropagation();
@@ -857,7 +858,7 @@ export class WorkspaceBoard {
   // Work in progress blocks every board command, clicked or typed.
   commandBusy() {
     return this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy ||
-      this.client.pendingWrites || this.saving || document.querySelector("dialog[open]");
+      this.client.pendingWrites || this.saving || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]");
   }
   // Keyboard and native clipboard events also yield to focused fields and panels.
   clipboardBlocked() {
@@ -1249,7 +1250,7 @@ export class WorkspaceBoard {
   }
   async replayMovement(direction, {explicit = false} = {}) {
     if (this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy || this.history?.busy || this.client.pendingWrites || this.saving ||
-        (!explicit && document.activeElement?.closest("input,textarea,select,[contenteditable],[role=dialog]")) || document.querySelector("dialog[open]") ||
+        (!explicit && document.activeElement?.closest("input,textarea,select,[contenteditable],[role=dialog]")) || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") ||
         !this.history.available(direction)) return;
     this.historyBusy = true;
     this.movePending = true;
@@ -1574,11 +1575,12 @@ export class WorkspaceBoard {
       }
       if (type === "remove") {
         if (!ids.length) return;
-        makeDialog(
-          "Remove these placements?",
-          `<p>Remove ${ids.length} placement${ids.length === 1 ? "" : "s"} from this board${this.groupDecorations().length ? ` and delete ${this.groupDecorations().length} drawn element${this.groupDecorations().length === 1 ? "" : "s"}` : ""}. Other references, canonical items, notes and all resource files remain intact.</p><button type="submit" class="workspace-primary">Remove from this board</button>`,
-          () => this.removePlacements(ids),
-        );
+        const drawnCount = this.groupDecorations().length;
+        if (await confirmDialog({
+          title: "Remove these placements?",
+          description: `Remove ${ids.length} placement${ids.length === 1 ? "" : "s"} from this board${drawnCount ? ` and delete ${drawnCount} drawn element${drawnCount === 1 ? "" : "s"}` : ""}. Other references, canonical items, notes and all resource files remain intact.`,
+          confirmLabel: "Remove from this board",
+        })) await this.removePlacements(ids);
         return;
       }
       await this.client.write("archive", {
@@ -1971,7 +1973,7 @@ export class WorkspaceBoard {
     const viewport = $("viewport");
     const emptyCanvas = e => {
       if (e.pointerType === "touch" || e.isPrimary === false || e.ctrlKey || e.metaKey || e.altKey ||
-          document.querySelector("dialog[open]")) return false;
+          document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]")) return false;
       const rect = viewport.getBoundingClientRect();
       if (e.clientX < rect.left + viewport.clientLeft || e.clientX >= rect.left + viewport.clientLeft + viewport.clientWidth ||
           e.clientY < rect.top + viewport.clientTop || e.clientY >= rect.top + viewport.clientTop + viewport.clientHeight) return false;
@@ -2232,7 +2234,7 @@ export class WorkspaceBoard {
     // which would clear only the drawn elements).
     window.addEventListener("keydown", e => {
       if (e.key !== "Escape" || !this.mixedGroup || this.whiteboard?.editor || this.context || this.addPopup ||
-          document.querySelector("dialog[open]") || e.target.closest?.("input,textarea,select,[contenteditable]")) return;
+          document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") || e.target.closest?.("input,textarea,select,[contenteditable]")) return;
       e.preventDefault(); e.stopImmediatePropagation();
       this.whiteboard?.clearSelection({finishEdit:true,focus:false});
       this.mixedGroup = false;
@@ -2679,7 +2681,7 @@ export class WorkspaceBoard {
   // clipboard and browser shortcuts, fields, editors, dialogs and IME composition pass through.
   queueableKey(e) {
     if (e.isComposing || e.keyCode === 229 || e.repeat || e.altKey || this.editorHold || this.whiteboard?.editing || this.documentEditing) return false;
-    if (document.querySelector("dialog[open]") || document.activeElement?.tagName === "IFRAME" ||
+    if (document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") || document.activeElement?.tagName === "IFRAME" ||
         e.target.closest?.("input,textarea,select,[contenteditable],[role=dialog],[role=textbox]")) return false;
     const key = e.key.toLowerCase();
     if (e.metaKey || e.ctrlKey) return ["z","d","a"].includes(key);
@@ -3018,7 +3020,7 @@ export class WorkspaceBoard {
       }
     });
     document.addEventListener("keydown", async e => {
-      if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
+      if (document.querySelector("#reader-dialog[open],.workspace-dialog:is([open],[data-open])")) return;
       // The focused board map owns its arrows, Escape and +/−.
       if (e.target.closest?.(".board-map-stage")) return;
       // A focused UI SDK widget (menu, toolbar, radio group …) owns its own keys.

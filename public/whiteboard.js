@@ -591,7 +591,7 @@ export class Whiteboard {
       if(e.target.closest('#viewport')&&!e.target.closest('.whiteboard-ports'))this.clearSelection({finishEdit:true,focus:false});
       return;
     }
-    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open]')||this.host.pointerGesture||this.host.movePending)return;
+    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]')||this.host.pointerGesture||this.host.movePending)return;
     if(e.target.closest('input,textarea,[contenteditable]'))return;
     let d=element&&this.find(element.dataset.decoration);if(!port&&!d)return;
     // Shift-click adds or removes a decoration from a multi-selection; no drag starts.
@@ -698,7 +698,7 @@ export class Whiteboard {
       if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}
     }
     const group=e.target.closest('[data-decoration]');
-    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button')&&!document.querySelector('dialog[open]')&&['Enter','F2'].includes(e.key)){
+    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button')&&!document.querySelector('dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)){
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);
     }
   }
@@ -725,7 +725,7 @@ export class Whiteboard {
     if(r) {
       dialog.classList.add('whiteboard-arrow-settings');
       const heading=document.createElement('header');heading.className='whiteboard-settings-heading';
-      heading.append(dialog.querySelector('h2'),dialog.querySelector('.workspace-close'));
+      heading.append(dialog.querySelector('ui-dialog-title'),dialog.querySelector('ui-dialog-close'));
       dialog.querySelector('form').prepend(heading);
       const footer=dialog.querySelector('.whiteboard-settings-actions');
       footer.append(dialog.querySelector('.workspace-submit-hint'),dialog.querySelector('.workspace-form-status'));
