@@ -2784,15 +2784,14 @@ export class WorkspaceBoard {
   installEditTools() {
     if (this.hooks.viewOnly || $("edit-tools")) return;
     try { this.editToolsOpen = localStorage.getItem(this.editToolsKey()) === "on"; } catch { this.editToolsOpen = false; }
-    const palette = document.createElement("div");
+    const palette = document.createElement("ui-toolbar");
     palette.id = "edit-tools";
     palette.className = "edit-tools";
-    palette.setAttribute("role", "toolbar");
     palette.setAttribute("aria-label", "Edit tools");
-    palette.setAttribute("aria-orientation", "vertical");
+    palette.setAttribute("orientation", "vertical");
     palette.innerHTML = [["text","Text · T","T"],["sticky","Sticky note · S","S"],["document","Document · D","D"],["jot","Quick jot · N","N"],["comment","Comment · C","C"]]
-      .map(([tool,label,key]) => `${tool === "comment" ? '<span class="edit-tools-divider" aria-hidden="true"></span>' : ""}<button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" title="${label}" aria-keyshortcuts="${key}"${tool === "comment" ? ' aria-pressed="false"' : ""}>${tool === "comment" ? COMMENT_ICON : EDIT_TOOL_ICONS[tool]}</button>`).join("") +
-      `<span class="edit-tools-divider" aria-hidden="true"></span><button type="button" class="tk-btn tk-icon" data-edit-tool="more" aria-label="More to add" title="More to add…" aria-haspopup="menu">${EDIT_TOOL_ICONS.more}</button>`;
+      .map(([tool,label,key]) => `${tool === "comment" ? '<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator>' : ""}<ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" title="${label}" aria-keyshortcuts="${key}"${tool === "comment" ? ' aria-pressed="false"' : ""}>${tool === "comment" ? COMMENT_ICON : EDIT_TOOL_ICONS[tool]}</button></ui-toolbar-button>`).join("") +
+      `<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator><ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="more" aria-label="More to add" title="More to add…" aria-haspopup="menu">${EDIT_TOOL_ICONS.more}</button></ui-toolbar-button>`;
     palette.onclick = e => {
       const button = e.target.closest("[data-edit-tool]");
       if (!button || this.boardCommandBlocked()) return;
@@ -2809,6 +2808,7 @@ export class WorkspaceBoard {
       else this.createDecoration(tool);
     };
     document.body.append(palette);
+    followVisibility(palette);
     const toggle = document.createElement("button");
     toggle.id = "edit-tools-toggle";
     toggle.type = "button";
