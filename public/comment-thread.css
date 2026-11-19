@@ -1,6 +1,6 @@
 /* The Comment tool's thread card, @ picker and reference chips (comment-thread.js,
    comment-refs.js). Floating-object style of 1.0.4; light and dark come from tokens.css. */
-.ct-card{border:0;position:fixed;z-index:400;width:340px;max-width:calc(100vw - 16px);max-height:min(540px,calc(100dvh - 80px));display:flex;flex-direction:column;box-sizing:border-box;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:400 var(--type-ui)/1.5 var(--type-sans)}
+.ct-card{border:0;padding:0;overflow:visible;position:fixed;z-index:400;width:340px;max-width:calc(100vw - 16px);max-height:min(540px,calc(100dvh - 80px));display:flex;flex-direction:column;box-sizing:border-box;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:400 var(--type-ui)/1.5 var(--type-sans)}
 .ct-card[aria-busy=true]{cursor:progress}
 .ct-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .ct-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:10px 8px 8px 14px;border-bottom:1px solid var(--line-seam)}

@@ -356,3 +356,29 @@ Shared: `popups.js`, `popups.css` (see § Popups). Components: Menu, Popover.
 - **Home Appearance** (`appearance.js`): a menu of two radio groups, Mode and Background; radio items stay open; the
   Background items are disabled (focusable, inert, titled) while the page is dark. The Inspectors keep their
   segmented rows.
+
+### Comment thread card and the @ picker (`ux/comments`)
+
+Files: `comment-thread.js`, `comment-thread.css`, `comment-refs.js` (`attachPicker`). Components: Popover, Trigger Menu.
+
+- **Card: a non-modal `ui-popover`** appended to `<body>` (never inside a board card), its `ui-popover-content.ct-card`
+  opened from code with `api.open({anchor})`. The anchor is an object whose `getBoundingClientRect()` returns the pin's box;
+  it follows the pin while the board is still panning to it, then freezes, so the card does not trail later pans (as before).
+  Placement is the SDK's: `side=right align=start side-offset=12 align-offset=-40 collision-padding=8`, flipping to left,
+  below, above; it only shifts along the anchor's edge, so it never covers the pin. At <=760 px `presentation="sheet"` (the SDK's
+  bottom sheet; it also dims the page) with `.ct-sheet` styling. `ui-popover-content` has global padding/overflow in
+  `popups.css`; `.ct-card` resets both. Not modal: Tab can leave (closes it), outside press closes, the draft is kept.
+- **Escape peels one layer.** A `openchange` listener on the popover cancels `escape-key` while the @ list is open (the Trigger
+  Menu takes that Escape; the card compares `detail.event` with the keydown it saw), then while editing or confirming a delete.
+- **Focus** goes into the composer on open (retried each frame until the popover is shown) and on close returns to the element
+  focused before it opened, else the thread's pin, only when focus was lost (a press on another control keeps it) and no other
+  card has opened meanwhile. Done in code: the pin is not a `ui-popover-trigger`, and `final-focus` is `none`.
+- **@ picker: `ui-trigger-menu`** wrapped around each composer (also the edit box) by `attachPicker`, bound through an editor
+  adapter (`menu.editor`) for the contenteditable: the text is the composer's text with each chip as U+FFFC; `textBefore`,
+  `selection`, `rectAt`, `replace` and `subscribe` are implemented there. The menu's content is created before the menu is
+  connected (otherwise it makes its own). Items are composed `ui-trigger-menu-item`s in groups Items / Drawn / Boards, filtered by
+  the SDK; empty groups are hidden in CSS. `itemselect` is cancelled and the existing chip insertion runs. Focus stays in the
+  composer; the composer carries `aria-controls`, `aria-activedescendant`. The menu is nested in the card's popover, so a press
+  in the list is not an outside press.
+- Key handling: the card still stops keydown (except Escape) from reaching the board; board handlers also step aside through
+  `role=dialog` and `inPopup`. ⌘↩ still posts/saves.
