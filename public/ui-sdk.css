@@ -20,6 +20,10 @@ ui-segmented-control { display: inline-flex; }
 :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item:hover, :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item[data-checked] { color: var(--ink); }
 :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item[data-checked] { background-color: var(--surface-paper); box-shadow: inset 0 -1.5px 0 var(--key-side), inset 0 0 0 1px var(--line-seam); }
 :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item[data-disabled] { cursor: default; }
+/* The old items were buttons and also took the button rules of what holds them. In the view pills' menus that was
+   canvas.css's `.view-tools button { min-width: 44px }`: the cells shrink to share the menu's width instead of standing
+   at their text width (the reader's Window row of four would otherwise run past its 288 px menu and scroll sideways). */
+.view-tools :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item { min-width: 44px; }
 
 /* Toolbar and toggle parts that wrap one of our buttons: the button takes part in layout directly (display: contents,
    as the SDK does for triggers). A wrapper hidden with the attribute still hides. */
