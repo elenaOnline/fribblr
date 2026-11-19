@@ -53,9 +53,9 @@
 
 /* ================= slab (2): what you can pick up =================
    A white face standing on a lower side of its kind's colour. The face's left, right and front (lower) edges are drawn
-   in the side's dark contour colour, so they run on into the side's own contour like the edges of a block; its far
+   in the side's own colour, so they run on into the side like the edges of a block; its far
    (top) edge keeps the ground's pale rim. Placement is two tokens: --slab-top-edge (1 closes the far edge) and
-   --slab-front-edge (0 leaves the front edge pale: left and right only). Drawn as one dark ring under two face-sized
+   --slab-front-edge (0 leaves the front edge pale: left and right only). Drawn as one side-coloured ring under two face-sized
    copies shifted up and down, so the corners carry no seam. The side is the face's own outline
    moved down (a box-shadow follows corner-shape), so its corner runs parallel to the face's squircle; a contour one
    step darker edges it; then a cast shadow whose length follows the height.
@@ -63,7 +63,7 @@
 :where(
 #world .workspace-card, #world .concept-card, .board-card .board-link, #reader-dialog #reader-window, [data-height="slab"]
 ) {
-  --rim: var(--side-edge, var(--kind-plain-edge));
+  --rim: var(--side, var(--kind-plain-side));   /* the face's edge takes the side's own colour, not its dark contour (Elena, 2026-11-19) */
   --rim-top: color-mix(in srgb, var(--rim) calc(var(--rim-close, var(--slab-top-edge)) * 100%), var(--ground-rim));
   --rim-front: color-mix(in srgb, var(--rim) calc(max(var(--rim-close, 0), var(--slab-front-edge)) * 100%), var(--ground-rim));
   --side-d: calc(var(--side-slab) + var(--lift));
@@ -116,10 +116,11 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 :where(.board-collage .workspace-cover-tile) { --side: var(--kind-plain-side); --side-edge: var(--kind-plain-edge); }  /* not the cover's own family */
 .board-collage .workspace-cover-tile, .board-miniature .workspace-cover-tile.mini-tile, .board-art .sheet, .kind-swatch {
   --mini-edge: var(--side-edge, var(--kind-plain-edge));
+  --mini-rim: var(--side, var(--kind-plain-side));
   border: 0; border-radius: 4px; background-color: var(--mini-paper, var(--surface-paper));
-  box-shadow: 0 calc(-1 * var(--mini-hair, .5px)) 0 0 color-mix(in srgb, var(--mini-edge) calc(var(--slab-top-edge) * 100%), var(--ground-rim)),
-    0 var(--mini-hair, .5px) 0 0 color-mix(in srgb, var(--mini-edge) calc(var(--slab-front-edge) * 100%), var(--ground-rim)),
-    0 0 0 var(--mini-hair, .5px) var(--mini-edge),
+  box-shadow: 0 calc(-1 * var(--mini-hair, .5px)) 0 0 color-mix(in srgb, var(--mini-rim) calc(var(--slab-top-edge) * 100%), var(--ground-rim)),
+    0 var(--mini-hair, .5px) 0 0 color-mix(in srgb, var(--mini-rim) calc(var(--slab-front-edge) * 100%), var(--ground-rim)),
+    0 0 0 var(--mini-hair, .5px) var(--mini-rim),
     0 var(--mini-d, 1.5px) 0 0 var(--side, var(--kind-plain-side)), 0 var(--mini-d, 1.5px) 0 var(--mini-hair, .5px) var(--mini-edge);
 }
 .board-miniature .mini-tile.mini-board { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); }
