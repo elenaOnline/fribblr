@@ -1,6 +1,7 @@
 import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
 import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
 import {followVisibility} from './ui-toolbar.js';
+import {tip, tips, setTip, tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {Whiteboard,decorationMarkup,decorationUnchanged,lineBox} from "./whiteboard.js";
 import {decorationBounds,resolveLine} from "./whiteboard-geometry.js";

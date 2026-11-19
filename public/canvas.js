@@ -22,6 +22,7 @@ import {markKind} from './kinds.js';
 import './keycaps.js';
 import {inPopup, sharedMenu, openMenu, menuItem, menuSeparator, openOnArrowDown} from './popups.js';
 import {followVisibility} from './ui-toolbar.js';
+import {tips, setTip} from './tips.js';
 import { segmentedHTML, setSegmented } from './ui-segmented.js';
 
 const $ = id => document.getElementById(id);
@@ -1737,6 +1738,8 @@ document.addEventListener('keydown', event => {
 }, true);
 // Both pills are ui-toolbars.
 for (const pill of document.querySelectorAll('.zoom-pill')) followVisibility(pill);
+// Hover and focus hints on the header, the pills, the map and the reader's chrome: UI SDK tooltips (tips.js).
+tips(document);
 // The floating view pill: − · percent popover · + · Fit. The popover (board.html #zoom-popover) is a UI SDK Popover:
 // its trigger opens and closes it, Escape and a press outside close it, focus goes in on open and back on close.
 const zoomPopover = $('zoom-popover');

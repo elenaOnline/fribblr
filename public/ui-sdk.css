@@ -29,3 +29,22 @@ ui-toolbar[hidden], ui-toggle-group[hidden], ui-toolbar-group[hidden] { display:
 
 /* On a phone-width window the board title needs the room; the tab title still says which window this is. */
 @media (max-width: 600px) { .sdk-chip { display: none; } }
+
+/* Tooltip (tips.js): one shared ui-tooltip per page. An ink float like the toast (depth.css float height: the rim takes
+   the face colour, so only the soft cast shows), small text, a square-leaning corner, no arrow, nothing glows. The
+   shortcut reads as the keycap text the app prints elsewhere, dimmed on the ink face. The SDK places it (top, flipping
+   below when there is no room) and keeps it in the top layer; the trigger wrappers lay out as their button. */
+ui-tooltip, ui-tooltip-trigger { display: contents; }
+ui-tooltip-trigger[hidden] { display: none; }
+.tk-tip {
+  --float-rim: var(--ink);
+  box-sizing: border-box; max-width: min(320px, calc(100vw - 16px)); margin: 0; padding: 5px 8px; border: 0;
+  border-radius: var(--shape-cell); background: var(--ink); color: var(--surface-paper);
+  font: 400 12px/1.35 var(--type-sans); text-align: left; overflow-wrap: anywhere;
+  transform-origin: var(--transform-origin); transition: opacity .12s ease-out;
+}
+.tk-tip:is([data-starting-style], [data-ending-style]) { opacity: 0; }
+.tk-tip[data-instant] { transition: none; }
+.tk-tip-keys { margin-left: 8px; white-space: nowrap; opacity: .72; }
+.tk-tip-keys[hidden] { display: none; }
+.tk-tip-key { font: inherit; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
