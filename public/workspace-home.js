@@ -4,6 +4,7 @@ import {reconcileChildren} from "./reconcile.js";
 import {coverMarkup,observeCovers} from "./board-covers.js";
 import {timeHTML,toDate} from "./relative-dates.js";
 import {kindsLine} from "./kinds.js";
+import "./home-board-list.js";
 import {
   WorkspaceClient,
   escape as esc,
@@ -48,7 +49,8 @@ export const legacyCounts = (b) => [
 ];
 /** Title, New pill, description, the kinds line and the date line. Counts are trusted
  *  markup; `kinds` is a board cover's {kind: count} map. */
-export function boardInfo(board, { description = "", counts = [], kinds = null } = {}) {
+export function boardInfo(board, { description = "", counts = [], kinds = null, idBase = "" } = {}) {
+  const id = (part) => (idBase ? ` id="${esc(idBase)}-${part}"` : "");
   const created = msOf(board.createdAt), edited = editedAt(board);
   const fresh = Number.isFinite(created) && Date.now() - created < DAY;
   const byEdit = homeView.sort === "updated" && Number.isFinite(edited);
@@ -59,13 +61,16 @@ export function boardInfo(board, { description = "", counts = [], kinds = null }
     : byEdit ? timeHTML(board.createdAt, { prefix: "created ", verb: "Created" })
     : timeHTML(edited, { prefix: "edited ", verb: "Edited" });
   const line = [...counts, primary].filter(Boolean).join('<span class="board-sep" aria-hidden="true"> · </span>');
-  return `<div class="board-info"><div class="board-title-row"><h3 title="${esc(board.title)}">${esc(board.title)}</h3>${fresh ? '<span class="tk-new">New</span>' : ""}</div><p>${esc(description)}</p>${kinds ? kindsLine(kinds) : ""}<div class="card-bottom"><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
+  return `<div class="board-info"><div class="board-title-row"><h3${id("title")} title="${esc(board.title)}">${esc(board.title)}</h3>${fresh ? '<span class="tk-new">New</span>' : ""}</div><p${id("desc")}>${esc(description)}</p>${kinds ? kindsLine(kinds) : ""}<div class="card-bottom"${id("meta")}><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
 }
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 8.5 2.6 2.6L12.2 5.4"/></svg>';
 const CLOSE = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>';
 // Places a marquee or an empty click must not start from.
 const NOT_EMPTY = ".board-card,a,button,input,textarea,select,label,summary,[contenteditable],[role=dialog],[role=menu],[role=toolbar],dialog,.home-selection-bar";
 const FIELD = "input,textarea,select,[contenteditable],[role=textbox],[role=dialog],[role=menu]";
+// A board option is named by its title and described by its description and dates (not the whole card's text).
+const optionIds = (boardId) => `home-board-${String(boardId).replace(/[^\w-]/g, "_")}`;
+const optionNaming = (base) => `aria-labelledby="${base}-title" aria-describedby="${base}-desc ${base}-meta"`;
 const STAR = '<svg class="tk-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="m8 2.2 1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4l-3.6 1.9.7-4-2.9-2.8 4-.6z"/></svg>';
 export class WorkspaceHome {
   constructor(config) {
@@ -169,7 +174,9 @@ export class WorkspaceHome {
     // Selection never outlives a board's place on this Home view.
     const present = new Set(visible.map((b) => b.ownerItemId));
     for (const id of this.selected) if (!present.has(id)) this.selected.delete(id);
+    // The boards are one listbox (home-board-list.js); the empty-state line and the New board card sit beside it.
     const markup =
+      '<fr-board-list aria-label="Boards">' +
       sortHomeBoards([...boards, ...legacy])
         .map((b) => {
           if (b.schemaVersion !== 2) return this.legacyCard(b);
@@ -186,9 +193,12 @@ export class WorkspaceHome {
             b.itemCount ? plural(b.itemCount, "item") : "No items yet",
             ...(b.roundCount ? [`${plural(b.roundCount, "prior round")}`] : []),
           ];
-          return `<article data-home-board="${esc(b.id)}" data-home-item="${esc(i.id)}" class="board-card${selected ? " workspace-home-selected" : ""}" data-kind="board" data-family="board"><button type="button" class="home-select-dot" data-home-select="${esc(i.id)}" aria-label="${selected ? "Deselect" : "Select"} ${esc(b.title)}" aria-pressed="${selected}">${CHECK}</button><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${art}</div>${boardInfo(b, { description: b.description || i.description || "A place to gather what you make.", counts, kinds: cover?.kinds })}</a></article>`;
+          // The select circle is for the pointer: out of the Tab order and the accessibility tree (the board's
+          // option carries aria-selected; Space toggles it).
+          return `<fr-board value="${esc(i.id)}" data-home-board="${esc(b.id)}"><article data-home-board="${esc(b.id)}" data-home-item="${esc(i.id)}" class="board-card${selected ? " workspace-home-selected" : ""}" role="none" data-kind="board" data-family="board"><button type="button" class="home-select-dot" data-home-select="${esc(i.id)}" tabindex="-1" aria-hidden="true">${CHECK}</button><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/" ${optionNaming(optionIds(b.id))}><div class="board-art" aria-hidden="true">${art}</div>${boardInfo(b, { description: b.description || i.description || "A place to gather what you make.", counts, kinds: cover?.kinds, idBase: optionIds(b.id) })}</a></article></fr-board>`;
         })
         .join("") +
+      "</fr-board-list>" +
       (homeView.query.trim() && !shown
         ? `<p class="board-none">No boards match “${esc(homeView.query.trim())}”.</p>`
         : "") +
@@ -205,16 +215,23 @@ export class WorkspaceHome {
       .forEach((b) => (b.onclick = () => enableOrganization(this.config)));
     this.syncSelection();
   }
+  /** The board list (home-board-list.js), once it is in the page: its selection is ours, written back to it. */
+  get list() {
+    const list = document.querySelector("#board-grid fr-board-list");
+    if (list && list !== this.boundList) {
+      this.boundList = list;
+      list.selectable = (key) => !key.startsWith("legacy:");
+      // Every pointer and keyboard selection asks here first; Home's set stays the one source of truth.
+      list.addEventListener("valuechange", (e) => this.setSelection(new Set(e.detail.value)));
+    }
+    return list;
+  }
   /** Card state and the floating bar, without rebuilding the grid. */
   syncSelection() {
-    for (const card of document.querySelectorAll("#board-grid .board-card[data-home-item]")) {
-      const on = this.selected.has(card.dataset.homeItem);
-      card.classList.toggle("workspace-home-selected", on);
-      const dot = card.querySelector("[data-home-select]");
-      if (!dot) continue;
-      dot.setAttribute("aria-pressed", String(on));
-      dot.setAttribute("aria-label", `${on ? "Deselect" : "Select"} ${card.querySelector("h3")?.textContent || "board"}`);
-    }
+    for (const card of document.querySelectorAll("#board-grid .board-card[data-home-item]"))
+      card.classList.toggle("workspace-home-selected", this.selected.has(card.dataset.homeItem));
+    const list = this.list;
+    if (list) list.value = [...this.selected];
     document.body.classList.toggle("home-selecting", this.selected.size > 0);
     if (this.marquee?.active) return; // The bar keeps its state until the box finishes.
     const n = this.selected.size, bar = this.bar;
@@ -222,7 +239,7 @@ export class WorkspaceHome {
       const hadFocus = bar.contains(document.activeElement);
       bar.hidden = true;
       bar.replaceChildren();
-      if (hadFocus) document.querySelector("#board-grid .board-link")?.focus({ preventScroll: true });
+      if (hadFocus) this.list?.api?.focus();
       return;
     }
     const markup = `<strong role="status">${n} selected</strong><button type="button" class="tk-btn tk-sm" data-home-action="move">Move…</button><button type="button" class="tk-btn tk-sm" data-home-action="reference">Add reference…</button><button type="button" class="tk-btn tk-sm" data-home-action="archive">${this.archive ? "Restore everywhere" : "Archive everywhere"}</button><button type="button" class="tk-btn tk-sm" data-home-action="remove">Remove from home…</button><span class="tk-divider" aria-hidden="true"></span><button type="button" class="tk-btn tk-sm tk-icon" data-home-action="clear" aria-label="Clear selection" title="Clear selection (Esc)">${CLOSE}</button>`;
@@ -234,21 +251,19 @@ export class WorkspaceHome {
     }
     bar.hidden = false;
   }
-  toggle(id) {
-    this.selected.has(id) ? this.selected.delete(id) : this.selected.add(id);
-    this.syncSelection();
-  }
   setSelection(next) {
     if (next.size === this.selected.size && [...next].every((id) => this.selected.has(id))) return;
     this.selected = next;
     this.syncSelection();
   }
-  /** The board's selection language on Home: the corner circle, Shift/⌘/Ctrl-click,
-   *  a marquee on empty space (mouse or pen), Escape. Selection never writes. */
+  /** The board's selection language on Home, as a file manager has it: the corner circle and ⌘/Ctrl-click toggle a
+   *  board, Shift-click selects the range from the anchor, a marquee on empty space (mouse or pen), ⌘A, Escape.
+   *  The list (home-board-list.js) owns the keys, focus and the anchor; this adds the pointer. Selection never writes. */
   selectionGestures() {
     const grid = document.getElementById("board-grid");
     let suppressClick = false;
     const cards = () => [...grid.querySelectorAll(".board-card[data-home-item]")];
+    const press = (card, e, range) => this.list?.api?.press(card.dataset.homeItem, e, { range });
     document.addEventListener("click", (e) => {
       if (suppressClick) {
         suppressClick = false;
@@ -260,16 +275,16 @@ export class WorkspaceHome {
       const dot = e.target.closest("[data-home-select]");
       if (dot && grid.contains(dot)) {
         e.preventDefault();
-        this.toggle(dot.dataset.homeSelect);
+        press(dot.closest(".board-card"), e, false);
         return;
       }
-      // Shift-, ⌘- or Ctrl-click toggles a board; a plain click still opens it.
+      // Shift-click selects a range, ⌘- or Ctrl-click toggles a board; a plain click still opens it.
       if (!(e.shiftKey || e.metaKey || e.ctrlKey)) return;
       const card = e.target.closest("#board-grid .board-card[data-home-item]");
       if (!card || e.target.closest("input,textarea,select,[contenteditable],.board-actions")) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      this.toggle(card.dataset.homeItem);
+      press(card, e, e.shiftKey && !e.metaKey && !e.ctrlKey);
     }, true);
     // macOS turns Ctrl-click into a context menu with no click; treat it the same.
     document.addEventListener("contextmenu", (e) => {
@@ -277,7 +292,19 @@ export class WorkspaceHome {
       const card = e.target.closest?.("#board-grid .board-card[data-home-item]");
       if (!card || e.target.closest("[data-home-select],input,textarea,select,[contenteditable],.board-actions")) return;
       e.preventDefault();
-      this.toggle(card.dataset.homeItem);
+      press(card, e, false);
+    });
+    // The circle never takes focus itself (the board does, in press()).
+    document.addEventListener("mousedown", (e) => {
+      if (e.button === 0 && e.target.closest?.("#board-grid [data-home-select]")) e.preventDefault();
+    });
+    // ⌘A / Ctrl+A selects every board (again clears) wherever focus is, except in a field or a dialog. Inside the
+    // list the list handles it first.
+    document.addEventListener("keydown", (e) => {
+      if (!this.active || e.defaultPrevented || e.repeat || e.isComposing || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey ||
+          e.key.toLowerCase() !== "a" || document.querySelector("dialog[open]") || e.target.closest?.(FIELD)) return;
+      e.preventDefault();
+      this.list?.api?.selectAll(e);
     });
     // A modified press on a card must not start a text selection either.
     document.addEventListener("mousedown", (e) => {
@@ -367,7 +394,7 @@ export class WorkspaceHome {
     });
   }
   legacyCard(b) {
-    return `<article data-home-board="${esc(b.id)}" class="board-card board-card-legacy" data-kind="board" data-family="board"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${FALLBACK_ART}<span class="art-label">Legacy board · compare as before</span></div>${boardInfo(b, { description: b.description || "Existing rounds, revisions and feedback remain available.", counts: legacyCounts(b) })}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-convert-legacy>Convert to organize…</button></div></article>`;
+    return `<fr-board value="legacy:${esc(b.id)}" data-home-board="${esc(b.id)}"><article data-home-board="${esc(b.id)}" class="board-card board-card-legacy" role="none" data-kind="board" data-family="board"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/" ${optionNaming(optionIds(b.id))}><div class="board-art" aria-hidden="true">${FALLBACK_ART}<span class="art-label">Legacy board · compare as before</span></div>${boardInfo(b, { description: b.description || "Existing rounds, revisions and feedback remain available.", counts: legacyCounts(b), idBase: optionIds(b.id) })}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-convert-legacy>Convert to organize…</button></div></article></fr-board>`;
   }
   create() {
     makeDialog(

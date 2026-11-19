@@ -65,7 +65,7 @@ try{
  await bar('dashed').click();assert.equal(await eventually(async()=>(await find('flow')).dashed,v=>v===true),true);
  assert.ok(await eventually(()=>stroke('flow').getAttribute('stroke-dasharray'),Boolean));
  // Keyboard: arrow keys move along the bar; Enter applies and focus stays put.
- await bar('route','elbow').focus();await page.keyboard.press('ArrowRight');
+ await idle();await bar('route','elbow').focus();await page.waitForTimeout(300);await page.keyboard.press('ArrowRight');
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'curved');
  await page.keyboard.press('Enter');assert.equal(await eventually(async()=>(await find('flow')).route,v=>v==='curved'),'curved');
  assert.match(await eventually(()=>stroke('flow').getAttribute('d'),v=>/C/.test(v)),/C/);

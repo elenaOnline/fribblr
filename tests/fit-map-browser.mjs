@@ -35,7 +35,7 @@ try{
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  const view=()=>page.evaluate(()=>{const m=new DOMMatrix(getComputedStyle(document.getElementById('plane')).transform);return {zoom:new DOMMatrix(getComputedStyle(document.getElementById('world')).transform).a,x:m.e,y:m.f};});
  const open=async(id,width=1440,height=900)=>{await page.setViewportSize({width,height});await page.goto(base+`/boards/${id}/`,{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
   await page.waitForTimeout(120);};
  const fit=page.locator('#fit'),mapEl=page.locator('#board-map'),toggle=page.locator('#board-map-toggle'),back=page.locator('#view-back');
  const label=()=>fit.locator('.fit-label').textContent();

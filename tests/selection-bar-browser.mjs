@@ -32,7 +32,7 @@ try{
  const overlap=(a,b)=>a&&b&&a.x<b.x+b.width-.5&&a.x+a.width>b.x+.5&&a.y<b.y+b.height-.5&&a.y+a.height>b.y+.5;
  const settle=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  const open=async(id,width,height=900)=>{await page.setViewportSize({width,height});await page.goto(base+`/boards/${id}/`,{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
   await settle();};
  const selectOne=async placement=>{await page.locator(`.workspace-card[data-placement="${placement}"] h3 button`).click({modifiers:['Shift']});await bar.waitFor();await settle();
   assert.match(await bar.locator('strong').innerText(),/^1 selected/);};
@@ -41,7 +41,7 @@ try{
   await settle();
   const state=await bar.evaluate(el=>{
    const box=r=>({x:r.left,y:r.top,width:r.width,height:r.height});
-   const buttons=[...el.querySelectorAll('button')].map(b=>({label:b.textContent.trim()||b.getAttribute('aria-label'),box:box(b.getBoundingClientRect()),cut:b.scrollWidth>b.clientWidth+1}));
+   const buttons=[...el.querySelectorAll('button')].filter(b=>b.getClientRects().length).map(b=>({label:b.textContent.trim()||b.getAttribute('aria-label'),box:box(b.getBoundingClientRect()),cut:b.scrollWidth>b.clientWidth+1}));
    return {bar:box(el.getBoundingClientRect()),buttons,rows:new Set(buttons.map(b=>Math.round(b.box.y))).size,scrolls:el.scrollWidth>el.clientWidth+1,viewport:innerWidth,page:document.documentElement.scrollWidth};});
   const {bar:b,buttons}=state;
   ok(buttons.length>=8,`${name}: the one-item actions are all there (${buttons.map(x=>x.label).join(', ')})`);
