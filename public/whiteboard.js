@@ -6,6 +6,7 @@ import {snapBox, snapDisabled} from './snap-guides.js';
 import {followVisibility} from './ui-toolbar.js';
 import {isMacPlatform} from './reader-keys.js';
 import {token} from './tokens.js';
+import {sharedMenu, openMenu, menuItem, inPopup, openOnArrowDown} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -135,11 +136,15 @@ export class Whiteboard {
     this.ports=document.createElement('div'); this.ports.className='whiteboard-ports';
     this.toolbar=document.createElement('ui-toolbar'); this.toolbar.className='whiteboard-toolbar';
     this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
-    this.menu=document.createElement('div'); this.menu.className='whiteboard-menu'; this.menu.hidden=true;
-    this.menu.setAttribute('role','menu'); this.menu.setAttribute('aria-label','Object actions');
     this.hint=document.createElement('div'); this.hint.className='whiteboard-connect-hint'; this.hint.hidden=true;
-    this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.menu,this.hint);
+    this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.hint);
     followVisibility(this.toolbar);
+    this.mountMenu();
+    // More and Arrange are menu buttons in the bar's ui-toolbar: ArrowDown opens them at their first item.
+    openOnArrowDown(this.toolbar,'[data-whiteboard-action="more"],[data-whiteboard-action="arrange"]',(event,button)=>{
+      if(button.dataset.whiteboardAction==='more'){if(!this.menuOpen)this.openMenu(event);}
+      else this.host.arrangeMenu?.(button,event);
+    });
     document.addEventListener('pointerdown',e=>this.down(e),true);
     document.addEventListener('pointermove',e=>this.move(e),true);
     document.addEventListener('pointerup',e=>this.up(e),true);
@@ -304,7 +309,7 @@ export class Whiteboard {
     const shared=read=>{const values=list.map(read);return values.every(v=>v===values[0])?values[0]:undefined;};
     const families=new Set([...kinds].map(k=>k==='line'||k==='text'?'ink':'fill'));
     const palette=kind==='line'?arrowColors():kind?palettes(kind):families.size===1?families.has('ink')?arrowColors():palettes('shape'):null;
-    const color=shared(d=>cleanColor(d.color).toLowerCase()),more=button('more',multi?'More options':`More ${kind==='line'?'arrow ':''}options`,icon(icons.more),{extra:` aria-haspopup="menu" aria-expanded="${!this.menu.hidden}"`});
+    const color=shared(d=>cleanColor(d.color).toLowerCase()),more=button('more',multi?'More options':`More ${kind==='line'?'arrow ':''}options`,icon(icons.more),{extra:` aria-haspopup="menu" aria-expanded="${this.menuOpen}"`});
     const name=multi?this.groupName(list):this.kindName(list[0]).toLowerCase(),remove=(multi?button('arrange','Arrange: align, distribute, tidy',icon(icons.arrange),{extra:' aria-haspopup="menu"'}):'')+button('remove',`Delete ${multi?name:name}`,icon(icons.remove));
     const groups=[palette?group(kind==='text'?'Text color':'Color',palette.map(([value,label,name])=>button('color',`${label}${value===color?' (current)':''}`,`<i class="whiteboard-swatch" style="background:var(--deco-${name})"></i>`,{value,pressed:value===color})).join('')):''];
     if(kind==='line') {
@@ -366,35 +371,50 @@ export class Whiteboard {
     const left=Math.max(8,Math.min(innerWidth-width-8,r.left+(r.width-width)/2));
     const top=r.top-height-8>=viewport.top+8?r.top-height-8:Math.min(viewport.bottom-height-8,Math.max(viewport.top+8,r.bottom+8));
     Object.assign(this.toolbar.style,{left:`${left}px`,top:`${top}px`});
-    if(!this.menu.hidden)this.positionMenu();
   }
-  positionMenu() {
-    const r=this.toolbar.getBoundingClientRect();
-    Object.assign(this.menu.style,{left:`${Math.max(8,Math.min(innerWidth-this.menu.offsetWidth-8,r.right-this.menu.offsetWidth))}px`,top:`${Math.max(8,Math.min(innerHeight-this.menu.offsetHeight-8,r.bottom+6))}px`});
+  // The bar's More: a shared UI SDK menu (popups.js) at the end of <body>, under the More button. Its colour choice is
+  // an item that opens the system colour picker (a menu holds items, not fields; menu.md § Keyboard Navigation).
+  mountMenu() {
+    const ui=this.menuUI=sharedMenu({id:'whiteboard-menu',label:'Object actions',className:'whiteboard-menu'});
+    ui.content.setAttribute('align','end');ui.content.setAttribute('side-offset','6');
+    ui.root.addEventListener('openchange',e=>this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded',String(e.detail.value)));
+    ui.root.addEventListener('action',e=>this.runMenu(e.detail.value,ui.root.api.getPayload()));
+    // The picker the colour item opens: kept off screen beside the bar, so the system places its panel there.
+    this.colorInput=Object.assign(document.createElement('input'),{type:'color',className:'whiteboard-color-input',tabIndex:-1});
+    this.colorInput.setAttribute('aria-label','Custom color');this.colorInput.dataset.whiteboardMenuColor='';
+    this.colorInput.addEventListener('change',()=>{const ids=this.colorFor||[];if(ids.length>1)this.restyle(ids,'color',this.colorInput.value).catch(showFailure);else if(ids[0])this.save(ids[0],{color:this.colorInput.value}).catch(showFailure);});
+    document.body.append(this.colorInput);
   }
-  openMenu() {
+  get menuOpen() { return !!this.menuUI?.root.open; }
+  openMenu(event) {
     const list=this.selectedDecorations(),d=list[0];if(!d)return;
-    if(list.length>1) {
-      // Several selected: a custom colour for all of them is the rare choice left.
-      this.menu.innerHTML=`<label class="whiteboard-color">Custom color<input type="color" data-whiteboard-menu-color value="${this.pickerColor(d.color)}"></label>`;
-      this.menu.hidden=false;this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','true');this.positionMenu();
-      const input=this.menu.querySelector('input');input.onchange=e=>this.restyle(list.map(d=>d.id),'color',e.target.value).catch(showFailure);input.focus({preventScroll:true});return;
+    const more='.whiteboard-toolbar [data-whiteboard-action="more"]';
+    // Several selected: a custom colour for all of them is the rare choice left. Arrows keep only rare choices here;
+    // ends attach and detach by dragging them.
+    this.menuUI.content.innerHTML=list.length>1?menuItem('color','Custom color…')
+      :d.type==='line'?menuItem('color','Custom color…')+menuItem('edit','Edit label',{attrs:'data-whiteboard-action="edit"'})+menuItem('detach-both','Detach both ends',{attrs:'data-whiteboard-action="detach-both"'})+menuItem('inspect','Advanced…',{attrs:'data-whiteboard-action="inspect"'})
+      :menuItem('color','Color…')+menuItem('inspect','Position & size…',{attrs:'data-whiteboard-action="inspect"'});
+    // Against the bar's current More button: the bar re-renders as the selection saves.
+    const anchor={getBoundingClientRect:()=>(document.querySelector(more)||this.toolbar).getBoundingClientRect()};
+    openMenu(this.menuUI.root,{anchor,event,payload:list.map(d=>d.id),returnTo:more});
+  }
+  async runMenu(action,ids=[]) {
+    const id=ids[0];if(!id)return;
+    if(action==='color'){
+      const r=(this.toolbar.querySelector('[data-whiteboard-action=more]')||this.toolbar).getBoundingClientRect();
+      Object.assign(this.colorInput.style,{left:`${Math.round(r.left)}px`,top:`${Math.round(r.bottom)}px`});
+      this.colorFor=ids;this.colorInput.value=this.pickerColor(this.find(id)?.color);
+      try{this.colorInput.showPicker();}catch{this.colorInput.click();}
+      return;
     }
-    // Arrows keep only rare choices here; ends attach and detach by dragging them.
-    this.menu.innerHTML=d.type==='line'
-      ? `<label class="whiteboard-color">Custom color<input type="color" data-whiteboard-menu-color value="${this.pickerColor(d.color)}"></label><button type="button" role="menuitem" data-whiteboard-action="edit">Edit label</button><button type="button" role="menuitem" data-whiteboard-action="detach-both">Detach both ends</button><button type="button" role="menuitem" data-whiteboard-action="inspect">Advanced…</button>`
-      : `<label class="whiteboard-color">Color<input type="color" data-whiteboard-menu-color value="${this.pickerColor(d.color)}"></label><button type="button" role="menuitem" data-whiteboard-action="inspect">Position & size…</button>`;
-    this.menu.hidden=false;this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','true');this.positionMenu();
-    this.menu.querySelector('[data-whiteboard-menu-color]').onchange=e=>this.save(d.id,{color:e.target.value}).catch(showFailure);
-    this.menu.querySelector('button')?.focus({preventScroll:true});
+    if(action==='edit'){this.edit(id);return;}
+    if(action==='inspect'){this.inspect(id);return;}
+    try{if(action==='detach-both')await this.detach(id,'both');}catch(error){showFailure(error);}
   }
   pickerColor(value) {
     const c=cleanColor(value);return c.length===4||c.length===5?'#'+[...c.slice(1,4)].map(x=>x+x).join(''):c.slice(0,7);
   }
-  closeMenu({focus=false}={}) {
-    this.menu.hidden=true;this.toolbar?.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','false');
-    if(focus)this.toolbar?.querySelector('[data-whiteboard-action=more]')?.focus({preventScroll:true});
-  }
+  closeMenu() { if(this.menuOpen)this.menuUI.root.api.close({reason:'imperative'}); }
   async click(e) {
     if(this.suppressClick&&e.detail){this.suppressClick=false;e.preventDefault();e.stopImmediatePropagation();return;}
     const retry=e.target.closest('[data-whiteboard-retry]');
@@ -405,9 +425,11 @@ export class Whiteboard {
     // Keyboard activation of an arrow end opens its exact connection fields.
     if(handle&&e.detail===0){e.preventDefault();e.stopPropagation();this.inspect(handle.closest('[data-decoration]').dataset.decoration,handle.dataset.endpoint);return;}
     const control=e.target.closest('[data-whiteboard-action]'),action=control?.dataset.whiteboardAction;if(!action)return;
+    // The More menu's items run through the menu's action event (pointer and keyboard alike).
+    if(control.closest('#whiteboard-menu'))return;
     e.preventDefault();e.stopPropagation();
-    if(action==='more'){this.menu.hidden?this.openMenu():this.closeMenu({focus:true});return;}
-    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control);return;}
+    if(action==='more'){this.menuOpen?this.closeMenu():this.openMenu(e);return;}
+    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control,e);return;}
     const id=this.host.activeDecoration,ids=this.selectedDecorations().map(d=>d.id);this.closeMenu();
     if(action==='done'){this.commitEdit({focus:true});return;}
     if(action==='cancel-edit'){this.cancelEdit();return;}
@@ -588,7 +610,6 @@ export class Whiteboard {
     this.suppressClick=false;
     const own=e.target.closest('.whiteboard-toolbar,.whiteboard-menu,.whiteboard-editor,.whiteboard-draft-state');
     if(this.editor&&!own&&!e.target.closest(selector(this.editor.id)))this.commitEdit({focus:false});
-    if(!e.target.closest('.whiteboard-menu,[data-whiteboard-action=more]'))this.closeMenu();
     if(this.drag){if(e.pointerId!==this.drag.pointerId)this.cancel();return;}
     if(own)return;
     const port=e.target.closest('[data-port]'),element=e.target.closest('[data-decoration]');
@@ -686,18 +707,15 @@ export class Whiteboard {
     // Escape keeps what was typed (as in Figma or Miro): it commits and leaves edit mode.
     // Discarding stays an explicit choice (the toolbar's cancel-edit action).
     if(this.editor){if(e.isComposing||e.keyCode===229||this.editor.composing)return false;this.commitEdit({focus:true});return true;}
-    if(!this.menu.hidden){this.closeMenu({focus:true});return true;}
     if(this.host.decorationSelection?.size>1){this.clearSelection();return true;}
     return false;
   }
   keydown(e) {
+    // An open menu or popover (this bar's More, Arrange, the board's menus) takes its own keys, Escape included.
+    if(inPopup(e))return;
     if(this.editor&&e.key==='Escape'&&(e.isComposing||e.keyCode===229||this.editor.composing)){e.stopImmediatePropagation();return;}
     if(this.handleEscape(e)){e.preventDefault();e.stopImmediatePropagation();return;}
     // Arrows, Home and End on the bar belong to ui-toolbar (it is one Tab stop and moves focus along its buttons).
-    if(e.target.closest('.whiteboard-menu')) {
-      const buttons=[...this.menu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
-      if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}
-    }
     const group=e.target.closest('[data-decoration]');
     if(group&&!e.target.closest('input,textarea,select,[contenteditable],button')&&!document.querySelector('dialog[open]')&&['Enter','F2'].includes(e.key)){
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);

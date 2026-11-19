@@ -460,7 +460,7 @@ try{
   assert.equal(await h.locator('#canvas-header button:visible').count(),3);
   // One floating view pill: − · percent menu (with the precise slider) · + · Fit.
   assert.equal(await h.locator('.canvas-footer .zoom-pill #zoom-menu-toggle').isVisible(),true);
-  assert.equal(await h.locator('.canvas-footer #zoom-slider').count(),1);
+  assert.equal(await h.locator('#zoom-popover #zoom-slider').count(),1);
   assert.equal(await h.locator('.canvas-footer #fit').isVisible(),true);
   assert.equal(await h.locator('#dot-track').isVisible(),false);
   assert.equal(await zoomPercent(),50);
@@ -625,12 +625,12 @@ try{
   await h.locator('#size-menu [data-size="fit"]').click();
   assert.deepEqual(await h.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#reader-window').style.width,document.querySelector('#size-menu [data-size="fit"]').getAttribute('aria-checked')]),['fit','','true']);
   await h.keyboard.press('Escape');
-  // Hovering the title shows where you are and what sits beside it.
-  await h.locator('#reader-path').hover();
+  // Pressing the title shows where you are and what sits beside it (a UI SDK menu; Escape closes it).
+  await h.locator('#reader-path').click();
   await h.locator('#reader-path-pop').waitFor({state:'visible'});
   assert.deepEqual(await h.locator('#reader-path-pop .reader-path-ladder .reader-path-title').allTextContents(),['Home','History','01 · One']);
   assert.equal(await h.locator('#reader-name').textContent(),'One');
-  await h.mouse.move(10,700);
+  await h.keyboard.press('Escape');
   await h.locator('#reader-path-pop').waitFor({state:'hidden'});
   assert.equal(await length(),base+1);
   assert.equal(await historyLength(),readerHistoryLength);
