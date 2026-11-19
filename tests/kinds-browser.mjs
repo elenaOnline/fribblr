@@ -197,11 +197,38 @@ try {
     [['page','2 pages'],['doc','1 document'],['pic','2 pictures'],['plain','4 notes'],['board','1 board']]);   // after the keycap section's document and two duplicates
   await page.screenshot({path:path.join(evidence,'kinds-home.png')});
 
+  // The slab zooms as one object: its side is a world length (10 px at every zoom from 25 % up, so a constant
+  // fraction of the card on screen), floored only far out (2.5 screen px); the face's left, right and front edges are
+  // drawn in its own side's dark contour colour, per family; hover closes the far edge in that colour too.
+  await page.setViewportSize({width:1440,height:900});await page.goto(base+'/boards/mixed/');await page.locator('#world .workspace-card').first().waitFor();
+  const slab=()=>page.$$eval('#world .workspace-card[data-family]',els=>els.map(e=>{
+    const parts=getComputedStyle(e).boxShadow.split(/,(?![^(]*\))/).map(x=>x.trim());
+    const px=str=>str.match(/(-?[\d.]+)px/g).map(parseFloat);
+    const probe=document.createElement('i');e.append(probe);probe.style.color=`var(--kind-${e.dataset.family}-edge)`;const edge=getComputedStyle(probe).color;probe.remove();
+    const colour=str=>str.replace(/\s*-?[\d.]+px/g,'').trim();
+    return {family:e.dataset.family,left:colour(parts[0]),right:colour(parts[1]),front:colour(parts[2]),side:px(parts[4])[1],height:e.getBoundingClientRect().height/parseFloat(getComputedStyle(document.getElementById('viewport')).getPropertyValue('--canvas-zoom')||1),edge};}));
+  const zoomTo=z=>page.evaluate(z=>{const b=document.createElement('button');b.dataset.zoomTo=String(z);b.hidden=true;document.getElementById('zoom-menu').append(b);b.click();b.remove();},z);
+  for(const z of [.25,.45,.7,1,2]){
+    await zoomTo(z);await page.waitForTimeout(250);
+    for(const c of await slab()){
+      assert.ok(Math.abs(c.side-10)<.05,`${c.family} side is 10 world px at ${z*100}% (got ${c.side})`);
+      assert.deepEqual([c.left,c.right,c.front],[c.edge,c.edge,c.edge],`${c.family}: the face's left, right and front edges are its side's dark colour`);
+    }
+  }
+  await zoomTo(.1);await page.waitForTimeout(250);
+  for(const c of await slab())assert.ok(Math.abs(c.side*.1-2.5)<.05,`far out the side is held at 2.5 screen px (got ${c.side*.1})`);
+  await zoomTo(1);await page.waitForTimeout(250);
+  const far=()=>page.locator('#world .workspace-card[data-family="page"]').first().evaluate(e=>getComputedStyle(e).boxShadow.split(/,(?![^(]*\))/)[3].trim());
+  const farRest=await far();await page.locator('#world .workspace-card[data-family="page"]').first().hover();await page.waitForTimeout(200);
+  assert.notEqual(await far(),farRest,'hover closes the far edge');
+  const rgb=str=>{const m=str.match(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/);return m?m.slice(1).map(v=>Math.round(v*255)).join(','):str.match(/rgba?\((\d+), (\d+), (\d+)/).slice(1).join(',');};
+  assert.equal(rgb(await far()),rgb((await slab()).find(c=>c.family==='page').edge),'...in the side\'s dark colour');
+
   // Phone width and touch: no legend, no keycaps.
   await page.setViewportSize({width:390,height:844});await page.goto(base+'/boards/mixed/');await page.locator('#world .workspace-card').first().waitFor();
   assert.equal(await page.locator('.kind-legend').evaluate(l=>getComputedStyle(l).display),'none');
   assert.ok(await page.locator('.keycap-printed').evaluateAll(caps=>caps.every(c=>getComputedStyle(c).display==='none')));
 
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,evidence,checks:['kind and family on every card by the shared rule','legend families, order, counts and labels','hover lights one family, dims the rest, moves nothing','click keeps across live adds and removals','keyboard keep and Escape','reader item kind','keycap matches aria-keyshortcuts and its key fits as the button does','search, details, duplicate, edit document, undo, redo, copy selection and keyboard shortcuts: cap = declared binding, key = click','Home board kind and kinds line','no legend or keycaps at phone width']}));
+  console.log(JSON.stringify({passed:true,evidence,checks:['kind and family on every card by the shared rule','slab side 10 world px at 25-200 % (floor 2.5 screen px far out); face edges in the side\'s dark colour per family; hover closes the far edge','legend families, order, counts and labels','hover lights one family, dims the rest, moves nothing','click keeps across live adds and removals','keyboard keep and Escape','reader item kind','keycap matches aria-keyshortcuts and its key fits as the button does','search, details, duplicate, edit document, undo, redo, copy selection and keyboard shortcuts: cap = declared binding, key = click','Home board kind and kinds line','no legend or keycaps at phone width']}));
 } finally {await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});}

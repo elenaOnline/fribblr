@@ -8,7 +8,7 @@
    A thing declares its side colour with --side / --side-edge. data-family sets them from the kind tokens, so a card
    with data-family="doc" stands on a violet side. Keys take --key-side from where they stand.
    States change inputs, never the recipe, and only under her pointer:
-     hover   --rim: the rim darkens; nothing rises (a dense board is crossed by the pointer all the time)
+     hover   the face's edge closes: its top (and bottom) take the side's dark colour too; nothing rises
      press   a key drops onto its side (raised only)
      select  a blue line on the ground around the whole slab, side included; the slab does not move
      drag    --lift: the side lengthens by the lift and the face rises by it, so the side still ends where it stood
@@ -21,7 +21,8 @@
                           (a drop well: a board tile under a held card goes sunken; trays: regions join sunken,
                           a nested tray sets a deeper --sink-d) */
 
-/* ---------- zoom: lengths on the board are world pixels; these keep the strength on screen when zoomed out ----------
+/* ---------- zoom: lengths on the board are world pixels, so a slab zooms as one object; the floors only stop a hairline
+   or a side from vanishing far out ----------
    --px is one screen pixel in world units. canvas.js writes --canvas-zoom on #viewport, reader-canvas.js on the reader's stage. */
 /* --lift is registered so it never leaks into a nested slab and so the rise can ease */
 @property --lift { syntax: '<length>'; inherits: false; initial-value: 0px; }
@@ -32,9 +33,9 @@
   --hair: max(1px, calc(var(--depth-hair-min) * var(--px)));
   --side-slab: max(var(--depth-slab), calc(var(--depth-slab-min) * var(--px)));
   --side-lift: max(var(--depth-lift), calc(var(--depth-lift-min) * var(--px)));
-  --select-line: max(var(--select-width), calc(2 * var(--px)));
-  --side-edge-low: max(var(--depth-edge-low), var(--px));
-  --select-out: calc(var(--side-slab) + var(--side-edge-low) + max(var(--select-gap), calc(2 * var(--px))));
+  --select-line: max(var(--select-width), calc(var(--select-width-min) * var(--px)));
+  --side-edge-low: var(--depth-edge-low);
+  --select-out: calc(var(--side-slab) + var(--side-edge-low) + max(var(--select-gap), var(--px)));
 }
 
 /* ---------- shape: every corner is a squircle; a circle that is itself the mark opts out ---------- */
@@ -51,21 +52,25 @@
 [data-family="board"] { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); --side-text: var(--kind-board-text); }
 
 /* ================= slab (2): what you can pick up =================
-   A white face with a 1 px rim, standing on a lower side of its kind's colour. The side is the face's own outline
+   A white face standing on a lower side of its kind's colour. The face's left, right and front (lower) edges are drawn
+   in the side's dark contour colour, so they run on into the side's own contour like the edges of a block; its far
+   (top) edge keeps the ground's pale rim (--slab-top-edge: 1 draws the dark edge all round). The side is the face's own outline
    moved down (a box-shadow follows corner-shape), so its corner runs parallel to the face's squircle; a contour one
    step darker edges it; then a cast shadow whose length follows the height.
    Members: cards on a board, boards on Home (the same slab as a child board), the item in the reader. */
 :where(
 #world .workspace-card, #world .concept-card, .board-card .board-link, #reader-dialog #reader-window, [data-height="slab"]
 ) {
-  --rim: var(--ground-rim);
+  --rim: var(--side-edge, var(--kind-plain-edge));
+  --rim-top: color-mix(in srgb, var(--rim) calc(var(--rim-close, var(--slab-top-edge)) * 100%), var(--ground-rim));
   --side-d: calc(var(--side-slab) + var(--lift));
   --cast-d: calc(var(--side-d) + var(--under-d, 0px));
   border: 0;
   border-radius: var(--shape-slab);
   background-color: var(--item-paper, var(--surface-paper));
   box-shadow:
-    0 0 0 var(--hair) var(--rim),
+    calc(-1 * var(--hair)) 0 0 0 var(--rim), var(--hair) 0 0 0 var(--rim), 0 var(--hair) 0 0 var(--rim),
+    0 0 0 var(--hair) var(--rim-top),
     0 var(--side-d) 0 0 var(--side, var(--kind-plain-side)),
     0 calc(var(--side-d) + var(--side-edge-low)) 0 var(--hair) var(--side-edge, var(--kind-plain-edge)),
     var(--under, 0 0 #0000),
@@ -75,7 +80,7 @@
 }
 /* hover: the rim darkens */
 #world .workspace-card:hover, #world .concept-card:hover, .board-card:hover .board-link, .board-link:focus-visible,
-[data-height="slab"]:hover { --rim: var(--line-edge); }
+[data-height="slab"]:hover { --rim-close: 1; }
 /* select: a blue line drawn on the ground around the whole slab, side included */
 #world .workspace-card.selected, #world .workspace-card.inspected, .board-card.workspace-home-selected .board-link,
 [data-height="slab"][aria-selected="true"] {
@@ -90,7 +95,7 @@
 }
 /* a slab she can drop into, while she holds one over it: blue rim, dashed blue line */
 #world .workspace-card.workspace-drop-target {
-  --rim: var(--mark-blue);
+  --rim: var(--mark-blue); --rim-close: 1;
   outline: var(--select-line) dashed var(--mark-blue);
   outline-offset: var(--select-out);
 }
@@ -101,12 +106,16 @@ body:has(.reader-title-row[data-family="doc"]) #reader-window { --side: var(--ki
 body:has(.reader-title-row[data-family="pic"]) #reader-window { --side: var(--kind-pic-side); --side-edge: var(--kind-pic-edge); }
 body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); }
 
-/* ---------- slab, in miniature: the cards inside a board's cover, standing on that board's own ground ---------- */
+/* ---------- slab, in miniature: the cards inside a board's cover, the legend's swatches. The same rule as the slab at a
+   fixed tiny size: --mini-d is the side, the left and right edges in the side's dark colour ---------- */
 .board-collage.board-miniature, .board-collage { background: transparent; }
 :where(.board-collage .workspace-cover-tile) { --side: var(--kind-plain-side); --side-edge: var(--kind-plain-edge); }  /* not the cover's own family */
-.board-collage .workspace-cover-tile, .board-miniature .workspace-cover-tile.mini-tile, .board-art .sheet {
+.board-collage .workspace-cover-tile, .board-miniature .workspace-cover-tile.mini-tile, .board-art .sheet, .kind-swatch {
+  --mini-edge: var(--side-edge, var(--kind-plain-edge));
   border: 0; border-radius: 4px; background-color: var(--mini-paper, var(--surface-paper));
-  box-shadow: 0 0 0 .5px var(--ground-rim), 0 1.5px 0 0 var(--side, var(--kind-plain-side)), 0 1.5px 0 .5px var(--side-edge, var(--kind-plain-edge));
+  box-shadow: calc(-1 * var(--mini-hair, .5px)) 0 0 0 var(--mini-edge), var(--mini-hair, .5px) 0 0 0 var(--mini-edge), 0 var(--mini-hair, .5px) 0 0 var(--mini-edge),
+    0 0 0 var(--mini-hair, .5px) color-mix(in srgb, var(--mini-edge) calc(var(--slab-top-edge) * 100%), var(--ground-rim)),
+    0 var(--mini-d, 1.5px) 0 0 var(--side, var(--kind-plain-side)), 0 var(--mini-d, 1.5px) 0 var(--mini-hair, .5px) var(--mini-edge);
 }
 .board-miniature .mini-tile.mini-board { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); }
 .board-miniature .mini-tile.mini-pending { box-shadow: inset 0 0 0 .5px var(--ink-2); }

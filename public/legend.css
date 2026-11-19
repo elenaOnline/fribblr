@@ -7,8 +7,7 @@
 /* ---------- the swatch: a tiny slab, a white face on its kind's side with the side's contour ---------- */
 .kind-swatch {
   flex: none; width: 13px; height: 9px; margin-bottom: 3px; box-sizing: border-box;
-  border-radius: 3px; background-color: var(--surface-paper);
-  box-shadow: 0 0 0 1px var(--ground-rim), 0 3px 0 0 var(--side), 0 3px 0 1px var(--side-edge);
+  border-radius: 3px; --mini-d: 3px; --mini-hair: 1px;   /* a miniature slab (depth.css) */
 }
 
 /* ---------- the kind legend: a bar floating over the board, at the left of its foot ---------- */
