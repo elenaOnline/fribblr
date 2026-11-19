@@ -239,6 +239,7 @@ body .workspace-add-menu button > span { width: 18px; color: var(--ink-2); text-
 /* Keyboard focus on a board item (UI SDK canvas: focus is not selection). Selection is the blue line on the
    ground; focus is an ink ring just outside it, so a focused, selected card shows both. */
 #world .workspace-card:focus-visible:not(.selected):not(.inspected) { outline: none; }
+#world .workspace-card, #world .workspace-decoration { scroll-margin: 24px; }  /* focus scrolled into view keeps its ring clear */
 #world .workspace-card:focus-visible::after {
   content: ""; position: absolute; pointer-events: none; z-index: 7;
   inset: calc(-1 * (var(--select-out, 6px) + var(--lift, 0px) + var(--select-line, 2px) + 3px));

@@ -2699,6 +2699,8 @@ export class WorkspaceBoard {
     if (e.metaKey || e.ctrlKey) return ["z","d","a"].includes(key);
     // Arrows write only as Option/Alt-arrow moves and on a resize handle; plain arrows move focus or pan at once.
     if (arrow) return e.altKey || !!e.target.closest?.("#world .workspace-resize");
+    // Space and Enter on a button or link are its native press: queuing (preventDefault) would swallow the press.
+    if ((key === " " || key === "enter") && e.target.closest?.("button,a[href],[role=button]")) return false;
     return key.length === 1 || ["delete","backspace","enter"].includes(key);
   }
   // Replays queued keys while the board is idle (or while a new text or sticky is holding keys
