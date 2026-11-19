@@ -186,7 +186,7 @@ function triggerOf(content) {
   // A popup whose trigger the page can't point at (the comment card's pin is rebuilt as pins regroup) names it itself.
   const named = content.tabTrigger?.();
   if (named instanceof HTMLElement && !content.contains(named)) return named;
-  const root = content.parentElement;
+  const root = content.closest('ui-popover,ui-dialog') || content.parentElement;
   const found = (content.id && document.querySelector(`[aria-controls="${CSS.escape(content.id)}"]`))
     || (root?.id && document.querySelector(`ui-popover-trigger[for="${CSS.escape(root.id)}"] button, ui-dialog-trigger[for="${CSS.escape(root.id)}"] button`));
   return found instanceof HTMLElement && !content.contains(found) ? found : null;
@@ -195,8 +195,10 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   if (event.key !== 'Tab' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
   const target = event.target instanceof Element ? event.target : null;
   const content = target?.closest('ui-popover-content[data-open],ui-dialog-content[data-open]:not([aria-modal="true"])');
-  if (!content || content.parentElement?.parentElement !== document.body && content.parentElement !== document.body) return;
-  if (content.getAttribute('aria-modal') === 'true' || content.parentElement?.getAttribute('modal') === 'true' || content.parentElement?.getAttribute('modal') === 'trap-focus') return;
+  // The popup's root (in a sheet the content sits inside the root's viewport, not directly in it).
+  const host = content?.closest('ui-popover,ui-dialog');
+  if (!content || !host || host.parentElement !== document.body) return;
+  if (content.getAttribute('aria-modal') === 'true' || host.getAttribute('modal') === 'true' || host.getAttribute('modal') === 'trap-focus') return;
   const trigger = triggerOf(content);
   if (!trigger) return;
   const stops = tabbablesIn(content);
@@ -204,7 +206,7 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   const first = stops[0], last = stops[stops.length - 1];
   if (event.shiftKey ? (target === first || first.contains(target)) : (target === last || last.contains(target))) {
     if (event.shiftKey) event.preventDefault();
-    else if (content.matches('ui-popover-content')) content.parentElement.api?.close?.();
+    else if (content.matches('ui-popover-content')) host.api?.close?.();
     trigger.focus({preventScroll: true});
   }
 }, true);
