@@ -76,7 +76,7 @@ try{
  await page.waitForFunction(()=>{const h=document.querySelector('[data-decoration=flow] [data-endpoint=to]')?.getBoundingClientRect(),p=document.querySelector('[data-decoration=plan]').getBoundingClientRect();return h&&Math.abs(h.x+h.width/2-p.right)<4;});
  // More keeps only rare choices; the dialog is Advanced… there.
  await idle();await bar('more').click();
- assert.deepEqual(await page.locator('.whiteboard-menu button').allTextContents(),['Edit label','Detach both ends','Advanced…']);
+ assert.deepEqual((await page.locator('#whiteboard-menu [role=menuitem]').allTextContents()).map(t=>t.trim()),['Custom color…','Edit label','Detach both ends','Advanced…']);
  await page.keyboard.press('Escape');
 
  // Dragging an end over a different shape highlights it and snaps to its nearest side.
