@@ -242,7 +242,7 @@ try{
  await wp.keyboard.press('Control+ArrowRight');await wp.waitForFunction(()=>document.querySelector('#reader-name').textContent==='Bold opening');checks++;
  await wp.keyboard.press('Alt+ArrowLeft');await wp.waitForTimeout(150);
  ok(await wp.locator('#reader-name').textContent()!=='Quiet opening'||!(await wp.locator('#reader-dialog').evaluate(d=>d.open)),'Alt+← is not a step on Windows');
- ok((await wp.locator('#reader-next').getAttribute('title')).includes('Ctrl+→'),'Windows titles name Ctrl+→');
+ ok((await wp.locator('#reader-next').getAttribute('aria-keyshortcuts')).includes('Control+ArrowRight'),'Windows shortcuts name Ctrl+→');
  await win.close();
 
  // (10) Dark, and a phone: the title row wraps, the stepper and path still work, no sideways scroll.

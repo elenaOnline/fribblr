@@ -43,7 +43,7 @@ try{
  await select('note');
  assert.equal(await page.locator('.whiteboard-toolbar').getAttribute('aria-label'),'Sticky note');
  assert.deepEqual(await groups(),['Color','Text size','Alignment','Sticky note actions']);
- for(const b of await page.locator('.whiteboard-arrow-bar button').all())assert.ok(await b.getAttribute('title'),'every bar control has a tooltip');
+ for(const b of await page.locator('.whiteboard-arrow-bar button').all()){assert.ok(await b.getAttribute('data-tip'),'every bar control has a tooltip');assert.equal(await b.getAttribute('title'),null,'on the UI SDK tooltip, not a native title');}
  assert.equal(await bar('color','#f6e6a4').getAttribute('aria-pressed'),'true');
  await page.screenshot({path:path.join(evidence,'sticky-bar-light.png')});
  await bar('color','#f4c9d0').click();assert.equal(await eventually(async()=>(await find('note')).color,v=>v==='#f4c9d0'),'#f4c9d0');
