@@ -1220,11 +1220,12 @@ html[data-theme="night"] .item-representation p {
 html[data-appearance="dark"] .workspace-board .decoration-text { color: color-mix(in oklab, var(--decoration-color), var(--ink) 65%); }
 .workspace-board .decoration-region { z-index: 0; }
 /* On Canvas the cards are one layer of their own, so a placement's z orders cards
-   among themselves only. Whatever its z, a card sits above regions, shapes and text
-   (z 0-1, rendered before this layer) and below arrows (2), comment pins (30, 100) and
-   connection ports. Sharing #world's stacking context, a card's z (its creation count,
-   unbounded) competed with those fixed values: shapes covered cards with z 0, and
-   cards past z 2 or 30 covered arrows and comment pins. The layer fills #world exactly,
+   among themselves only. Whatever its z, a card sits above regions, containers, shapes
+   and text (z 0-1, rendered before this layer) and below arrows and stickers (2),
+   comment pins (30, 100) and connection ports; groups change no layer. Sharing
+   #world's stacking context, a card's z (its creation count, unbounded) competed with
+   those fixed values: shapes covered cards with z 0, and cards past z 2 or 30 covered
+   arrows, stickers and comment pins. The layer fills #world exactly,
    so card positions are unchanged, and passes the pointer through to what is under it. */
 .workspace-board[data-board-layout="canvas"] #world > .workspace-cards { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 :where(.workspace-board[data-board-layout="canvas"] #world > .workspace-cards) > * { pointer-events: auto; }

@@ -1,7 +1,9 @@
 // Headless checks that a card's z orders cards among themselves only. Whatever its z,
-// a card sits above regions, shapes, stickies and text, and below arrows and comment
-// pins; the card layer moves nothing and keeps regions, the board background and
-// cards reachable by the pointer. Uses only external fixtures.
+// a card sits above regions, containers, shapes, stickies and text, and below arrows,
+// stickers and comment pins, also inside a group or a container; the card layer moves
+// nothing and keeps regions, the board background and cards reachable by the pointer.
+// Uses only external fixtures.
+import './helpers/offline.mjs';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm} from 'node:fs/promises';
 import os from 'node:os';
@@ -9,7 +11,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {main} from '../cli.mjs';
 import {loadConfig} from '../lib/config.mjs';
-import {applyOperation} from '../lib/workspace.mjs';
+import {applyOperation,getBoardSnapshot} from '../lib/workspace.mjs';
 import {listen,closeAppServer} from '../server.mjs';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
 const root=await mkdtemp(path.join(os.tmpdir(),'tinka-canvas-layers-'));
@@ -20,6 +22,7 @@ try{
  const file=path.join(root,'config.json');await main(['init','--config',file,'--boards',path.join(root,'boards'),'--label','Layers studio']);const config=await loadConfig(file);
  const op=async(type,fields)=>(await applyOperation(config,{type,boardId:'layers',...fields})).result;
  await op('createBoard',{id:'layers',title:'Layers'});
+ const note=(title,placement)=>op('createItem',{item:{title,content:{kind:'note',text:'Above what is drawn under it.'}},placement}).then(r=>r.placementIds[0]);
  // One row per kind of drawn element, each under four cards whose z spans the range a
  // real board reaches (z is the creation count, so a board of 40 items reaches 39).
  const kinds=[['region',{type:'region'}],['rectangle',{type:'region',shape:'rectangle'}],['rounded',{type:'region',shape:'rounded'}],['ellipse',{type:'region',shape:'ellipse'}],['diamond',{type:'region',shape:'diamond'}],['text',{type:'text'}]];
@@ -35,6 +38,19 @@ try{
  // Overlapping cards still stack by their own z.
  const front=(await op('createItem',{item:{title:'Front card',content:{kind:'note',text:'z 3'}},placement:{x:1300,y:0,width:240,height:150,z:3}})).placementIds[0];
  const behind=(await op('createItem',{item:{title:'Card behind',content:{kind:'note',text:'z 2'}},placement:{x:1360,y:60,width:240,height:150,z:2}})).placementIds[0];
+ // A sticker on a high card, like an arrow, stays above it.
+ const stuck=await note('Under a sticker, z 40',{x:20,y:1480,width:240,height:150,z:40});
+ await op('createDecoration',{decoration:{id:'sticker',type:'text',text:'🚀',sticker:true,x:150,y:1500,width:96,height:96,color:'palette:neutral'}});
+ // Grouping a card with a shape it lies on changes membership only, not layers.
+ await op('createDecoration',{decoration:{id:'grouped-shape',type:'region',shape:'rounded',x:320,y:1460,width:280,height:200,color:'#c9b6ea',text:''}});
+ const grouped=await note('Grouped with its shape, z 0',{x:340,y:1490,width:240,height:150,z:0});
+ await op('groupOccurrences',{placementIds:[grouped],decorationIds:['grouped-shape']});
+ // A container holding a shape and a card, and a loose card at z 0 lying on its shape.
+ await op('createDecoration',{decoration:{id:'held-shape',type:'region',shape:'rectangle',x:0,y:0,width:240,height:150,color:'#c9b6ea',text:''}});
+ const held=await note('In a container, z 0',{x:0,y:0,width:240,height:150,z:0});
+ await op('createDecoration',{decoration:{id:'holder',type:'region',x:660,y:1460,width:100,height:100,color:'#dbe5d3',text:'Container',container:{layout:'horizontal',children:['held-shape',{placementId:held}]}}});
+ const laid=(await getBoardSnapshot(config,'layers')).decorations.find(d=>d.id==='held-shape');
+ const loose=await note('Loose on a container shape, z 1',{x:laid.x+40,y:laid.y+25,width:160,height:100,z:1});
  server=await listen(config,{port:0});const base=`http://127.0.0.1:${server.address().port}`;
  browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
  const page=await browser.newPage({viewport:{width:1700,height:1900},colorScheme:'light',reducedMotion:'reduce'});page.on('pageerror',e=>errors.push(e.message));
@@ -60,6 +76,15 @@ try{
  // Cards keep their own order.
  ok(await topAt(card(behind),.2,.2)===`card:${front}`,'Overlapping cards still stack by their z');
  // The card layer moves nothing: a card sits exactly where its board units say.
+ // Groups and containers keep the same layers.
+ ok(await topAt(card(stuck),.6,.25)==='decoration:sticker',`A sticker stays above the z 40 card it is on: ${await topAt(card(stuck),.6,.25)}`);
+ for(const [fx,fy] of [[.5,.5],[.08,.1],[.92,.9]])assert.equal(await topAt(card(grouped),fx,fy),`card:${grouped}`,`A grouped card stays above the shape it is grouped with (${fx},${fy})`);
+ checks++;
+ for(const [fx,fy] of [[.5,.5],[.08,.1],[.92,.9]])assert.equal(await topAt(card(held),fx,fy),`card:${held}`,`A card in a container stays above the container (${fx},${fy})`);
+ checks++;
+ ok(await topAt('[data-decoration="held-shape"]',.06,.08)==='decoration:held-shape',`A shape in a container stays above the container, beside the card on it: ${await topAt('[data-decoration="held-shape"]',.06,.08)}`);
+ for(const [fx,fy] of [[.5,.5],[.08,.1],[.92,.9]])assert.equal(await topAt(card(loose),fx,fy),`card:${loose}`,`A loose card stays above the container shape it lies on (${fx},${fy})`);
+ checks++;
  const offset=await page.evaluate(([c,d])=>{const a=document.querySelector(c).getBoundingClientRect(),b=document.querySelector(d).getBoundingClientRect(),z=new DOMMatrix(getComputedStyle(document.getElementById('world')).transform).a;return {dx:(a.left-b.left)/z,dy:(a.top-b.top)/z};},[card(cards['region/0']),'[data-decoration="under-region"]']);
  ok(Math.abs(offset.dx-20)<.5&&Math.abs(offset.dy-30)<.5,`Cards keep their board position: ${JSON.stringify(offset)}`);
  // A card is still picked up by the pointer through the layer.
