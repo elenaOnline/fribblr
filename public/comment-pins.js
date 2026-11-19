@@ -8,6 +8,7 @@ import {toast, dismissToast, makeDialog, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {token} from './tokens.js';
 import {sharedMenu, openMenu, menuCheckbox, menuGroup, menuItem, inPopup, openOnArrowDown} from './popups.js';
+import {tips, setTip} from './tips.js';
 
 // ---- API adapter (comment API, Tinka 1.1). Field and operation names live only here.
 export const commentApi = {
@@ -72,8 +73,9 @@ export class CommentPins {
     const pill = document.querySelector('.canvas-footer .zoom-pill');
     if (pill && !document.getElementById('comment-layer-toggle')) {
       const group = document.createElement('span');group.className = 'comment-bar';
-      group.innerHTML = `<ui-toolbar-button><ui-menu-trigger for="comment-layer-menu"><button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-label="Comments" title="Comments (⇧C)">${ICON.comment}<span class="comment-count" hidden></span></button></ui-menu-trigger></ui-toolbar-button><ui-toolbar-button><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" title="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button></ui-toolbar-button><span class="tk-divider" aria-hidden="true"></span>`;
+      group.innerHTML = `<ui-toolbar-button><ui-menu-trigger for="comment-layer-menu"><button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-label="Comments" data-tip="Comments" data-tip-keys="Shift+C">${ICON.comment}<span class="comment-count" hidden></span></button></ui-menu-trigger></ui-toolbar-button><ui-toolbar-button><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" data-tip="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button></ui-toolbar-button><span class="tk-divider" aria-hidden="true"></span>`;
       pill.prepend(group);
+      tips(group);
       group.querySelector('#comment-send').onclick = () => this.sendToAgent();
     }
     this.layer.addEventListener('click', e => {
@@ -212,7 +214,7 @@ export class CommentPins {
     // Calm at rest: with nothing to send, Send is just its icon.
     send.classList.toggle('comment-send-idle', !unsent);
     send.classList.toggle('agent-watching', watching);
-    send.title = watching ? 'Agent is watching: comments you send are picked up right away' : 'Send open comments to your agent';
+    setTip(send, watching ? 'Agent is watching: comments you send are picked up right away' : 'Send open comments to your agent');
     const label = unsent ? `Send ${unsent} open comment${unsent === 1 ? '' : 's'} to your agent` : 'Send to agent: nothing open to send';
     send.setAttribute('aria-label', watching ? `${label} · Agent is watching` : label);
   }

@@ -4,6 +4,7 @@ import {resolveEndpoint, resolveLine, decorationBounds, linePath, targetBox} fro
 import {formatToHTMLString} from './deco-format.js';
 import {snapBox, snapDisabled} from './snap-guides.js';
 import {followVisibility} from './ui-toolbar.js';
+import {tips} from './tips.js';
 import {isMacPlatform} from './reader-keys.js';
 import {token} from './tokens.js';
 import {sharedMenu, openMenu, menuItem, inPopup, openOnArrowDown} from './popups.js';
@@ -52,7 +53,7 @@ const icons = {
 };
 // The object bar is a ui-toolbar: one Tab stop, arrows move between its buttons (each wrapped in a ui-toolbar-button).
 const barParts = {
-  button:(action,label,body,{value,pressed,extra=''}={})=>`<ui-toolbar-button><button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" title="${esc(label)}"${pressed!==undefined?` aria-pressed="${pressed}"`:''}${extra}>${body}</button></ui-toolbar-button>`,
+  button:(action,label,body,{value,pressed,extra=''}={})=>`<ui-toolbar-button><button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" data-tip="${esc(label)}"${pressed!==undefined?` aria-pressed="${pressed}"`:''}${extra}>${body}</button></ui-toolbar-button>`,
   group:(label,body)=>`<ui-toolbar-group class="whiteboard-bar-group" aria-label="${label}">${body}</ui-toolbar-group>`,
 };
 // Preset palettes per kind; More keeps a custom colour picker for anything else.
@@ -291,6 +292,7 @@ export class Whiteboard {
       this.toolbar.innerHTML=this.editor
         ? `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><ui-toolbar-button><button type="button" data-whiteboard-action="done">Done</button></ui-toolbar-button><ui-toolbar-button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button></ui-toolbar-button>`
         : this.bar(list,draft);
+      tips(this.toolbar);
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }
     this.positionToolbar();

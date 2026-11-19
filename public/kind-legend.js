@@ -13,6 +13,7 @@
 // and live updates without a second source of truth.
 import {FAMILIES, familyTitle} from "./kinds.js";
 import "./vendor/ui-sdk/web/toggle.js";
+import {tips, TIP_ID} from "./tips.js";
 
 export class KindLegend {
   constructor(world, footer = document.querySelector(".canvas-footer")) {
@@ -33,7 +34,8 @@ export class KindLegend {
     // The group presses and unpresses; its value (one family at most) is the kept family.
     el.addEventListener("valuechange", event => this.keep(event.detail.value[0] || null, {fromGroup: true}));
     el.addEventListener("keydown", event => {
-      if (event.key !== "Escape" || !this.kept) return;
+      // A showing tooltip takes Escape first (it closes only itself); the next Escape lets go.
+      if (event.key !== "Escape" || !this.kept || document.querySelector("ui-tooltip-content[data-open]")) return;
       event.preventDefault(); event.stopPropagation();
       this.keep(null);
     });
@@ -64,6 +66,7 @@ export class KindLegend {
       cursor = button.nextElementSibling;
     }
     this.el.hidden = !present.length;
+    tips(this.el);
     this.press();
     if (this.kept && !counts[this.kept]) this.keep(null);
     // A lit family that just left the board (by hover) must not keep the rest dim.
@@ -74,8 +77,13 @@ export class KindLegend {
     const name = familyTitle(family);
     toggle.setAttribute("value", family);
     toggle.dataset.family = family;
-    toggle.innerHTML = `<button type="button" class="kind-legend-entry" data-family="${family}" title="Pick out the ${name.toLowerCase()} on this board"><span class="kind-swatch" aria-hidden="true"></span><span class="kind-legend-name">${name}</span><span class="kind-legend-count"></span></button>`;
-    return toggle;
+    toggle.innerHTML = `<button type="button" class="kind-legend-entry" data-family="${family}" data-tip="Pick out the ${name.toLowerCase()} on this board"><span class="kind-swatch" aria-hidden="true"></span><span class="kind-legend-name">${name}</span><span class="kind-legend-count"></span></button>`;
+    // Each entry sits in its tooltip trigger (tips.js), the outermost wrapper, which carries the family key.
+    const trigger = document.createElement("ui-tooltip-trigger");
+    trigger.setAttribute("for", TIP_ID);
+    trigger.dataset.family = family;
+    trigger.append(toggle);
+    return trigger;
   }
   // Write the kept family into the group (no event fires for a property write).
   press() {

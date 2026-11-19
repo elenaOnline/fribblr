@@ -15,6 +15,8 @@ const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Ho
 
 // True when the focused widget (per UI SDK's norms) handles this key itself, so a board-level handler must not.
 export function widgetOwnsKey(event) {
+  // Escape with a tooltip showing closes only the tooltip (tooltip.md § Keyboard), wherever focus is.
+  if (event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
   const target = event?.target instanceof Element ? event.target : document.activeElement;
   if (!target?.closest) return false;
   if (target.closest(OWNS_ALL_KEYS)) return true;

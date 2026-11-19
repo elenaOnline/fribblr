@@ -182,12 +182,12 @@ body:not(.workspace-board) #board-info > .appearance-control .tk-seg { width: 10
 #workspace-item-controls .workspace-context-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; border: 0; }
 #workspace-item-controls .workspace-context-row > span:not(.inspector-label) { flex: 0 0 100%; }
 #workspace-item-controls button { font: inherit; }
-#workspace-item-controls .tk-btn, #workspace-item-controls .tk-seg > :is(button, ui-segmented-control-item) { min-height: 0; border: 0; }
+#workspace-item-controls .tk-btn, #workspace-item-controls :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > :is(button, ui-segmented-control-item) { min-height: 0; border: 0; }
 #workspace-item-controls .tk-btn.tk-sm { font-size: var(--type-meta); }
 #workspace-item-controls .tk-seg { display: flex; width: 100%; }
-#workspace-item-controls .tk-seg > :is(button, ui-segmented-control-item) { flex: 1; color: var(--ink-2); }
-#workspace-item-controls .tk-seg > :is(button, ui-segmented-control-item) svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
-#workspace-item-controls .tk-seg > :is(button, ui-segmented-control-item):is([aria-pressed="true"], [data-checked]) { color: var(--ink); }
+#workspace-item-controls :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > :is(button, ui-segmented-control-item) { flex: 1; color: var(--ink-2); }
+#workspace-item-controls :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > :is(button, ui-segmented-control-item) svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+#workspace-item-controls :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > :is(button, ui-segmented-control-item):is([aria-pressed="true"], [data-checked]) { color: var(--ink); }
 #workspace-item-controls .workspace-paper-swatches { display: flex; gap: 8px; }
 #workspace-item-controls .workspace-paper-swatches button { width: 26px; height: 26px; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1px var(--line-seam); outline: 0; cursor: pointer; }
 #workspace-item-controls .workspace-paper-swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--line-seam), 0 0 0 2px var(--surface-frame), 0 0 0 4px var(--mark-blue); }

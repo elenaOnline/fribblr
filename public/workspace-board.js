@@ -1,6 +1,7 @@
 import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
 import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
 import {followVisibility} from './ui-toolbar.js';
+import {tip, tips, setTip, tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {Whiteboard,decorationMarkup,decorationUnchanged,lineBox} from "./whiteboard.js";
 import {decorationBounds,resolveLine} from "./whiteboard-geometry.js";
@@ -287,18 +288,20 @@ export class WorkspaceBoard {
     add.className = "tk-btn tk-primary chrome-add";
     add.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg><span class="chrome-add-label">Add</span>';
     add.setAttribute("aria-label", "Add");
-    add.title = "Add text, shapes, arrows, items and boards";
+    add.dataset.tip = "Add text, shapes, arrows, items and boards";
     const actions = $("chrome-actions");
     const quick = document.createElement("span");
     quick.className = "chrome-history";
-    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
-    actions.insertBefore(quick, $("board-info-toggle"));
+    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" data-tip="Undo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" data-tip="Redo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
+    actions.insertBefore(quick, tipOuter($("board-info-toggle")));
     // Add opens the shared Add menu (popups.js); the trigger wrapper is display:contents, so the button lays out as
     // before and the SDK writes aria-expanded, aria-controls and the open/close keys onto it.
     const addTrigger = document.createElement("ui-menu-trigger");
     addTrigger.setAttribute("for", "workspace-add-menu");
     addTrigger.append(add);
     actions.append(addTrigger);
+    tip(add);
+    tips(quick);
     this.addMenuElement();
     this.installEditTools();
     const history = document.createElement("div");
@@ -545,7 +548,8 @@ export class WorkspaceBoard {
         crumb = document.createElement("a");
         crumb.id = "workspace-parent";
         crumb.className = "workspace-parent";
-        $("board-title").before(crumb);
+        // The title may sit in its tooltip trigger (tips.js): the crumb goes before that wrapper, not inside it.
+        tipOuter($("board-title")).before(crumb);
       }
       crumb.hidden = !parents.length;
       crumb.onclick = null;
@@ -555,14 +559,14 @@ export class WorkspaceBoard {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parent"}));
         crumb.href = `/boards/${encodeURIComponent(parent.id)}/`;
         crumb.setAttribute("aria-label", "Return to parent board " + parent.title);
-        crumb.title = "Return to " + parent.title +
-          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : "");
+        setTip(crumb, "Return to " + parent.title +
+          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : ""));
       } else if (parents.length > 1) {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parents"}));
         crumb.href = "#parents";
         crumb.setAttribute("role", "button");
         crumb.setAttribute("aria-label", "Choose a parent board");
-        crumb.title = "Choose from " + parents.length + " parent boards";
+        setTip(crumb, "Choose from " + parents.length + " parent boards");
         crumb.onclick = event => {
           event.preventDefault();
           makeDialog("This board appears on", parents.map(p =>
@@ -1237,9 +1241,9 @@ export class WorkspaceBoard {
       const verb = direction === "undo" ? "Undo" : "Redo", label = this.history?.label(direction);
       button.textContent = label ? `${verb} ${label.toLowerCase()}` : verb;
       button.disabled = !!busy || !this.history?.available(direction);
-      button.title = direction === "undo" ? "Undo movement, paste or removal (⌘/Ctrl Z)" : "Redo movement, paste or removal (⌘/Ctrl Shift Z)";
+      setTip(button, direction === "undo" ? "Undo movement, paste or removal" : "Redo movement, paste or removal");
       const quick = $("chrome-" + direction);
-      if (quick) { quick.disabled = button.disabled; quick.title = `${label ? `${verb} ${label.toLowerCase()}` : verb} (${direction === "undo" ? "⌘Z" : "⇧⌘Z"})`; }
+      if (quick) { quick.disabled = button.disabled; setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     if (copy) copy.disabled = !!busy || !this.clipboardCandidates().length;
@@ -1476,13 +1480,14 @@ export class WorkspaceBoard {
       const part = html => `<ui-toolbar-button>${html}</ui-toolbar-button>`;
       const bulk = (name, label, extra = "") => part(`<button type="button" class="tk-btn tk-sm ${extra}" data-bulk="${name}">${label}</button>`);
       el.innerHTML = `<strong role="status"></strong>`
-        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="menu" title="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
-        + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" title="Edit document (E)" hidden>Edit document</button>`)
-        + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" title="Item details (⌘I)" hidden>Details…</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="menu" data-tip="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" data-tip="Edit this document in place" hidden>Edit document</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" data-tip="Item details" hidden>Details…</button>`)
         + bulk("feature", "Show on parent…") + bulk("move", "Move…") + bulk("reference", "Add reference…", "selection-wide") + bulk("group", "New board around selection…")
         + bulk("archive", "Archive here", "selection-wide") + bulk("remove", "Remove from board…", "tk-danger")
         + `<span class="tk-divider" aria-hidden="true"></span>`
-        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" title="Clear selection (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`);
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" aria-keyshortcuts="Escape" data-tip="Clear selection"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`);
+      tips(el);
       el.querySelectorAll("[data-bulk]").forEach((b) => (b.onclick = () => this.bulk(b.dataset.bulk)));
       el.querySelector("[data-arrange-open]").onclick = event => this.arrangeMenu(event.currentTarget, event);
       openOnArrowDown(el, "[data-arrange-open]", (event, button) => this.arrangeMenu(button, event));
@@ -1750,18 +1755,19 @@ export class WorkspaceBoard {
     const paper = p.presentation?.paper || "#f6f7f1";
     const glyph = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>';
     const stateLabel = {reserved:"Reserved",building:"In progress",review:"Ready for review",ready:"Ready"}[item.build?.state] || "Ready";
-    popover.innerHTML = `<header class="calm-side-head"><span class="tk-eyebrow">${esc(kind)}</span><button type="button" class="tk-btn tk-sm tk-icon" data-context-close aria-label="Close item details">${glyph}</button></header>
+    popover.innerHTML = `<header class="calm-side-head"><span class="tk-eyebrow">${esc(kind)}</span><button type="button" class="tk-btn tk-sm tk-icon" data-context-close aria-label="Close item details" data-tip="Close item details">${glyph}</button></header>
       <div class="calm-side-body">
         <div class="inspector-title"><h2 class="${item.childBoardId ? "inspector-place" : ""}">${esc(item.title)}</h2><p>${esc(kind)}${child ? ` · ${childCount} ${childCount === 1 ? "item" : "items"}` : ""} · on ${esc(this.snapshot.title || "this board")}</p></div>
         ${item.description ? `<p class="inspector-desc">${esc(item.description)}</p>` : ""}
         <div class="inspector-open"><button type="button" class="tk-btn tk-primary" data-context-open ${["reserved","building"].includes(item.build?.state) && !placeOnly ? "disabled" : ""}>${placeOnly ? "Open board" : "Open"}</button>${item.childBoardId && item.content ? `<button type="button" class="tk-btn tk-tonal" data-context-board>Open board</button>` : ""}${resourceURL(item.resources?.find(r=>r.role==="handoff")?.resource)?`<a class="tk-btn" href="${esc(resourceURL(item.resources.find(r=>r.role==="handoff").resource))}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}<button type="button" class="tk-btn tk-tonal" data-context-edit>Edit item…</button></div>
         <section class="inspector-sec"><h3>Notes <span>saved as you type</span></h3><label class="workspace-context-note"><span class="inspector-label">Notes</span><textarea data-note="items/${esc(id)}" aria-label="Notes on ${esc(item.title)}" placeholder="A thought to return to…">${esc(note)}</textarea></label></section>
         <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
-        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, title: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div><div class="workspace-context-row"><span class="inspector-label">Paper</span><div class="workspace-paper-swatches" role="group" aria-label="Paper color">${[["#f6f7f1", "Paper"], ["#e4ebdc", "Sage"], ["#f1e8d5", "Sand"], ["#f1e0dc", "Rose"], ["#e7e4ee", "Lilac"]].map(([color,label]) => `<button type="button" data-paper="${color}" aria-label="${label} paper" title="${label}" aria-pressed="${paper === color}" style="--swatch:${color}"></button>`).join("")}</div></div></section>
-        <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
+        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, tip: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div><div class="workspace-context-row"><span class="inspector-label">Paper</span><div class="workspace-paper-swatches" role="group" aria-label="Paper color">${[["#f6f7f1", "Paper"], ["#e4ebdc", "Sage"], ["#f1e8d5", "Sand"], ["#f1e0dc", "Rose"], ["#e7e4ee", "Lilac"]].map(([color,label]) => `<button type="button" data-paper="${color}" aria-label="${label} paper" data-tip="${label}" aria-pressed="${paper === color}" style="--swatch:${color}"></button>`).join("")}</div></div></section>
+        <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true, tip: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true, tip: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true, tip: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
         <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button><button type="button" class="tk-mi" data-context-geometry>Move / resize…</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
       </div>`;
     document.body.append(popover);
+    tips(popover);
     this.context = popover;
     const invoker = () => document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`);
     const only = () => { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.selection = new Set([id]); this.syncSelection(); this.selectionMenu(); };
@@ -2849,9 +2855,9 @@ export class WorkspaceBoard {
     palette.className = "edit-tools";
     palette.setAttribute("aria-label", "Edit tools");
     palette.setAttribute("orientation", "vertical");
-    palette.innerHTML = [["text","Text · T","T"],["sticky","Sticky note · S","S"],["document","Document · D","D"],["jot","Quick jot · N","N"],["comment","Comment · C","C"]]
-      .map(([tool,label,key]) => `${tool === "comment" ? '<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator>' : ""}<ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" title="${label}" aria-keyshortcuts="${key}"${tool === "comment" ? ' aria-pressed="false"' : ""}>${tool === "comment" ? COMMENT_ICON : EDIT_TOOL_ICONS[tool]}</button></ui-toolbar-button>`).join("") +
-      `<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator><ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="more" aria-label="More to add" title="More to add…" aria-haspopup="menu">${EDIT_TOOL_ICONS.more}</button></ui-toolbar-button>`;
+    palette.innerHTML = [["text","Text","T"],["sticky","Sticky note","S"],["document","Document","D"],["jot","Quick jot","N"],["comment","Comment","C"]]
+      .map(([tool,label,key]) => `${tool === "comment" ? '<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator>' : ""}<ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" data-tip="${label}" aria-keyshortcuts="${key}"${tool === "comment" ? ' aria-pressed="false"' : ""}>${tool === "comment" ? COMMENT_ICON : EDIT_TOOL_ICONS[tool]}</button></ui-toolbar-button>`).join("") +
+      `<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator><ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="more" aria-label="More to add" data-tip="More to add…" aria-haspopup="menu">${EDIT_TOOL_ICONS.more}</button></ui-toolbar-button>`;
     palette.onclick = e => {
       const button = e.target.closest("[data-edit-tool]");
       if (!button || this.boardCommandBlocked()) return;
@@ -2863,6 +2869,7 @@ export class WorkspaceBoard {
       else this.createDecoration(tool);
     };
     document.body.append(palette);
+    tips(palette);
     followVisibility(palette);
     const toggle = document.createElement("button");
     toggle.id = "edit-tools-toggle";
@@ -2871,14 +2878,16 @@ export class WorkspaceBoard {
     toggle.setAttribute("aria-controls", "edit-tools");
     toggle.setAttribute("aria-label", "Edit tools");
     toggle.setAttribute("aria-keyshortcuts", "A");
-    toggle.title = "Edit tools (A)";
+    toggle.dataset.tip = "Edit tools";
     toggle.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><circle cx="14" cy="6" r="3"/><path d="M6 11.5 9 16.5H3z"/><path d="M14 11.5v5M11.5 14h5"/></svg>';
     toggle.onclick = () => this.toggleEditTools();
     // The toggle sits in the zoom pill (a ui-toolbar), before the map toggle, in its own ui-toolbar-button.
-    const map = $("board-map-toggle")?.closest("ui-toolbar-button") || $("board-map-toggle");
+    // (The map toggle may already sit in its tooltip trigger, the outermost wrapper.)
+    const map = tipOuter($("board-map-toggle"));
     const part = document.createElement("ui-toolbar-button");
     part.append(toggle);
     map?.parentElement?.insertBefore(part, map);
+    tip(toggle);
     this.syncEditTools();
   }
   toggleEditTools(open = !this.editToolsOpen) {

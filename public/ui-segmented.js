@@ -6,14 +6,16 @@ import './vendor/ui-sdk/web/segmented-control.js';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-// items: [{ value, html|label, title, ariaLabel, id, attrs: { 'data-x': 'y' } }]
+// items: [{ value, html|label, title, tip, ariaLabel, id, attrs: { 'data-x': 'y' } }]
 // Returns markup. `value` is the checked value at the start.
 export function segmentedHTML({ label, labelledby, className = '', id, attrs = {}, items, value }) {
   const root = Object.entries(attrs).map(([k, v]) => ` ${k}="${esc(v)}"`).join('');
   const name = labelledby ? ` aria-labelledby="${esc(labelledby)}"` : label ? ` aria-label="${esc(label)}"` : '';
   const cells = items.map(it => {
     const extra = Object.entries(it.attrs || {}).map(([k, v]) => ` ${k}="${esc(v)}"`).join('');
-    return `<ui-segmented-control-item value="${esc(it.value)}"${it.id ? ` id="${esc(it.id)}"` : ''}${it.title ? ` title="${esc(it.title)}"` : ''}${it.ariaLabel ? ` aria-label="${esc(it.ariaLabel)}"` : ''}${it.disabled ? ' disabled' : ''}${extra}>${it.html ?? esc(it.label)}</ui-segmented-control-item>`;
+    const cell = `<ui-segmented-control-item value="${esc(it.value)}"${it.id ? ` id="${esc(it.id)}"` : ''}${it.title ? ` title="${esc(it.title)}"` : ''}${it.tip ? ` data-tip="${esc(it.tip)}"` : ''}${it.ariaLabel ? ` aria-label="${esc(it.ariaLabel)}"` : ''}${it.disabled ? ' disabled' : ''}${extra}>${it.html ?? esc(it.label)}</ui-segmented-control-item>`;
+    // A hint on a UI SDK tooltip (tips.js): the item sits in its trigger; tips() connects it after rendering.
+    return it.tip ? `<ui-tooltip-trigger for="tk-tip">${cell}</ui-tooltip-trigger>` : cell;
   }).join('');
   return `<ui-segmented-control class="tk-seg${className ? ` ${className}` : ''}"${id ? ` id="${esc(id)}"` : ''}${name}${value != null ? ` default-value="${esc(value)}"` : ''}${root}>${cells}</ui-segmented-control>`;
 }
