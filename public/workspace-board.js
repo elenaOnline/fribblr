@@ -2897,7 +2897,9 @@ export class WorkspaceBoard {
       .map(d => ({kind:"decoration",id:d.id,d,box:decorationBounds(d,this.snapshot)}));
     return [...cards, ...drawn];
   }
-  closeArrangeMenu() { this.arrangePopup?.remove(); this.arrangePopup = null; }
+  // The outside-press listener goes with the menu: left behind, it closed the next Arrange menu on its first press
+  // once the Arrange button stopped being rebuilt on every selection change.
+  closeArrangeMenu() { this.arrangePopup?.remove(); this.arrangePopup = null; if (this.arrangeAway) document.removeEventListener("pointerdown", this.arrangeAway, true); this.arrangeAway = null; }
   arrangeMenu(anchor) {
     if (this.arrangePopup) { this.closeArrangeMenu(); return; }
     const count = this.arrangeObjects().length;
@@ -2914,7 +2916,7 @@ export class WorkspaceBoard {
       if (["ArrowRight","ArrowDown","ArrowLeft","ArrowUp"].includes(e.key)) { e.preventDefault(); buttons[(index + (["ArrowRight","ArrowDown"].includes(e.key) ? 1 : -1) + buttons.length) % buttons.length]?.focus(); }
     };
     const away = e => { if (!menu.contains(e.target) && e.target !== anchor && !anchor?.contains?.(e.target)) { this.closeArrangeMenu(); document.removeEventListener("pointerdown", away, true); } };
-    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("pointerdown", away, true); this.arrangeAway = away;
     menu.querySelector("button:not(:disabled)")?.focus({preventScroll:true});
   }
   // One arrangePlacements write: one revision and one Undo step.
