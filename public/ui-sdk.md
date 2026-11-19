@@ -54,7 +54,9 @@ helpers in one primitive and rendered with `createParts` (SPEC A3, B5 § 0). The
    attribute (`tabindex`, `aria-selected`, `role` on a bound element) in render markup; write only what is ours.
 5. **Wrappers in markup.** The root stays the same element across renders (render it every time, empty or not), so
    the instance and its Tab stop survive live updates. Anything that isn't an item (an empty-state line, a "New"
-   card) sits beside the root, not inside it, so the role's children stay options.
+   card) sits beside the root, not inside it, so the role's children stay options. A wrapper never repeats an
+   attribute of the element it wraps: an item wrapper needs its own re-render key (`fr-board[data-home-entry]`, a
+   key `reconcileChildren` knows), or every `[data-home-board=id]` query finds two elements.
 
 ## Popups: menus and popovers
 

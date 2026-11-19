@@ -195,8 +195,9 @@ export class WorkspaceHome {
             ...(b.roundCount ? [`${plural(b.roundCount, "prior round")}`] : []),
           ];
           // The select circle is for the pointer: out of the Tab order and the accessibility tree (the board's
-          // option carries aria-selected; Space toggles it).
-          return `<fr-board value="${esc(i.id)}" data-home-board="${esc(b.id)}"><article data-home-board="${esc(b.id)}" data-home-item="${esc(i.id)}" class="board-card${selected ? " workspace-home-selected" : ""}" role="none" data-kind="board" data-family="board"><button type="button" class="home-select-dot" data-home-select="${esc(i.id)}" tabindex="-1" aria-hidden="true">${CHECK}</button><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/" ${optionNaming(optionIds(b.id))}><div class="board-art" aria-hidden="true">${art}</div>${boardInfo(b, { description: b.description || i.description || "A place to gather what you make.", counts, kinds: cover?.kinds, idBase: optionIds(b.id) })}</a></article></fr-board>`;
+          // option carries aria-selected; Space toggles it). The wrapper's re-render key is data-home-entry, not
+          // data-home-board: the card keeps that one alone, so [data-home-board=id] finds one element.
+          return `<fr-board value="${esc(i.id)}" data-home-entry="${esc(b.id)}"><article data-home-board="${esc(b.id)}" data-home-item="${esc(i.id)}" class="board-card${selected ? " workspace-home-selected" : ""}" role="none" data-kind="board" data-family="board"><button type="button" class="home-select-dot" data-home-select="${esc(i.id)}" tabindex="-1" aria-hidden="true">${CHECK}</button><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/" ${optionNaming(optionIds(b.id))}><div class="board-art" aria-hidden="true">${art}</div>${boardInfo(b, { description: b.description || i.description || "A place to gather what you make.", counts, kinds: cover?.kinds, idBase: optionIds(b.id) })}</a></article></fr-board>`;
         })
         .join("") +
       "</fr-board-list>" +
@@ -397,7 +398,7 @@ export class WorkspaceHome {
     });
   }
   legacyCard(b) {
-    return `<fr-board value="legacy:${esc(b.id)}" data-home-board="${esc(b.id)}"><article data-home-board="${esc(b.id)}" class="board-card board-card-legacy" role="none" data-kind="board" data-family="board"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/" ${optionNaming(optionIds(b.id))}><div class="board-art" aria-hidden="true">${FALLBACK_ART}<span class="art-label">Legacy board · compare as before</span></div>${boardInfo(b, { description: b.description || "Existing rounds, revisions and feedback remain available.", counts: legacyCounts(b), idBase: optionIds(b.id) })}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-convert-legacy>Convert to organize…</button></div></article></fr-board>`;
+    return `<fr-board value="legacy:${esc(b.id)}" data-home-entry="${esc(b.id)}"><article data-home-board="${esc(b.id)}" class="board-card board-card-legacy" role="none" data-kind="board" data-family="board"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/" ${optionNaming(optionIds(b.id))}><div class="board-art" aria-hidden="true">${FALLBACK_ART}<span class="art-label">Legacy board · compare as before</span></div>${boardInfo(b, { description: b.description || "Existing rounds, revisions and feedback remain available.", counts: legacyCounts(b), idBase: optionIds(b.id) })}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-convert-legacy>Convert to organize…</button></div></article></fr-board>`;
   }
   create() {
     makeDialog(
