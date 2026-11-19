@@ -172,6 +172,27 @@
   display: flex;
   flex-direction: column;
 }
+.workspace-card-edge { display:none; }
+.workspace-card.selected > .workspace-card-edge {
+  --tile-edge-hit:min(calc(8px / var(--canvas-zoom,1)), 20%);
+  --tile-corner-hit:min(calc(13px / var(--canvas-zoom,1)), 27%);
+  position:absolute; display:block; z-index:5; touch-action:none;
+}
+.workspace-card.selected > .workspace-card-edge:is([data-resize-edge="n"],[data-resize-edge="s"]) {
+  left:var(--tile-corner-hit); right:var(--tile-corner-hit); height:var(--tile-edge-hit); cursor:ns-resize;
+}
+.workspace-card.selected > .workspace-card-edge:is([data-resize-edge="e"],[data-resize-edge="w"]) {
+  top:var(--tile-corner-hit); bottom:var(--tile-corner-hit); width:var(--tile-edge-hit); cursor:ew-resize;
+}
+.workspace-card.selected > .workspace-card-edge:is([data-resize-edge="nw"],[data-resize-edge="ne"],[data-resize-edge="sw"],[data-resize-edge="se"]) {
+  width:var(--tile-corner-hit); height:var(--tile-corner-hit);
+}
+.workspace-card-edge:is([data-resize-edge="n"],[data-resize-edge="nw"],[data-resize-edge="ne"]) { top:0; }
+.workspace-card-edge:is([data-resize-edge="s"],[data-resize-edge="sw"],[data-resize-edge="se"]) { bottom:0; }
+.workspace-card-edge:is([data-resize-edge="w"],[data-resize-edge="nw"],[data-resize-edge="sw"]) { left:0; }
+.workspace-card-edge:is([data-resize-edge="e"],[data-resize-edge="ne"],[data-resize-edge="se"]) { right:0; }
+.workspace-card.selected > .workspace-card-edge:is([data-resize-edge="nw"],[data-resize-edge="se"]) { cursor:nwse-resize; }
+.workspace-card.selected > .workspace-card-edge:is([data-resize-edge="ne"],[data-resize-edge="sw"]) { cursor:nesw-resize; }
 .workspace-card > header {
   display: flex;
   align-items: center;
@@ -408,16 +429,16 @@
     12px/1.5 var(--type-sans);
 }
 .workspace-dialog {
-  width: min(620px, calc(100vw - 28px));
-  max-height: calc(100dvh - 30px);
-  padding: 28px;
+  box-sizing: border-box;
+  width: min(480px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 22px 24px;
   background: var(--surface-frame);
   border: 0;
   border-radius: var(--shape-float);
   --float-cast: var(--cast-dialog);
   color: var(--ink);
-  font:
-    13px/1.55 var(--type-sans);
+  font: 13px/1.55 var(--type-sans);
   overflow: auto;
 }
 .workspace-dialog::backdrop {
@@ -427,35 +448,34 @@
   margin: 0;
 }
 .workspace-dialog h2 {
-  font:
-    400 23px/1.2 var(--type-serif);
-  margin: 8px 30px 16px 0;
+  font: 400 24px/1.2 var(--type-serif);
+  margin: 3px 38px 14px 0;
 }
 .workspace-dialog p {
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--ink-2);
 }
 .workspace-dialog label {
   display: block;
-  font-size: 11px;
-  margin: 15px 0 5px;
+  font-size: 12px;
+  margin: 12px 0 5px;
   color: var(--ink-2);
 }
 .workspace-dialog input:not([type="checkbox"]),
 .workspace-dialog textarea,
 .workspace-dialog select {
   display: block;
+  box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   border: 0;
   border-radius: var(--shape-key);
-  min-height: 44px;
-  padding: 10px 12px;
-  margin-top: 6px;
+  min-height: 40px;
+  padding: 8px 11px;
+  margin-top: 5px;
   color: var(--ink);
-  font:
-    12px/1.5 var(--type-sans);
+  font: 13px/1.4 var(--type-sans);
 }
 .workspace-dialog input[type="color"] {
   height: 44px;
@@ -475,22 +495,113 @@
   font:
     12px var(--type-sans);
 }
-.workspace-dialog .workspace-primary {
+:root .workspace-dialog .workspace-primary {
   /* the primary key: a blue face on a deep blue side (inputs of depth.css's raised height) */
   --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side);
   --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-deep);
   color: var(--ink-on-mark);
-  margin-top: 20px;
 }
-.workspace-dialog .workspace-close {
-  float: right;
-  margin: -12px -12px 0 0;
+:root .workspace-dialog .workspace-close {
+  position: absolute;
+  top: 8px;
+  right: 9px;
   padding: 0;
   min-width: 44px;
-  font-size: 23px;
+  font-size: 22px;
+  color: var(--ink-2);
   background: transparent;
   border-color: transparent;
 }
+.workspace-dialog .workspace-close:hover { background: var(--hover); }
+.workspace-dialog-actions {
+  display: flex;
+  align-items: center;
+  flex-flow: row wrap;
+  gap: 8px 18px;
+  margin-top: 18px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line-hair);
+}
+.workspace-dialog-actions .workspace-primary { margin-inline-start: auto; }   /* its hover is the key's (depth.css) */
+.workspace-submit-hint { color: var(--ink-2); font-size: var(--type-meta); }
+.workspace-dialog .workspace-primary:disabled { cursor: wait; opacity: .65; }
+.workspace-dialog.workspace-dialog-compact {
+  width: min(360px, calc(100vw - 24px));
+  padding: 19px 20px 16px;
+}
+.workspace-dialog-compact h2 { font-size: 22px; }
+.workspace-dialog-compact .workspace-dialog-actions {
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: 0;
+}
+.workspace-dialog :is(label,div)[hidden] { display: none; }
+.workspace-board-choices,
+.workspace-choice-pills {
+  min-width: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.workspace-board-choices {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  max-height: min(292px, 38dvh);
+  overflow: auto;
+}
+.workspace-dialog .workspace-board-choices label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 42px;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: var(--shape-cell);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  cursor: pointer;
+}
+.workspace-dialog .workspace-board-choices label:has(:checked) { background: var(--surface-chosen); color: var(--ink); }
+.workspace-dialog .workspace-board-choices input {
+  flex: 0 0 16px;
+  width: 16px;
+  min-height: auto;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--mark-blue);
+}
+.workspace-item-sections { display: flex; gap: 4px; padding: 3px; border-radius: var(--shape-key); }   /* a segmented track: sunken (depth.css) */
+.workspace-dialog .workspace-item-sections button {
+  flex: 1;
+  padding: 5px 8px;
+  min-height: 39px;
+  border: 0;
+  border-radius: var(--shape-cell);
+  color: var(--ink-2);
+  background: transparent;
+  font: 400 var(--type-meta)/1 var(--type-sans);
+}
+.workspace-dialog .workspace-item-sections button[aria-pressed="true"] { color: var(--ink); }   /* the chosen segment (depth.css) */
+.workspace-choice-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+.workspace-choice-pills legend { margin-bottom: 5px; padding: 0; color: var(--ink-2); font-size: var(--type-meta); }
+.workspace-dialog .workspace-choice-pills label { position: relative; margin: 0; cursor: pointer; }
+.workspace-dialog .workspace-choice-pills input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.workspace-choice-pills span { display: grid; align-items: center; min-height: 36px; padding: 5px 9px; border: 1px solid var(--line-seam); border-radius: var(--shape-key); line-height: 1.25; }
+.workspace-choice-pills :checked + span { color: var(--ink); border-color: var(--mark-blue); background: var(--surface-chosen); }
+.workspace-choice-pills :focus-visible + span { outline: 2px solid var(--mark-blue); outline-offset: 2px; }
+.workspace-item-resource { display: grid; gap: 8px; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); }
+.inspector-background { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.inspector-color-trigger { display:inline-flex; align-items:center; gap:7px; }
+/* the colour control opened in the inspector: the palette's chips on a paper panel (text-format-controls.css) */
+.inspector-color-palette {
+  flex:1 0 100%;
+  margin-top:4px;
+  padding:7px;
+  background:var(--surface-paper);
+  border:1px solid var(--line-seam);
+  border-radius:var(--shape-key);
+}
+.inspector-color-palette[hidden] { display:none; }
 .workspace-dialog details {
   margin-top: 22px;
   border-top: 1px solid var(--line-hair);
@@ -747,15 +858,7 @@ html[data-theme="night"] .item-representation p {
     align-items: flex-start;
     flex-direction: column;
   }
-  .workspace-dialog {
-    padding: 24px 21px;
-  }
-  .workspace-dialog h2 {
-    font-size: 26px;
-  }
-  .workspace-dialog .workspace-close {
-    margin: -11px -11px 0 0;
-  }
+  .workspace-dialog:not(.workspace-dialog-compact) { padding-inline: 17px; }
   .item-representation h1 {
     font-size: 32px;
   }
@@ -941,6 +1044,22 @@ html[data-theme="night"] .item-representation p {
   cursor: grabbing !important;
   user-select: none !important;
 }
+.workspace-copy-drag,
+.workspace-copy-drag * { cursor: copy !important; user-select: none; }
+.workspace-copy-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10000001;
+  pointer-events: none;
+  opacity: .92;
+}
+.workspace-copy-ghost { pointer-events: none; }
+/* the copy she is making is the slab she holds, lifted (depth.css data-lifted's look, set here on the ghost) */
+#world .workspace-copy-ghost.workspace-card { --lift: var(--side-lift); --rim-close: 1; outline: 0; }
+.workspace-copy-frame {
+  display: block;
+  background: var(--surface-paper);
+}
 .workspace-drop-hint {
   position: fixed;
   bottom: 62px;
@@ -1079,13 +1198,11 @@ html[data-theme="night"] .item-representation p {
 .workspace-context-note textarea { display: block; width: 100%; min-height: 85px; max-height: 180px; margin: 5px 0 12px; padding: 9px; border: 0; border-radius: var(--shape-key); --sink-focus: var(--mark-red); font: 12px/1.5 var(--type-sans); color: var(--mark-red); resize: vertical; }
 .workspace-context-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
 .workspace-context-row > span { min-width: 76px; font-size: 11px; color: var(--ink-2); }
-.workspace-appearance-buttons, .workspace-paper-swatches { display: flex; align-items: center; gap: 6px; }
+.workspace-appearance-buttons { display: flex; align-items: center; gap: 6px; }
 .workspace-appearance-buttons button { width: 43px; height: 35px; padding: 5px 8px; }
 .workspace-appearance-buttons svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.3; }
 .workspace-appearance-buttons button { border: 0; background-color: var(--surface-paper); }
 .workspace-item-controls button:hover { background-color: var(--surface-chosen); }
-.workspace-paper-swatches button { padding: 0; width: 25px; height: 25px; min-height: 25px; background: var(--swatch); border: 1px solid var(--line-seam); border-radius: 50%; corner-shape: round; }
-.workspace-paper-swatches button[aria-pressed=true] { outline: 1.5px solid var(--mark-blue); outline-offset: 2px; }
 .workspace-item-controls > footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line-hair); }
 .workspace-item-controls > footer span { font-size: 10px; color: var(--ink-2); }
 .workspace-item-controls > footer button { padding-left: 0; font-size: 11px; }
@@ -1097,18 +1214,20 @@ html[data-theme="night"] .item-representation p {
 .workspace-add-menu hr { border: 0; border-top: 1px solid var(--line-hair); margin: 5px 7px; }
 .workspace-board .workspace-decoration { pointer-events: auto; cursor: move; outline: none; }
 .workspace-decoration .workspace-decoration-label { display: block; min-height: 32px; width: 100%; padding: 10px 12px; overflow-wrap: anywhere; }
-.workspace-decoration.selected { outline: 1px dashed var(--ink-2); outline-offset: 3px; }
+/* a selected drawing takes the one selection mark: the blue line, drawn just clear of it (a drawing has no side to enclose) */
+.workspace-decoration.selected { outline: var(--select-line, 2px) solid var(--select-color, var(--mark-blue)); outline-offset: max(var(--select-gap), var(--px, 1px)); }
 .workspace-decoration .workspace-decoration-label[contenteditable] { cursor: text; outline: 1px solid var(--mark-blue); background: color-mix(in srgb, var(--surface-paper) 63%, transparent); }
 .workspace-board .decoration-text { color: var(--decoration-color); }
 /* dark: an authored text colour is lifted toward the ink, so dark-on-dark stays readable */
 html[data-appearance="dark"] .workspace-board .decoration-text { color: color-mix(in oklab, var(--decoration-color), var(--ink) 65%); }
 .workspace-board .decoration-region { z-index: 0; }
 /* On Canvas the cards are one layer of their own, so a placement's z orders cards
-   among themselves only. Whatever its z, a card sits above regions, shapes and text
-   (z 0-1, rendered before this layer) and below arrows (2), comment pins (30, 100) and
-   connection ports. Sharing #world's stacking context, a card's z (its creation count,
-   unbounded) competed with those fixed values: shapes covered cards with z 0, and
-   cards past z 2 or 30 covered arrows and comment pins. The layer fills #world exactly,
+   among themselves only. Whatever its z, a card sits above regions, containers, shapes
+   and text (z 0-1, rendered before this layer) and below arrows and stickers (2),
+   comment pins (30, 100) and connection ports; groups change no layer. Sharing
+   #world's stacking context, a card's z (its creation count, unbounded) competed with
+   those fixed values: shapes covered cards with z 0, and cards past z 2 or 30 covered
+   arrows, stickers and comment pins. The layer fills #world exactly,
    so card positions are unchanged, and passes the pointer through to what is under it. */
 .workspace-board[data-board-layout="canvas"] #world > .workspace-cards { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 :where(.workspace-board[data-board-layout="canvas"] #world > .workspace-cards) > * { pointer-events: auto; }
@@ -1118,22 +1237,25 @@ html[data-appearance="dark"] .workspace-board .decoration-text { color: color-mi
 .workspace-decoration-actions { position: absolute; right: 0; bottom: calc(100% + 6px); display: flex; align-items: center; gap: 3px; background: var(--surface-frame); padding: 2px 3px; border-radius: var(--shape-cell);  }
 .workspace-decoration-actions input[type=color] { width: 26px; height: 25px; border: 0; background: transparent; padding: 2px; cursor: pointer; }
 .workspace-decoration-actions button { min-height: 28px; width: 28px; padding: 0; border: 0; font-size: 19px; background: transparent; }
-.workspace-decoration > .workspace-decoration-resize,.workspace-decoration > .workspace-endpoint { display: block; position: absolute; padding: 0; min-width: 22px; width: 22px; min-height: 22px; height: 22px; border: 1px solid var(--line-edge); background: var(--surface-paper); }
-.workspace-decoration > .workspace-decoration-resize { right: -4px; bottom: -4px; border-radius: var(--shape-cap); cursor: nwse-resize; font-size: 13px; }
+.workspace-decoration > .workspace-endpoint { display: block; position: absolute; padding: 0; min-width: 22px; width: 22px; min-height: 22px; height: 22px; border: 1px solid var(--line-edge); background: var(--surface-paper); }
 .workspace-decoration > .workspace-endpoint { transform: translate(-50%,-50%); width: 14px; min-width: 14px; height: 14px; min-height: 14px; border-radius: 50%; corner-shape: round; cursor: crosshair; }
 .workspace-board[data-board-layout="grid"] .workspace-cards:has(> .workspace-panel) { flex-wrap: wrap; width: auto; }
-/* Edit tools: a floating palette at the left edge, styled like the zoom pill. */
-.edit-tools { position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 28; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float);  }
+/* The board's drawing tools sit together above the footer and selection actions. The bar floats (depth.css); its tools
+   are quiet keys like the object bar's, and the chosen one is a raised key that is on (down, blue rim). */
+.edit-tools { position:fixed; left:50%; bottom:60px; transform:translateX(-50%); z-index:36; display:flex; align-items:center; padding:4px; background:var(--surface-frame); color:var(--ink); border:0; border-radius:var(--shape-bar); --edit-tool-size:38px; }
 .edit-tools[hidden] { display: none; }
-.edit-tools .tk-btn { min-width: 36px; min-height: 36px; width: 36px; height: 36px; padding: 0; border: 0; margin: 0; display: grid; place-items: center; }
+.edit-tool-group { display:flex; gap:1px; }
+.edit-tool-group + .edit-tool-group { margin-left:4px; padding-left:4px; border-left:1px solid var(--line-seam); }
+.edit-tools .tk-btn { min-width:var(--edit-tool-size); width:var(--edit-tool-size); min-height:38px; height:38px; padding:0; border:0; margin:0; display:grid; place-items:center; }
+.edit-tools .tk-btn[aria-pressed=true] { color:var(--ink); }
 .edit-tools svg, .edit-tools-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.edit-tools [data-edit-tool=more] svg { fill: currentColor; stroke: none; }
-.edit-tools-divider { width: 20px; height: 1px; margin: 3px 0; background: var(--line-hair); }
-body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px) + 12px); }
+body.navigator-docked .edit-tools { left:calc((100vw + var(--navigator-dock-width,340px))/2); }
+#viewport.canvas-pan-tool { cursor:grab; }
+#viewport.canvas-pan-tool.panning { cursor:grabbing; }
+#viewport.canvas-pan-tool #world, #viewport.canvas-pan-tool #world * { pointer-events:none !important; }
 .tinka-overview .edit-tools, .tinka-overview .edit-tools-toggle { display: none !important; }
 @media (max-width: 600px) {
-  .edit-tools { left: 6px; padding: 2px; }
-  .edit-tools .tk-btn { min-width: 30px; min-height: 30px; width: 30px; height: 30px; }
+  .edit-tools { padding:3px; --edit-tool-size:clamp(28px,calc((100vw - 40px)/9),38px); }
   .edit-tools svg { width: 16px; height: 16px; }
 }
 @media (max-width: 600px) {
@@ -1198,7 +1320,7 @@ body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px
 .board-art:has(.board-collage)>.art-label { display:none; }
 
 .workspace-clipboard-actions { display: flex; flex-wrap: wrap; gap: 5px; flex-basis: 100%; }
-.workspace-document-preview { width: 100%; height: 100%; overflow: hidden; padding: 22px 24px; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; color: var(--ink); background: var(--surface-paper); font: 14px/1.65 var(--type-serif); }
+.workspace-document-preview { width: 100%; height: 100%; overflow: hidden; padding: 22px 24px; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; color: var(--ink); background: var(--surface-paper); font: 14px/1.65 var(--type-board-serif); }   /* her note's own words: sized to fit as upstream (fonts.css) */
 
 .workspace-import-drop { position: fixed; z-index: 150; pointer-events: none; border: 3px solid var(--mark-blue); box-sizing: border-box; background: color-mix(in srgb, var(--mark-blue) 12%, transparent); display: grid; place-content: center; padding: 32px; text-align: center; color: var(--ink); font: 600 17px/1.5 var(--type-sans); box-shadow: inset 0 0 0 5px color-mix(in srgb, var(--surface-paper) 67%, transparent); }
 .workspace-import-drop[hidden] { display: none; }
@@ -1314,6 +1436,28 @@ body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px
 .workspace-compact .workspace-item-footer.workspace-panel-caption > button { color:var(--ink-2); }
 .workspace-compact .workspace-item-footer.workspace-panel-caption > button:hover,
 .workspace-compact .workspace-item-footer.workspace-panel-caption > button[aria-pressed="true"] { color:var(--ink); }
+
+/* A version stack's switcher: a sunken track (depth.css) showing which version this is, stepped by two quiet keys */
+.workspace-file-versions {
+  display:inline-flex; align-items:center; flex:none; margin-inline:4px;
+  min-height:28px; padding:0 2px; border:0; border-radius:var(--shape-key);
+  --sink-floor:var(--surface-frame); color:var(--ink);
+  font:400 11px/1 var(--type-mono);
+}
+.workspace-file-versions .workspace-file-version-name { padding:0 4px; white-space:nowrap; }
+.workspace-item-footer .workspace-file-versions > button {
+  display:grid; place-items:center; width:27px; min-width:0; min-height:28px;
+  padding:0; border:0; border-radius:var(--shape-cap); background:transparent; color:inherit;
+}
+.workspace-item-footer .workspace-file-versions > button { color:var(--ink-2); border-radius:var(--shape-cell); }
+.workspace-item-footer .workspace-file-versions > button:hover:not([aria-disabled="true"]) { background:var(--hover); color:var(--ink); }
+.workspace-file-versions > button[aria-disabled="true"] { opacity:.42; cursor:default; }
+.workspace-file-versions > button svg { width:14px; height:14px; }
+@container tinka-card (max-width:122px) {
+  .workspace-file-versions { margin-inline:2px; }
+  .workspace-item-footer .workspace-file-versions > button { width:21px; }
+  #world .workspace-item-footer:has(.workspace-file-versions) .workspace-badges { display:none; }
+}
 @container tinka-card (max-height:179px) {
  .workspace-board .workspace-compact .workspace-card-copy { padding:8px 10px; }
  .workspace-board .workspace-compact .workspace-compact-meta { display:none; }
@@ -1323,7 +1467,9 @@ body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px
  .workspace-board .workspace-compact .workspace-card-preview { display:none; }
 }
 
-.workspace-board .workspace-card[style*="--item-paper:#"] { --ink:var(--item-ink-light); --ink-2:var(--item-muted-light); }
+.workspace-board .workspace-card { --item-paper:var(--surface-paper); }
+/* authored paper: the renderer picks ink per appearance against it (theme-colors.js paperVariables); this applies the light pick */
+.workspace-board .workspace-card[data-custom-paper] { --item-paper:var(--item-paper-light); --ink:var(--item-ink-light); --ink-2:var(--item-muted-light); --muted:var(--item-muted-light); }
 
 .workspace-compact .workspace-live-preview:not(.workspace-document-excerpt-preview) iframe {
  inset:auto; left:50%; top:50%; width:var(--panel-viewport-width); height:var(--panel-viewport-height);
@@ -1353,6 +1499,9 @@ body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px
 .board-collage.board-miniature {
   display: block; padding: 0; gap: 0; container-type: size;
 }
+/* Tinka 1.3: a board with an authored colour shows it in its miniature; otherwise the cover's well shows through (depth.css). */
+html[data-appearance] .board-collage.board-miniature { background-color: var(--board-color-light, transparent); }
+html[data-appearance="dark"] .board-collage.board-miniature { background-color: var(--board-color-dark, transparent); }
 .board-miniature .mini-plane {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: min(calc(100cqw - 20px), calc((100cqh - 34px) * var(--mini-ratio, 2)));
@@ -1360,15 +1509,26 @@ body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px
 }
 .board-miniature .mini-region {
   position: absolute; border-radius: var(--shape-cap); container-type: inline-size;
-  background: color-mix(in srgb, var(--mini-region, var(--line-edge)) 20%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mini-region, var(--line-edge)) 42%, transparent);
+  --mini-region: var(--mini-region-light, var(--line-edge));
+  --mini-opacity:var(--mini-opacity-light,20%); --mini-edge:var(--mini-edge-light,var(--line-edge));
+  background: color-mix(in srgb, var(--mini-region) var(--mini-opacity), transparent);
+  box-shadow: inset 0 0 0 1px var(--mini-edge);
+}
+html[data-appearance="dark"] .board-miniature .mini-region {
+  --mini-region: var(--mini-region-dark, var(--line-edge));
+  --mini-opacity:var(--mini-opacity-dark,20%); --mini-edge:var(--mini-edge-dark,var(--line-edge));
 }
 .board-miniature .mini-region-ellipse { border-radius: 50%; }
 .board-miniature .mini-region > span { display: none; position: absolute; left: 4px; top: 3px; max-width: calc(100% - 8px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 8px/1.2 var(--type-sans); color: var(--ink-2); }
 @container (min-width: 110px) { .board-miniature .mini-region > span { display: block; } }
 .board-miniature .workspace-cover-tile.mini-tile {
   position: absolute; min-width: 3px; min-height: 3px; container-type: size;
+  /* authored paper (Tinka 1.3: per-appearance variables from paperVariables) is the face depth.css draws */
+  --mini-paper: var(--item-paper-light, var(--surface-paper));
 }
+.board-miniature .workspace-cover-tile.mini-tile[style*="--item-ink-light:"] { --ink-2: var(--item-ink-light); }
+html[data-appearance="dark"] .board-miniature .workspace-cover-tile.mini-tile { --mini-paper: var(--item-paper-dark, var(--surface-paper)); }
+html[data-appearance="dark"] .board-miniature .workspace-cover-tile.mini-tile[style*="--item-ink-dark:"] { --ink-2: var(--item-ink-dark); }
 .board-miniature .mini-tile .workspace-cover-fallback { height: 100%; padding: 2px; gap: 2px; justify-content: center; }
 .board-miniature .mini-tile .workspace-cover-fallback strong { font: 600 8px/1.2 var(--type-sans); -webkit-line-clamp: 2; display: none; }
 .board-miniature .mini-tile.mini-board .workspace-cover-fallback strong { font: 500 9px/1.15 var(--type-serif); }
@@ -1378,22 +1538,22 @@ body.navigator-docked .edit-tools { left: calc(var(--navigator-dock-width, 340px
 .board-miniature .mini-tile.mini-pending { background: color-mix(in srgb, var(--surface-paper) 70%, transparent); }
 .board-miniature .mini-star { position: absolute; right: 2px; top: 2px; width: 4px; height: 4px; border-radius: 50%; corner-shape: round; background: var(--mark-red); }
 .board-miniature > .workspace-cover-count { right: 8px; bottom: 7px; }
-.board-miniature .mini-tile.mini-paper-light { --ink-2: color-mix(in srgb, var(--ink) 80%, var(--surface-paper)); }
-.board-miniature .mini-tile.mini-paper-dark { --ink-2: color-mix(in srgb, var(--surface-paper) 80%, var(--ink)); }
 .workspace-cover-fallback { justify-content: safe center; }
 .board-collage:not(.board-miniature) > .workspace-cover-tile:nth-last-of-type(1) > .workspace-cover-fallback { padding-bottom: 28px; gap: 4px; }
 .board-collage:not(.board-miniature) > .workspace-cover-tile:nth-last-of-type(1) > .workspace-cover-fallback strong { -webkit-line-clamp: 1; }
 /* Markdown document cards: the page nearly meets the card edge (a 4px inset). */
 #world .workspace-panel:has(> .workspace-card-body > .workspace-document-excerpt-preview) > .workspace-card-body { padding: 0 4px 4px; }
 /* Arrange menu: align (6), distribute (2) and tidy, as compact icon buttons. */
-.arrange-menu { display: grid; grid-template-columns: repeat(6, 32px); gap: 2px; padding: 6px; z-index: 60; }
-.arrange-menu .arrange-label { grid-column: 1 / -1; padding: 4px 4px 2px; font-size: 11px; color: var(--ink-2); }
-.arrange-menu .arrange-item { display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink); }
+.arrange-menu { display: grid; gap: 6px; padding: 6px; z-index: 100020; overflow:auto; overscroll-behavior:contain; --arrange-control:36px; }
+.arrange-group { display: grid; grid-template-columns: repeat(6,var(--arrange-control)); gap: 2px; }
+.arrange-group > span { grid-column: 1 / -1; padding: 3px 4px 0; font-size: 12px; color: var(--ink-2); }
+.arrange-menu .arrange-item { display: grid; place-items: center; width: var(--arrange-control); height: var(--arrange-control); min-height: var(--arrange-control); padding: 0; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink); }
 .arrange-menu .arrange-item:hover:not(:disabled), .arrange-menu .arrange-tidy:hover:not(:disabled) { background: var(--surface-chosen); }
 .arrange-menu button:disabled { opacity: .35; }
 .arrange-menu svg { width: 16px; height: 16px; }
 .arrange-menu .arrange-tidy { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 32px; margin-top: 4px; padding: 0 8px; border: 0; border-top: 1px solid var(--line-hair); border-radius: 0; background: transparent; color: var(--ink); font-size: 13px; text-align: left; }
 #workspace-selection [data-arrange-open] svg { width: 16px; height: 16px; }
+@media (pointer:coarse) { .arrange-menu { --arrange-control:42px; } }
 
 /* ---------- Comment tool: pins, the comments layer and Send to agent ---------- */
 .comment-pins { position: absolute; inset: 0; pointer-events: none; z-index: 30; }

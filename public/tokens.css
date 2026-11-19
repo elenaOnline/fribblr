@@ -30,7 +30,8 @@
    - JS: write 'var(--token)' into style where it can; read a value with token() from tokens.js only for canvas
      drawing or SVG attributes, and read it again from onThemeChange(). */
 
-:root {
+/* [data-token-probe] is an off-screen element theme-colors.js reads the light (desk) and dark sets from, whatever <html> shows */
+:root, [data-token-probe] {
   color-scheme: light;
 
   /* ---------- ground: what everything stands on (swapped by data-ground) ---------- */
@@ -56,7 +57,7 @@
   /* ---------- surface ---------- */
   --surface-paper: #FFFFFF;     /* the top face of every slab, key and field; documents */
   --surface-frame: #F2F2F2;     /* header bar, inspector, menus, dialogs, the thread card, bars over the board */
-  --surface-chosen: #D3DFE5;    /* a chosen row, a key that is on: frame + 13 % blue */
+  --surface-chosen: color-mix(in srgb, var(--mark-blue) 13%, var(--surface-frame));   /* a chosen row, a key that is on: #D3DFE5 */
 
   /* ---------- line ---------- */
   --line-hair: #E0E0E0;         /* rules inside a surface */
@@ -71,8 +72,8 @@
 
   /* ---------- palette: marks are deep and carry state; material is mid and carries kind ---------- */
   --mark-blue: #005E8B;         /* on, selected, focused, the primary key, links in documents */
-  --mark-blue-deep: #005077;
-  --mark-blue-side: #003A57;
+  --mark-blue-deep: color-mix(in srgb, var(--mark-blue) 85%, #000);   /* #005077 */
+  --mark-blue-side: color-mix(in srgb, var(--mark-blue) 62%, #000);   /* #003A57 */
   --mark-red: #B33830;          /* her voice: her comments, replies, review notes, stars, votes, the note dot */
   --mark-red-deep: #922C26;
   --mark-red-side: #791A16;
@@ -84,6 +85,15 @@
   /* no hue: notes are the desk's own material at the kinds' L .70 / .48; a child board is a deeper piece of desk */
   --kind-plain-side: oklch(from var(--desk) .700 calc(c * 1.30) h); --kind-plain-edge: oklch(from var(--desk) .479 calc(c * 1.67) h); --kind-plain-text: #595959;   /* #93A1A9 #50606A */
   --kind-board-side: oklch(from var(--desk) .581 calc(c * 2.61) h); --kind-board-edge: oklch(from var(--desk) .381 calc(c * 2.25) h); --kind-board-text: #000000;  /* #647F8F #304652 */
+
+  /* ---------- content fills: what she paints with, beside the 15 hues of drawing-palette.js ----------
+     A Text block's fill options, by job (the stored names are upstream's): Paper is a white face, Tint a step down
+     into the ground, Strong a deep piece of the desk that takes light ink. theme-colors.js reads these. */
+  --fill-paper: var(--surface-paper);
+  --fill-tint: var(--ground-deep);
+  --fill-strong: oklch(from var(--desk) .420 calc(c * 2.30) h);   /* #3B5360 */
+  /* a container is a tray cut into the ground: its floor is a step down from the ground (plain), or from her hue */
+  --depth-tray: 3px;            /* the shade along a tray's top inner edge */
 
   /* ---------- depth: one light from above; the model and its rules are in depth.css ----------
      sunken -1  fields, tracks, covers     flush 0  ground, chrome, panels, drawn things
@@ -99,6 +109,8 @@
   --depth-lift: 5px;            /* how far a slab she drags rises */
   --depth-lift-min: 1.5;
   --depth-hair-min: 1;          /* hairlines (rims, contours) never fall under a screen pixel, so they never vanish */
+  --depth-sheet-paper: 2px;     /* a sheet under a slab (depth.css data-sheets): its paper edge, */
+  --depth-sheet-side: 4px;      /* ...and its side, shorter than the slab's own */
   --select-width: 2px;          /* the selection line around a slab */
   --select-width-min: 1.5;
   --select-gap: 3px;            /* ...drawn this far outside the slab's side */
@@ -120,6 +132,10 @@
   --type-serif: "IBM Plex Serif", Georgia, serif;                       /* names: boards, titles, documents */
   --type-sans: "IBM Plex Sans", -apple-system, system-ui, sans-serif;   /* controls and card titles */
   --type-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;         /* numbers: counts, shortcuts, zoom, times */
+  /* authored board text (Text blocks): the same faces, sized to the room upstream's Georgia and system faces take (fonts.css);
+     Plex Mono already matches the system mono */
+  --type-board-serif: "Plex Serif Board", var(--type-serif);
+  --type-board-sans: "Plex Sans Board", var(--type-sans);
   --type-ui: 13.5px;            /* controls, menu rows, card titles */
   --type-meta: 12px;
   --type-board: 21px;           /* the board's name in the bar */
@@ -150,7 +166,7 @@ html[data-ground="white"] {
 }
 
 /* ---------- dark: derived, not designed. Light is the theme; dark only has to stay readable ---------- */
-html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) {
+html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]), [data-token-probe="dark"] {
   color-scheme: dark;
   --ground: #1C2328; --ground-deep: #151B1F; --ground-well: #161C20; --ground-pattern: #5A6C78;
   --ground-rim: #3A454D; --ground-key-side: #10161A; --ground-cast: #000000; --ground-cast-alpha: .5;
@@ -162,6 +178,7 @@ html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="
   --kind-plain-side: #56656F; --kind-plain-edge: #3A464E; --kind-plain-text: #A7B1B8;
   --kind-board-side: #7F98A8; --kind-board-edge: #4A6170; --kind-board-text: #E9EDF0;
   --kind-page-text: #6FD6D6; --kind-doc-text: #CDB3EE; --kind-pic-text: #9AD19B;
+  --fill-strong: #4A6170;
   --on-accent: #0B1B24;
   --cast-float: 0 4px 14px rgba(0, 0, 0, .45);
   --cast-dialog: 0 10px 32px rgba(0, 0, 0, .55);
@@ -206,7 +223,7 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 :where(.tk-btn.tk-primary:hover) { background-color: var(--mark-blue-deep); }
 .tk-btn.tk-primary, .tk-btn.tk-primary:hover { color: var(--ink-on-mark); }
 /* the primary key's inputs for the raised height (depth.css): a blue face on a deep blue side */
-.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-side); color: var(--ink-on-mark); }
+.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-side); --key-face-on: var(--mark-blue-deep); --key-side-on: var(--mark-blue-side); --key-rim-on: var(--mark-blue-side); color: var(--ink-on-mark); }
 .tk-btn.tk-danger { color: var(--ink); }  /* danger has no colour: red is her voice */
 .tk-btn svg, .tk-glyph { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 /* a printed shortcut is a tiny raised key (depth.css) */
@@ -251,16 +268,4 @@ body.navigator-docked > main { margin-left: var(--navigator-dock-width, 340px); 
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
-}
-
-/* ---------- decoration palette: colours a person picks for content on the whiteboard (whiteboard.js) ----------
-   Not roles: they do not change with the ground or the appearance, because a chosen colour is stored on the board as
-   its value (a #hex in the board's file) and must read the same wherever the board is opened. The values are the
-   ones boards already store, so existing stickies, shapes, regions, text and arrows keep matching their swatch. */
-:root {
-  --deco-yellow: #f6e6a4;  --deco-pink: #f4c9d0;  --deco-green: #d3e8c6;  --deco-blue: #cfe0f1;  --deco-orange: #f7d3a8;  --deco-purple: #ddd1ef;   /* sticky and shape fills */
-  --deco-sage: #e0e8da;    --deco-mist: #dfe7ed;  --deco-area-sage: #e1e8d5;                                                                         /* shape and area fills */
-  --deco-ink-green: #6c8060;  --deco-ink-grey: #7d8590;  --deco-ink-blue: #4a78b0;  --deco-ink-red: #c0564b;  --deco-ink-amber: #d08a2e;  --deco-ink-purple: #8a63b3;   /* arrows */
-  --deco-text-green: #7a8a68;                                                                                                                      /* text's own green */
-  --deco-default: #78866c;                                                                                                                         /* a decoration saved with no valid colour */
 }

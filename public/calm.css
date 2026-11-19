@@ -18,7 +18,7 @@ body { font-family: var(--type-sans); }
 :is(#canvas-header, #reader-header) .brand:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
 :is(#canvas-header, #reader-header) .brand:hover span { text-decoration: none; }
 :is(#canvas-header, #reader-header) .brand-mark { width: 22px; height: 22px; flex: 0 0 22px; }
-:is(#canvas-header, #reader-header) .workspace-parent { display: inline-flex; align-items: center; height: 30px; padding: 0 8px; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); text-decoration: none; white-space: nowrap; flex: none; border: 0; background: transparent; }
+:is(#canvas-header, #reader-header) .workspace-parent { display: inline-flex; align-items: center; height: 30px; padding: 0 8px; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); text-decoration: none; white-space: pre;   /* pre: the space in "← Parent" survives the flex box */ flex: none; border: 0; background: transparent; }
 :is(#canvas-header, #reader-header) .workspace-parent:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
 :is(#canvas-header, #reader-header) .workspace-parent::after { content: ''; width: 1px; height: 16px; margin-left: 10px; background: var(--line-seam); }
 :is(#canvas-header, #reader-header) .board-name {
@@ -46,6 +46,31 @@ body { font-family: var(--type-sans); }
   --pattern-ink: color-mix(in srgb, var(--ground-pattern) calc(var(--pattern-fade, 1) * 100%), transparent);
   --pattern-minor: color-mix(in srgb, rgb(from var(--ground-cast) r g b / .06) calc(var(--pattern-fade, 1) * 100%), transparent);
   --pattern-majorline: color-mix(in srgb, rgb(from var(--ground-cast) r g b / .11) calc(var(--pattern-fade, 1) * 100%), transparent);
+}
+/* Tinka 1.3 board colour: a board with an authored colour stands on it; without one, on the ground (desk or white).
+   The pattern's ink comes from the readable ink the renderer picks for that colour. On an authored colour (light), the
+   colour becomes the ground: its rim, its deep step and its cast shadow are cut from it the way the desk's are
+   (tokens.css), and the selection line takes the blue the renderer found readable on it (--board-ring). */
+.workspace-board #viewport { --board-color: var(--board-color-light, var(--ground)); background-color: var(--board-color); }
+html[data-appearance="dark"] .workspace-board #viewport { --board-color: var(--board-color-dark, var(--ground)); }
+html:not([data-appearance="dark"]) .workspace-board #viewport[style*="--board-color-light:"] {
+  --ground: var(--board-color);
+  --ground-deep: oklch(from var(--board-color) calc(l - .057) calc(c * 1.30) h);
+  --ground-rim: oklch(from var(--board-color) calc(l - .095) calc(c * .80) h);
+  --ground-key-side: oklch(from var(--board-color) calc(l - .149) calc(c * 1.16) h);
+  --ground-cast: oklch(from var(--board-color) calc(l - .602) calc(c * 2.47) h);
+  --select-color: var(--board-ring-light, var(--mark-blue));
+}
+html[data-appearance="dark"] .workspace-board #viewport[style*="--board-color-dark:"] { --select-color: var(--board-ring-dark, var(--mark-blue)); }
+#viewport[style*="--board-pattern-light:"] {
+  --pattern-ink: color-mix(in srgb, var(--board-pattern-light) calc(var(--pattern-fade, 1) * 20%), transparent);
+  --pattern-minor: color-mix(in srgb, var(--board-pattern-light) calc(var(--pattern-fade, 1) * 7%), transparent);
+  --pattern-majorline: color-mix(in srgb, var(--board-pattern-light) calc(var(--pattern-fade, 1) * 12%), transparent);
+}
+html[data-appearance="dark"] #viewport[style*="--board-pattern-dark:"] {
+  --pattern-ink: color-mix(in srgb, var(--board-pattern-dark) calc(var(--pattern-fade, 1) * 20%), transparent);
+  --pattern-minor: color-mix(in srgb, var(--board-pattern-dark) calc(var(--pattern-fade, 1) * 7%), transparent);
+  --pattern-majorline: color-mix(in srgb, var(--board-pattern-dark) calc(var(--pattern-fade, 1) * 12%), transparent);
 }
 #viewport[data-canvas-pattern] { background-position: var(--pattern-x, 0) var(--pattern-y, 0); }
 /* Dots are a quiet guide: small and well under half the token's ink, so the board reads as paper. */
@@ -188,10 +213,6 @@ body:not(.workspace-board) #board-info > .appearance-control .tk-seg { width: 10
 #workspace-item-controls .tk-seg > button { flex: 1; color: var(--ink-2); }
 #workspace-item-controls .tk-seg > button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 #workspace-item-controls .tk-seg > button[aria-pressed="true"] { color: var(--ink); }
-#workspace-item-controls .workspace-paper-swatches { display: flex; gap: 8px; }
-#workspace-item-controls .workspace-paper-swatches button { width: 26px; height: 26px; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1px var(--line-seam); outline: 0; cursor: pointer; }
-#workspace-item-controls .workspace-paper-swatches button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--line-seam), 0 0 0 2px var(--surface-frame), 0 0 0 4px var(--mark-blue); }
-#workspace-item-controls .workspace-paper-swatches button:focus-visible { outline: 2px solid var(--mark-blue); outline-offset: 4px; }
 .inspector-props { display: grid; grid-template-columns: 92px 1fr; gap: 6px 10px; margin: 0; font-size: var(--type-meta); }
 .inspector-props dt { color: var(--ink-2); }
 .inspector-props dd { margin: 0; color: var(--ink); }
@@ -379,16 +400,16 @@ body dialog::backdrop { background: rgb(from var(--ground-cast) r g b / .22); }
 }
 
 /* Regions: a soft tint with the label inside, never a heavy slab over the work. */
-#world .decoration-region:not(.whiteboard-shape) {
-  background: color-mix(in srgb, var(--decoration-color) 20%, transparent);
+#world .decoration-region:not(.whiteboard-shape, .whiteboard-container) {
+  background: color-mix(in srgb, var(--decoration-color) var(--decoration-opacity,20%), transparent);
   border: 0; border-radius: var(--shape-float);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--decoration-color) 42%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--decoration-stroke,var(--decoration-color)) 64%, transparent);
 }
-#world .workspace-decoration.decoration-region:not(.whiteboard-shape) > .workspace-decoration-label { padding: 14px 18px; color: var(--ink-2); font: 400 13px/1.3 var(--type-sans); font-style: normal; }
+#world .workspace-decoration.decoration-region:not(.whiteboard-shape) > .workspace-decoration-label { padding: 14px 18px; color: var(--decoration-region-label, var(--ink-2)); font: 400 13px/1.3 var(--type-sans); font-style: normal; }
 
 /* Text documents read as part of the tile in either theme. */
 #world .workspace-document-preview { background: var(--surface-paper); color: var(--ink-2); }
-#world .workspace-card[style*="--item-paper:#"] .workspace-document-preview { background: var(--item-paper); color: var(--ink); }
+#world .workspace-card[data-custom-paper] .workspace-document-preview { background: var(--item-paper); color: var(--ink); }
 
 /* ---------- Touch targets ----------
    Every chrome control keeps a 44px hit area. The visible control stays a
@@ -421,7 +442,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 7
   body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 62px; }
 }
 @media (max-width: 720px) { body .canvas-footer .status-line > :not(#live-refresh) { display: none; } body .canvas-footer .status-line { flex: none; padding: 0 3px; background: transparent; box-shadow: none; overflow: visible; } body .canvas-footer { justify-content: space-between; gap: 8px; } body .canvas-footer .status-line:not(:has(#live-refresh:not([hidden]))) + .zoom-pill { margin-left: auto; } }
-@media (max-width: 420px) { body :is(.canvas-footer, .reader-footer) .zoom-pill .fit .fit-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } body :is(.canvas-footer, .reader-footer) .zoom-pill .fit { width: 44px; padding: 0; } body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 56px; padding: 0 4px; } }
+@media (max-width: 420px) { body :is(.canvas-footer, .reader-footer) .zoom-pill .fit .fit-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } body :is(.canvas-footer, .reader-footer) .zoom-pill .fit { width: 44px; padding: 0; } body :is(.canvas-footer, .reader-footer) .zoom-pill .fit:has(.fit-count:not([hidden])) { width: auto; padding: 0 6px; } .fit .fit-count { margin-left: 2px; } body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 56px; padding: 0 4px; } }
 @media (max-width: 720px) { body .canvas-footer #live-refresh .refresh-detail { display: none; } }
 
 /* Reader chrome joins the same family: toggles on show the green wash. */
@@ -438,8 +459,14 @@ body.navigator-docked .canvas-footer { left: var(--navigator-dock-width); }
   body:has(#workspace-item-controls, #board-info:not([hidden])) .canvas-footer { right: 376px; }
   body:has(#workspace-item-controls, #board-info:not([hidden])) #workspace-selection.workspace-selection { left: calc((100vw - 376px) / 2); bottom: 72px; max-width: calc(100vw - 400px); }
 }
-/* Region labels stay readable over any authored board background. */
-#world .workspace-decoration.decoration-region:not(.whiteboard-shape) > .workspace-decoration-label { display: inline-block; width: auto; max-width: calc(100% - 20px); min-height: 0; margin: 10px; padding: 5px 10px; border-radius: var(--shape-key); background: color-mix(in srgb, var(--surface-paper) 82%, transparent); }
+/* Region labels stay readable over any authored board background. A container's title is written on its tray's floor. */
+/* It names the tray, so it sits at the tray's top-left (not just above the first member, however deep the padding), in ink
+   at a size that still reads with the board fitted. The layout keeps a 28 px band for it below the padding (container-flow.js). */
+#world .workspace-decoration.decoration-region.whiteboard-container > .workspace-decoration-label {
+  margin-top: min(var(--container-padding), 8px); padding: 0 clamp(10px, var(--container-padding), 16px);
+  color: var(--decoration-ink, var(--ink)); font: 500 17px/24px var(--type-sans);
+}
+#world .workspace-decoration.decoration-region:not(.whiteboard-shape, .whiteboard-container) > .workspace-decoration-label { display: inline-block; width: auto; max-width: calc(100% - 20px); min-height: 0; margin: 10px; padding: 5px 10px; border-radius: var(--shape-key); background: color-mix(in srgb, var(--surface-paper) 82%, transparent); }
 /* With the floating Navigator open, the bottom islands stay clear of it too. */
 @media (min-width: 721px) {
   body:has(#project-navigator:not([hidden])) .canvas-footer { left: 356px; }

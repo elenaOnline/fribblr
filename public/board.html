@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/app/canvas.css">
   <link rel="stylesheet" href="/app/live.css">
   <link rel="stylesheet" href="/app/agent-prompt.css">
+  <link rel="stylesheet" href="/app/preset-scrub.css">
 <link rel="stylesheet" href="/app/workspace.css"><link rel="stylesheet" href="/app/navigator.css"><link rel="stylesheet" href="/app/appearance.css"><link rel="stylesheet" href="/app/tokens.css"><link rel="stylesheet" href="/app/calm.css"><link rel="stylesheet" href="/app/depth.css"><link rel="stylesheet" href="/app/reader.css"><link rel="stylesheet" href="/app/update-notice.css"><link rel="stylesheet" href="/app/legend.css"><link rel="icon" href="/app/mark.svg" type="image/svg+xml"></head>
 <body>
   <header id="canvas-header" class="canvas-header">
@@ -44,12 +45,12 @@
         <button id="zoom-menu-toggle" class="tk-btn zoom-percent" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="zoom-menu" title="Zoom and pattern">50%</button>
         <div id="zoom-menu" class="tk-menu zoom-menu" role="group" aria-label="Zoom and pattern" hidden>
           <button class="tk-mi" type="button" data-zoom-to="0.5">Zoom to 50%</button>
-          <button class="tk-mi" type="button" data-zoom-to="1">Zoom to 100%<kbd class="tk-kbd" aria-hidden="true">⇧0</kbd></button>
+          <button class="tk-mi" type="button" data-zoom-to="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
           <button class="tk-mi" type="button" data-zoom-to="1.25">Zoom to 125%</button>
           <label class="zoom-slider-row"><span>Zoom</span><input id="zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Board zoom" aria-valuetext="50 percent"></label>
           <div class="tk-msep"></div>
-          <button class="tk-mi" type="button" data-zoom-to="fit">Fit board<kbd class="tk-kbd" aria-hidden="true">⇧1</kbd></button>
-          <button class="tk-mi" type="button" data-zoom-to="selection" hidden>Fit selection<kbd class="tk-kbd" aria-hidden="true">⇧2</kbd></button>
+          <button class="tk-mi" type="button" data-zoom-to="fit" aria-keyshortcuts="Shift+1">Fit board</button>
+          <button class="tk-mi" type="button" data-zoom-to="selection" aria-keyshortcuts="Shift+2" hidden>Fit selection</button>
           <div class="tk-msep"></div>
           <div class="tk-mlabel" id="canvas-pattern-label">Pattern · this board</div>
           <div class="tk-seg canvas-pattern" role="group" aria-labelledby="canvas-pattern-label"><button type="button" data-canvas-pattern="dots" aria-pressed="false">Dots</button><button type="button" data-canvas-pattern="grid" aria-pressed="false">Grid</button><button type="button" data-canvas-pattern="plain" aria-pressed="true">Plain</button></div>
@@ -66,7 +67,7 @@
   <dialog id="reader-dialog" aria-labelledby="reader-name">
     <header id="reader-header" class="reader-header">
       <nav class="identity" aria-label="Where you are">
-        <button id="reader-navigator" class="project-navigator-toggle tk-btn tk-icon" type="button" aria-label="Navigator" aria-controls="project-navigator" aria-expanded="false" title="Navigator (⌘K)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg></button>
+        <button id="reader-navigator" class="project-navigator-toggle tk-btn tk-icon" type="button" aria-keyshortcuts="Meta+K Control+K" aria-label="Navigator" aria-controls="project-navigator" aria-expanded="false" title="Navigator (⌘K)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg></button>
         <a class="brand" id="reader-home" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="reader-project">Home</span></a>
         <a id="close-reader" class="workspace-parent reader-up" href="#" aria-keyshortcuts="Escape Alt+ArrowUp" title="Up to the board (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg><span id="reader-up-label" class="reader-up-label">Board</span></a>
         <span class="reader-title-row">
@@ -81,6 +82,11 @@
         <button id="reader-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="reader-info" aria-label="Inspector" title="Inspector: this Tinka's details and actions (⌘I)"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
       </div>
     </header>
+    <div id="reader-file-versions" role="group" aria-label="File versions" hidden>
+      <button id="reader-older-file" class="tk-btn tk-icon" type="button" aria-label="Previous version"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button>
+      <span class="reader-file-version-detail" role="status"><strong id="reader-file-version-name"></strong><time id="reader-file-version-modified"></time></span>
+      <button id="reader-newer-file" class="tk-btn tk-icon" type="button" aria-label="Next version"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
+    </div>
     <div id="reader-path-pop" class="reader-path-pop" role="dialog" aria-modal="false" aria-label="Where you are" hidden></div>
     <section id="reader-info" class="reader-info calm-side calm-side-right" role="dialog" aria-modal="false" aria-labelledby="reader-info-name" hidden></section>
     <div class="reader-area">
@@ -94,10 +100,10 @@
               <button id="reader-zoom-toggle" class="tk-btn zoom-percent" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="reader-zoom-menu" title="Zoom and view: window, version, light, type size">100%</button>
               <div id="reader-zoom-menu" class="tk-menu zoom-menu reader-zoom-menu" role="group" aria-label="Zoom and view" hidden>
                 <button class="tk-mi" type="button" data-reader-zoom="0.5">Zoom to 50%</button>
-                <button class="tk-mi" type="button" data-reader-zoom="1">Zoom to 100%<kbd class="tk-kbd" aria-hidden="true">⇧0</kbd></button>
+                <button class="tk-mi" type="button" data-reader-zoom="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
                 <button class="tk-mi" type="button" data-reader-zoom="2">Zoom to 200%</button>
                 <label class="zoom-slider-row"><span>Zoom</span><input id="reader-zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Tinka zoom"></label>
-                <button class="tk-mi" type="button" data-reader-zoom="fit">Fit this Tinka<kbd class="tk-kbd" aria-hidden="true">F</kbd></button>
+                <button class="tk-mi" type="button" data-reader-zoom="fit" aria-keyshortcuts="F">Fit this Tinka</button>
                 <div class="tk-msep"></div>
                 <div id="size-menu" class="reader-menu-group" role="group" aria-labelledby="reader-window-label">
                   <div class="tk-mlabel" id="reader-window-label">Window</div>

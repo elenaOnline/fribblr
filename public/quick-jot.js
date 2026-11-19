@@ -3,12 +3,9 @@
 // current view, skipping cells that would overlap anything on the board, and
 // the view pans gently to keep the newest jot visible. Esc closes it.
 
-import { token } from "./tokens.js";
-
 const STYLE_ID = "quick-jot-style";
 const GAP = 16, MAX_COLS = 4, JOT_W = 180, JOT_H = 140, MARGIN = 24;
-// A jot is a yellow Sticky; the colour is a stored value, read from the decoration palette (tokens.css).
-const stickyDecoration = () => ({ type: "region", shape: "rectangle", color: token("--deco-yellow") });
+const STICKY = { type: "region", shape: "rectangle", color: "palette:gold" };
 let open = null;
 
 function injectStyle() {
@@ -126,7 +123,7 @@ export function openQuickJot(board) {
       board.whiteboard?.commitEdit?.({ focus: false });
       if (!layout) layout = { anchor: findAnchor(board, form), index: 0 };
       const cell = nextCell(board, layout);
-      const d = { id: crypto.randomUUID(), ...stickyDecoration(), x: cell.x, y: cell.y, width: JOT_W, height: JOT_H, text };
+      const d = { id: crypto.randomUUID(), ...STICKY, x: cell.x, y: cell.y, width: JOT_W, height: JOT_H, text };
       await board.client.write("createDecoration", { boardId: board.snapshot.id, decoration: d });
       // No lingering selection or handles: nothing is active after a jot.
       board.whiteboard?.clearSelection?.({ finishEdit: false });
