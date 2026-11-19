@@ -111,14 +111,15 @@ body:has(.reader-title-row[data-family="pic"]) #reader-window { --side: var(--ki
 body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); }
 
 /* ---------- slab, in miniature: the cards inside a board's cover, the legend's swatches. The same rule as the slab at a
-   fixed tiny size: --mini-d is the side, the left and right edges in the side's dark colour ---------- */
+   fixed tiny size and the same layering (far and front edge copies over one dark ring): --mini-d is the side ---------- */
 .board-collage.board-miniature, .board-collage { background: transparent; }
 :where(.board-collage .workspace-cover-tile) { --side: var(--kind-plain-side); --side-edge: var(--kind-plain-edge); }  /* not the cover's own family */
 .board-collage .workspace-cover-tile, .board-miniature .workspace-cover-tile.mini-tile, .board-art .sheet, .kind-swatch {
   --mini-edge: var(--side-edge, var(--kind-plain-edge));
   border: 0; border-radius: 4px; background-color: var(--mini-paper, var(--surface-paper));
-  box-shadow: calc(-1 * var(--mini-hair, .5px)) 0 0 0 var(--mini-edge), var(--mini-hair, .5px) 0 0 0 var(--mini-edge), 0 var(--mini-hair, .5px) 0 0 var(--mini-edge),
-    0 0 0 var(--mini-hair, .5px) color-mix(in srgb, var(--mini-edge) calc(var(--slab-top-edge) * 100%), var(--ground-rim)),
+  box-shadow: 0 calc(-1 * var(--mini-hair, .5px)) 0 0 color-mix(in srgb, var(--mini-edge) calc(var(--slab-top-edge) * 100%), var(--ground-rim)),
+    0 var(--mini-hair, .5px) 0 0 color-mix(in srgb, var(--mini-edge) calc(var(--slab-front-edge) * 100%), var(--ground-rim)),
+    0 0 0 var(--mini-hair, .5px) var(--mini-edge),
     0 var(--mini-d, 1.5px) 0 0 var(--side, var(--kind-plain-side)), 0 var(--mini-d, 1.5px) 0 var(--mini-hair, .5px) var(--mini-edge);
 }
 .board-miniature .mini-tile.mini-board { --side: var(--kind-board-side); --side-edge: var(--kind-board-edge); }
