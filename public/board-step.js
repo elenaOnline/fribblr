@@ -1,4 +1,4 @@
-// ⌥← / ⌥→ on a board (Ctrl+← / Ctrl+→ on Windows and Linux) select the previous or
+// [ / ] on a board (also Ctrl+← / Ctrl+→ on Windows and Linux) select the previous or
 // next Tinka, in the same order and with the same skips as an opened Tinka's stepper,
 // so the keys mean the same thing on a board and inside a Tinka. No DOM, so tests can
 // share it.
@@ -9,9 +9,14 @@ export function isSteppable(item) {
   return !!item && !['reserved', 'building'].includes(item.build?.state) && !(item.childBoardId && !item.content);
 }
 
-// The step chord alone: ⌥←/→ on a Mac, Ctrl+←/→ elsewhere. Never inside a text field.
+// The step keys on a board: [ and ] everywhere, and Ctrl+←/→ off a Mac. Never inside a text field.
+// On a Mac ⌥←/→ moves the focused item instead (UI SDK canvas norm: Option/Alt with an arrow moves the object),
+// so the board steps with [ and ], the opened Tinka's own fallback keys.
 export function boardStepCommand(event, { mac = false, editable = false } = {}) {
-  if (!event || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return null;
+  if (!event) return null;
+  if (event.key === '[' || event.key === ']') {
+    if (event.altKey || event.ctrlKey || event.metaKey) return null;
+  } else if (mac || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return null;
   const command = readerCommand(event, { mac, editable });
   return command === 'previous' || command === 'next' ? command : null;
 }

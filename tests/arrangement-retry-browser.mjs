@@ -91,11 +91,11 @@ try{
   await page.keyboard.press('Escape');
   // 5. Keyboard nudges: a card and a sticky.
   await select(A.id);const ax=(await placement(P,A.id)).x;
-  await lost('nudge-card','translatePlacements',()=>page.keyboard.press('ArrowRight'),async()=>(await placement(P,A.id)).x===ax+1);
+  await lost('nudge-card','translatePlacements',()=>page.keyboard.press('Alt+ArrowRight'),async()=>(await placement(P,A.id)).x===ax+1);
   await page.keyboard.press('Escape');
   await page.locator('[data-decoration=start] [data-decoration-label]').click();await page.keyboard.press('Escape');await page.locator('[data-decoration=start] [data-decoration-label]').click();
   const sy=(await decoration('start')).y;
-  await lost('nudge-sticky','updateDecoration',()=>page.keyboard.press('ArrowDown'),async()=>(await decoration('start')).y===sy+1);
+  await lost('nudge-sticky','updateDecoration',()=>page.keyboard.press('Alt+ArrowDown'),async()=>(await decoration('start')).y===sy+1);
   // 6. Move / resize dialogs: a card and a sticky.
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
   await openItemDetails(page.locator(`[data-placement="${A.id}"] [data-item-controls]`));await page.locator('[data-context-geometry]').click();
@@ -109,7 +109,7 @@ try{
   await show(P);
   while(await page.locator('.workspace-card.selected [data-placement-select]').count())await page.locator('.workspace-card.selected [data-placement-select]').first().click();
   await select(A.id);const before=(await placement(P,A.id)).x;
-  await page.keyboard.press('ArrowRight');await until(async()=>(await placement(P,A.id)).x===before+1);await settle();
+  await page.keyboard.press('Alt+ArrowRight');await until(async()=>(await placement(P,A.id)).x===before+1);await settle();
   await page.keyboard.press('Escape');await page.evaluate(()=>document.activeElement?.blur());
   await page.waitForFunction(()=>document.getElementById('workspace-undo')?.disabled===false);
   await lost('undo','restoreMovement',()=>page.keyboard.press('ControlOrMeta+z'),async()=>(await placement(P,A.id)).x===before);
@@ -138,13 +138,13 @@ try{
   while(await page.locator('.workspace-card.selected [data-placement-select]').count())await page.locator('.workspace-card.selected [data-placement-select]').first().click();
   await select(A.id);assert.deepEqual(await page.locator('.workspace-card.selected').evaluateAll(cards=>cards.map(c=>c.dataset.placement)),[A.id]);
   await conflict('conflict-placement','translatePlacements',()=>op({type:'updatePlacement',boardId:P,placementId:A.id,patch:{x:500,y:700}}),
-    ()=>page.keyboard.press('ArrowRight'),{expect:async()=>(await placement(P,A.id)).x===500,message:'dialog'});
+    ()=>page.keyboard.press('Alt+ArrowRight'),{expect:async()=>(await placement(P,A.id)).x===500,message:'dialog'});
   const rendered=await until(async()=>(await page.locator(`[data-placement="${A.id}"]`).evaluate(el=>el.style.left))===`${500+70}px`,4000);
   if(!rendered)failures.push('conflict-placement: the board did not reconcile to the latest position');
   await page.keyboard.press('Escape');
   await page.locator('[data-decoration=then] [data-decoration-label]').click();
   await conflict('conflict-decoration','updateDecoration',()=>op({type:'updateDecoration',boardId:P,decorationId:'then',patch:{x:620}}),
-    ()=>page.keyboard.press('ArrowDown'),{expect:async()=>(await decoration('then')).x===620&&(await decoration('then')).y===320,message:'dialog'});
+    ()=>page.keyboard.press('Alt+ArrowDown'),{expect:async()=>(await decoration('then')).x===620&&(await decoration('then')).y===320,message:'dialog'});
   await page.keyboard.press('Escape');await page.evaluate(()=>document.activeElement?.blur());
   // Record a fresh movement to undo, then let another writer change the same board.
   await openItemDetails(page.locator(`[data-placement="${A.id}"] [data-item-controls]`));await page.locator('[data-context-geometry]').click();

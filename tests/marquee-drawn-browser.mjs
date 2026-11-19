@@ -102,7 +102,7 @@ try{
     assert.deepEqual(await selectedDrawn(page),DRAWN,'group still selected after the drag');
     // Board keys wait while the drag's save settles, as they do for a person.
     await until(async()=>await page.locator('#chrome-undo').isEnabled());await page.waitForTimeout(300);
-    await page.keyboard.press('Shift+ArrowRight');
+    await page.keyboard.press('Alt+Shift+ArrowRight');
     const nudged=await until(async()=>{const w=await where(id,pid);return w.card[0]===after.card[0]+10&&w;});
     for(const d of DRAWN)assert.deepEqual(nudged[d],[after[d][0]+10,after[d][1]],`${d} nudged`);
   });
@@ -139,7 +139,7 @@ try{
     const label=await rect(page,'[data-decoration="label"]'),arrow=await rect(page,'[data-decoration="arrow"]');
     await boxSelect(page,{x:label.left-10,y:label.top-5},{x:arrow.right+10,y:arrow.bottom+10});
     assert.deepEqual(await selectedDrawn(page),['arrow','label']);
-    await page.keyboard.press('Shift+ArrowDown');
+    await page.keyboard.press('Alt+Shift+ArrowDown');
     const nudged=await until(async()=>{const w=await where(id,pid);return w.label[1]===before.label[1]+10&&w;});
     assert.deepEqual(nudged.arrow,[before.arrow[0],before.arrow[1]+10]);
     assert.deepEqual(nudged.card,before.card,'cards stay put');

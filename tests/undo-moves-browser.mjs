@@ -51,10 +51,10 @@ try{
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+40,box.y+box.height/2+80,{steps:8});await page.mouse.up();await settle();}
  await u.after();
  await page.keyboard.press('Escape');
- // A card, after a ⌥→ step selected it.
- await page.keyboard.press('Alt+ArrowRight');await page.waitForTimeout(150);
+ // A card, after a ] step selected it.
+ await page.keyboard.press(']');await page.waitForTimeout(150);
  const cardEl=page.locator(`.workspace-card[data-placement="${card}"]`);
- u=await undoRedo('Card after ⌥→',s=>s.p[card]);await drag(cardEl.locator('.workspace-item-footer').first());await u.after();
+ u=await undoRedo('Card after ]',s=>s.p[card]);await drag(cardEl.locator('.workspace-item-footer').first());await u.after();
  // After clicking a zoom-pill button, ⌘Z still undoes.
  await page.keyboard.press('Escape');
  u=await undoRedo('Card after clicking Fit',s=>s.p[other]);await drag(page.locator(`.workspace-card[data-placement="${other}"] .workspace-item-footer`).first());

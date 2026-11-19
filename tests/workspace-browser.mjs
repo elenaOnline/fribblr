@@ -520,7 +520,7 @@ try {
   await page.keyboard.press("Escape");
   const beforeNudge = (await (await fetch(base + `/api/boards/${second.boardId}`)).json()).placements.find(p => !p.removedAt);
   await page.locator("[data-placement-select]").first().click();
-  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("Alt+Shift+ArrowLeft");
   await page.waitForFunction(async ({ id, x }) => (await (await fetch(`/api/boards/${id}`)).json()).placements.find(p => !p.removedAt).x === x, { id: second.boardId, x: beforeNudge.x - 10 });
   // Keep negative-coordinate fit coverage while placement editing uses direct
   // keyboard and resize gestures rather than a geometry form.
@@ -1269,7 +1269,7 @@ try {
   await identity("resize preserves mounted previews");
   await stableCard.locator("[data-placement-select]").click();
   p = await stablePlacement();
-  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Alt+Shift+ArrowRight");
   await waitStablePlacement({ x: p.x + 10 });
   await identity("selection and keyboard nudge preserve mounted previews");
   await stableCard.locator("[data-star]").click();
@@ -1865,7 +1865,7 @@ try {
     await hshow(gid,1440,100,bid);await hfixtureOp("review",{itemId:f.children[0].itemId,patch:{note:"Later canonical note",star:false}});const reviewed=(await hsnapshot()).items;await hreplay(false);assert.deepEqual(arrangement(await hsnapshot(),[bid,gid]),arrangement(before,[bid,gid]));assert.deepEqual((await hsnapshot()).items,reviewed,"Undo preserves later canonical notes and stars");await hreplay(true);assert.deepEqual(arrangement(await hsnapshot(),[bid,gid]),arrangement(contained.after,[bid,gid]));
     await hshow(gid,1440,100,bid);await hready(inside);await hselect(inside);before=await hsnapshot();const returned=await hcommit(async()=>{await hdrop(inside[1],hp.locator("#workspace-parent"));await hp.screenshot({path:path.join(evidence,"history-parent-hover-1440.png")});await hp.mouse.up();},"move");assert.equal(hp.url(),base+`/boards/${gid}/?from=${bid}`);await hreplay(false);assert.deepEqual(arrangement(await hsnapshot(),[bid,gid]),arrangement(before,[bid,gid]));await hreplay(true);assert.deepEqual(arrangement(await hsnapshot(),[bid,gid]),arrangement(returned.after,[bid,gid]));
     // Resize and keyboard nudge each produce one reversible step.
-    await hshow(bid,1440,100);const active=hboard(await hsnapshot(),bid).placements.filter(p=>!p.removedAt&&f.children.some(i=>i.itemId===p.itemId)),aid=active[0].id;await hready(active.map(p=>p.id));before=await hsnapshot();await hcommit(()=>hdrag(hcard(aid).locator("[data-resize]"),20,15),"updatePlacement");await hreplay(false);assert.deepEqual(arrangement(await hsnapshot(),[bid]),arrangement(before,[bid]));await hcard(aid).locator("[data-placement-select]").click();before=await hsnapshot();await hcommit(()=>hp.keyboard.press("Shift+ArrowRight"),"translatePlacements");await hreplay(false);assert.deepEqual(arrangement(await hsnapshot(),[bid]),arrangement(before,[bid]));
+    await hshow(bid,1440,100);const active=hboard(await hsnapshot(),bid).placements.filter(p=>!p.removedAt&&f.children.some(i=>i.itemId===p.itemId)),aid=active[0].id;await hready(active.map(p=>p.id));before=await hsnapshot();await hcommit(()=>hdrag(hcard(aid).locator("[data-resize]"),20,15),"updatePlacement");await hreplay(false);assert.deepEqual(arrangement(await hsnapshot(),[bid]),arrangement(before,[bid]));await hcard(aid).locator("[data-placement-select]").click();before=await hsnapshot();await hcommit(()=>hp.keyboard.press("Alt+Shift+ArrowRight"),"translatePlacements");await hreplay(false);assert.deepEqual(arrangement(await hsnapshot(),[bid]),arrangement(before,[bid]));
     // A new movement after undo clears redo; cancellation/no-op creates no entry.
     await hcommit(()=>hdrag(hcard(aid).locator(".workspace-panel-title"),12,8),"updatePlacement");assert.equal((await hstate()).redo.length,0);let state=await hstate(),start=hwrites.length;await hdrag(hcard(aid).locator(".workspace-panel-title"),20,10,false);await hp.keyboard.press("Escape");await hp.mouse.up();assert.deepEqual(await hstate(),state);assert.equal(hwrites.length,start);
     // Text editing keeps native undo rather than invoking movement restoration.

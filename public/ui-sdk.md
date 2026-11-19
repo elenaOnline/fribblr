@@ -159,3 +159,74 @@ rules at the end of `ui-sdk.css`.
     `ui-toolbar` and `ui-toggle-group`, as it already excluded `.tk-seg`.
 - **Kind legend** (`kind-legend.js`): a `ui-toggle-group` (not `multiple`: one family can be lit at a time, as before)
   of `ui-toggle` around the existing entry buttons. Space or Enter presses, arrows move focus, Escape still lets go.
+
+### Board canvas: keyboard and focus on cards and drawn elements (`ux/canvas`)
+
+Files: `workspace-board.js` (the roving group: `rovingCard`, `setFocusStop`, `ensureFocusStop`, `rovingItems`,
+`focusKey`, `itemKey`, `nudgeKey`, `resizeKey`, `keyMoveRunning`; the key queue's `queueableKey`), `whiteboard.js`
+(one line in `markup()`: a drawn element's `tabindex` comes from the host's stop), `canvas.js` (`revealBox`, the
+viewport's `+`/`−`/`0`, the board step's focus, focus back to the card after the reader), `board-step.js` (step keys),
+`calm.css` (focus ring). Core helpers, standalone, from `vendor/ui-sdk/web/core.js` (a dynamic import, so the board's
+start never waits for it): `nearestInDirection`, `announce`, `moveMessage`, `resizeMessage`, `keepFocus`.
+
+**How it is built, and why not as a primitive.** The SDK's norms for a canvas (SPEC C.18a, C.19; B5 § 1.2 spatial
+focus, § 4.1 `createMove` keys, § 4.2 `createResize` keys, § 6 announcements; B6.1 viewport keys) are implemented on
+top of the board's own pan, drag, resize and marquee engine, not with `createRovingFocus`/`spatialMove`,
+`createMove`, `createResize` or `createViewport`. Those are context helpers that need a primitive with parts around
+every card (the Collections pattern above); adopting them means rewriting the most performance-sensitive code in the
+app, which this experiment was told not to do. Everything added runs on key and focus events; nothing runs per card
+on wheel, pointer pan, drag or marquee, and no observer was added. A later overhaul to a primitive would replace
+`rovingCard`/`setFocusStop` with `createRovingFocus({ move: spatialMove({ rect }) })` (the rect function is
+`rovingItems()`'s board-unit boxes), `nudgeKey` with `createMove({ step: 1, group })`, `resizeKey` with
+`createResize`, and `revealBox` with `viewport.reveal`.
+
+- **One Tab stop for the board's items.** Cards and drawn elements are one roving group. The item focused last
+  (`focusStop`, its reconcile key, e.g. `placement:<id>`) has `tabindex=0`; every other card and drawn element has
+  `-1`. The stop is written into the render markup (so `reconcileChildren` never fights it) and moved in place on
+  `focusin` (two elements' attributes). Before anything is focused the first card holds it. A pointer press that
+  focuses a card makes it the stop. If the focused item goes away in a rebuild (deleted, moved into a board, filtered
+  out), focus goes to the item nearest where it was (the SDK's focus-recovery idea) instead of dropping to `<body>`.
+  The dense board went from 612 Tab stops in `#world` to 1 card plus its own controls.
+- **Controls inside a card (composite items).** The SDK's rule for items holding links and buttons (Timeline:
+  "Tab moves from an event to the links and buttons inside it, and arrow keys pressed on them stay with them") is
+  applied to the stop card only: its select circle, ⋯, Open, title, resize corner and hover-toolbar buttons follow it
+  in Tab order; on every other card they carry `tabindex=-1` (added to the card's markup by `rovingCard`, removed when
+  it becomes the stop). So Tab goes: card → its controls → out of the board. Arrows pressed on an inner control are
+  not focus moves (they still pan, as before); the hover toolbar (`role=toolbar`) owns its own arrows.
+- **Arrows move focus, not things.** Plain arrows (Shift too) on a focused card or drawn element move focus to the
+  nearest item that way: `nearestInDirection` on board units from the board's data (no layout read; Grid layout uses
+  screen boxes), so zoom never matters and Left is always screen-left. The view glides just enough to bring it in,
+  clear of the floating footer (`revealBox`, the SDK's `focus-in` reveal). Home / End go to the first card / the last
+  item (cards in reading order, then drawn elements; drawn elements come first in the DOM only for stacking). A held
+  arrow keeps moving. Connector arrows are items too, so moving between two joined cards can land on the arrow
+  between them first (what `spatialMove` does with every item in the group).
+- **Focus is not selection.** Space toggles the focused item's selection and focus stays; Enter opens the focused
+  card (not "the one selected", which still works with focus off the cards); a drawn element's Enter / F2 stay
+  Whiteboard's (inspect, edit text). ⌘/Ctrl-click toggles. **⇧-click stays a toggle on the canvas** (lead's decision,
+  2026-11-18): the SDK's ⇧-range needs an order, and a 2-D board has none to follow (Home's grid does, and gets ranges).
+  Focus ring: an ink ring outside the blue selection line, so a focused selected card shows both.
+- **Option/Alt + arrow moves the focused item**, 1 unit, 10 with Shift (`createMove`'s keys and default steps). A
+  focused item that is selected carries the whole selection (and a mixed group's drawn elements); one that isn't
+  moves alone; with no item focused, the selection moves (the old arrow behaviour, now on Option). One undo step per
+  press. Plain arrows never move anything. Each move is announced with `moveMessage` ("A2 moved to 299, 0." /
+  "2 items moved to 301, 270.").
+- **Resize corner:** a button named "Resize bottom right of <title>". Arrows move that corner, 1 unit, 10 with Shift
+  (`createResize`'s keys), within the card's minimum size; announced with `resizeMessage` ("A1 resized to 241 by
+  170."). Escape still cancels a pointer drag or marquee and puts things back; there is no keyboard pick-up to cancel.
+- **Writes queue instead of racing.** A keyboard move or resize holds the board busy until its write and refresh land
+  (`keyMoveRunning` sets `movePending`), and `installKeyQueue` now queues Option-arrows and arrows on a resize corner
+  meanwhile and replays them in order. Before this, a second quick press read the old geometry and overwrote the
+  first. Plain arrows (focus, panning) are never queued, so they act at once while a write is in flight; nor are
+  Space and Enter on a button or link (queuing them cancelled the button's native press: a select circle pressed
+  during a save did nothing).
+- **Zoom keys:** `+`/`=`, `−` and `0` (100%, position kept about the centre) with the canvas or a card or drawn
+  element focused; announced in the board's existing `#view-announce` region ("Zoom 115%"). ⇧0, ⇧1, ⇧2, F and M are
+  unchanged. Arrows / Page keys / Space still pan when the canvas itself has focus.
+- **Board step moved to `[` / `]` on a Mac.** ⌥←/→ used to select the previous / next Tinka on a board; it is the
+  SDK's move chord, so on the board it now moves the focused item, and stepping is `[` / `]` (the opened Tinka's own
+  fallback step keys, so they still mean the same thing on a board and inside a Tinka). Ctrl+←/→ still steps on
+  Windows and Linux, where Alt+arrow moves (or stays browser Back when there is nothing to move). Inside an opened
+  Tinka ⌥←/→ is unchanged. A step with focus on the board takes focus to the stepped card.
+- **Focus comes back.** Opening a card (Enter, or a click) and closing the reader returns focus to the card last
+  viewed when the reader was opened from the board's items (A5's return-to-trigger rule), instead of to the canvas.
+- Help text, the canvas's `aria-label` and the Keyboard shortcuts sheet describe all of this.
