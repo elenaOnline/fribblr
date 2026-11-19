@@ -354,3 +354,69 @@ Shared: `popups.js`, `popups.css` (see § Popups). Components: Menu, Popover.
 - **Home Appearance** (`appearance.js`): a menu of two radio groups, Mode and Background; radio items stay open; the
   Background items are disabled (focusable, inert, titled) while the page is dark. The Inspectors keep their
   segmented rows.
+
+### Tooltips (`ux/tooltips`)
+
+Files: `tips.js` (new: the shared tooltip and its helpers), the tooltip rules at the end of `ui-sdk.css`; hints moved
+from `title` to `data-tip` in `board.html`, `home.html`, `canvas.js`, `workspace-board.js`, `whiteboard.js`,
+`comment-pins.js`, `kind-legend.js`, `navigator.js` (its header toggle only), `workspace-home.js`, `home.js`,
+`appearance.js`, `relative-dates.js`, `ui-segmented.js`. Shared: `widgetOwnsKey()` (`ui-sdk.js`) and `inPopup()`
+(`popups.js`) give Escape to an open tooltip; `ui-sdk.css` and `calm.css` let the segmented rules reach an item inside
+its trigger. Component: Tooltip. Test: `tests/tooltips-browser.mjs`.
+
+- **One shared tooltip per page** (tooltip.md § Shared): `<ui-tooltip id="tk-tip">` at the end of `<body>`, made on
+  first use, and a second one, `reader-dialog-tip`, inside the reader (a modal `<dialog>` makes the rest of the page
+  inert, so a tooltip outside it could not be pointed into). A control carries its hint as `data-tip="…"` and sits in a
+  `<ui-tooltip-trigger for="tk-tip">` whose `payload` is the control itself; on `payloadchange` the content reads
+  `data-tip`. So every norm is the SDK's, and the page holds one tooltip, not one per control.
+- **Markup.** Write `data-tip` (no `title`) on the control and call `tips(container)` after rendering it: it wraps each
+  `[data-tip]` in its trigger and sets the payload (idempotent, cheap when nothing changed). A render that reconciles
+  (Home's grid and selection bar, `timeHTML(…, {tip: true})`, `segmentedHTML` items with `tip`) writes the wrapper in its
+  markup with `tipTrigger(html)`, so reconciling keeps it; `tips()` then only sets payloads. Change a hint with
+  `setTip(el, text)` (an open tooltip follows). `data-tip=""` keeps a trigger silent (the Inspector's Background row,
+  which explains itself only in dark mode); `data-tip-truncated` shows the hint only while the element's text is cut
+  off (board title, Home's board titles; tooltip.md § Truncated Text).
+- **Nesting.** The tooltip trigger is the outermost wrapper: `<ui-tooltip-trigger><ui-toolbar-button><ui-menu-trigger>
+  <button>`. The tooltip trigger finds the button inside the others; a menu or toolbar part outside the tooltip
+  trigger would bind the trigger element instead (tested). `tips()` wraps the outermost of a control's own
+  display:contents wrappers. **Anything inserted next to a hinted control goes next to `tipOuter(control)`**, or it lands
+  inside the trigger, which binds the first button or link it holds (the board's parent crumb, the Navigator toggle
+  beside the brand, the edit-tools toggle beside the map toggle, Undo/Redo beside the Inspector toggle).
+- **Shortcuts** come from the control's `aria-keyshortcuts` (only this platform's ones: "Meta+K Control+K" shows ⌘K on
+  a Mac, Ctrl+K elsewhere) and show as `<ui-tooltip-shortcut>` parts, hidden from screen readers (who hear
+  `aria-keyshortcuts`), printed as the app prints keycaps (`capLabel`: "⇧1", "⌘K", "Esc"), several joined with "or".
+  A labelled `tk-btn` with `aria-keyshortcuts` gets a visible keycap (`keycaps.js`), so where the tooltip names a
+  shortcut the button doesn't print, the keys go in `data-tip-keys` (the map head's Fit buttons, Comments, the reader's
+  Down).
+- **Names.** Every trigger of a shared tooltip needs a name of its own, so the tooltip describes it and never labels
+  it; `tip()` adds `aria-label` from the hint when a control has no name. Where the hint only repeats the name
+  ("Zoom in"), its words are `aria-hidden` inside the content, so screen readers don't hear it twice. The Edit tools'
+  names lost their " · T" suffix: the key is now `aria-keyshortcuts` and shows in the tooltip.
+- **Escape.** With a tooltip showing, Escape belongs to it (it closes only the tooltip, tooltip.md § Keyboard):
+  `widgetOwnsKey()` and `inPopup()` return true, so the board's Escape ladders (selection, Inspector, reader) take the
+  next press. The kind legend's own Escape waits the same way. A tooltip that opened by hover over the reader also
+  takes the first Escape.
+- **Look.** `.tk-tip`: an ink face like the toast (`data-height="float"` with the rim set to the face, so only the
+  soft cast shows), 12 px text, `--shape-cell` corners, no arrow, a 120 ms fade that `data-instant` skips. Placement is
+  the SDK's (top, flipping and shifting, 8 px from the window's edges).
+- **Boundary: chrome on the SDK, the canvas on native titles.** Everything outside `#world` that had a hint is on the
+  SDK tooltip: the canvas header (brand, UI SDK tag, parent crumb, board title, Find, Undo/Redo, Inspector, Add,
+  Navigator toggle), both zoom pills (−, %, +, Back, map, edit tools, Fit), the selection bar, the whiteboard object and
+  arrow bars, the Edit tools palette, the board map head, the comment bar, the kind legend, the board and item
+  Inspectors (close keys, Undo/Redo, appearance items, paper swatches, dates, the dark-mode Background row), the
+  reader's header and footer, and Home's masthead, selection bar, board titles and dates (the old `tk-date-tip` is
+  gone). **Everything inside `#world` keeps its native `title`**: card controls (select circle, ⋯, title, resize corner,
+  the hover toolbar's Edit, Comments, Vote, Favorite), badges, board-tile dates, drawn-element ports and arrow handles,
+  comment pins, the legacy canvas's cards. Measured headless on `showcase-dense` (84 items, 560 card controls): wrapping
+  the card controls in triggers cost about 12% on a cold board render (46 → 52 ms median) and about 20% on each
+  wheel-pan event's forced style recalculation (13.5 → 16.5 ms), the hottest path. With the chrome converted and the
+  cards left alone, runs stayed within run-to-run noise (`team/ux/tooltips/evidence`; the machine was loaded, so read
+  these as rough). Also left native, each a whole surface: popup contents (the zoom popover's slider; the reader's %
+  menu, not on the SDK: Window sizes, the Light note, Type size; the Home Appearance menu's disabled Background group in
+  dark mode), the Navigator panel (its rows sit in the SDK Tree's `as-child` labels, which a trigger can't wrap), and
+  the reader stage's resize hint. `<iframe title>` is an accessible name, not a hint, and stays everywhere.
+- **SDK notes (0.1.0-beta.10).** (1) The trigger manages `aria-describedby` on its control (an existing one is
+  replaced) and writes `type="button"` even on a link, a heading or a `<time>`. (2) After a tap on one trigger of a
+  shared tooltip, the next mouse hover on another is ignored until the pointer leaves a trigger (the press flag is per
+  tooltip, and a tap's `pointerleave` comes before its click). (3) A hand-over within a shared tooltip is a payload
+  change, not a new open, so it gets no `data-instant` (it doesn't re-animate either).
