@@ -29,6 +29,61 @@ no npm dependency. The SDK supplies behaviour (keys, focus, dismissal, placement
 7. **Undocumented globals** (toast, shortcuts) are reached only through `ui-sdk.js`, so a version bump is a
    one-file check.
 
+## Collections: a Core primitive around markup we already draw
+
+A collection (Home's boards today; the canvas's cards could follow) has no shipped element to wrap: `ui-listbox`
+options would replace our cards, and its plain click toggles where ours opens. So the behaviour is built from Core
+helpers in one primitive and rendered with `createParts` (SPEC A3, B5 § 0). The pattern, from `home-board-list.js`:
+
+1. **One primitive, two slots.** `definePrimitive({ name, options, controlled: ["value"], state, sync, api, slots })`.
+   `api` composes `createRovingFocus` (one Tab stop; `move` for the layout), `createSelection` (multiple; the anchor),
+   `createTypeahead` and `createFocusRecovery`. The `root` slot declares the role (`listbox`) and handles `keydown`;
+   the item slot declares `role: "option"`, `focus: "roving"`, writes `aria-selected` and the roving `tabindex` in
+   `attrs`, and binds roving focus and recovery in `bind`. Roles go on the slot, never in `attrs` (core.md § Roles).
+2. **Thin wrappers.** `createParts(primitive, { root: { tag, display: "contents", api: [...] }, item: { tag, display:
+   "contents", target: el => el.querySelector(".our-focusable") } })`. The item part binds the element that should own
+   focus and keys (the card's own link), so the focus ring, Enter and a plain click stay native. The wrappers are
+   `display: contents`, so the grid lays out our cards as before. Custom tags are `fr-*`.
+3. **Controlled selection.** Our code owns the selected set. It sets `root.value = [...]` (no event) after every change
+   of its own (marquee, clear, re-render), and listens for `valuechange` (non-bubbling, on the root) to take the
+   changes the primitive asks for from keys and presses. Pointer gestures the SDK doesn't map (modifier clicks, a
+   select circle) call the root's exposed `api` methods, so the anchor stays the primitive's.
+4. **Re-rendering.** `reconcileChildren` keeps an element bound when its key matches. It now leaves alone the
+   attributes a bound part manages: an element carrying `data-slot` that our fresh markup doesn't write keeps the
+   attributes our markup doesn't mention (role, tabindex, aria-selected, data-slot). So never write a part-managed
+   attribute (`tabindex`, `aria-selected`, `role` on a bound element) in render markup; write only what is ours.
+5. **Wrappers in markup.** The root stays the same element across renders (render it every time, empty or not), so
+   the instance and its Tab stop survive live updates. Anything that isn't an item (an empty-state line, a "New"
+   card) sits beside the root, not inside it, so the role's children stay options.
+
 ## Surfaces
 
 Each surface lists its files and the SDK components it uses. Added as surfaces land.
+
+### Home: the board grid and its selection
+
+Files: `home-board-list.js` (the primitive and its parts), `workspace-home.js` (render, pointer gestures, the bar),
+`reconcile.js` (keeps part-managed attributes). Core: `definePrimitive`, `createParts`, `createChange`,
+`createRovingFocus`, `createSelection`, `createTypeahead`, `createFocusRecovery`, `isTypeaheadKey`, `matchesShortcut`.
+Applies to the organized Home (`WorkspaceHome`); the legacy shelf in `home.js` (organization not enabled) is unchanged.
+
+- **Markup:** `fr-board-list[aria-label=Boards]` (role `listbox`, `aria-multiselectable`) > `fr-board[value=itemId]` >
+  `article.board-card[role=none]` > `a.board-link` (role `option`, `aria-selected`, roving `tabindex`, named by the
+  board title through `aria-labelledby`, described by its description and dates). The select circle is
+  `tabindex=-1 aria-hidden=true`: a pointer affordance; the option carries the state.
+- **Keys:** Tab enters once, on the board focused last (first selected, else first, before that); arrows follow the
+  grid as the window lays it out (Left/Right in reading order, wrapping at row ends; Up/Down by column, measured on
+  the key press; Down from a column with nothing below goes to the last board; no wrap past either end); Home/End and
+  Ctrl/⌘+Home/End go to the first/last board; typing finds a board by title (500 ms runs, as the SDK's typeahead);
+  Space toggles (Shift+Space: range); Shift+arrows, Shift+Home/End extend from the anchor; plain moves carry the
+  anchor along (core.md § Ranges and Select All); ⌘A selects all and again clears (also with focus outside the grid,
+  not in a field); Enter opens (native link); Esc clears (not in a field: the find field's Esc is its own); `/` still
+  goes to find.
+- **Pointer:** a click opens the board; ⌘/Ctrl-click (and macOS Ctrl-click's context menu) toggle one board;
+  Shift-click selects the range from the anchor in grid order (with no anchor it starts there); the circle toggles.
+  A press moves focus to its board without scrolling. The marquee is unchanged (not the SDK lasso: `createLasso`
+  changes the selection once on release, ours is live, and it has no page-scroll story).
+- **Not the SDK's Listbox component:** `ui-listbox` arrows wrap and a plain click toggles in multiple mode; here a
+  click opens a board, and a 2-D grid doesn't wrap top to bottom. Escape clearing the selection is the app's
+  existing behaviour (the SDK's selection helper maps no Escape; Listbox leaves the selection alone).
+
