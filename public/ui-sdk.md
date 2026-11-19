@@ -56,6 +56,54 @@ helpers in one primitive and rendered with `createParts` (SPEC A3, B5 § 0). The
    the instance and its Tab stop survive live updates. Anything that isn't an item (an empty-state line, a "New"
    card) sits beside the root, not inside it, so the role's children stay options.
 
+## Popups: menus and popovers
+
+Every menu and popover follows one pattern, in `popups.js` (helpers) and `popups.css` (looks; linked last on
+`board.html` and `home.html`). Follow it for any new popup.
+
+- **Menu or Popover.** A list of actions or choices is a `ui-menu` (plain, checkbox and radio items, groups,
+  separators). Anything holding a field, a slider or a segmented control is a `ui-popover` (menu.md § Keyboard
+  Navigation: a menu holds items only). A colour choice in a menu is an item that opens the system picker.
+- **Where content lives.** A popup's root and content sit at the end of `<body>`, never inside a card, a toolbar or any
+  clickable container: popup events bubble to their DOM ancestors. Inside the reader (a modal `<dialog>`, which makes
+  the rest of the page inert) popups live in the dialog: `sharedMenu({host: dialog})`.
+- **Triggers.** A fixed button reaches its popup with `<ui-menu-trigger for=id>` / `<ui-popover-trigger for=id>` around
+  our button (inside a toolbar: `<ui-toolbar-button><ui-menu-trigger for=…><button>`). The SDK then writes
+  `aria-haspopup`, `aria-expanded`, `aria-controls`, opens on click / Enter / Space / ↓ / ↑ and returns focus. Don't
+  write those attributes or a click handler yourself. A button that is rebuilt with its container (a card's ⋯, a
+  drawn-object bar) and every point-anchored context menu open the popup from code: `openMenu(root, {anchor, event,
+  payload, returnTo})`. `anchor` is the element, an `{x, y}` point, or an object with `getBoundingClientRect()` (use
+  that when the button may re-render while open). `returnTo` is a selector that finds the opener again after a
+  re-render; focus goes back there on Escape, a choice, or Tab. `openFocus(event)` gives the SDK's rule: a keyboard
+  open focuses the first item (↑: the last), a pointer open focuses the menu itself.
+- **One menu, many openers.** One shared menu element serves every card (`payload` = the card's placement id, read
+  with `api.getPayload()` in the `action` handler). Fill the content just before `api.open()`.
+- **Menu buttons in a toolbar** open on ↓ (`openOnArrowDown(toolbar, selector, open)`), the toolbar norm.
+- **Context menus.** Our own `contextmenu` listener calls `openMenu` with the pointer; Shift+F10 / the context-menu key
+  are handled as keys (macOS fires no `contextmenu` for them). A second right-click re-anchors: the first press closes
+  the menu (consumed), the `contextmenu` that follows opens it at the new point.
+- **The consumed press.** Menu's default `modal="pointer"` swallows the outside press that closes it, but only its click:
+  the `pointerdown` still reaches the board, which would select or drag the card under it. Every menu made with
+  `sharedMenu()` (or passed to `guardMenu()`) records that press, and a document capture listener in `popups.js`,
+  registered before the board's, stops it. Board handlers that run on `window` capture (before the SDK) check
+  `menuOpen()`.
+- **Keys.** The board's capture-phase Escape ladders and command keys step aside for an open popup: `widgetOwnsKey()`
+  (`ui-sdk.js`) for command keys, `inPopup(event)` (`popups.js`) for handlers that must keep their keys in our other
+  dialogs (the Inspector is `role=dialog`). Letters inside a menu are typeahead, never board shortcuts.
+- **Looks.** Content gets `.tk-menu` (the menu face and the float height in `depth.css`); items keep `.tk-mi`,
+  separators `.tk-msep`, group labels `.tk-mlabel`. `popups.css` removes the UA popover box Menu content keeps, lights
+  the highlighted item from `data-highlighted` (`:hover` alone no longer does, so pointer and keys never light two rows),
+  draws no focus ring on menu items (the fill is the indicator, as in native menus), and shows checks from
+  `data-checked`. Where an old class set `display` or `position` on the hand-rolled popup, `popups.css` puts back
+  `revert-layer`, or a closed popup would show. Shortcut hints are keycaps: `menuItem(value, label, {shortcut:"mod+d"})`
+  writes `aria-keyshortcuts` and a `<kbd class="tk-kbd">`.
+- **SDK gaps found (0.1.0-beta.10).** (1) An item's `shortcut` attribute sets `aria-keyshortcuts="Control+…"` on a Mac
+  while its hint reads ⌘, so we write both ourselves. (2) `final-focus` on menu content is ignored for a menu opened
+  from code: focus returns to "the element focused before", so `openMenu` focuses the opener just before opening.
+  (3) A Popover trigger does not open on ↓; the toolbar norm is added by `openOnArrowDown`.
+- **Hazard for every stream:** SDK parts carry a `data-open` state attribute. The app's `[data-open]` (open this item)
+  selectors must exclude SDK parts: `[data-open]:not([data-slot])` (fixed in `canvas.js`).
+
 ## Surfaces
 
 Each surface lists its files and the SDK components it uses. Added as surfaces land.
@@ -159,3 +207,42 @@ rules at the end of `ui-sdk.css`.
     `ui-toolbar` and `ui-toggle-group`, as it already excluded `.tk-seg`.
 - **Kind legend** (`kind-legend.js`): a `ui-toggle-group` (not `multiple`: one family can be lit at a time, as before)
   of `ui-toggle` around the existing entry buttons. Space or Enter presses, arrows move focus, Escape still lets go.
+
+### Menus and popovers (`ux/menus`)
+
+Shared: `popups.js`, `popups.css` (see § Popups). Components: Menu, Popover.
+
+- **Card ⋯ and right-click** (`workspace-board.js` `tileMenu`, `runTileMenu`): one `ui-menu#workspace-tile-menu` at the
+  end of `<body>`. ⋯ opens it under the button (right edges aligned), right-click at the pointer (selecting the card
+  first, as before), Shift+F10 / context-menu key on a focused card under its ⋯; ↓/↑ on a focused ⋯ open at the first /
+  last item. A second right-click re-anchors (on another card it becomes that card's menu). Items keep
+  `data-tile-menu`; Handoff is a link item. Wheel, a scroll that moves the card, or a resize closes it, as before (the
+  SDK says nothing about scrolling). The legacy canvas's `.legacy-tile-menu` (`canvas.js`) is not converted.
+- **Add and the board context menu** (`addMenuItems`, `addMenuElement`, `addMenu`, `runAdd`): `#workspace-add-menu`
+  with the Add button as its trigger; `#board-context-menu`, the same items, opened by a right-click on empty canvas
+  (an object lands at the pointer), by Shift+F10 on the focused canvas (centre), and beside the edit tools' More. Two
+  elements so a right-click never marks Add expanded. Items keep `data-add`.
+- **Arrange** (`arrangeMenu`): `#arrange-menu`, opened from the selection bar or the drawn-object bar. A menu is a
+  vertical list, so the old 6-column icon grid became Align and Distribute groups whose items carry their names
+  (typeahead: "d" finds Distribute). Disabled choices stay focusable.
+- **Zoom** (`board.html` `#zoom-popover`, `canvas.js`): a Popover (it holds a slider and the Pattern segmented
+  control), outside the pill. Focus goes to the first control, ↑/↓ still step through its buttons, Tab walks through and
+  out (closing it), Escape returns to %, an outside press closes it and reaches its target (Popover is non-modal).
+  The reader's % menu (`#reader-zoom-menu`) is not converted.
+- **Comments** (`comment-pins.js` `mountMenus`, `renderMenu`, `openCluster`): `#comment-layer-menu` (trigger: the
+  Comments button) with checkbox items Show comments (⇧C) and Show resolved, which stay open as they toggle, then the
+  threads waiting on you; `#comment-cluster-menu` beside a cluster pin (flips when there is no room). "Nothing right
+  now" is a disabled item.
+- **Reader More…** (`canvas.js` `setReaderMoreOpen`, `readerAct`): `#reader-more` inside the reader dialog, above the
+  button, flipping down when there is no room. Inspector buttons and menu items run through one `readerAct()`.
+- **Reader path** (`reader-path.js`, `board.html` `#reader-path-menu`): a **Menu**, not a Popover or Hover Card: each row
+  is a place to go (a list of actions, like a Finder path menu); a Hover Card needs a link trigger and never opens on
+  touch; a Popover is for fields. Its two triggers are the title and the count. The SDK has no hover-open menu, so the
+  old hover delay is gone: it opens on a press. "… n more" unfolds in place (`close-on-select="false"`).
+- **Whiteboard More** (`whiteboard.js` `mountMenu`, `openMenu`, `runMenu`): `#whiteboard-menu` under the bar's More,
+  anchored to whichever More button the bar currently has. Custom colour is an item that opens the system colour
+  picker (an off-screen `input[type=color]` beside the bar); the rest keep `data-whiteboard-action` for tests but run
+  through the menu's `action` event.
+- **Home Appearance** (`appearance.js`): a menu of two radio groups, Mode and Background; radio items stay open; the
+  Background items are disabled (focusable, inert, titled) while the page is dark. The Inspectors keep their
+  segmented rows.

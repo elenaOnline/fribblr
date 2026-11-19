@@ -181,11 +181,14 @@ export class CommentPins {
     const ids = button.dataset.commentCluster.split(' '), threads = ids.map(id => this.threads.find(t => t.id === id)).filter(Boolean);
     const {root, content} = this.clusterMenu;
     content.setAttribute('aria-label', `${threads.length} comments here`);
-    content.innerHTML = menuGroup(`${threads.length} comments here`, threads.map(t => this.threadItem(t, `${commentApi.isAgent(t) ? 'Agent' : t.author?.label || 'Someone'} · ${STATUS_LABEL[this.status(t)]}`, (t.body || t.excerpt || '').slice(0, 70))).join(''));
+    content.innerHTML = menuGroup(`${threads.length} comments here`, threads.map(t => this.threadItem(t, `${commentApi.isAgent(t) ? 'Agent' : t.author?.label || 'Someone'} · ${STATUS_LABEL[this.status(t)]}`, (t.body || t.excerpt || '').slice(0, 70), 'data-comment-pick')).join(''));
+    // Clear of the bottom bar, as before: keep the list that far from every window edge (the SDK takes one padding).
+    const pill = document.querySelector('.canvas-footer .zoom-pill')?.getBoundingClientRect();
+    content.setAttribute('collision-padding', String(Math.max(8, Math.round(pill ? innerHeight - pill.top + 8 : 8))));
     openMenu(root, {anchor: button, event, payload: button.dataset.commentCluster, returnTo: `[data-comment-cluster="${CSS.escape(button.dataset.commentCluster)}"]`});
   }
-  threadItem(t, head, text) {
-    return `<ui-menu-item class="tk-mi comment-waiting" value="${esc(t.id)}" data-status="${this.status(t)}" label="${esc(`${head} ${text}`)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${esc(head)}</b>${esc(text)}</span></ui-menu-item>`;
+  threadItem(t, head, text, attr = 'data-comment-waiting') {
+    return `<ui-menu-item class="tk-mi comment-waiting" value="${esc(t.id)}" ${attr}="${esc(t.id)}" data-status="${this.status(t)}" label="${esc(`${head} ${text}`)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${esc(head)}</b>${esc(text)}</span></ui-menu-item>`;
   }
   setVisible(visible) {
     this.visible = visible;try { localStorage.setItem(this.key, visible ? 'shown' : 'hidden'); } catch {}

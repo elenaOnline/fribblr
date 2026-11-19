@@ -34,13 +34,14 @@ try{
   await page.goto(base+'/');await page.locator('.board-card').first().waitFor();
   assert.equal(await html('data-ground'),'desk');
   const trigger=page.getByRole('button',{name:'Appearance',exact:true});
-  const ground=page.getByRole('radiogroup',{name:'Background',exact:true});
+  // Home's Appearance is a menu (UI SDK Menu): two radio groups of menuitemradio items.
+  const ground=page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Background',exact:true});
   assert.equal(await ground.isVisible(),false,'The Background choice is not on screen until the menu opens');
   await trigger.focus();await page.keyboard.press('Enter');
   await ground.waitFor();assert.equal(await trigger.getAttribute('aria-expanded'),'true');
-  assert.deepEqual(await ground.getByRole('radio').allTextContents(),['Blue','White']);
-  assert.equal(await ground.getByRole('radio',{name:'Blue'}).getAttribute('aria-checked'),'true');
-  await ground.getByRole('radio',{name:'White'}).focus();await page.keyboard.press('Space');
+  assert.deepEqual((await ground.getByRole('menuitemradio').allTextContents()).map(t=>t.trim()),['Blue','White']);
+  assert.equal(await ground.getByRole('menuitemradio',{name:'Blue'}).getAttribute('aria-checked'),'true');
+  await ground.getByRole('menuitemradio',{name:'White'}).focus();await page.keyboard.press('Space');
   assert.equal(await html('data-ground'),'white');assert.equal(await stored(),'white');
   assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(255, 255, 255)','White is a flat white ground');
   await page.keyboard.press('Escape');assert.equal(await ground.isVisible(),false);
@@ -87,10 +88,10 @@ try{
   // 390 wide: the menu is one button in the masthead and opens inside the screen.
   await page.setViewportSize({width:390,height:844});await page.goto(base+'/');await page.locator('.board-card').first().waitFor();
   await trigger.click();await ground.waitFor();
-  const box=await page.locator('.appearance-pop').boundingBox();
+  const box=await page.locator('.appearance-menu-content').boundingBox();
   assert.ok(box.x>=0&&box.x+box.width<=390,`Menu fits the screen: ${box.x}..${box.x+box.width}`);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No sideways scroll');
-  await ground.getByRole('radio',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
+  await ground.getByRole('menuitemradio',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
   await page.mouse.click(200,600);assert.equal(await ground.isVisible(),false,'Click-away closes the menu');
 
   assert.deepEqual(errors,[]);

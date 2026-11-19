@@ -3065,8 +3065,8 @@ export class WorkspaceBoard {
       if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
       // The focused board map owns its arrows, Escape and +/−.
       if (e.target.closest?.(".board-map-stage")) return;
-      // A focused UI SDK widget (menu, toolbar, radio group …) owns its own keys.
-      if (widgetOwnsKey(e)) return;
+      // An open UI SDK menu or popover owns every key, Escape included.
+      if (inPopup(e)) return;
       if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
       // Shift+F10 or the context-menu key opens the context menu of what has focus: a card's (under its ⋯), or the
       // board's (at the canvas centre). macOS browsers fire no contextmenu event for these keys.
@@ -3085,6 +3085,9 @@ export class WorkspaceBoard {
         if (this.activeDecoration) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); e.preventDefault(); return; }
         if (this.selection.size) { this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault(); return; }
       }
+      // A focused UI SDK widget (toolbar, radio group, listbox …) owns its other keys. Escape is handled above first:
+      // the item Inspector is role=dialog, and its Escape must still close it.
+      if (widgetOwnsKey(e)) return;
       if (e.target.closest("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]")) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const delta = { ArrowLeft: [-1,0], ArrowRight: [1,0], ArrowUp: [0,-1], ArrowDown: [0,1] }[e.key];
