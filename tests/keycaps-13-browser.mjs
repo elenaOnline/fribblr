@@ -148,15 +148,11 @@ try {
   await bump();
   await onBoard();await page.keyboard.press('Shift+Digit2');await settle(700);assert.equal(await zoomText(),bySelectionRow,'Fit selection by its key');
   keyed.push('fit selection');
-  // The board map's own Fit buttons print the same keys.
+  // The board map's Fit buttons print no cap: their labels are rewritten by script (fit-map-browser reads them) and
+  // the map head is small; the zoom menu rows above carry the same keys.
   await page.locator('#board-map-toggle').click().catch(()=>{});await settle(400);
   if(!await page.locator('#board-map').isVisible()){await onBoard();await page.keyboard.press('m');await settle(400);}
-  const mapBoard=page.locator('#board-map [data-map-fit="board"]'),mapSel=page.locator('#board-map [data-map-fit="selection"]');
-  assert.equal(await cap(mapBoard),shiftDigit('1'));assert.equal(await cap(mapSel),shiftDigit('2'));
-  await page.screenshot({path:path.join(evidence,'board-map-head.png')});
-  await bump();await mapBoard.click();await settle(700);const mapFit=await zoomText();
-  await bump();await onBoard();await page.keyboard.press('Shift+Digit1');await settle(700);assert.equal(await zoomText(),mapFit,'the map\'s Fit board and its key fit alike');
-  keyed.push('map fit board');
+  assert.equal(await page.locator('#board-map .board-map-head kbd').count(),0,'map head prints no cap');
   // Copy notes as Markdown (Inspector, Feedback).
   await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor({state:'visible'});
   const copyNotes=page.locator('#board-info button',{hasText:'Copy notes as Markdown'});

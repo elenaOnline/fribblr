@@ -177,7 +177,8 @@ try {
 
   // Dark theme: same ring and circle in the dark blue mark.
   await page.setViewportSize({width:1440,height:1000});await page.evaluate(()=>scrollTo(0,0));
-  await page.getByRole('combobox',{name:'Appearance'}).selectOption('system');
+  // Home's Appearance is a menu (fribblr): open it, choose System, close it.
+  {const menu=page.getByRole('button',{name:'Appearance',exact:true});await menu.click();await page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name:'System',exact:true}).click();await page.keyboard.press('Escape');}
   await page.emulateMedia({colorScheme:'dark'});
   await card('Delta').locator('h3').click({modifiers:['Shift']});await card('Gamma').locator('h3').click({modifiers:['Shift']});
   await page.mouse.move(1400,980);await page.waitForTimeout(250);
