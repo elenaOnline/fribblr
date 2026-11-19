@@ -19,8 +19,11 @@ export function reconcileChildren(parent, fresh) {
       if (before.nodeType === Node.ELEMENT_NODE) {
         // An in-progress decoration edit owns its text and selection until blur.
         if (!before.isContentEditable) {
-          // A rendered cover frame keeps its activated source and ready state.
-          const keep = name => name === "data-cover-ready" ||
+          // A rendered cover frame keeps its activated source and ready state. An element a UI SDK part has bound
+          // (it carries data-slot our markup didn't write) keeps the attributes the part manages: role, tabindex,
+          // aria-selected and the like (ui-sdk.md, "Collections").
+          const sdkOwned = before.hasAttribute("data-slot") && !after.hasAttribute("data-slot");
+          const keep = name => sdkOwned || name === "data-cover-ready" ||
             (name === "src" && before.tagName === "IFRAME" && before.dataset.miniSrc && before.dataset.miniSrc === after.dataset.miniSrc);
           for (const attr of [...before.attributes])
             if (!after.hasAttribute(attr.name) && !keep(attr.name)) before.removeAttribute(attr.name);
