@@ -4,7 +4,7 @@
 // you") and "Send to agent", which marks open threads sent and copies a prompt.
 // Thread cards (reading, replying, new threads) live in comment-thread.js.
 import {pointAnchorAt, resolveCommentPoint, alongAnchorAt} from './feedback-geometry.js';
-import {toast, escape as esc} from './workspace.js';
+import {toast, dismissToast, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {token} from './tokens.js';
 
@@ -230,7 +230,7 @@ export class CommentPins {
     this.armed = on;this.viewport?.classList.toggle('comment-armed', on);
     document.querySelector('[data-edit-tool="comment"]')?.setAttribute('aria-pressed', String(on));
     if (!on) this.hover(null);
-    else toast('Click the board, a card or a drawn element to comment. Escape cancels.');
+    else this.armHint = toast('Click the board, a card or a drawn element to comment. Escape cancels.');
   }
   target(e) {
     const card = e.target.closest?.('#world .workspace-card[data-placement]'), drawn = e.target.closest?.('#world [data-decoration]');
@@ -308,7 +308,7 @@ export class CommentPins {
     const hit = this.target(e), anchor = this.anchorFor(e.clientX, e.clientY, hit);
     this.arm(false);
     // The arming hint has done its job once the composer opens.
-    const hint = document.getElementById('workspace-toast');if (hint && /^Click the board, a card/.test(hint.textContent)) hint.hidden = true;
+    if (this.armHint) { dismissToast(this.armHint);this.armHint = null; }
     const rect = {left:e.clientX, top:e.clientY, right:e.clientX, bottom:e.clientY, width:0, height:0};
     const cards = await threadCards();
     try {

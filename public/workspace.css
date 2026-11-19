@@ -391,22 +391,64 @@
   color: var(--ink-2);
   padding: 35px;
 }
-.workspace-toast {
+/* Toasts: a UI SDK toast region sits where the status node used to (bottom centre); each toast is an ink float. */
+.workspace-toasts {
   position: fixed;
   bottom: 25px;
   left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 24px);
-  width: max-content;
+  translate: -50% 0;
+  width: min(420px, calc(100vw - 24px));
+  height: var(--toast-front-height, 0px);
   z-index: 100;
-  padding: 13px 20px;
+  pointer-events: none;
+}
+.workspace-toasts[data-expanded] {
+  height: calc(var(--toast-stack-height, 0px) + (var(--toast-count, 1) - 1) * 8px);
+}
+.workspace-toast {
+  --y: calc(var(--toast-index) * -10px);
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: calc(100 - var(--toast-index));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--toast-height);
+  padding: 13px 8px 13px 20px;
+  overflow: hidden;
   background: var(--ink);
   color: var(--surface-paper);
   border-radius: var(--shape-key);
   box-shadow: var(--cast-float);
   font:
     12px/1.5 var(--type-sans);
+  pointer-events: auto;
+  user-select: none;
+  translate: var(--toast-swipe-x, 0px) calc(var(--y) + var(--toast-swipe-y, 0px));
+  scale: calc(1 - var(--toast-index) * 0.04);
+  transition: translate .3s ease, scale .3s ease, opacity .3s ease, height .3s ease;
 }
+.workspace-toast:not([data-front], [data-expanded]) { height: var(--toast-front-height); }
+.workspace-toast[data-expanded] { --y: calc(-1 * (var(--toast-offset) + var(--toast-index) * 8px)); scale: 1; }
+.workspace-toast[data-starting-style] { transition: none; }
+.workspace-toast[data-starting-style][data-front] { --y: 100%; }
+.workspace-toast:is([data-starting-style]:not([data-front]), [data-ending-style]) { opacity: 0; }
+.workspace-toast[data-swiping] { transition: none; }
+@media (prefers-reduced-motion: reduce) { .workspace-toast { transition-property: opacity; } }
+.workspace-toast ui-toast-title { flex: 1; min-width: 0; display: block; text-align: start; }
+.workspace-toast-action, .workspace-toast-close {
+  flex: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: 600 12px/1 var(--type-sans);
+}
+.workspace-toast-action { min-height: 28px; padding: 0 10px; border-radius: var(--shape-key); background: rgb(from var(--surface-paper) r g b / .16); }
+.workspace-toast-close { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: var(--shape-key); background: transparent; opacity: .75; }
+.workspace-toast-close:hover { opacity: 1; background: rgb(from var(--surface-paper) r g b / .16); }
+.workspace-toast :is(.workspace-toast-action, .workspace-toast-close):focus-visible { outline: 2px solid var(--surface-paper); outline-offset: 1px; }
 .workspace-dialog {
   width: min(620px, calc(100vw - 28px));
   max-height: calc(100dvh - 30px);

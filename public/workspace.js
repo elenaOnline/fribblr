@@ -1,5 +1,6 @@
 import {writesReady} from './update-hold.js';
 import {bindForm,restoreFocus,commitShortcutLabel,setCommitHint} from './interaction.js';
+import {toast, dismissToast} from './toasts.js';
 // Small shared primitives for graph workspaces; the legacy board stays independent.
 export const escape = (value) =>
   String(value ?? "").replace(
@@ -127,22 +128,7 @@ export class WorkspaceClient {
     }
   }
 }
-export function toast(message) {
-  let node = document.getElementById("workspace-toast");
-  if (!node) {
-    node = document.createElement("div");
-    node.id = "workspace-toast";
-    node.className = "workspace-toast";
-    node.setAttribute("role", "status");
-    document.body.append(node);
-  }
-  node.textContent = message;
-  node.hidden = false;
-  clearTimeout(node.timer);
-  node.timer = setTimeout(() => {
-    node.hidden = true;
-  }, 6000);
-}
+export { toast, dismissToast };
 export function showFailure(error) {
   const d = makeDialog(
     "Change not saved",
