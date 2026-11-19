@@ -2297,7 +2297,9 @@ export class WorkspaceBoard {
       e.preventDefault(); e.stopImmediatePropagation();
       this.whiteboard?.clearSelection({finishEdit:true,focus:false});
       this.mixedGroup = false;
+      const fromBar = !!e.target.closest?.("#workspace-selection");
       this.selection.clear(); this.build(this.hooks.concepts());
+      if (fromBar) this.focusBoardAfterBar();
     }, true);
     window.addEventListener("pointerdown", e => {
       this.heldGroup = this.mixedGroup && e.target.closest?.("#world .workspace-card.selected") ? this.decorationSelection : null;
@@ -3127,6 +3129,18 @@ export class WorkspaceBoard {
       if (next.matches(".workspace-card")) for (const el of next.querySelectorAll('button[tabindex="-1"]:not(.workspace-preview-launch),a[tabindex="-1"]')) el.removeAttribute("tabindex");
     }
   }
+  // Escape in the selection bar clears the selection and the bar goes. The bar is hidden now, so focus is still inside it
+  // or already on <body>: it goes to the board's roving item (the one focused last); with none yet (selected with ⌘A or
+  // the pointer, never Tabbed to a card) the first card takes it, and a board with no cards gets the canvas.
+  focusBoardAfterBar() {
+    const back = () => {
+      this.ensureFocusStop(null);
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected && !active.closest("#workspace-selection")) return;
+      (this.rovingElement(this.focusStop) || $("viewport"))?.focus({preventScroll:true});
+    };
+    back(); requestAnimationFrame(back);
+  }
   // Before a rebuild: where the focused item was, in case the rebuild removes it.
   focusLostBox() {
     const el = this.rovingElement(this.focusStop);
@@ -3370,10 +3384,7 @@ export class WorkspaceBoard {
           // item (the one focused last) rather than falling to <body>.
           const fromBar = !!e.target.closest?.("#workspace-selection");
           this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault();
-          if (fromBar) {
-            const back = () => { this.ensureFocusStop(null); const stop = this.rovingElement(this.focusStop); if (stop && (document.activeElement === document.body || !document.activeElement?.isConnected)) stop.focus({preventScroll:true}); };
-            back(); requestAnimationFrame(back);
-          }
+          if (fromBar) this.focusBoardAfterBar();
           return;
         }
       }
