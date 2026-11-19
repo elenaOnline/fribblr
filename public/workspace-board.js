@@ -1491,7 +1491,7 @@ export class WorkspaceBoard {
       el.querySelectorAll("[data-bulk]").forEach((b) => (b.onclick = () => this.bulk(b.dataset.bulk)));
       el.querySelector("[data-arrange-open]").onclick = event => this.arrangeMenu(event.currentTarget, event);
       openOnArrowDown(el, "[data-arrange-open]", (event, button) => this.arrangeMenu(button, event));
-      el.querySelector("[data-selection-details]").onclick = () => { const id = [...this.selection][0]; if (id) this.itemControls(id, "notes"); };
+      el.querySelector("[data-selection-details]").onclick = () => { const id = [...this.selection][0]; if (id) this.itemControls(id, "notes", {returnTo:"#workspace-selection [data-selection-details]"}); };
       el.querySelector("[data-edit-document]").onclick = () => { const doc = this.selectedDocument(); if (doc) this.editDocument(doc.id); };
     }
     el.hidden = !this.selection.size;
@@ -1728,10 +1728,11 @@ export class WorkspaceBoard {
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
   editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes", {returnToCard = false} = {}) {
+  itemControls(id, focus = "notes", {returnToCard = false, returnTo = ""} = {}) {
     if (this.contextPlacement === id) { this.closeContext(); return; }
     this.closeContext();
     this.contextReturnToCard = returnToCard;
+    this.contextReturnTo = returnTo;
     const p = this.snapshot.placements.find(p => p.id === id);
     const item = this.snapshot.items[p?.itemId];
     if (!item) return;
@@ -1917,9 +1918,12 @@ export class WorkspaceBoard {
     document.querySelectorAll(".workspace-card.inspected").forEach(card => card.classList.remove("inspected"));
     const buttons = document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`);
     buttons.forEach(b => b.setAttribute("aria-expanded", "false"));
-    // Back to what opened it: the card when it came from the card's menu, else the ⋯.
-    const card = this.contextReturnToCard && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
-    if (focus) (card || buttons[0])?.focus({ preventScroll: true });
+    // Back to what opened it: the selection bar's Details button (if the bar still shows it), the card when it came from
+    // the card's menu or the bar is gone, else the ⋯.
+    const opener = this.contextReturnTo && document.querySelector(this.contextReturnTo);
+    const barButton = opener && !opener.closest("[hidden]") && opener.getClientRects().length ? opener : null;
+    const card = (this.contextReturnToCard || this.contextReturnTo) && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
+    if (focus) (barButton || card || buttons[0])?.focus({ preventScroll: true });
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
