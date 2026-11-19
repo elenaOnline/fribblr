@@ -152,3 +152,43 @@ export function openOnArrowDown(toolbar, selector, open) {
     open(event, button);
   }, true);
 }
+
+// ---- Tab out of a popup that lives at the end of <body> ----
+// A non-modal popover or dialog is part of the page's Tab order right after its trigger (popover.md: "Tab from the last
+// element moves focus to the element after the trigger"; Shift+Tab from the first returns to the trigger; with a
+// popover, focus leaving closes it). Our content sits at the end of <body>, so the browser's next stop after its last
+// control is nothing. Here the Tab is steered by hand: forward from the last control, the popup (a popover) closes
+// and focus goes to the trigger, so the browser's own Tab continues from there; backward from the first, focus goes
+// to the trigger. Needs a trigger the page can find: `ui-popover-trigger[for]`, or a button with aria-controls.
+const TABBABLE = 'a[href],button,input,select,textarea,summary,[tabindex],[contenteditable=""],[contenteditable="true"]';
+function tabbablesIn(content) {
+  return [...content.querySelectorAll(TABBABLE)].filter(element => {
+    if (element.disabled || element.hidden || element.closest('[hidden],[inert]')) return false;
+    if (element.tabIndex < 0) return false;
+    const box = element.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== 'hidden';
+  });
+}
+function triggerOf(content) {
+  const root = content.parentElement;
+  const found = (content.id && document.querySelector(`[aria-controls="${CSS.escape(content.id)}"]`))
+    || (root?.id && document.querySelector(`ui-popover-trigger[for="${CSS.escape(root.id)}"] button, ui-dialog-trigger[for="${CSS.escape(root.id)}"] button`));
+  return found instanceof HTMLElement && !content.contains(found) ? found : null;
+}
+if (typeof document !== 'undefined') document.addEventListener('keydown', event => {
+  if (event.key !== 'Tab' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+  const target = event.target instanceof Element ? event.target : null;
+  const content = target?.closest('ui-popover-content[data-open],ui-dialog-content[data-open]:not([aria-modal="true"])');
+  if (!content || content.parentElement?.parentElement !== document.body && content.parentElement !== document.body) return;
+  if (content.getAttribute('aria-modal') === 'true' || content.parentElement?.getAttribute('modal') === 'true' || content.parentElement?.getAttribute('modal') === 'trap-focus') return;
+  const trigger = triggerOf(content);
+  if (!trigger) return;
+  const stops = tabbablesIn(content);
+  if (!stops.length) return;
+  const first = stops[0], last = stops[stops.length - 1];
+  if (event.shiftKey ? (target === first || first.contains(target)) : (target === last || last.contains(target))) {
+    if (event.shiftKey) event.preventDefault();
+    else if (content.matches('ui-popover-content')) content.parentElement.api?.close?.();
+    trigger.focus({preventScroll: true});
+  }
+}, true);
