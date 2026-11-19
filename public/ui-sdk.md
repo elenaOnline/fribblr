@@ -104,6 +104,34 @@ Every menu and popover follows one pattern, in `popups.js` (helpers) and `popups
 - **Hazard for every stream:** SDK parts carry a `data-open` state attribute. The app's `[data-open]` (open this item)
   selectors must exclude SDK parts: `[data-open]:not([data-slot])` (fixed in `canvas.js`).
 
+## Restyle cost: keep whole-board restyles rare and cheap
+
+Pan, zoom and drag on a dense board (`showcase-dense`, ~3,000 elements in `#viewport`) are bound by style recalc.
+Two things keep it cheap; re-check both on an SDK upgrade or a canvas change (probes: `team/ux/perf/`).
+
+- **The SDK's default-display rules (workaround for `@ui-sdk/web` 0.1.0-beta.10).** For every element defined with a
+  default display, the SDK writes `:where(TAG:not([hidden]), TAG[hidden="until-found"]) { display: contents }` into
+  `<style id="ui-sdk-web-N">` (about 70 rules on a board page). What it does: the wrappers (triggers, toolbar parts,
+  `fr-*` collection parts) take no box unless hidden; `hidden="until-found"` keeps them findable. Chrome can't bucket
+  a two-argument `:where()` by its tag, so all of them were tried against every element on every recalc: each
+  whole-board restyle cost ~30% more (wheel event 11 → 15–19 ms). Bisected rule by rule in a headless page; the other
+  injected rules (`[data-slot][hidden]`, popover reset, `[as-child]`, `[align]`, and `[data-mirror]` with its
+  `:dir(rtl)` flip) cost nothing measurable. `ui-sdk.js` (`watchSdkStyles`) rewrites each to
+  `:where(TAG):where(:not([hidden]), [hidden="until-found"])`: the same match at the same specificity (0), with the
+  tag bucketable. A `MutationObserver` on `<head>` re-applies it whenever the SDK regenerates the sheet (each newly
+  defined element). The vendored files stay unmodified. Not covered: the same rules adopted into shadow roots (we
+  have none with SDK parts). On an upgrade, check whether `Zr()` in `web/chunks/C59yJGP2.js` (or its successor) still
+  writes that shape; if it changed, the regex no longer matches and the cost may be back.
+- **The `[data-mirror]` rule** (`:where([data-mirror][aria-hidden]:dir(rtl)) { scale: -1 1 }`) flips directional icons
+  in right-to-left text. fribblr is left-to-right only; it was not the cost and is left alone.
+- **Pan writes only non-inherited properties on `#viewport`.** `canvas.js` registers `--pattern-x` / `--pattern-y`
+  (`CSS.registerProperty`, `inherits: false`): only `#viewport`'s own background reads them, so a pan frame restyles
+  `#viewport` alone (0.1 ms) instead of every element under it (11 ms). This predates the SDK work and is a fix
+  upstream Tinka could take. Any property written on `#viewport` per frame must either be registered non-inherited
+  or not be written per frame; `--canvas-zoom` and `--chrome-scale` are read by cards and change only on zoom.
+- **No per-frame view animation on input paths.** Keyboard reveal moves in one step (above); a glide that calls
+  `applyView` every frame is only for app-chosen moves (Fit, round steps).
+
 ## Surfaces
 
 Each surface lists its files and the SDK components it uses. Added as surfaces land.
@@ -282,8 +310,10 @@ on wheel, pointer pan, drag or marquee, and no observer was added. A later overh
   not focus moves (they still pan, as before); the hover toolbar (`role=toolbar`) owns its own arrows.
 - **Arrows move focus, not things.** Plain arrows (Shift too) on a focused card or drawn element move focus to the
   nearest item that way: `nearestInDirection` on board units from the board's data (no layout read; Grid layout uses
-  screen boxes), so zoom never matters and Left is always screen-left. The view glides just enough to bring it in,
-  clear of the floating footer (`revealBox`, the SDK's `focus-in` reveal). Home / End go to the first card / the last
+  screen boxes), so zoom never matters and Left is always screen-left. The view pans just enough to bring it in, in
+  one step, clear of the floating footer (`revealBox`, the SDK's `focus-in` reveal, which is a `panBy` with no
+  animation). It was a 240 ms glide; each glide frame restyled the board and arrows dropped frames on the dense
+  board, and a glide trails behind a held arrow. See "Restyle cost" below. Home / End go to the first card / the last
   item (cards in reading order, then drawn elements; drawn elements come first in the DOM only for stacking). A held
   arrow keeps moving. Connector arrows are items too, so moving between two joined cards can land on the arrow
   between them first (what `spatialMove` does with every item in the group).
