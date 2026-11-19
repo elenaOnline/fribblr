@@ -63,7 +63,7 @@ function viewBox(board, form) {
 // First clear spot for a block of jots (up to MAX_COLS across, as many as fit the view, 2 rows): scan the view nearest its
 // centre, then fall back to just right of (or below) everything on the board.
 function findAnchor(board, panel) {
-  const rects = occupied(board), v = viewBox(board, form);
+  const rects = occupied(board), v = viewBox(board, panel);
   const COLS = Math.max(1, Math.min(MAX_COLS, Math.floor((v.right - v.x + GAP) / (JOT_W + GAP))));
   const blockW = COLS * JOT_W + (COLS - 1) * GAP, blockH = 2 * JOT_H + GAP;
   const cx = (v.x + v.right) / 2, cy = (v.y + v.bottom) / 2, spots = [];

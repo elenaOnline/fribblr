@@ -120,7 +120,10 @@ try{
     await palette.locator('[data-edit-tool=document]').click();
     await page.locator('.workspace-card.doc-editing').waitFor({timeout:6000});
     await page.keyboard.press('Escape');await page.locator('.workspace-card.doc-editing').waitFor({state:'detached'});
-    await palette.locator('[data-edit-tool=jot]').click();await page.locator('.quick-jot input').waitFor();await page.keyboard.press('Escape');
+    await palette.locator('[data-edit-tool=jot]').click();await page.locator('.quick-jot input').waitFor();
+    await page.keyboard.type('Jotted from the bar');await page.keyboard.press('Enter');
+    await page.locator('#world :is(.workspace-card,.workspace-decoration)',{hasText:'Jotted from the bar'}).first().waitFor({timeout:6000});
+    await page.keyboard.press('Escape');
     await palette.locator('[data-edit-tool=more]').click();await page.locator('#board-context-menu .workspace-add-menu').waitFor();await page.keyboard.press('Escape');
     await page.reload();await page.locator('#edit-tools').waitFor({state:'visible',timeout:8000});
     await page.locator('#edit-tools-toggle').click();await page.reload();await page.waitForSelector('#edit-tools-toggle');await page.waitForTimeout(500);
