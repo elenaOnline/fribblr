@@ -143,7 +143,9 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
   (`canvas.js` click handler, `board-document.js`); a bare `closest('[data-open]')` treats any click inside a popup as
   "open that experiment".
 - **Gotcha: open-dialog checks.** Code that asked `document.querySelector('dialog[open]')` now also asks
-  `ui-dialog-content[data-open],ui-alert-dialog-content[data-open]`.
+  `ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]`. The `aria-modal` part matters:
+  the Navigator and Quick jot are non-modal `ui-dialog-content`, and must not pause the board (the SDK writes
+  `aria-modal="true"` only on modal dialogs).
 
 ### Home: the board grid and its selection
 
