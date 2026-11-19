@@ -37,7 +37,7 @@ try{
  for(const motion of ['no-preference','reduce']){
   const context=await browser.newContext({viewport:{width:1280,height:860},reducedMotion:motion,colorScheme:'light'});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+'/boards/options/');await page.locator(`[data-placement="${ids['07']}"]`).waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
   // The parent tile shows its number.
   for(const n of ['07','08','09'])assert.equal(await page.locator(`[data-placement="${ids[n]}"] .workspace-concept-number`).textContent(),n);
   await page.locator('#zoom-menu-toggle').click();await page.locator('[data-zoom-to="1"]').click();

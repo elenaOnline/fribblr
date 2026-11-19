@@ -89,6 +89,6 @@ dialog.update-dialog .update-alt button { flex: none; }
 .update-about h3 { margin: 0; display: flex; justify-content: space-between; gap: 8px; font: 400 var(--type-meta)/1.3 var(--type-sans); color: var(--ink-2); }
 .update-about-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-2); font: var(--type-ui)/1.4 var(--type-sans); }
 .update-about-row b { color: var(--ink); font-weight: 600; }
-.update-about .tk-seg > button { height: 26px; font-size: 11px; }
+.update-about .tk-seg > :is(button, ui-segmented-control-item) { height: 26px; font-size: 11px; }
 .update-about small { color: var(--ink-2); font-size: var(--type-meta); line-height: 1.4; }
 .update-about small:empty { display: none; }

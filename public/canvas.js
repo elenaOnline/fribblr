@@ -20,6 +20,8 @@ import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
+import {followVisibility} from './ui-toolbar.js';
+import { segmentedHTML, setSegmented } from './ui-segmented.js';
 
 const $ = id => document.getElementById(id);
 mountAppearance($('board-info'));
@@ -639,7 +641,8 @@ function renderSizeControls() {
   const size = readerView.size;
   const customText = `${Math.round(viewer.offsetWidth)} × ${Math.round(viewer.offsetHeight)}`;
   const variant = currentVariant();
-  sizeMenu.querySelectorAll('[data-size]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.size === size)));
+  setSegmented(sizeMenu.querySelector('.reader-sizes'), SIZE_NAMES[size] && size !== 'custom' ? size : null);
+  sizeMenu.querySelector('[data-size="custom"]').setAttribute('aria-pressed', String(size === 'custom'));
   sizeMenu.querySelector('[data-size="custom"]').hidden = size !== 'custom';
   $('custom-size').textContent = customText;
   $('reader-zoom-toggle').title = `Zoom and view · Window: ${SIZE_NAMES[size]}${size === 'custom' ? ` ${customText}` : ''}${variant ? ` · Version: ${variant.name}` : ''}`;
@@ -660,7 +663,7 @@ function setReaderSize(size) {
 
 function setTheme(theme, send = true) {
   readerView.theme = theme === 'night' ? 'night' : 'paper';
-  document.querySelectorAll('[data-reader-light]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.readerLight === readerView.theme)));
+  document.querySelectorAll('.reader-light').forEach(seg => setSegmented(seg, readerView.theme));
   if (send) sendPreferences();
 }
 
@@ -1019,7 +1022,7 @@ function renderReaderInfo() {
       ${voted ? `<button type="button" class="tk-btn reader-feedback-row" data-reader-act="vote" aria-haspopup="dialog"><span>Votes</span><small>Yes ${totals.yes} · No ${totals.no} · Abstain ${totals.abstain}</small></button>` : ''}
       <p class="reader-feedback-note">Favorite ☆ and Notes are in the header.</p></section>`;
   }
-  const versionSection = versions.length ? `<section class="inspector-sec" aria-labelledby="reader-version-heading"><h3 id="reader-version-heading">Version</h3><div class="tk-seg reader-version-seg" role="group" aria-label="Version">${[{ id: 'original', name: 'Original' }, ...versions].map(v => `<button type="button" data-revision-choice="${esc(v.id)}" aria-pressed="${v.id === activeVariantId}">${esc(v.name)}</button>`).join('')}</div></section>` : '';
+  const versionSection = versions.length ? `<section class="inspector-sec" aria-labelledby="reader-version-heading"><h3 id="reader-version-heading">Version</h3>${segmentedHTML({ label: 'Version', className: 'reader-version-seg', value: activeVariantId, items: [{ id: 'original', name: 'Original' }, ...versions].map(v => ({ value: v.id, label: v.name, attrs: { 'data-revision-choice': v.id } })) })}</section>` : '';
 
   // Organize: its own board, then one More menu.
   const path = graph?.boardPath?.() || [];
@@ -1135,7 +1138,7 @@ function readerEditable(target) {
 // Tinka (not the content, a panel or a menu) has focus.
 function readerTinkaFocus(target) {
   if (!target?.closest || !dialog.contains(target) || target === $('active-reader')) return false;
-  return !target.closest('#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg');
+  return !target.closest('#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
 function readerBlocked() { return !dialog.open || !!document.querySelector('dialog.workspace-dialog[open]'); }
 function runReaderCommand(command, { fromFrame = false } = {}) {
@@ -1701,7 +1704,8 @@ document.addEventListener('keydown', event => {
   if (graph?.context) { graph.closeContext(true); return; }
   setInfoOpen($('board-info').hidden, { focus: true });
 }, true);
-// The floating view pill: − · percent menu · + · Fit.
+// The floating view pill: − · percent menu · + · Fit. Both pills are ui-toolbars.
+for (const pill of document.querySelectorAll('.zoom-pill')) followVisibility(pill);
 function setZoomMenuOpen(open, { focus = false } = {}) {
   $('zoom-menu').hidden = !open;
   $('zoom-menu-toggle').setAttribute('aria-expanded', String(open));
@@ -1731,10 +1735,15 @@ $('zoom-menu').addEventListener('keydown', event => {
   event.preventDefault();
   items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
 });
-document.addEventListener('click', event => {
-  const pattern = event.target.closest('[data-canvas-pattern]');
-  if (pattern) setCanvasPattern(pattern.dataset.canvasPattern);
-});
+// Segmented controls (ui-segmented.js): valuechange does not bubble, but it does pass through the capture phase.
+document.addEventListener('valuechange', event => {
+  const seg = event.target, value = event.detail?.value;
+  if (!seg?.classList || value == null) return;
+  if (seg.classList.contains('canvas-pattern')) setCanvasPattern(value);
+  else if (seg.classList.contains('reader-sizes')) setReaderSize(value);
+  else if (seg.classList.contains('reader-light')) setTheme(value);
+  else if (seg.classList.contains('reader-version-seg') && active) { setReaderMenuOpen(false); openReader(active.key, value, { focus: 'keep' }); if (!readerInfo.hidden) renderReaderInfo(); }
+}, true);
 // ---- Board map: a toggle in the zoom controls (M). It opens by itself on large
 // boards at desktop widths, and remembers this browser's open/closed choice per board.
 let boardMap = null, mapDecided = false, mapWanted = false;
@@ -1946,7 +1955,7 @@ function setCanvasPattern(pattern, { save = true } = {}) {
   if (!PATTERNS.includes(pattern)) return;
   canvasPattern = pattern;
   viewport.dataset.canvasPattern = pattern;
-  document.querySelectorAll('[data-canvas-pattern]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.canvasPattern === pattern)));
+  document.querySelectorAll('.canvas-pattern').forEach(seg => setSegmented(seg, pattern));
   if (save) try { if (patternKey()) localStorage.setItem(patternKey(), pattern); } catch {}
   syncViewChrome();
 }
@@ -1996,14 +2005,12 @@ $('reader-fit').onclick = () => readerCanvas.fit();
 $('reader-view-back').onclick = () => readerCanvas.back();
 $('reader-zoom-menu').addEventListener('click', event => {
   const zoomChoice = event.target.closest('[data-reader-zoom]');
-  const size = event.target.closest('[data-size]');
-  const light = event.target.closest('[data-reader-light]');
+  const size = event.target.closest('[data-size="custom"]');
   if (zoomChoice) {
     setReaderMenuOpen(false, { focus: true });
     if (zoomChoice.dataset.readerZoom === 'fit') readerCanvas.fit(); else readerCanvas.zoomTo(Number(zoomChoice.dataset.readerZoom));
   }
   if (size) setReaderSize(size.dataset.size);
-  if (light) setTheme(light.dataset.readerLight);
 });
 $('reader-zoom-menu').addEventListener('keydown', event => {
   if (!['ArrowDown', 'ArrowUp'].includes(event.key) || document.activeElement?.type === 'range') return;
@@ -2016,7 +2023,7 @@ $('reader-zoom-menu').addEventListener('keydown', event => {
 // A version can be chosen from the % menu or the Inspector.
 dialog.addEventListener('click', event => {
   const choice = event.target.closest('[data-revision-choice]');
-  if (choice && active) { setReaderMenuOpen(false); openReader(active.key, choice.dataset.revisionChoice, { focus: 'keep' }); if (!readerInfo.hidden) renderReaderInfo(); }
+  if (choice && active && !choice.closest('ui-segmented-control')) { setReaderMenuOpen(false); openReader(active.key, choice.dataset.revisionChoice, { focus: 'keep' }); if (!readerInfo.hidden) renderReaderInfo(); }
 });
 dialog.addEventListener('cancel', event => { event.preventDefault(); });
 // A native close (not through closeReader) still returns to the board. The close event arrives

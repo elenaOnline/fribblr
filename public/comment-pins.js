@@ -71,7 +71,7 @@ export class CommentPins {
     const pill = document.querySelector('.canvas-footer .zoom-pill');
     if (pill && !document.getElementById('comment-layer-toggle')) {
       const group = document.createElement('span');group.className = 'comment-bar';
-      group.innerHTML = `<button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-haspopup="menu" aria-expanded="false" aria-label="Comments" title="Comments (⇧C)">${ICON.comment}<span class="comment-count" hidden></span></button><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" title="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button><span class="tk-divider" aria-hidden="true"></span>`;
+      group.innerHTML = `<ui-toolbar-button><button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-haspopup="menu" aria-expanded="false" aria-label="Comments" title="Comments (⇧C)">${ICON.comment}<span class="comment-count" hidden></span></button></ui-toolbar-button><ui-toolbar-button><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" title="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button></ui-toolbar-button><span class="tk-divider" aria-hidden="true"></span>`;
       pill.prepend(group);
       group.querySelector('#comment-layer-toggle').onclick = e => { e.stopPropagation();this.menu ? this.closeMenu() : this.openMenu(); };
       group.querySelector('#comment-send').onclick = () => this.sendToAgent();
