@@ -7,7 +7,7 @@ import {pointAnchorAt, resolveCommentPoint, alongAnchorAt} from './feedback-geom
 import {toast, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {token} from './tokens.js';
-import {sharedMenu, openMenu, menuCheckbox, menuGroup, menuItem, inPopup} from './popups.js';
+import {sharedMenu, openMenu, menuCheckbox, menuGroup, menuItem, inPopup, openOnArrowDown} from './popups.js';
 
 // ---- API adapter (comment API, Tinka 1.1). Field and operation names live only here.
 export const commentApi = {
@@ -340,6 +340,8 @@ export class CommentPins {
     }, true);
     layer.root.addEventListener('action', e => this.reveal(e.detail.value));
     this.layerMenu = layer;
+    // The Comments button is an item of the view pill's ui-toolbar: ArrowDown opens its menu at the first item.
+    openOnArrowDown(document.querySelector('.canvas-footer .zoom-pill'), '#comment-layer-toggle', () => { if (!layer.root.open) layer.root.api.open({focus:'first'}); });
     const cluster = this.clusterMenu = sharedMenu({id:'comment-cluster-menu', className:'comment-menu comment-cluster-menu'});
     cluster.content.setAttribute('side', 'right');
     cluster.content.setAttribute('align', 'center');

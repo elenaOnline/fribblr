@@ -135,3 +135,16 @@ export function inPopup(event) {
   const target = event?.target instanceof Element ? event.target : document.activeElement;
   return !!target?.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])');
 }
+
+// A menu or popover trigger inside a horizontal ui-toolbar opens on ArrowDown (the toolbar norm: arrows along the bar
+// move between items, Down opens a menu button; toolbar.md). `open(event)` opens it with focus on the first item.
+// Delegated on the toolbar, which survives its buttons being re-rendered; `selector` names the trigger buttons.
+export function openOnArrowDown(toolbar, selector, open) {
+  toolbar?.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    const button = event.target.closest?.(selector);
+    if (!button || !toolbar.contains(button) || button.disabled) return;
+    event.preventDefault(); event.stopPropagation();
+    open(event, button);
+  }, true);
+}

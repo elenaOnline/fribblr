@@ -6,7 +6,7 @@ import {snapBox, snapDisabled} from './snap-guides.js';
 import {followVisibility} from './ui-toolbar.js';
 import {isMacPlatform} from './reader-keys.js';
 import {token} from './tokens.js';
-import {sharedMenu, openMenu, menuItem, inPopup} from './popups.js';
+import {sharedMenu, openMenu, menuItem, inPopup, openOnArrowDown} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -140,6 +140,11 @@ export class Whiteboard {
     this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.hint);
     followVisibility(this.toolbar);
     this.mountMenu();
+    // More and Arrange are menu buttons in the bar's ui-toolbar: ArrowDown opens them at their first item.
+    openOnArrowDown(this.toolbar,'[data-whiteboard-action="more"],[data-whiteboard-action="arrange"]',(event,button)=>{
+      if(button.dataset.whiteboardAction==='more'){if(!this.menuOpen)this.openMenu(event);}
+      else this.host.arrangeMenu?.(button,event);
+    });
     document.addEventListener('pointerdown',e=>this.down(e),true);
     document.addEventListener('pointermove',e=>this.move(e),true);
     document.addEventListener('pointerup',e=>this.up(e),true);

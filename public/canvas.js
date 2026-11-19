@@ -20,7 +20,7 @@ import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
-import {inPopup, sharedMenu, openMenu, menuItem, menuSeparator} from './popups.js';
+import {inPopup, sharedMenu, openMenu, menuItem, menuSeparator, openOnArrowDown} from './popups.js';
 import {widgetOwnsKey} from './ui-sdk.js';
 import {followVisibility} from './ui-toolbar.js';
 import { segmentedHTML, setSegmented } from './ui-segmented.js';
@@ -1718,6 +1718,8 @@ zoomPopover.addEventListener('openchange', event => {
 function setZoomMenuOpen(open) {
   if (open) zoomPopover.api.open(); else if (zoomPopover.open) zoomPopover.api.close();
 }
+// The % button is an item of the pill's ui-toolbar: ArrowDown opens its popover, as a toolbar's menu button does.
+openOnArrowDown(document.querySelector('.canvas-footer .zoom-pill'), '#zoom-menu-toggle', () => { if (!zoomPopover.open) setZoomMenuOpen(true); });
 $('zoom-minus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom / 1.25); };
 $('zoom-plus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * 1.25); };
 $('zoom-menu').addEventListener('click', event => {
