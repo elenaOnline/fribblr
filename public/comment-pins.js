@@ -156,7 +156,14 @@ export class CommentPins {
       near ? near.push(entry) : groups.push([entry]);
     }
     const html = groups.map(group => group.length === 1 ? this.pinMarkup(group[0].t, group[0].p, origin) : this.clusterMarkup(group, origin, zoom)).join('');
-    if (this.layer.innerHTML !== html) this.layer.innerHTML = html;
+    if (this.layer.innerHTML !== html) {
+      // The pins are rebuilt as a string: a pin that has focus (Escape from its card sends focus here) gets it back on
+      // its new copy in the same turn, so focus never falls to <body> between renders.
+      const had = this.layer.contains(document.activeElement) ? document.activeElement.closest('[data-comment-pin],[data-comment-cluster]') : null;
+      const key = had && (had.dataset.commentPin ? 'data-comment-pin' : 'data-comment-cluster'), value = had && (had.dataset.commentPin ?? had.dataset.commentCluster);
+      this.layer.innerHTML = html;
+      if (had) [...this.layer.querySelectorAll(`[${key}]`)].find(el => el.getAttribute(key) === value)?.focus({preventScroll:true});
+    }
   }
   pinMarkup(t, p, origin) {
     const status = this.status(t), agent = commentApi.isAgent(t);
