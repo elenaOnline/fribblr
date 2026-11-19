@@ -7,3 +7,11 @@
 @font-face { font-family: "IBM Plex Serif"; src: url("/app/fonts/IBMPlexSerif-Italic.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
 @font-face { font-family: "IBM Plex Mono"; src: url("/app/fonts/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "IBM Plex Mono"; src: url("/app/fonts/IBMPlexMono-Medium.woff2") format("woff2"); font-weight: 500 700; font-style: normal; font-display: swap; }
+/* Board text: the same Plex, set to take the room the fonts boards were authored in take (Georgia for serif, the system
+   face for sans; measured on running text), so a Text block with a fixed height holds what it held in upstream Tinka.
+   Only authored board text uses these (tokens.css --type-board-*); chrome and cards keep Plex at its own size. */
+@font-face { font-family: "Plex Serif Board"; src: url("/app/fonts/IBMPlexSerif-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; size-adjust: 94%; }
+@font-face { font-family: "Plex Serif Board"; src: url("/app/fonts/IBMPlexSerif-Medium.woff2") format("woff2"); font-weight: 500 700; font-style: normal; font-display: swap; size-adjust: 94%; }
+@font-face { font-family: "Plex Serif Board"; src: url("/app/fonts/IBMPlexSerif-Italic.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; size-adjust: 94%; }
+@font-face { font-family: "Plex Sans Board"; src: url("/app/fonts/IBMPlexSans-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; size-adjust: 96.7%; }
+@font-face { font-family: "Plex Sans Board"; src: url("/app/fonts/IBMPlexSans-Medium.woff2") format("woff2"); font-weight: 500 700; font-style: normal; font-display: swap; size-adjust: 96.7%; }

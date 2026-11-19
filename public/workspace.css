@@ -1214,7 +1214,8 @@ html[data-theme="night"] .item-representation p {
 .workspace-add-menu hr { border: 0; border-top: 1px solid var(--line-hair); margin: 5px 7px; }
 .workspace-board .workspace-decoration { pointer-events: auto; cursor: move; outline: none; }
 .workspace-decoration .workspace-decoration-label { display: block; min-height: 32px; width: 100%; padding: 10px 12px; overflow-wrap: anywhere; }
-.workspace-decoration.selected { outline: 1px dashed var(--ink-2); outline-offset: 3px; }
+/* a selected drawing takes the one selection mark: the blue line, drawn just clear of it (a drawing has no side to enclose) */
+.workspace-decoration.selected { outline: var(--select-line, 2px) solid var(--select-color, var(--mark-blue)); outline-offset: max(var(--select-gap), var(--px, 1px)); }
 .workspace-decoration .workspace-decoration-label[contenteditable] { cursor: text; outline: 1px solid var(--mark-blue); background: color-mix(in srgb, var(--surface-paper) 63%, transparent); }
 .workspace-board .decoration-text { color: var(--decoration-color); }
 /* dark: an authored text colour is lifted toward the ink, so dark-on-dark stays readable */
@@ -1319,7 +1320,7 @@ body.navigator-docked .edit-tools { left:calc((100vw + var(--navigator-dock-widt
 .board-art:has(.board-collage)>.art-label { display:none; }
 
 .workspace-clipboard-actions { display: flex; flex-wrap: wrap; gap: 5px; flex-basis: 100%; }
-.workspace-document-preview { width: 100%; height: 100%; overflow: hidden; padding: 22px 24px; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; color: var(--ink); background: var(--surface-paper); font: 14px/1.65 var(--type-serif); }
+.workspace-document-preview { width: 100%; height: 100%; overflow: hidden; padding: 22px 24px; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; color: var(--ink); background: var(--surface-paper); font: 14px/1.65 var(--type-board-serif); }   /* her note's own words: sized to fit as upstream (fonts.css) */
 
 .workspace-import-drop { position: fixed; z-index: 150; pointer-events: none; border: 3px solid var(--mark-blue); box-sizing: border-box; background: color-mix(in srgb, var(--mark-blue) 12%, transparent); display: grid; place-content: center; padding: 32px; text-align: center; color: var(--ink); font: 600 17px/1.5 var(--type-sans); box-shadow: inset 0 0 0 5px color-mix(in srgb, var(--surface-paper) 67%, transparent); }
 .workspace-import-drop[hidden] { display: none; }

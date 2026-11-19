@@ -18,7 +18,7 @@ body { font-family: var(--type-sans); }
 :is(#canvas-header, #reader-header) .brand:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
 :is(#canvas-header, #reader-header) .brand:hover span { text-decoration: none; }
 :is(#canvas-header, #reader-header) .brand-mark { width: 22px; height: 22px; flex: 0 0 22px; }
-:is(#canvas-header, #reader-header) .workspace-parent { display: inline-flex; align-items: center; height: 30px; padding: 0 8px; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); text-decoration: none; white-space: nowrap; flex: none; border: 0; background: transparent; }
+:is(#canvas-header, #reader-header) .workspace-parent { display: inline-flex; align-items: center; height: 30px; padding: 0 8px; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); text-decoration: none; white-space: pre;   /* pre: the space in "← Parent" survives the flex box */ flex: none; border: 0; background: transparent; }
 :is(#canvas-header, #reader-header) .workspace-parent:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
 :is(#canvas-header, #reader-header) .workspace-parent::after { content: ''; width: 1px; height: 16px; margin-left: 10px; background: var(--line-seam); }
 :is(#canvas-header, #reader-header) .board-name {
@@ -442,7 +442,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 7
   body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 62px; }
 }
 @media (max-width: 720px) { body .canvas-footer .status-line > :not(#live-refresh) { display: none; } body .canvas-footer .status-line { flex: none; padding: 0 3px; background: transparent; box-shadow: none; overflow: visible; } body .canvas-footer { justify-content: space-between; gap: 8px; } body .canvas-footer .status-line:not(:has(#live-refresh:not([hidden]))) + .zoom-pill { margin-left: auto; } }
-@media (max-width: 420px) { body :is(.canvas-footer, .reader-footer) .zoom-pill .fit .fit-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } body :is(.canvas-footer, .reader-footer) .zoom-pill .fit { width: 44px; padding: 0; } body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 56px; padding: 0 4px; } }
+@media (max-width: 420px) { body :is(.canvas-footer, .reader-footer) .zoom-pill .fit .fit-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } body :is(.canvas-footer, .reader-footer) .zoom-pill .fit { width: 44px; padding: 0; } body :is(.canvas-footer, .reader-footer) .zoom-pill .fit:has(.fit-count:not([hidden])) { width: auto; padding: 0 6px; } .fit .fit-count { margin-left: 2px; } body :is(.canvas-footer, .reader-footer) .zoom-pill .zoom-percent { min-width: 56px; padding: 0 4px; } }
 @media (max-width: 720px) { body .canvas-footer #live-refresh .refresh-detail { display: none; } }
 
 /* Reader chrome joins the same family: toggles on show the green wash. */
@@ -460,7 +460,12 @@ body.navigator-docked .canvas-footer { left: var(--navigator-dock-width); }
   body:has(#workspace-item-controls, #board-info:not([hidden])) #workspace-selection.workspace-selection { left: calc((100vw - 376px) / 2); bottom: 72px; max-width: calc(100vw - 400px); }
 }
 /* Region labels stay readable over any authored board background. A container's title is written on its tray's floor. */
-#world .workspace-decoration.whiteboard-container > .workspace-decoration-label { padding: 0 var(--container-padding); font: 400 13px/24px var(--type-sans); }
+/* It names the tray, so it sits at the tray's top-left (not just above the first member, however deep the padding), in ink
+   at a size that still reads with the board fitted. The layout keeps a 28 px band for it below the padding (container-flow.js). */
+#world .workspace-decoration.decoration-region.whiteboard-container > .workspace-decoration-label {
+  margin-top: min(var(--container-padding), 8px); padding: 0 clamp(10px, var(--container-padding), 16px);
+  color: var(--decoration-ink, var(--ink)); font: 500 17px/24px var(--type-sans);
+}
 #world .workspace-decoration.decoration-region:not(.whiteboard-shape, .whiteboard-container) > .workspace-decoration-label { display: inline-block; width: auto; max-width: calc(100% - 20px); min-height: 0; margin: 10px; padding: 5px 10px; border-radius: var(--shape-key); background: color-mix(in srgb, var(--surface-paper) 82%, transparent); }
 /* With the floating Navigator open, the bottom islands stay clear of it too. */
 @media (min-width: 721px) {

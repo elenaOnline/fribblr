@@ -57,7 +57,7 @@
   /* ---------- surface ---------- */
   --surface-paper: #FFFFFF;     /* the top face of every slab, key and field; documents */
   --surface-frame: #F2F2F2;     /* header bar, inspector, menus, dialogs, the thread card, bars over the board */
-  --surface-chosen: #D3DFE5;    /* a chosen row, a key that is on: frame + 13 % blue */
+  --surface-chosen: color-mix(in srgb, var(--mark-blue) 13%, var(--surface-frame));   /* a chosen row, a key that is on: #D3DFE5 */
 
   /* ---------- line ---------- */
   --line-hair: #E0E0E0;         /* rules inside a surface */
@@ -132,6 +132,10 @@
   --type-serif: "IBM Plex Serif", Georgia, serif;                       /* names: boards, titles, documents */
   --type-sans: "IBM Plex Sans", -apple-system, system-ui, sans-serif;   /* controls and card titles */
   --type-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;         /* numbers: counts, shortcuts, zoom, times */
+  /* authored board text (Text blocks): the same faces, sized to the room upstream's Georgia and system faces take (fonts.css);
+     Plex Mono already matches the system mono */
+  --type-board-serif: "Plex Serif Board", var(--type-serif);
+  --type-board-sans: "Plex Sans Board", var(--type-sans);
   --type-ui: 13.5px;            /* controls, menu rows, card titles */
   --type-meta: 12px;
   --type-board: 21px;           /* the board's name in the bar */
@@ -219,7 +223,7 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 :where(.tk-btn.tk-primary:hover) { background-color: var(--mark-blue-deep); }
 .tk-btn.tk-primary, .tk-btn.tk-primary:hover { color: var(--ink-on-mark); }
 /* the primary key's inputs for the raised height (depth.css): a blue face on a deep blue side */
-.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-side); color: var(--ink-on-mark); }
+.tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-side); --key-face-on: var(--mark-blue-deep); --key-side-on: var(--mark-blue-side); --key-rim-on: var(--mark-blue-side); color: var(--ink-on-mark); }
 .tk-btn.tk-danger { color: var(--ink); }  /* danger has no colour: red is her voice */
 .tk-btn svg, .tk-glyph { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 /* a printed shortcut is a tiny raised key (depth.css) */
