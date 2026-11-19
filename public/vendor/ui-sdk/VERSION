@@ -1,0 +1,8 @@
+@ui-sdk/web 0.1.0-beta.10
+Published to npm 2026-11-18. Licence: Apache-2.0 (LICENSE). No NOTICE file ships in the package.
+Source: https://github.com/vercel-labs/ui (packages/web). Tarball sha1 911909ebf182cf4c68760a54dc33636e33562f2f
+Contents copied unmodified from the tarball:
+  browser/web.js, browser/web.css, browser/web/ -> web.js, web.css, web/   (browser ESM build, relative imports only)
+  docs/ -> docs/                                                         (Markdown docs; start at docs/llms.txt)
+  custom-elements.json                                                   (Custom Elements Manifest: element/attr/event API)
+  LICENSE
