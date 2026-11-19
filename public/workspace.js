@@ -268,7 +268,7 @@ export async function destinationDialog(
       !byItem.get(b.ownerItemId)?.deletedAt,
   );
   const isMove = kind === "move";
-  makeDialog(
+  const dialog = makeDialog(
     isMove ? "Move to a board" : "Add a reference",
     `<p>${isMove ? "Replace the selected placements with placements in the destination." : "Keep these placements and add references to the same items in the destination."} Content, stars and notes stay with each item.</p><label>Destination<select name="target"><option value="new">＋ Create a new board</option>${boards.map((b) => `<option value="${escape(b.id)}">${escape(b.title)}</option>`).join("")}${itemIds ? '<option value="home">Home</option>' : ""}</select></label><label data-new-title>New board title<input name="title" maxlength="1000" placeholder="A new series"></label><p class="workspace-scope">A reference shares the item. A duplicate makes a separate item.</p><button class="workspace-primary" type="submit">${isMove ? "Move items" : "Add references"}</button>`,
     async (f) => {
@@ -292,7 +292,6 @@ export async function destinationDialog(
       );
     },
   );
-  const dialog = document.querySelector("dialog.workspace-dialog:last-of-type");
   dialog.querySelector("[name=target]").onchange = (e) =>
     (dialog.querySelector("[data-new-title]").hidden =
       e.target.value !== "new");
