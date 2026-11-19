@@ -146,7 +146,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 :where(
 [data-height="raised"], .ct-avatar, .comment-pin, .tk-kbd, #world .workspace-select-dot,
 .whiteboard-toolbar .whiteboard-bar-button[aria-pressed="true"]:not([data-whiteboard-action="color"]),
-:where(.workspace-toolbar button:not(.tk-seg > button, .workspace-segments > button), .workspace-dialog button:not(.workspace-close), .workspace-button, .item-content button,
+:where(.workspace-toolbar button:not(.tk-seg > button, .workspace-segments > button), .workspace-dialog button:not(.workspace-close, .workspace-item-sections > button), .workspace-button, .item-content button,
   .workspace-preview-launch span, .workspace-appearance-buttons button, .board-info #workspace-add),
 .masthead .tk-btn, body > main .tk-btn, .shelf .workspace-home-toolbar button,
 .empty-card .plus, #new-dialog .primary, .document-tools :is(button, select), .document-annotations button,
@@ -173,7 +173,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 }
 
 /* the chosen segment of a segmented choice: a raised cell standing in its sunken track, not an "on" key */
-.tk-seg > button[aria-pressed="true"], .workspace-segments button[aria-pressed="true"] {
+.tk-seg > button[aria-pressed="true"], .workspace-segments button[aria-pressed="true"], .workspace-item-sections > button[aria-pressed="true"] {
   background-color: var(--surface-paper);
   box-shadow: inset 0 -1.5px 0 var(--key-side), inset 0 0 0 1px var(--line-seam);
 }
@@ -186,7 +186,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 .tk-field, .tk-seg, #new-dialog :is(input, textarea), :is(#canvas-header, #reader-header) .chrome-search,
 .ct-composer, .tile-notes textarea, #workspace-item-controls textarea, #board-info .workspace-search input,
 .feedback-composer textarea, .agent-dialog textarea, #reader-note, .note-box textarea, .whiteboard-color input,
-:where(.workspace-segments, .workspace-search input, .workspace-dialog :is(input:not([type="checkbox"]), textarea, select),
+:where(.workspace-segments, .workspace-item-sections, .workspace-search input, .workspace-dialog :is(input:not([type="checkbox"], [type="radio"]), textarea, select),
   .workspace-review textarea, .workspace-context-note textarea, .workspace-panel-feedback textarea, .item-content textarea)
 ) {
   --sink-d: var(--depth-sunk);

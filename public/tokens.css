@@ -253,14 +253,32 @@ body.navigator-docked > main { margin-left: var(--navigator-dock-width, 340px); 
   *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
 
-/* ---------- decoration palette: colours a person picks for content on the whiteboard (whiteboard.js) ----------
-   Not roles: they do not change with the ground or the appearance, because a chosen colour is stored on the board as
-   its value (a #hex in the board's file) and must read the same wherever the board is opened. The values are the
-   ones boards already store, so existing stickies, shapes, regions, text and arrows keep matching their swatch. */
+/* ---------- decoration palette: the colours Tinka 1.2's whiteboard offered (stored on boards as their #hex) ----------
+   theme: todo — unused since Tinka 1.3: the whiteboard now stores palette ids (palette:gold ...) from drawing-palette.js
+   and resolves them per appearance in theme-colors.js; boards that stored these #hex values still render them as custom
+   colours. Kept until the drawing palette is designed onto roles; then delete. */
 :root {
   --deco-yellow: #f6e6a4;  --deco-pink: #f4c9d0;  --deco-green: #d3e8c6;  --deco-blue: #cfe0f1;  --deco-orange: #f7d3a8;  --deco-purple: #ddd1ef;   /* sticky and shape fills */
   --deco-sage: #e0e8da;    --deco-mist: #dfe7ed;  --deco-area-sage: #e1e8d5;                                                                         /* shape and area fills */
   --deco-ink-green: #6c8060;  --deco-ink-grey: #7d8590;  --deco-ink-blue: #4a78b0;  --deco-ink-red: #c0564b;  --deco-ink-amber: #d08a2e;  --deco-ink-purple: #8a63b3;   /* arrows */
   --deco-text-green: #7a8a68;                                                                                                                      /* text's own green */
   --deco-default: #78866c;                                                                                                                         /* a decoration saved with no valid colour */
+}
+
+/* ---------- Tinka 1.3 names, for upstream's 1.3 stylesheets not yet translated (theme: todo) ----------
+   emoji-picker.css, preset-scrub.css and text-format-controls.css (loaded by script, after this file) still read
+   upstream's older token names, which this theme does not define. They map onto roles here, only inside those
+   components, so the new controls work in the theme's colours until each file is translated by job; then its selector
+   leaves this list, and the block goes when the list is empty. */
+:is([class*="emoji-picker"], .workspace-sticker-picker, [class*="preset-scrub"], [class*="text-format"], .text-size-controls,
+  .whiteboard-text-appearance, .drawing-color-dot) {
+  --line: var(--line-seam); --line-strong: var(--line-edge);
+  --muted: var(--ink-2); --ink-3: var(--ink-2);
+  --soft: color-mix(in srgb, var(--ink) 6%, transparent);
+  --accent: var(--mark-blue); --green: var(--mark-blue); --accent-ring: var(--mark-blue);
+  --accent-soft: var(--surface-chosen); --accent-text: var(--ink);
+  --surface-1: var(--surface-paper); --paper: var(--surface-paper); --field: var(--surface-paper);
+  --font-ui: var(--type-sans); --font-mono: var(--type-mono);
+  --r-sm: var(--shape-cell); --r-md: var(--shape-key);
+  --t-sm: var(--type-meta); --t-md: 13px;
 }
