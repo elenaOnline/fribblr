@@ -1480,13 +1480,14 @@ export class WorkspaceBoard {
       const part = html => `<ui-toolbar-button>${html}</ui-toolbar-button>`;
       const bulk = (name, label, extra = "") => part(`<button type="button" class="tk-btn tk-sm ${extra}" data-bulk="${name}">${label}</button>`);
       el.innerHTML = `<strong role="status"></strong>`
-        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="menu" title="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
-        + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" title="Edit document (E)" hidden>Edit document</button>`)
-        + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" title="Item details (⌘I)" hidden>Details…</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="menu" data-tip="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" data-tip="Edit this document in place" hidden>Edit document</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" data-tip="Item details" hidden>Details…</button>`)
         + bulk("feature", "Show on parent…") + bulk("move", "Move…") + bulk("reference", "Add reference…", "selection-wide") + bulk("group", "New board around selection…")
         + bulk("archive", "Archive here", "selection-wide") + bulk("remove", "Remove from board…", "tk-danger")
         + `<span class="tk-divider" aria-hidden="true"></span>`
-        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" title="Clear selection (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`);
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" aria-keyshortcuts="Escape" data-tip="Clear selection"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`);
+      tips(el);
       el.querySelectorAll("[data-bulk]").forEach((b) => (b.onclick = () => this.bulk(b.dataset.bulk)));
       el.querySelector("[data-arrange-open]").onclick = event => this.arrangeMenu(event.currentTarget, event);
       openOnArrowDown(el, "[data-arrange-open]", (event, button) => this.arrangeMenu(button, event));
@@ -2853,9 +2854,9 @@ export class WorkspaceBoard {
     palette.className = "edit-tools";
     palette.setAttribute("aria-label", "Edit tools");
     palette.setAttribute("orientation", "vertical");
-    palette.innerHTML = [["text","Text · T","T"],["sticky","Sticky note · S","S"],["document","Document · D","D"],["jot","Quick jot · N","N"],["comment","Comment · C","C"]]
-      .map(([tool,label,key]) => `${tool === "comment" ? '<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator>' : ""}<ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" title="${label}" aria-keyshortcuts="${key}"${tool === "comment" ? ' aria-pressed="false"' : ""}>${tool === "comment" ? COMMENT_ICON : EDIT_TOOL_ICONS[tool]}</button></ui-toolbar-button>`).join("") +
-      `<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator><ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="more" aria-label="More to add" title="More to add…" aria-haspopup="menu">${EDIT_TOOL_ICONS.more}</button></ui-toolbar-button>`;
+    palette.innerHTML = [["text","Text","T"],["sticky","Sticky note","S"],["document","Document","D"],["jot","Quick jot","N"],["comment","Comment","C"]]
+      .map(([tool,label,key]) => `${tool === "comment" ? '<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator>' : ""}<ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" data-tip="${label}" aria-keyshortcuts="${key}"${tool === "comment" ? ' aria-pressed="false"' : ""}>${tool === "comment" ? COMMENT_ICON : EDIT_TOOL_ICONS[tool]}</button></ui-toolbar-button>`).join("") +
+      `<ui-toolbar-separator class="edit-tools-divider"></ui-toolbar-separator><ui-toolbar-button><button type="button" class="tk-btn tk-icon" data-edit-tool="more" aria-label="More to add" data-tip="More to add…" aria-haspopup="menu">${EDIT_TOOL_ICONS.more}</button></ui-toolbar-button>`;
     palette.onclick = e => {
       const button = e.target.closest("[data-edit-tool]");
       if (!button || this.boardCommandBlocked()) return;
@@ -2867,6 +2868,7 @@ export class WorkspaceBoard {
       else this.createDecoration(tool);
     };
     document.body.append(palette);
+    tips(palette);
     followVisibility(palette);
     const toggle = document.createElement("button");
     toggle.id = "edit-tools-toggle";
