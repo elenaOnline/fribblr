@@ -103,6 +103,7 @@
   --select-width-min: 1.5;
   --select-gap: 3px;            /* ...drawn this far outside the slab's side */
   --slab-top-edge: 0;           /* the face's edge in its side's dark colour: 0 = left, right and front, the far edge pale; 1 = all round */
+  --slab-front-edge: 1;         /* 1 = the front (lower) edge dark too; 0 = left and right only */
   --cast-float: 0 4px 14px rgba(0, 0, 0, .16);     /* floats are held above, not standing: a soft shadow, no side */
   --cast-dialog: 0 10px 32px rgba(0, 0, 0, .2);
 

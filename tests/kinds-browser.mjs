@@ -197,6 +197,8 @@ try {
     [['page','2 pages'],['doc','1 document'],['pic','2 pictures'],['plain','4 notes'],['board','1 board']]);   // after the keycap section's document and two duplicates
   await page.screenshot({path:path.join(evidence,'kinds-home.png')});
 
+  // Box-shadow layers, in order: the far edge (a face copy shifted up), the front edge (shifted down), the dark ring
+  // under both (so the corners carry no seam), the side, its contour, the cast.
   // The slab zooms as one object: its side is a world length (10 px at every zoom from 25 % up, so a constant
   // fraction of the card on screen), floored only far out (2.5 screen px); the face's left, right and front edges are
   // drawn in its own side's dark contour colour, per family; hover closes the far edge in that colour too.
@@ -205,24 +207,25 @@ try {
     const parts=getComputedStyle(e).boxShadow.split(/,(?![^(]*\))/).map(x=>x.trim());
     const px=str=>str.match(/(-?[\d.]+)px/g).map(parseFloat);
     const probe=document.createElement('i');e.append(probe);probe.style.color=`var(--kind-${e.dataset.family}-edge)`;const edge=getComputedStyle(probe).color;probe.remove();
-    const colour=str=>str.replace(/\s*-?[\d.]+px/g,'').trim();
-    return {family:e.dataset.family,left:colour(parts[0]),right:colour(parts[1]),front:colour(parts[2]),side:px(parts[4])[1],height:e.getBoundingClientRect().height/parseFloat(getComputedStyle(document.getElementById('viewport')).getPropertyValue('--canvas-zoom')||1),edge};}));
+    const paint=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+    const colour=str=>{paint.clearRect(0,0,1,1);paint.fillStyle=str.replace(/\s*-?[\d.]+px/g,'').trim();paint.fillRect(0,0,1,1);return [...paint.getImageData(0,0,1,1).data].slice(0,3).join(',');};   // any notation (rgb, color(srgb), oklch) to r,g,b
+    return {family:e.dataset.family,front:colour(parts[1]),ring:colour(parts[2]),side:px(parts[3])[1],height:e.getBoundingClientRect().height/parseFloat(getComputedStyle(document.getElementById('viewport')).getPropertyValue('--canvas-zoom')||1),edge:colour(edge),edgeRaw:edge};}));
   const zoomTo=z=>page.evaluate(z=>{const b=document.createElement('button');b.dataset.zoomTo=String(z);b.hidden=true;document.getElementById('zoom-menu').append(b);b.click();b.remove();},z);
   for(const z of [.25,.45,.7,1,2]){
     await zoomTo(z);await page.waitForTimeout(250);
     for(const c of await slab()){
       assert.ok(Math.abs(c.side-10)<.05,`${c.family} side is 10 world px at ${z*100}% (got ${c.side})`);
-      assert.deepEqual([c.left,c.right,c.front],[c.edge,c.edge,c.edge],`${c.family}: the face's left, right and front edges are its side's dark colour`);
+      assert.deepEqual([c.ring,c.front],[c.edge,c.edge],`${c.family}: the face's ring (left and right edges) and front edge are its side's dark colour`);
     }
   }
   await zoomTo(.1);await page.waitForTimeout(250);
   for(const c of await slab())assert.ok(Math.abs(c.side*.1-2.5)<.05,`far out the side is held at 2.5 screen px (got ${c.side*.1})`);
   await zoomTo(1);await page.waitForTimeout(250);
-  const far=()=>page.locator('#world .workspace-card[data-family="page"]').first().evaluate(e=>getComputedStyle(e).boxShadow.split(/,(?![^(]*\))/)[3].trim());
+  const far=()=>page.locator('#world .workspace-card[data-family="page"]').first().evaluate(e=>getComputedStyle(e).boxShadow.split(/,(?![^(]*\))/)[0].trim());
   const farRest=await far();await page.locator('#world .workspace-card[data-family="page"]').first().hover();await page.waitForTimeout(200);
   assert.notEqual(await far(),farRest,'hover closes the far edge');
   const rgb=str=>{const m=str.match(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/);return m?m.slice(1).map(v=>Math.round(v*255)).join(','):str.match(/rgba?\((\d+), (\d+), (\d+)/).slice(1).join(',');};
-  assert.equal(rgb(await far()),rgb((await slab()).find(c=>c.family==='page').edge),'...in the side\'s dark colour');
+  assert.equal(rgb(await far()),rgb((await slab()).find(c=>c.family==='page').edgeRaw),'...in the side\'s dark colour');
 
   // Phone width and touch: no legend, no keycaps.
   await page.setViewportSize({width:390,height:844});await page.goto(base+'/boards/mixed/');await page.locator('#world .workspace-card').first().waitFor();

@@ -54,7 +54,9 @@
 /* ================= slab (2): what you can pick up =================
    A white face standing on a lower side of its kind's colour. The face's left, right and front (lower) edges are drawn
    in the side's dark contour colour, so they run on into the side's own contour like the edges of a block; its far
-   (top) edge keeps the ground's pale rim (--slab-top-edge: 1 draws the dark edge all round). The side is the face's own outline
+   (top) edge keeps the ground's pale rim. Placement is two tokens: --slab-top-edge (1 closes the far edge) and
+   --slab-front-edge (0 leaves the front edge pale: left and right only). Drawn as one dark ring under two face-sized
+   copies shifted up and down, so the corners carry no seam. The side is the face's own outline
    moved down (a box-shadow follows corner-shape), so its corner runs parallel to the face's squircle; a contour one
    step darker edges it; then a cast shadow whose length follows the height.
    Members: cards on a board, boards on Home (the same slab as a child board), the item in the reader. */
@@ -63,14 +65,15 @@
 ) {
   --rim: var(--side-edge, var(--kind-plain-edge));
   --rim-top: color-mix(in srgb, var(--rim) calc(var(--rim-close, var(--slab-top-edge)) * 100%), var(--ground-rim));
+  --rim-front: color-mix(in srgb, var(--rim) calc(max(var(--rim-close, 0), var(--slab-front-edge)) * 100%), var(--ground-rim));
   --side-d: calc(var(--side-slab) + var(--lift));
   --cast-d: calc(var(--side-d) + var(--under-d, 0px));
   border: 0;
   border-radius: var(--shape-slab);
   background-color: var(--item-paper, var(--surface-paper));
   box-shadow:
-    calc(-1 * var(--hair)) 0 0 0 var(--rim), var(--hair) 0 0 0 var(--rim), 0 var(--hair) 0 0 var(--rim),
-    0 0 0 var(--hair) var(--rim-top),
+    0 calc(-1 * var(--hair)) 0 0 var(--rim-top), 0 var(--hair) 0 0 var(--rim-front),
+    0 0 0 var(--hair) var(--rim),
     0 var(--side-d) 0 0 var(--side, var(--kind-plain-side)),
     0 calc(var(--side-d) + var(--side-edge-low)) 0 var(--hair) var(--side-edge, var(--kind-plain-edge)),
     var(--under, 0 0 #0000),
@@ -80,7 +83,8 @@
 }
 /* hover: the rim darkens */
 #world .workspace-card:hover, #world .concept-card:hover, .board-card:hover .board-link, .board-link:focus-visible,
-[data-height="slab"]:hover { --rim-close: 1; }
+[data-height="slab"]:hover,
+#world .workspace-card.workspace-dragging, #world .workspace-card[data-dragging], [data-height="slab"][data-lifted] { --rim-close: 1; }
 /* select: a blue line drawn on the ground around the whole slab, side included */
 #world .workspace-card.selected, #world .workspace-card.inspected, .board-card.workspace-home-selected .board-link,
 [data-height="slab"][aria-selected="true"] {
