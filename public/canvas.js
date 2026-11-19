@@ -21,7 +21,6 @@ import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
 import {inPopup, sharedMenu, openMenu, menuItem, menuSeparator, openOnArrowDown} from './popups.js';
-import {widgetOwnsKey} from './ui-sdk.js';
 import {followVisibility} from './ui-toolbar.js';
 import { segmentedHTML, setSegmented } from './ui-segmented.js';
 
@@ -953,7 +952,7 @@ function readerLookup(key, url) {
   return readerLookups.get(key);
 }
 let readerMoreItems = '';
-const readerMore = sharedMenu({ id: 'reader-more', label: 'More for this Tinka', className: 'reader-more-menu', host: dialog });
+const readerMore = sharedMenu({ id: 'reader-more-menu', contentId: 'reader-more', label: 'More for this Tinka', className: 'reader-more-menu', host: dialog });
 readerMore.content.setAttribute('side', 'top');
 readerMore.content.setAttribute('align', 'start');
 readerMore.content.setAttribute('side-offset', '6');
@@ -1165,7 +1164,7 @@ document.addEventListener('keydown', event => {
   }
   if (event.key === ' ' && event.target === readerStage) { event.preventDefault(); if (!event.repeat) readerCanvas.setSpacePan(true); return; }
   // A focused menu or popover keeps its arrows, letters (typeahead) and Enter.
-  if (widgetOwnsKey(event) && inPopup(event)) return;
+  if (inPopup(event)) return;
   // The Navigator keeps its own arrows and typing.
   if (event.target?.closest?.('.project-navigator') && !event.altKey && !event.ctrlKey) return;
   const command = readerCommand(event, { mac: readerKeysMac, editable: readerEditable(event.target), tinkaFocus: readerTinkaFocus(event.target) });
@@ -1622,7 +1621,7 @@ document.addEventListener('pointerdown', event => {
   const remove = event.target.closest('[data-remove-experiment]');
   if (remove && event.button === 0) { event.preventDefault(); remove.focus({ preventScroll: true }); }
   if (!$('reader-zoom-menu').hidden && !event.target.closest('.reader-footer .zoom-menu-wrap')) setReaderMenuOpen(false);
-  if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
+  if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, #reader-more-menu, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
 });
 document.addEventListener('pointerdown', event => {
   if (!$('board-info').hidden && !event.target.closest('#board-info, #board-info-toggle, .workspace-dialog, dialog[open], .workspace-add-menu, .workspace-popover, .feedback-panel')) setInfoOpen(false);

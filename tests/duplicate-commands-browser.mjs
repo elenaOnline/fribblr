@@ -183,7 +183,9 @@ try {
   await page.evaluate(()=>{const input=document.createElement('div');input.id='qa-editable';input.contentEditable='true';input.textContent='Native editable';document.body.append(input);input.focus();});
   await zero(async()=>{for(const key of ['Meta+d','Meta+a','/','Shift+1','?'])await page.keyboard.press(key);},async()=>assert.equal(await page.locator('dialog.workspace-dialog[open]').count(),0));await page.locator('#qa-editable').evaluate(el=>el.remove());
   await page.locator('#viewport').focus();await page.keyboard.press('?');await zero(()=>page.keyboard.press('Meta+d'));await page.keyboard.press('Escape');
-  await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();const menuDuplicate=await mutation(()=>page.keyboard.press('Meta+d'));await page.keyboard.press('Escape');await page.locator('#viewport').focus();await replay(false);assert.deepEqual(arrangement(await snapshot()),arrangement(menuDuplicate.before));
+  await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();
+  // An open menu owns every key (UI SDK Menu): ⌘D waits until it closes.
+  await zero(()=>page.keyboard.press('Meta+d'));await page.keyboard.press('Escape');await page.locator('#viewport').focus();
   await zero(async()=>{await page.keyboard.press('Meta+Alt+d');await page.evaluate(()=>document.getElementById('viewport').dispatchEvent(new KeyboardEvent('keydown',{key:'d',metaKey:true,isComposing:true,bubbles:true,cancelable:true})));});
   // Native selection controls retain Enter instead of opening a different card.
   await card(ids[1]).locator('[data-placement-select]').focus();await zero(()=>page.keyboard.press('Enter'),async()=>{assert.ok((await selected()).includes(ids[1]));assert.equal(await page.locator('#reader-dialog').isVisible(),false);});

@@ -16,10 +16,10 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;'
 
 // A menu with no trigger of its own, appended to `host`. Content carries .tk-menu (the float height and the menu face)
 // plus any class of the surface's own.
-export function sharedMenu({id, label = '', className = '', host = document.body}) {
+export function sharedMenu({id, label = '', className = '', host = document.body, contentId = ''}) {
   const root = document.createElement('ui-menu');
   root.id = id;
-  root.innerHTML = `<ui-menu-content class="tk-menu ${esc(className)}"${label ? ` aria-label="${esc(label)}"` : ''}></ui-menu-content>`;
+  root.innerHTML = `<ui-menu-content${contentId ? ` id="${esc(contentId)}"` : ''} class="tk-menu ${esc(className)}"${label ? ` aria-label="${esc(label)}"` : ''}></ui-menu-content>`;
   host.append(root);
   watchConsumedPresses(root);
   // Tab closes a menu and moves on from where it was opened. A menu with a trigger gets that from the SDK (it focuses
@@ -133,7 +133,11 @@ document.addEventListener('pointerdown', event => { if (consumed.has(event)) eve
 // must keep their keys in non-popup dialogs such as the Inspector.
 export function inPopup(event) {
   const target = event?.target instanceof Element ? event.target : document.activeElement;
-  return !!target?.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])');
+  if (target?.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])')) return true;
+  // The trigger of a popup that has just opened: focus moves into it a frame later, and a key pressed in that frame
+  // (Escape right after a click) still belongs to the popup, whose layer takes it.
+  const controls = target?.closest?.('[aria-expanded="true"][aria-controls]')?.getAttribute('aria-controls');
+  return !!(controls && document.getElementById(controls)?.matches('[data-slot$="-content"][data-open]'));
 }
 
 // A menu or popover trigger inside a horizontal ui-toolbar opens on ArrowDown (the toolbar norm: arrows along the bar
