@@ -1,4 +1,5 @@
 import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
+import {followVisibility} from './ui-toolbar.js';
 import {positionTilePopover,bindTileMenu} from './tile-ui.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {Whiteboard,decorationMarkup,decorationUnchanged,lineBox} from "./whiteboard.js";
@@ -330,12 +331,13 @@ export class WorkspaceBoard {
         e.stopImmediatePropagation();
       }
     }, true);
-    const selected = document.createElement("section");
+    const selected = document.createElement("ui-toolbar");
     selected.id = "workspace-selection";
     selected.className = "workspace-selection";
     selected.hidden = true;
     selected.setAttribute("aria-label", "Selected placements");
     $("canvas-header").after(selected);
+    followVisibility(selected);
     onSegmented(bar.querySelector(".workspace-segments"), (mode) => this.setMode(mode));
     $("workspace-search").oninput = (e) => {
       this.filters.search = e.target.value;
@@ -1463,32 +1465,35 @@ export class WorkspaceBoard {
       : el.clientWidth / width;
     el.style.setProperty("--preview-scale", String(scale));
   }
+  // The selection bar is one ui-toolbar built once; a selection change updates it in place (labels, which actions show),
+  // so a focused action stays focused and the toolbar keeps its place in the tab order.
   selectionMenu() {
     const el = $("workspace-selection");
+    if (!el.dataset.built) {
+      el.dataset.built = "1";
+      const part = html => `<ui-toolbar-button>${html}</ui-toolbar-button>`;
+      const bulk = (name, label, extra = "") => part(`<button type="button" class="tk-btn tk-sm ${extra}" data-bulk="${name}">${label}</button>`);
+      el.innerHTML = `<strong role="status"></strong>`
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="menu" title="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" title="Edit document (E)" hidden>Edit document</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" title="Item details (⌘I)" hidden>Details…</button>`)
+        + bulk("feature", "Show on parent…") + bulk("move", "Move…") + bulk("reference", "Add reference…", "selection-wide") + bulk("group", "New board around selection…")
+        + bulk("archive", "Archive here", "selection-wide") + bulk("remove", "Remove from board…", "tk-danger")
+        + `<span class="tk-divider" aria-hidden="true"></span>`
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" title="Clear selection (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`);
+      el.querySelectorAll("[data-bulk]").forEach((b) => (b.onclick = () => this.bulk(b.dataset.bulk)));
+      el.querySelector("[data-arrange-open]").onclick = event => this.arrangeMenu(event.currentTarget);
+      el.querySelector("[data-selection-details]").onclick = () => { const id = [...this.selection][0]; if (id) this.itemControls(id, "notes"); };
+      el.querySelector("[data-edit-document]").onclick = () => { const doc = this.selectedDocument(); if (doc) this.editDocument(doc.id); };
+    }
     el.hidden = !this.selection.size;
-    el.setAttribute("role", "toolbar");
-    el.innerHTML = `<strong role="status">${this.selectedCount()} selected</strong><button class="tk-btn tk-sm" data-bulk="feature">Show on parent…</button><button class="tk-btn tk-sm" data-bulk="move">Move…</button><button class="tk-btn tk-sm selection-wide" data-bulk="reference">Add reference…</button><button class="tk-btn tk-sm" data-bulk="group">New board around selection…</button><button class="tk-btn tk-sm selection-wide" data-bulk="archive">${this.filters.archive ? "Restore here" : "Archive here"}</button><button class="tk-btn tk-sm tk-danger" data-bulk="remove">Remove from board…</button><span class="tk-divider" aria-hidden="true"></span><button class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" title="Clear selection (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`;
-    if (this.mode === "canvas" && this.selectedCount() >= 2) {
-      const arrange = document.createElement("button");
-      arrange.type = "button"; arrange.className = "tk-btn tk-sm tk-icon"; arrange.dataset.arrangeOpen = "";
-      arrange.setAttribute("aria-label", "Arrange"); arrange.setAttribute("aria-haspopup", "menu");
-      arrange.title = "Arrange: align, distribute, tidy into a grid"; arrange.innerHTML = ARRANGE_ICON;
-      arrange.onclick = () => this.arrangeMenu(arrange);
-      el.querySelector("strong")?.after(arrange);
-    }
-    el.querySelectorAll("[data-bulk]").forEach(
-      (b) => (b.onclick = () => this.bulk(b.dataset.bulk)),
-    );
-    if (this.selection.size === 1) {
-      const id = [...this.selection][0];
-      const controls = document.createElement('button'); controls.type='button'; controls.className='tk-btn tk-sm'; controls.textContent='Details…'; controls.setAttribute('aria-label','Item details'); controls.setAttribute('aria-keyshortcuts','Meta+I Control+I'); controls.title='Item details (⌘I)';
-      controls.onclick=()=>this.itemControls(id,'notes'); el.insertBefore(controls,el.querySelector('[data-bulk]'));
-      const doc = this.selectedDocument();
-      if (doc) {
-        const edit = document.createElement('button'); edit.type='button'; edit.className='tk-btn tk-sm'; edit.dataset.editDocument=''; edit.textContent='Edit document'; edit.setAttribute('aria-keyshortcuts','E'); edit.title='Edit document (E)';
-        edit.onclick=()=>this.editDocument(doc.id); el.insertBefore(edit,controls);
-      }
-    }
+    const count = this.selectedCount();
+    el.querySelector("strong").textContent = `${count} selected`;
+    el.querySelector('[data-bulk="archive"]').textContent = this.filters.archive ? "Restore here" : "Archive here";
+    const one = this.selection.size === 1;
+    el.querySelector("[data-arrange-open]").hidden = !(this.mode === "canvas" && count >= 2);
+    el.querySelector("[data-selection-details]").hidden = !one;
+    el.querySelector("[data-edit-document]").hidden = !(one && this.selectedDocument());
     this.updateHistoryControls();
     this.emitSelection();
   }

@@ -41,7 +41,7 @@ try{
   await settle();
   const state=await bar.evaluate(el=>{
    const box=r=>({x:r.left,y:r.top,width:r.width,height:r.height});
-   const buttons=[...el.querySelectorAll('button')].map(b=>({label:b.textContent.trim()||b.getAttribute('aria-label'),box:box(b.getBoundingClientRect()),cut:b.scrollWidth>b.clientWidth+1}));
+   const buttons=[...el.querySelectorAll('button')].filter(b=>b.getClientRects().length).map(b=>({label:b.textContent.trim()||b.getAttribute('aria-label'),box:box(b.getBoundingClientRect()),cut:b.scrollWidth>b.clientWidth+1}));
    return {bar:box(el.getBoundingClientRect()),buttons,rows:new Set(buttons.map(b=>Math.round(b.box.y))).size,scrolls:el.scrollWidth>el.clientWidth+1,viewport:innerWidth,page:document.documentElement.scrollWidth};});
   const {bar:b,buttons}=state;
   ok(buttons.length>=8,`${name}: the one-item actions are all there (${buttons.map(x=>x.label).join(', ')})`);

@@ -154,7 +154,7 @@ try {
   await edit.click();await page.waitForFunction(id=>document.querySelector(`[data-placement="${id}"]`)?.classList.contains('doc-editing'),doc.placementIds[0],{timeout:10000});
   await onBoard();await page.keyboard.press('Escape');
   await page.waitForFunction(id=>!document.querySelector(`[data-placement="${id}"]`)?.classList.contains('doc-editing'),doc.placementIds[0],{timeout:10000});
-  if(!await page.locator('#workspace-selection [data-edit-document]').count())await docCard.locator('[data-placement-select]').click();
+  if(!await page.locator('#workspace-selection [data-edit-document]:visible').count())await docCard.locator('[data-placement-select]').click();
   await onBoard();await page.keyboard.press('e');
   await page.waitForFunction(id=>document.querySelector(`[data-placement="${id}"]`)?.classList.contains('doc-editing'),doc.placementIds[0],{timeout:10000});keyed.push('edit document');
   await onBoard();await page.keyboard.press('Escape');

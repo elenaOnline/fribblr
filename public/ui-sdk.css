@@ -19,3 +19,10 @@ ui-segmented-control { display: inline-flex; }
 .tk-seg > ui-segmented-control-item:hover, .tk-seg > ui-segmented-control-item[data-checked] { color: var(--ink); }
 .tk-seg > ui-segmented-control-item[data-checked] { background-color: var(--surface-paper); box-shadow: inset 0 -1.5px 0 var(--key-side), inset 0 0 0 1px var(--line-seam); }
 .tk-seg > ui-segmented-control-item[data-disabled] { cursor: default; }
+
+/* Toolbar and toggle parts that wrap one of our buttons: the button takes part in layout directly (display: contents,
+   as the SDK does for triggers). A wrapper hidden with the attribute still hides. */
+ui-toolbar-button, ui-toolbar-link, ui-toggle { display: contents; }
+:is(ui-toolbar-button, ui-toolbar-link, ui-toggle)[hidden] { display: none; }
+ui-toolbar, ui-toggle-group, ui-toolbar-group { display: flex; }
+ui-toolbar[hidden], ui-toggle-group[hidden], ui-toolbar-group[hidden] { display: none; }
