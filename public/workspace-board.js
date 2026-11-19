@@ -1,4 +1,4 @@
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,notePopupClosed} from './popups.js';
 import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tip, tips, setTip, tipOuter} from './tips.js';
@@ -1394,6 +1394,8 @@ export class WorkspaceBoard {
     // On Canvas, stickies, shapes, text, regions and arrows also make a board non-empty.
     const canvasEmpty = !cards && !(this.snapshot.decorations || []).length;
     const lostFocus = this.focusLostBox();
+    // A rebuild takes the comment layer out of the world and puts it back (syncGeometry): a pin that has focus keeps it.
+    const pinFocus = this.commentPins?.focusToken();
     this.reconcile(world, `${this.mode === "canvas" ? this.decorations() : ""}${this.mode === "grid" ? grid || '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : `<div class="workspace-cards">${canvasEmpty ? '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : cards}</div>`}`);
     // The foot's kind legend counts exactly the cards just drawn.
     (this.kindLegend ||= new KindLegend(world)).update(this.snapshot.id);
@@ -1431,6 +1433,7 @@ export class WorkspaceBoard {
     this.hooks.layout();
     this.positionContext();
     this.syncGeometry();
+    this.commentPins?.restoreFocus(pinFocus);
   }
   reconcile(parent, markup) {
     const template = document.createElement("template");
@@ -1491,7 +1494,7 @@ export class WorkspaceBoard {
       el.querySelectorAll("[data-bulk]").forEach((b) => (b.onclick = () => this.bulk(b.dataset.bulk)));
       el.querySelector("[data-arrange-open]").onclick = event => this.arrangeMenu(event.currentTarget, event);
       openOnArrowDown(el, "[data-arrange-open]", (event, button) => this.arrangeMenu(button, event));
-      el.querySelector("[data-selection-details]").onclick = () => { const id = [...this.selection][0]; if (id) this.itemControls(id, "notes"); };
+      el.querySelector("[data-selection-details]").onclick = () => { const id = [...this.selection][0]; if (id) this.itemControls(id, "notes", {returnTo:"#workspace-selection [data-selection-details]"}); };
       el.querySelector("[data-edit-document]").onclick = () => { const doc = this.selectedDocument(); if (doc) this.editDocument(doc.id); };
     }
     el.hidden = !this.selection.size;
@@ -1728,10 +1731,11 @@ export class WorkspaceBoard {
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
   editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes", {returnToCard = false} = {}) {
+  itemControls(id, focus = "notes", {returnToCard = false, returnTo = ""} = {}) {
     if (this.contextPlacement === id) { this.closeContext(); return; }
     this.closeContext();
     this.contextReturnToCard = returnToCard;
+    this.contextReturnTo = returnTo;
     const p = this.snapshot.placements.find(p => p.id === id);
     const item = this.snapshot.items[p?.itemId];
     if (!item) return;
@@ -1917,9 +1921,12 @@ export class WorkspaceBoard {
     document.querySelectorAll(".workspace-card.inspected").forEach(card => card.classList.remove("inspected"));
     const buttons = document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`);
     buttons.forEach(b => b.setAttribute("aria-expanded", "false"));
-    // Back to what opened it: the card when it came from the card's menu, else the ⋯.
-    const card = this.contextReturnToCard && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
-    if (focus) (card || buttons[0])?.focus({ preventScroll: true });
+    // Back to what opened it: the selection bar's Details button (if the bar still shows it), the card when it came from
+    // the card's menu or the bar is gone, else the ⋯.
+    const opener = this.contextReturnTo && document.querySelector(this.contextReturnTo);
+    const barButton = opener && !opener.closest("[hidden]") && opener.getClientRects().length ? opener : null;
+    const card = (this.contextReturnToCard || this.contextReturnTo) && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
+    if (focus) { notePopupClosed(); (barButton || card || buttons[0])?.focus({ preventScroll: true }); }
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
@@ -2293,7 +2300,9 @@ export class WorkspaceBoard {
       e.preventDefault(); e.stopImmediatePropagation();
       this.whiteboard?.clearSelection({finishEdit:true,focus:false});
       this.mixedGroup = false;
+      const fromBar = !!e.target.closest?.("#workspace-selection");
       this.selection.clear(); this.build(this.hooks.concepts());
+      if (fromBar) this.focusBoardAfterBar();
     }, true);
     window.addEventListener("pointerdown", e => {
       this.heldGroup = this.mixedGroup && e.target.closest?.("#world .workspace-card.selected") ? this.decorationSelection : null;
@@ -3123,6 +3132,18 @@ export class WorkspaceBoard {
       if (next.matches(".workspace-card")) for (const el of next.querySelectorAll('button[tabindex="-1"]:not(.workspace-preview-launch),a[tabindex="-1"]')) el.removeAttribute("tabindex");
     }
   }
+  // Escape in the selection bar clears the selection and the bar goes. The bar is hidden now, so focus is still inside it
+  // or already on <body>: it goes to the board's roving item (the one focused last); with none yet (selected with ⌘A or
+  // the pointer, never Tabbed to a card) the first card takes it, and a board with no cards gets the canvas.
+  focusBoardAfterBar() {
+    const back = () => {
+      this.ensureFocusStop(null);
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected && !active.closest("#workspace-selection")) return;
+      (this.rovingElement(this.focusStop) || $("viewport"))?.focus({preventScroll:true});
+    };
+    back(); requestAnimationFrame(back);
+  }
   // Before a rebuild: where the focused item was, in case the rebuild removes it.
   focusLostBox() {
     const el = this.rovingElement(this.focusStop);
@@ -3366,10 +3387,7 @@ export class WorkspaceBoard {
           // item (the one focused last) rather than falling to <body>.
           const fromBar = !!e.target.closest?.("#workspace-selection");
           this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault();
-          if (fromBar) {
-            const back = () => { this.ensureFocusStop(null); const stop = this.rovingElement(this.focusStop); if (stop && (document.activeElement === document.body || !document.activeElement?.isConnected)) stop.focus({preventScroll:true}); };
-            back(); requestAnimationFrame(back);
-          }
+          if (fromBar) this.focusBoardAfterBar();
           return;
         }
       }

@@ -122,6 +122,17 @@ function watchConsumedPresses(root) {
 }
 // A menu that keeps its own trigger in place (wrapped in <ui-menu-trigger>) joins the same guard.
 export function guardMenu(root) { watchConsumedPresses(root); return root; }
+// When a popup (menu, popover) last closed. Focus then goes back to the control that opened it, and a tooltip on that
+// control must not reopen for it (tooltip.md: "Focus returning to the trigger after its popover closes doesn't reopen the
+// tooltip"): the SDK does that for its own trigger wrappers, but a popup opened from code (Arrange) has none, so tips.js
+// asks here.
+let lastPopupClose = -Infinity;
+// Code that returns focus to a control after closing something that is not an SDK popup (the Inspector) says so here.
+export const notePopupClosed = () => { lastPopupClose = performance.now(); };
+export const popupJustClosed = (within = 400) => performance.now() - lastPopupClose < within;
+if (typeof document !== 'undefined') for (const type of ['openchange', 'openchangecomplete'])
+  document.addEventListener(type, event => { if (event.detail?.value === false && !/^tooltip/.test(event.target?.dataset?.slot || event.target?.tagName?.toLowerCase().replace(/^ui-/, '') || '')) lastPopupClose = performance.now(); }, true);
+
 // True while one of the app's menus is open: board handlers that run before the SDK's (window capture) check it.
 export function menuOpen() { return !!document.querySelector('ui-menu-content[data-open]'); }
 if (typeof document !== 'undefined') document.addEventListener('pointerdown', event => { if (consumed.has(event)) event.stopImmediatePropagation(); }, true);
@@ -166,13 +177,16 @@ const TABBABLE = 'a[href],button,input,select,textarea,summary,[tabindex],[conte
 function tabbablesIn(content) {
   return [...content.querySelectorAll(TABBABLE)].filter(element => {
     if (element.disabled || element.hidden || element.closest('[hidden],[inert]')) return false;
-    if (element.tabIndex < 0) return false;
+    if (element.tabIndex < 0 && !element.isContentEditable) return false;
     const box = element.getBoundingClientRect();
     return box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== 'hidden';
   });
 }
 function triggerOf(content) {
-  const root = content.parentElement;
+  // A popup whose trigger the page can't point at (the comment card's pin is rebuilt as pins regroup) names it itself.
+  const named = content.tabTrigger?.();
+  if (named instanceof HTMLElement && !content.contains(named)) return named;
+  const root = content.closest('ui-popover,ui-dialog') || content.parentElement;
   const found = (content.id && document.querySelector(`[aria-controls="${CSS.escape(content.id)}"]`))
     || (root?.id && document.querySelector(`ui-popover-trigger[for="${CSS.escape(root.id)}"] button, ui-dialog-trigger[for="${CSS.escape(root.id)}"] button`));
   return found instanceof HTMLElement && !content.contains(found) ? found : null;
@@ -181,8 +195,10 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   if (event.key !== 'Tab' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
   const target = event.target instanceof Element ? event.target : null;
   const content = target?.closest('ui-popover-content[data-open],ui-dialog-content[data-open]:not([aria-modal="true"])');
-  if (!content || content.parentElement?.parentElement !== document.body && content.parentElement !== document.body) return;
-  if (content.getAttribute('aria-modal') === 'true' || content.parentElement?.getAttribute('modal') === 'true' || content.parentElement?.getAttribute('modal') === 'trap-focus') return;
+  // The popup's root (in a sheet the content sits inside the root's viewport, not directly in it).
+  const host = content?.closest('ui-popover,ui-dialog');
+  if (!content || !host || host.parentElement !== document.body) return;
+  if (content.getAttribute('aria-modal') === 'true' || host.getAttribute('modal') === 'true' || host.getAttribute('modal') === 'trap-focus') return;
   const trigger = triggerOf(content);
   if (!trigger) return;
   const stops = tabbablesIn(content);
@@ -190,7 +206,7 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   const first = stops[0], last = stops[stops.length - 1];
   if (event.shiftKey ? (target === first || first.contains(target)) : (target === last || last.contains(target))) {
     if (event.shiftKey) event.preventDefault();
-    else if (content.matches('ui-popover-content')) content.parentElement.api?.close?.();
+    else if (content.matches('ui-popover-content')) host.api?.close?.();
     trigger.focus({preventScroll: true});
   }
 }, true);

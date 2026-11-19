@@ -57,6 +57,29 @@ try{
  for(let i=0;i<3&&await page.locator('#world .workspace-card.selected').count();i++){await page.keyboard.press('Escape');await wait(400);}
  ok((await focused()).startsWith('card:'),'Escape in the selection bar returns focus to a card, not <body>');
 
+ // A fresh page where no card was ever focused: ⌘A, Arrange, Escape. The Arrange hint stays closed when focus returns to
+ // it, the selection bar's Escape sends focus to the first card, and Item details returns to its own button.
+ {
+  const fresh=await page.context().newPage();fresh.on('pageerror',e=>errors.push(e.message));
+  await fresh.goto(base+'/boards/fixes/',{waitUntil:'load'});await fresh.locator('.workspace-card').first().waitFor();await fresh.waitForTimeout(500);
+  const tipOpen=()=>fresh.evaluate(()=>!!document.querySelector('ui-tooltip-content[data-open]'));
+  const active=()=>fresh.evaluate(()=>{const a=document.activeElement;return a?.matches?.('.workspace-card')?`card:${a.getAttribute('aria-label')}`:a===document.body?'BODY':(a?.getAttribute('data-arrange-open')!==null&&a?.hasAttribute('data-arrange-open'))?'arrange':a?.hasAttribute('data-selection-details')?'details':a?.id||a?.tagName;});
+  await fresh.locator('#viewport').focus();await fresh.keyboard.press('ControlOrMeta+a');await fresh.waitForTimeout(400);
+  const arr=await fresh.locator('[data-arrange-open]').boundingBox();await fresh.mouse.click(arr.x+arr.width/2,arr.y+arr.height/2);await fresh.waitForTimeout(500);
+  await fresh.mouse.move(640,500);await fresh.keyboard.press('Escape');await fresh.waitForTimeout(700);
+  assert.equal(await active(),'arrange','Escape from the Arrange menu returns to Arrange');checks++;
+  ok(!await tipOpen(),'The Arrange hint does not reopen when focus returns to it');
+  for(let i=0;i<3&&await fresh.locator('#world .workspace-card.selected').count();i++){await fresh.keyboard.press('Escape');await fresh.waitForTimeout(400);}
+  assert.equal(await active(),'card:A1','Escape in the selection bar with no card ever focused sends focus to the first card');checks++;
+  // Item details from the bar: Escape closes the Inspector and focus returns to Details, with no hint.
+  await fresh.locator('#world .workspace-card .workspace-select-dot').first().evaluate(b=>b.click());await fresh.waitForTimeout(400);
+  const det=await fresh.locator('[data-selection-details]').boundingBox();await fresh.mouse.click(det.x+det.width/2,det.y+det.height/2);await fresh.waitForTimeout(500);
+  await fresh.mouse.move(640,500);await fresh.keyboard.press('Escape');await fresh.waitForTimeout(600);
+  assert.equal(await active(),'details','Closing the Inspector opened from the selection bar returns to Item details');checks++;
+  ok(!await tipOpen(),'The Item details hint does not reopen when focus returns to it');
+  await fresh.close();
+ }
+
  // Zoom popover: Tab from the last control closes it and moves on from the trigger; Shift+Tab from the first goes back to it.
  await page.locator('#zoom-menu-toggle').focus();await page.keyboard.press('Enter');await wait(400);
  await page.keyboard.press('Shift+Tab');await wait(150);

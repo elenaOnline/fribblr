@@ -7,6 +7,7 @@
 // replyComment, setCommentStatus, editComment, deleteComment; GET /api/feedback).
 import "./vendor/ui-sdk/web/popover.js";
 import {defined} from "./ui-sdk.js";
+import {tips} from "./tips.js";
 import {esc, attachPicker, bindChips, chipElement, chipLabel, composerEmpty, composerValue, renderBody, setComposerValue, decorationLabel, itemLabel, refState} from "./comment-refs.js";
 
 const STATUS = {open:"Open", sent:"Sent to agent", working:"Agent working", addressed:"Addressed · check it", question:"Agent asks you", resolved:"Resolved"};
@@ -33,8 +34,8 @@ const when = iso => {
   return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(undefined, {month:"short", day:"numeric"});
 };
 const avatar = author => author?.kind === "agent"
-  ? `<span class="ct-avatar agent" title="${esc(author.label)} (agent)">${ICON.agent}</span>`
-  : `<span class="ct-avatar" title="${esc(author?.label || "")}">${esc((author?.label || "?").trim()[0] || "?").toUpperCase()}</span>`;
+  ? `<span class="ct-avatar agent" data-tip="${esc(author.label)} (agent)">${ICON.agent}</span>`
+  : `<span class="ct-avatar" data-tip="${esc(author?.label || "")}">${esc((author?.label || "?").trim()[0] || "?").toUpperCase()}</span>`;
 const sameActor = (a, b) => !!a && !!b && a.id === b.id && (a.kind || "human") === (b.kind || "human");
 
 // Drafts survive Escape, closing and reloading the tab (session only).
@@ -179,6 +180,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     } catch (error) { status(error.message, true); return null; }
     finally { busy = false; card.removeAttribute("aria-busy"); }
   }
+  // Focus the control a message's action opened from (its Edit or Delete), else the composer.
+  function focusAct(act, id) { (card.querySelector(`[data-act="${act}"][data-id="${CSS.escape(id || "")}"]`) || composer)?.focus({preventScroll:true}); }
   function status(message, error = false) { const el = card.querySelector(".ct-status"); if (el) { el.textContent = message; el.setAttribute("role", error ? "alert" : "status"); } }
 
   function messageHTML(m, root) {
@@ -192,6 +195,9 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   function render() {
     if (closed) return;
     picker?.close(); persist();
+    // The render replaces every control: remember which one had focus so it can go to its new copy (never to <body>).
+    const had = card.contains(document.activeElement) ? document.activeElement : null;
+    const hadAct = had?.closest?.("[data-act]"), hadKey = hadAct && {act:hadAct.dataset.act, id:hadAct.dataset.id};
     const isNew = !thread, st = thread?.status || (thread?.resolved ? "resolved" : "open");
     const target = thread ? targetOf(board, thread) : targetOf(board, {anchor, itemId, targetLabel, boardId:board.snapshot?.id});
     const on = target.gone ? `Was on <b>${esc(target.label)}</b> · deleted` : target.ref ? `On <button type="button" class="ct-on-target" data-act="target">${esc(target.label)}</button>` : "On the board";
@@ -204,8 +210,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     const forAgent = isNew ? `<label class="ct-for-agent"><input type="checkbox" data-for-agent ${anchor?.forAgent === false ? "" : "checked"}> For the agent</label>` : "";
     card.dataset.status = isNew ? "draft" : st;
     card.innerHTML = `<header class="ct-head">${isNew ? '<b class="ct-title">New comment</b>' : `<span class="ct-state" data-state="${esc(st)}">${esc(STATUS[st] || st)}</span>`}
-        ${!isNew ? `<button type="button" class="tk-btn tk-icon ct-icon" data-act="toggle" aria-label="${st === "resolved" ? "Reopen" : "Resolve"}" title="${st === "resolved" ? "Reopen" : "Resolve"}">${st === "resolved" ? ICON.reopen : ICON.check}</button>` : ""}
-        <button type="button" class="tk-btn tk-icon ct-icon" data-act="close" aria-label="Close" title="Close (Esc)">${ICON.close}</button>
+        ${!isNew ? `<button type="button" class="tk-btn tk-icon ct-icon" data-act="toggle" aria-label="${st === "resolved" ? "Reopen" : "Resolve"}" data-tip="${st === "resolved" ? "Reopen" : "Resolve"}">${st === "resolved" ? ICON.reopen : ICON.check}</button>` : ""}
+        <button type="button" class="tk-btn tk-icon ct-icon" data-act="close" aria-label="Close" aria-keyshortcuts="Escape" data-tip="Close">${ICON.close}</button>
         <span class="ct-on">${on}</span></header>
       <div class="ct-scroll">${target.gone ? '<p class="ct-detached">The thing this was pinned to is gone. The pin stays where it was.</p>' : ""}${activity}${messages.map(m => messageHTML(m, !!m.root)).join("")}${decide}</div>
       <footer class="ct-foot"><div class="ct-composer" contenteditable="true" role="textbox" aria-multiline="true" aria-label="${isNew ? "Comment" : "Reply"}" data-placeholder="${isNew ? "Comment… type @ to reference" : addressedMine ? "Reply… goes back to the agent" : "Reply… @ to reference"}"></div>
@@ -229,6 +235,14 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (saved) setComposerValue(composer, board, saved.text, saved.refs);
     picker = attachPicker(composer, board, {onChange:persist});
     composer.addEventListener("input", persist);
+    // Chips in posted messages carry their hint as a native title: move it to the SDK tooltip too (the composer's own
+    // chips sit in editable text, where a wrapper element would get in the way, and keep theirs).
+    for (const chip of card.querySelectorAll(".ct-msg [title]")) { chip.dataset.tip = chip.title; chip.removeAttribute("title"); }
+    tips(card);
+    if (had && !card.contains(document.activeElement)) {
+      const same = hadKey && [...card.querySelectorAll("[data-act]")].find(el => el.dataset.act === hadKey.act && el.dataset.id === hadKey.id && !el.disabled);
+      (same || composer)?.focus({preventScroll:true});
+    }
     settlePlace();
   }
   async function post() {
@@ -269,10 +283,10 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (act === "looks-good") { await setStatus("resolved"); return; }
     if (act === "not-yet") { await setStatus("open"); composer?.focus(); return; }
     if (act === "edit") { editing = id; confirmDelete = null; render(); const box = card.querySelector(".ct-edit"); box?.focus(); caretToEnd(box); return; }
-    if (act === "edit-cancel") { editing = null; render(); return; }
+    if (act === "edit-cancel") { const was = editing; editing = null; render(); focusAct("edit", was); return; }
     if (act === "edit-save") return saveEdit(id);
     if (act === "delete") { confirmDelete = id; editing = null; render(); card.querySelector('[data-act="delete-yes"]')?.focus(); return; }
-    if (act === "delete-no") { confirmDelete = null; render(); return; }
+    if (act === "delete-no") { const was = confirmDelete; confirmDelete = null; render(); focusAct("delete", was); return; }
     if (act === "delete-yes") {
       const result = await write("deleteComment", {threadId:thread.id, ...(id !== thread.id ? {messageId:id} : {}), actor});
       if (!result) return;
@@ -311,6 +325,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   // only a selector it reads before the card is gone. Only when focus is lost: a press on another control keeps it.
   const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
   card.setAttribute("final-focus", "none");
+  // Tab out of the card (popups.js, "Tab out of a popup at the end of <body>"): the trigger is the pin.
+  card.tabTrigger = () => threadId && document.querySelector(`.comment-pins [data-comment-pin="${CSS.escape(threadId)}"]`);
   const returnFocus = () => requestAnimationFrame(() => {
     const now = document.activeElement, lost = !now || now === document.body || pop.contains(now);
     pop.remove();
@@ -327,8 +343,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (event.detail.value) return;
     if (event.detail.reason === "escape-key") {
       if (picker?.open || (pickerEscape && event.detail.event === pickerEscape)) { event.preventDefault(); return; }
-      if (editing) { event.preventDefault(); editing = null; render(); composer?.focus(); return; }
-      if (confirmDelete) { event.preventDefault(); confirmDelete = null; render(); return; }
+      if (editing) { event.preventDefault(); const was = editing; editing = null; render(); focusAct("edit", was); return; }
+      if (confirmDelete) { event.preventDefault(); const id = confirmDelete; confirmDelete = null; render(); focusAct("delete", id); return; }
     }
     finish();
   });

@@ -169,6 +169,33 @@ try{
       await page.mouse.click(width>600?900:20,width>600?820:60);await card.waitFor({state:'detached'});
       await page.evaluate(()=>document.getElementById('ct-opener').remove());
     });
+    await check(`${tag} Tab leaves the card from the pin; focus stays in the card after a re-render; hints use the SDK tooltip`,async()=>{
+      // The board's own pin layer holds this thread's pin; a stand-in is added when it does not show it yet.
+      await page.evaluate(id=>{if(!document.querySelector(`.comment-pins [data-comment-pin="${id}"]`)){const layer=document.createElement('div');layer.className='comment-pins';layer.dataset.fake='';layer.innerHTML=`<button data-comment-pin="${id}">pin</button>`;document.body.append(layer);}document.querySelector(`.comment-pins [data-comment-pin="${id}"]`).focus();},threadId);
+      const open=()=>page.evaluate(id=>{window.__ct.openThreadCard(window.__board,id,{left:420,top:200,right:450,bottom:230,width:30,height:30});},threadId);
+      const active=()=>page.evaluate(()=>document.activeElement===document.body?'BODY':document.activeElement.id||document.activeElement.className);
+      await open();await card.locator('.ct-state').waitFor();
+      assert.equal(await card.locator('[title]').count(),0,'the card uses no native titles');
+      assert.ok(await card.locator('[data-tip]').count()>=3,'the card buttons carry SDK hints');
+      // Escape on a delete confirmation returns to that message's Delete, not <body>.
+      const mine=card.locator('.ct-msg.ct-human').first();
+      await mine.hover();await mine.locator('[data-act=delete]').click();await card.locator('[data-act=delete-yes]').waitFor();
+      await page.keyboard.press('Escape');await card.locator('[data-act=delete-yes]').waitFor({state:'detached'});
+      assert.equal(await page.evaluate(()=>document.activeElement.dataset.act),'delete','Escape on the confirm focuses Delete');
+      // Tab from the last control closes the card and continues from the pin.
+      await page.evaluate(()=>{window.__fi=[];document.addEventListener('focusin',e=>window.__fi.push(e.target.dataset?.commentPin?'PIN':e.target.id||e.target.className),true);});
+      await composer.focus();await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.dataset.act),'post');
+      await page.keyboard.press('Tab');await card.waitFor({state:'detached'});
+      const seen=await page.evaluate(()=>window.__fi);
+      assert.ok(seen.includes('PIN'),`Tab from the last control closes the card and goes on from the pin (focus went ${seen.join(' > ')})`);
+      assert.ok(!(await active()).includes('ct-composer')&&await active()!=='BODY','focus is not stranded');
+      // Shift+Tab from the first control goes to the pin.
+      await open();await card.locator('.ct-state').waitFor();
+      await card.locator('.ct-icon').first().focus();await page.keyboard.press('Shift+Tab');
+      assert.ok(await page.evaluate(id=>document.activeElement.dataset.commentPin===id,threadId),'Shift+Tab from the first control goes to the pin');
+      await card.waitFor({state:'detached'});
+      await page.evaluate(()=>document.querySelector('.comment-pins[data-fake]')?.remove());
+    });
     await check(`${tag} a deleted target's chip is struck through`,async()=>{
       await page.keyboard.press('Escape');
       await applyOperation(config,{type:'removeDecoration',boardId,decorationId:'note1'}).catch(()=>applyOperation(config,{type:'updateBoard',boardId,patch:{decorations:[]}}));
