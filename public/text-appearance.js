@@ -1,6 +1,6 @@
 import {restoreFocus} from "./interaction.js";
 import {drawingColor, isHexDrawingColor} from "./drawing-palette.js";
-import {appearanceThemes,canvasBackdrop,compositeColor,contrastRatio,luminance,readableColor,renderDrawingColor,textFillColor,textFillColors as fillColors,unpackColor} from "./theme-colors.js";
+import {appearanceThemes,canvasBackdrop,compositeColor,contrastRatio,fallbackEdge,fallbackInk,luminance,readableColor,renderDrawingColor,textFillColor,textFillColors as fillColors,textFillToken,themeColor,unpackColor} from "./theme-colors.js";
 import {colorDot,paletteMarkup,pickerHex} from "./color-control.js";
 import {mountPresetScrub} from "./preset-scrub.js";
 
@@ -23,16 +23,17 @@ export function textStyleVariables(decoration, ink, backdrop = theme => [canvasB
     return {fill, backing: fill ? backing.map(base => compositeColor(fill, base)) : backing};
   };
   const lightBackings = backingFor("light").backing;
-  const lightInk = renderDrawingColor(ink,"ink","light") ?? "#78866c";
+  const lightInk = renderDrawingColor(ink,"ink","light") ?? fallbackInk("light");
   const intendedContrast = Math.min(...lightBackings.map(base =>
     contrastRatio(luminance(compositeColor(lightInk, base)), luminance(base))));
   for (const theme of appearanceThemes) {
     const {fill, backing} = backingFor(theme);
-    if(fill)styles.push(`--text-fill-${theme}:${fill}`);
-    const edge=renderDrawingColor(decoration.textBorder?.color,"stroke",theme)??(theme==="dark"?"#969a8c":"#747d67");
+    // a named fill paints from its token, so it follows the ground; the maths uses its colour on the desk
+    if(fill)styles.push(`--text-fill-${theme}:${textFillToken(decoration.textFill) ?? fill}`);
+    const edge=renderDrawingColor(decoration.textBorder?.color,"stroke",theme)??fallbackEdge(theme);
     if(edgeStyle)styles.push(`--text-edge-${theme}:${readableColor(edge, backing, 3).color}`);
     const min = theme === "dark" ? Math.max(4.5, Math.min(7, intendedContrast)) : 4.5;
-    const result = readableColor(renderDrawingColor(ink,"ink",theme) ?? "#78866c", backing, min);
+    const result = readableColor(renderDrawingColor(ink,"ink",theme) ?? fallbackInk(theme), backing, min);
     styles.push(`--text-ink-${theme}:${result.color}`);
     if (!result.meetsContrast && !readableColor(result.color, backing, 4.5).meetsContrast) {
       const halo = luminance(unpackColor(result.color)[0]) < .18 ? "#ffffff" : "#000000";
@@ -51,7 +52,7 @@ const closeIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8
 const insetIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><rect x="5.5" y="5.5" width="5" height="5" rx=".5"/></svg>';
 const autoHeightIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="1.75" width="12.5" height="12.5" rx="2"/><path d="M8 4.1v7.8M6.1 6 8 4.1 9.9 6m-3.8 4L8 11.9 9.9 10"/></svg>';
 
-const colorStyles = colors => `--preview-light:${colors.light};--preview-dark:${colors.dark}`;
+const colorStyles = id => `--preview-light:${textFillToken(id)};--preview-dark:${textFillToken(id)}`;
 const storedSize = d => d.textSize??"medium";
 const currentSize = d => Number.isInteger(d.textSize)?d.textSize:sizePresets.find(({id})=>id===storedSize(d))?.value??21;
 const sizeSelection = d => ({preset:Number.isInteger(d.textSize)?null:storedSize(d)});
@@ -73,7 +74,7 @@ function advancedMarkup() {
         <button type="button" data-role="fill"><span data-role-dot></span>Fill</button><button type="button" data-role="border"><span data-role-dot></span>Border</button>
       </div>
       <div class="text-format-options" data-fill-options role="group" aria-label="Fill style" hidden>
-        ${fills.map(([id,label])=>`<button type="button" data-fill="${id}"><span class="text-format-fill-preview"${fillColors[id]?` style="${colorStyles(fillColors[id])}"`:""} aria-hidden="true"></span>${label}</button>`).join("")}
+        ${fills.map(([id,label])=>`<button type="button" data-fill="${id}"><span class="text-format-fill-preview"${fillColors[id]?` style="${colorStyles(id)}"`:""} aria-hidden="true"></span>${label}</button>`).join("")}
       </div>
       <div class="text-format-options" data-border-options role="group" aria-label="Border style" hidden>
         ${borders.map(([id,label])=>`<button type="button" data-border="${id}"><span class="text-format-border-preview" aria-hidden="true"></span>${label}</button>`).join("")}
@@ -125,7 +126,7 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
       press("data-border",currentBorder(d));
       get("[data-role=fill] [data-role-dot]").innerHTML=colorDot(d.textFill,"fill",fillColors[d.textFill]);
       get("[data-role=border] [data-role-dot]").innerHTML=colorDot(d.textBorder?.color,"stroke",
-        d.textBorder?{light:"#747d67",dark:"#969a8c"}:undefined);
+        d.textBorder?{light:fallbackEdge("light"),dark:fallbackEdge("dark")}:undefined);
       fillOptions.hidden=channel!=="fill";
       borderOptions.hidden=channel!=="border";
       autoBorder.hidden=channel!=="border"||!d.textBorder;
@@ -143,7 +144,7 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
         customTarget.style.setProperty(`--custom-preview-${theme}`, preview);
       }
       custom.value=pickerHex(isHexColor(selected) ? selected : renderDrawingColor(selected,colorRoles[channel],theme)??fillColors[selected]?.[theme],
-        {ink:"#78866c",fill:"#e4e9da",border:"#747d67"}[channel]);
+        {ink:fallbackInk,fill:theme=>themeColor("tint",theme),border:fallbackEdge}[channel](theme));
     }
     if(sizeControl){
       const autoHeight=d.textSizing==="auto";

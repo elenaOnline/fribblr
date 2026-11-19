@@ -48,10 +48,20 @@ body { font-family: var(--type-sans); }
   --pattern-majorline: color-mix(in srgb, rgb(from var(--ground-cast) r g b / .11) calc(var(--pattern-fade, 1) * 100%), transparent);
 }
 /* Tinka 1.3 board colour: a board with an authored colour stands on it; without one, on the ground (desk or white).
-   The pattern's ink comes from the readable ink the renderer picks for that colour.
-   theme: todo — the selection line and slab rims on an authored board colour (upstream's --board-ring) */
+   The pattern's ink comes from the readable ink the renderer picks for that colour. On an authored colour (light), the
+   colour becomes the ground: its rim, its deep step and its cast shadow are cut from it the way the desk's are
+   (tokens.css), and the selection line takes the blue the renderer found readable on it (--board-ring). */
 .workspace-board #viewport { --board-color: var(--board-color-light, var(--ground)); background-color: var(--board-color); }
 html[data-appearance="dark"] .workspace-board #viewport { --board-color: var(--board-color-dark, var(--ground)); }
+html:not([data-appearance="dark"]) .workspace-board #viewport[style*="--board-color-light:"] {
+  --ground: var(--board-color);
+  --ground-deep: oklch(from var(--board-color) calc(l - .057) calc(c * 1.30) h);
+  --ground-rim: oklch(from var(--board-color) calc(l - .095) calc(c * .80) h);
+  --ground-key-side: oklch(from var(--board-color) calc(l - .149) calc(c * 1.16) h);
+  --ground-cast: oklch(from var(--board-color) calc(l - .602) calc(c * 2.47) h);
+  --select-color: var(--board-ring-light, var(--mark-blue));
+}
+html[data-appearance="dark"] .workspace-board #viewport[style*="--board-color-dark:"] { --select-color: var(--board-ring-dark, var(--mark-blue)); }
 #viewport[style*="--board-pattern-light:"] {
   --pattern-ink: color-mix(in srgb, var(--board-pattern-light) calc(var(--pattern-fade, 1) * 20%), transparent);
   --pattern-minor: color-mix(in srgb, var(--board-pattern-light) calc(var(--pattern-fade, 1) * 7%), transparent);
@@ -449,8 +459,9 @@ body.navigator-docked .canvas-footer { left: var(--navigator-dock-width); }
   body:has(#workspace-item-controls, #board-info:not([hidden])) .canvas-footer { right: 376px; }
   body:has(#workspace-item-controls, #board-info:not([hidden])) #workspace-selection.workspace-selection { left: calc((100vw - 376px) / 2); bottom: 72px; max-width: calc(100vw - 400px); }
 }
-/* Region labels stay readable over any authored board background. */
-#world .workspace-decoration.decoration-region:not(.whiteboard-shape) > .workspace-decoration-label { display: inline-block; width: auto; max-width: calc(100% - 20px); min-height: 0; margin: 10px; padding: 5px 10px; border-radius: var(--shape-key); background: color-mix(in srgb, var(--surface-paper) 82%, transparent); }
+/* Region labels stay readable over any authored board background. A container's title is written on its tray's floor. */
+#world .workspace-decoration.whiteboard-container > .workspace-decoration-label { padding: 0 var(--container-padding); font: 400 13px/24px var(--type-sans); }
+#world .workspace-decoration.decoration-region:not(.whiteboard-shape, .whiteboard-container) > .workspace-decoration-label { display: inline-block; width: auto; max-width: calc(100% - 20px); min-height: 0; margin: 10px; padding: 5px 10px; border-radius: var(--shape-key); background: color-mix(in srgb, var(--surface-paper) 82%, transparent); }
 /* With the floating Navigator open, the bottom islands stay clear of it too. */
 @media (min-width: 721px) {
   body:has(#project-navigator:not([hidden])) .canvas-footer { left: 356px; }

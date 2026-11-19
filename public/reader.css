@@ -33,7 +33,7 @@
 #reader-header .notes-toggle .note-dot { position: absolute; top: 10px; right: 4px; margin: 0; }
 #reader-header .reader-path { min-width: 96px; }
 
-/* theme: todo — version stacks (Tinka 1.3): the reader's file-version bar is next round's design */
+/* A version stack in the reader: a chrome strip (flush) under the header, the version named between two raised keys */
 #reader-file-versions[hidden] { display: none; }
 #reader-file-versions {
   display: flex; justify-content: center; align-items: center; flex: none;
@@ -41,9 +41,9 @@
   background: var(--surface-frame); border-bottom: 1px solid var(--line-hair);
   color: var(--ink);
 }
-#reader-file-versions .tk-icon { flex: none; width: 40px; height: 40px; }
-#reader-file-versions .tk-icon[aria-disabled="true"] { opacity: .42; cursor: default; }
-#reader-file-versions .tk-icon[aria-disabled="true"]:hover { background: transparent; }
+#reader-file-versions .tk-icon { flex: none; width: var(--control-h); height: var(--control-h); }
+/* the end of the stack: the key lies flat, as a disabled key does (depth.css) */
+#reader-file-versions .tk-icon[aria-disabled="true"] { --key-d: 0px; --key-face: var(--surface-frame); --key-rim: var(--line-hair); --key-rim-hover: var(--line-hair); --key-side-hover: transparent; color: var(--ink-2); cursor: default; translate: none; }
 #reader-file-versions svg {
   width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;

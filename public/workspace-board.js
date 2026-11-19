@@ -3,6 +3,7 @@ import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interactio
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
 import {drawingPalette,drawingColor} from './drawing-palette.js';
 import {boardColorVariables,paperVariables,renderDrawingColor} from './theme-colors.js';
+import {token} from './tokens.js';
 import {boardSurfaces,surfacePoints} from './board-paint.js';
 import {Whiteboard,decorationMarkup,decorationUnchanged,lineBox} from "./whiteboard.js";
 import {placeWhiteboardPopover} from "./whiteboard-popover.js";
@@ -27,7 +28,7 @@ import {CLIPBOARD_MIME,CLIPBOARD_PREFIX,clipboardBounds,clipboardBytes,readClipb
 import {EMOJI_STICKER_MIME,emojiSticker} from "./emoji-stickers.js";
 import {mountEmojiPicker} from "./emoji-picker.js";
 import {copyCardPreview} from "./copy-preview.js";
-import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from "./version-stack.js";
+import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions, versionSheets} from "./version-stack.js";
 import {
   WorkspaceClient,
   escape as esc,
@@ -343,7 +344,7 @@ export class WorkspaceBoard {
     const actions = $("chrome-actions");
     const quick = document.createElement("span");
     quick.className = "chrome-history";
-    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
+    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
     actions.insertBefore(quick, $("board-info-toggle"));
     actions.append(add);
     this.installEditTools();
@@ -510,8 +511,8 @@ export class WorkspaceBoard {
     const edits = [pick(".workspace-history-actions"), pick(".workspace-clipboard-actions"), pick("#workspace-owner"), pick("#workspace-retry-drafts"), pick("#workspace-recover-text")];
     tonal(edits);
     const boardBackground = document.createElement("div"); boardBackground.className = "inspector-background";
-    // With no authored colour a board stands on the ground; the swatch shows the desk (theme: todo, white ground).
-    const storedColor = () => this.snapshot.background?.color || "#dae5ec";
+    // With no authored colour a board stands on the ground; the swatch shows the ground (desk, white or dark).
+    const storedColor = () => this.snapshot.background?.color || token("--ground").toLowerCase();
     boardBackground.innerHTML = `${inspectorColorMarkup("Board color",storedColor(),"board")}<button type="button" class="tk-btn tk-sm tk-tonal" data-background-image>Background image…</button>`;
     this.boardColorSync=bindInspectorColor(boardBackground,{label:"Board color palette",read:storedColor,role:"board",
       save:color=>this.saveBackground({...this.snapshot.background,color})});
@@ -530,7 +531,7 @@ export class WorkspaceBoard {
     const extra = [...bar.children].filter(node => !node.matches?.(".inspector-sec,#workspace-keyboard-shortcuts,[data-feedback-toggle]"));
     const exporter = $("export"); exporter?.classList.add("tk-btn", "tk-sm", "tk-tonal");
     const copy = document.createElement("button"); copy.type = "button"; copy.className = "tk-btn tk-sm tk-tonal";
-    copy.textContent = "Copy notes as Markdown"; copy.onclick = () => this.copyNotes();
+    copy.textContent = "Copy notes as Markdown"; copy.setAttribute("aria-keyshortcuts", "Shift+Meta+C Control+Shift+C"); copy.onclick = () => this.copyNotes();
     const feedback = section("Feedback", "", [comments, ...extra, row("", [exporter, copy])], "inspector-feedback");
     const appearance = section("Appearance", "this browser", [row("", [panel.querySelector(".appearance-control")])], "inspector-appearance");
     const guide = pick("#workspace-keyboard-shortcuts"); guide?.classList.add("tk-btn", "tk-sm", "tk-tonal");
@@ -1547,7 +1548,7 @@ export class WorkspaceBoard {
       const dimensions = this.mode === "canvas"
         ? `left:${p.x + this.origin.x}px;top:${p.y + this.origin.y}px;width:${p.width}px;height:${p.height}px;z-index:${p.z};`
         : panel || icon ? `width:${p.width}px;height:${p.height}px;` : "";
-      return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)} data-build-state="${esc(item.build?.state || "ready")}"${paper ? " data-custom-paper" : ""} style="${dimensions}${paper}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}${this.mode === "canvas" && !this.hooks.viewOnly ? tileResizeEdges : ""}</article>`;
+      return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)}${versionSheets(item) ? ` data-sheets="${versionSheets(item)}"` : ""} data-build-state="${esc(item.build?.state || "ready")}"${paper ? " data-custom-paper" : ""} style="${dimensions}${paper}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}${this.mode === "canvas" && !this.hooks.viewOnly ? tileResizeEdges : ""}</article>`;
     };
     if (versionCard) {
       const template = document.createElement("template");
@@ -1663,7 +1664,7 @@ export class WorkspaceBoard {
     el.hidden = !this.selection.size;
     el.setAttribute("role", "toolbar");
     const grouping = this.selection.size && this.groupAction();
-    const groupButton = grouping ? `<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" title="${isMacPlatform() ? "⌘G" : "Ctrl+G"}">${grouping.label}</button>` : "";
+    const groupButton = grouping ? `<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping.label}</button>` : "";
     el.innerHTML = `<strong role="status">${this.selectedCount()} selected</strong>${groupButton}<button class="tk-btn tk-sm" data-bulk="feature">Show on parent…</button><button class="tk-btn tk-sm" data-bulk="move">Move…</button><button class="tk-btn tk-sm selection-wide" data-bulk="reference">Add reference…</button><button class="tk-btn tk-sm" data-bulk="new-board-around">New board around selection…</button><button class="tk-btn tk-sm selection-wide" data-bulk="archive">${this.filters.archive ? "Restore here" : "Archive here"}</button><button class="tk-btn tk-sm tk-danger" data-bulk="remove">Remove from board…</button><span class="tk-divider" aria-hidden="true"></span><button class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" title="Clear selection (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`;
     if (this.canvasGroups().some(group => group.placementIds.some(id => this.selection.has(id)) && group.decorationIds.length)) {
       for (const action of ["feature","move","reference","new-board-around","archive"])
@@ -2022,7 +2023,7 @@ export class WorkspaceBoard {
     const unavailable=["reserved","building"].includes(item.build?.state) && !placeOnly;
     const menu = document.createElement("div");
     menu.className = "tk-menu workspace-tile-menu"; menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", `Actions for ${item.title}`);
-    menu.innerHTML = `<button type="button" class="tk-mi" role="menuitem" data-tile-menu="open" ${unavailable?"disabled":""}>${placeOnly ? "Open board" : "Open experiment"}<kbd class="tk-kbd" aria-hidden="true">↵</kbd></button>${handoff?`<a class="tk-mi" role="menuitem" href="${esc(handoff)}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}${this.editableDocument(item)?'<button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document">Edit document<kbd class="tk-kbd" aria-hidden="true">E</kbd></button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document-source">Edit Markdown source</button>':""}<button type="button" class="tk-mi" role="menuitem" data-tile-menu="notes">Notes</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="details">Details…<kbd class="tk-kbd" aria-hidden="true">⌘I</kbd></button><div class="tk-msep" role="separator"></div><button type="button" class="tk-mi" role="menuitem" data-tile-menu="star">${star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="move">Move to board…</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="duplicate">Duplicate<kbd class="tk-kbd" aria-hidden="true">⌘D</kbd></button><div class="tk-msep" role="separator"></div><button type="button" class="tk-mi tk-danger" role="menuitem" data-tile-menu="remove">Remove from board…</button>`;
+    menu.innerHTML = `<button type="button" class="tk-mi" role="menuitem" data-tile-menu="open" ${unavailable?"disabled":""}>${placeOnly ? "Open board" : "Open experiment"}<kbd class="tk-kbd" aria-hidden="true">↵</kbd></button>${handoff?`<a class="tk-mi" role="menuitem" href="${esc(handoff)}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}${this.editableDocument(item)?'<button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document" aria-keyshortcuts="E">Edit document</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document-source">Edit Markdown source</button>':""}<button type="button" class="tk-mi" role="menuitem" data-tile-menu="notes">Notes</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="details" aria-keyshortcuts="Meta+I Control+I">Details…</button><div class="tk-msep" role="separator"></div><button type="button" class="tk-mi" role="menuitem" data-tile-menu="star">${star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="move">Move to board…</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="duplicate" aria-keyshortcuts="Meta+D Control+D">Duplicate</button><div class="tk-msep" role="separator"></div><button type="button" class="tk-mi tk-danger" role="menuitem" data-tile-menu="remove">Remove from board…</button>`;
     this.closeContext();
     document.body.append(menu); this.tilePopup = menu;this.tileMenuPlacement=id;
     anchor?.setAttribute("aria-expanded","true");
@@ -3026,7 +3027,8 @@ export class WorkspaceBoard {
       ["region","▧","Colored region"],["container","▤","Container"],["arrow","↗","Arrow"],
       ["rounded","▢","Process"],["diamond","◇","Decision"],["ellipse","⬭","Start / end"],
     ];
-    const choice = ([id, icon, label]) => `<button type="button" role="menuitem" data-add="${id}"><span aria-hidden="true">${icon}</span>${label}</button>`;
+    const addKeys = {text:"T", sticky:"S", document:"D"};   // the keys that add the same at the pointer
+    const choice = ([id, icon, label]) => `<button type="button" role="menuitem" data-add="${id}"${addKeys[id] ? ` aria-keyshortcuts="${addKeys[id]}"` : ""}><span aria-hidden="true">${icon}</span>${label}</button>`;
     menu.innerHTML = options.map(choice).join("") + '<hr role="separator">' + [
       ["idea","◇","Item…"],["board","▱","New board…"],
     ].map(choice).join("");
@@ -3237,7 +3239,7 @@ export class WorkspaceBoard {
     if (this.mode !== "canvas") this.setMode("canvas");
     const point = this.canvasPoint(screen), shaped = ["sticky","rounded","diamond","ellipse"].includes(type), region = type === "region" || shaped;
     // New drawings are stored with a palette colour (Tinka 1.3): a sticky's gold, neutral text, and slate (the palette's
-    // desk blue-grey, where upstream uses sage) for shapes, regions and arrows. theme: todo — the drawing palette itself.
+    // desk blue-grey, where upstream uses sage) for shapes, regions and arrows. The 15 hues render as stored (drawing-palette.js).
     const d = { id: crypto.randomUUID(), type: type === "arrow" ? "line" : region ? "region" : type,
       x: point.x, y: point.y, width: shaped ? type === "sticky" ? 220 : 240 : region ? 420 : type === "arrow" ? 200 : 360,
       height: shaped ? type === "sticky" ? 200 : type === "diamond" ? 180 : 130 : region ? 280 : type === "arrow" ? 90 : 48,

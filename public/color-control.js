@@ -1,5 +1,5 @@
 import {drawingPalette,drawingColor,isHexDrawingColor} from "./drawing-palette.js";
-import {renderDrawingColor} from "./theme-colors.js";
+import {fallbackInk,renderDrawingColor} from "./theme-colors.js";
 
 const roles={ink:"ink",fill:"fill",border:"stroke"};
 const themes=["light","dark"];
@@ -31,7 +31,7 @@ export function paletteMarkup(channels,{options=drawingPalette,resolve=renderDra
   </div>`;
 }
 
-export function bindDrawingPalette(palette,{channel,label,value,choose,toValue=id=>id,fallback="#78866c",previewRole=roles[channel]}) {
+export function bindDrawingPalette(palette,{channel,label,value,choose,toValue=id=>id,fallback,previewRole=roles[channel]}) {
   const swatches=[...palette.querySelectorAll("[data-swatch]")],custom=palette.querySelector("input[type=color]");
   const customChip=custom.closest(".text-format-custom");
   palette.dataset.channel=channel;
@@ -44,7 +44,7 @@ export function bindDrawingPalette(palette,{channel,label,value,choose,toValue=i
     for (const theme of themes)
       customChip.style.setProperty(`--custom-preview-${theme}`,isCustom?renderDrawingColor(selected,previewRole,theme):"transparent");
     const theme=document.documentElement.dataset.appearance==="dark"?"dark":"light";
-    custom.value=pickerHex(isHexDrawingColor(selected) ? selected : drawingColor(selected,roles[channel],theme),fallback);
+    custom.value=pickerHex(isHexDrawingColor(selected) ? selected : drawingColor(selected,roles[channel],theme),fallback??fallbackInk(theme));
   };
   for(const button of swatches)button.onclick=()=>choose(toValue(button.dataset.swatch));
   custom.onchange=()=>choose(custom.value);

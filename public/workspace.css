@@ -592,7 +592,7 @@
 .workspace-item-resource { display: grid; gap: 8px; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); }
 .inspector-background { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .inspector-color-trigger { display:inline-flex; align-items:center; gap:7px; }
-/* theme: todo — the colour control (Tinka 1.3 palette) is next round's design */
+/* the colour control opened in the inspector: the palette's chips on a paper panel (text-format-controls.css) */
 .inspector-color-palette {
   flex:1 0 100%;
   margin-top:4px;
@@ -1054,7 +1054,8 @@ html[data-theme="night"] .item-representation p {
   opacity: .92;
 }
 .workspace-copy-ghost { pointer-events: none; }
-.workspace-copy-ghost.workspace-card { outline: 1px solid var(--mark-blue); outline-offset: 1px; }  /* theme: todo — a copy ghost could be a lifted slab */
+/* the copy she is making is the slab she holds, lifted (depth.css data-lifted's look, set here on the ghost) */
+#world .workspace-copy-ghost.workspace-card { --lift: var(--side-lift); --rim-close: 1; outline: 0; }
 .workspace-copy-frame {
   display: block;
   background: var(--surface-paper);
@@ -1238,14 +1239,14 @@ html[data-appearance="dark"] .workspace-board .decoration-text { color: color-mi
 .workspace-decoration > .workspace-endpoint { display: block; position: absolute; padding: 0; min-width: 22px; width: 22px; min-height: 22px; height: 22px; border: 1px solid var(--line-edge); background: var(--surface-paper); }
 .workspace-decoration > .workspace-endpoint { transform: translate(-50%,-50%); width: 14px; min-width: 14px; height: 14px; min-height: 14px; border-radius: 50%; corner-shape: round; cursor: crosshair; }
 .workspace-board[data-board-layout="grid"] .workspace-cards:has(> .workspace-panel) { flex-wrap: wrap; width: auto; }
-/* The board's drawing tools sit together above the footer and selection actions; the bar floats (depth.css).
-   theme: todo — the canvas tools rail (Tinka 1.3) is next round's design */
+/* The board's drawing tools sit together above the footer and selection actions. The bar floats (depth.css); its tools
+   are quiet keys like the object bar's, and the chosen one is a raised key that is on (down, blue rim). */
 .edit-tools { position:fixed; left:50%; bottom:60px; transform:translateX(-50%); z-index:36; display:flex; align-items:center; padding:4px; background:var(--surface-frame); color:var(--ink); border:0; border-radius:var(--shape-bar); --edit-tool-size:38px; }
 .edit-tools[hidden] { display: none; }
 .edit-tool-group { display:flex; gap:1px; }
 .edit-tool-group + .edit-tool-group { margin-left:4px; padding-left:4px; border-left:1px solid var(--line-seam); }
 .edit-tools .tk-btn { min-width:var(--edit-tool-size); width:var(--edit-tool-size); min-height:38px; height:38px; padding:0; border:0; margin:0; display:grid; place-items:center; }
-.edit-tools .tk-btn[aria-pressed=true] { background:var(--surface-chosen); color:var(--ink); }
+.edit-tools .tk-btn[aria-pressed=true] { color:var(--ink); }
 .edit-tools svg, .edit-tools-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 body.navigator-docked .edit-tools { left:calc((100vw + var(--navigator-dock-width,340px))/2); }
 #viewport.canvas-pan-tool { cursor:grab; }
@@ -1435,18 +1436,20 @@ body.navigator-docked .edit-tools { left:calc((100vw + var(--navigator-dock-widt
 .workspace-compact .workspace-item-footer.workspace-panel-caption > button:hover,
 .workspace-compact .workspace-item-footer.workspace-panel-caption > button[aria-pressed="true"] { color:var(--ink); }
 
+/* A version stack's switcher: a sunken track (depth.css) showing which version this is, stepped by two quiet keys */
 .workspace-file-versions {
   display:inline-flex; align-items:center; flex:none; margin-inline:4px;
-  min-height:30px; padding:0 2px; border:1px solid var(--line-seam); border-radius:var(--shape-cap);
-  background:var(--surface-paper); color:var(--ink);
-  font:400 11px/1 var(--type-mono);   /* theme: todo — version stacks (Tinka 1.3) are next round's design */
+  min-height:28px; padding:0 2px; border:0; border-radius:var(--shape-key);
+  --sink-floor:var(--surface-frame); color:var(--ink);
+  font:400 11px/1 var(--type-mono);
 }
 .workspace-file-versions .workspace-file-version-name { padding:0 4px; white-space:nowrap; }
 .workspace-item-footer .workspace-file-versions > button {
   display:grid; place-items:center; width:27px; min-width:0; min-height:28px;
   padding:0; border:0; border-radius:var(--shape-cap); background:transparent; color:inherit;
 }
-.workspace-item-footer .workspace-file-versions > button:hover:not([aria-disabled="true"]) { background:var(--hover); }
+.workspace-item-footer .workspace-file-versions > button { color:var(--ink-2); border-radius:var(--shape-cell); }
+.workspace-item-footer .workspace-file-versions > button:hover:not([aria-disabled="true"]) { background:var(--hover); color:var(--ink); }
 .workspace-file-versions > button[aria-disabled="true"] { opacity:.42; cursor:default; }
 .workspace-file-versions > button svg { width:14px; height:14px; }
 @container tinka-card (max-width:122px) {

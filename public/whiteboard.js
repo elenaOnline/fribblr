@@ -5,7 +5,7 @@ import {formatToHTMLString, toggleDecorationTask} from './deco-format.js';
 import {formatTextSelection, textFormatControls} from './deco-editor.js';
 import {textStyleVariables, mountTextAppearance} from './text-appearance.js';
 import {drawingColor, isDrawingColor, isPaletteColor} from './drawing-palette.js';
-import {appearanceThemes, compositeColor, luminance, readableColor, renderDrawingColor, surfaceInk, themePaper, unpackColor} from './theme-colors.js';
+import {appearanceThemes, compositeColor, fallbackDrawingColor, luminance, readableColor, renderDrawingColor, surfaceInk, themeColor, themePaper, unpackColor} from './theme-colors.js';
 import {boardSurfaces, lineSurfacePoints, regionPaper, surfacePoints} from './board-paint.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
 import {placeWhiteboardPopover} from './whiteboard-popover.js';
@@ -18,7 +18,7 @@ import {mountPresetScrub} from './preset-scrub.js';
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
 const selector = id => `[data-decoration="${CSS.escape(id)}"]`;
-const authoredColor = value => isDrawingColor(value) ? value : '#78866c';
+const authoredColor = value => isDrawingColor(value) ? value : fallbackDrawingColor;
 function drawingStyles(drawing, color, backdrop) {
   const line = drawing.type === 'line';
   return appearanceThemes.map(theme => {
@@ -29,13 +29,13 @@ function drawingStyles(drawing, color, backdrop) {
       const halo = luminance(unpackColor(stroke.color)[0]) < .18 ? '#ffffff' : '#000000';
       return `--decoration-color-${theme}:${stroke.color};${stroke.meetsContrast ? '' : `--line-halo-${theme}:${halo};`}`;
     }
-    const {fill, opacity} = regionPaper(drawing, theme);
+    const {fill, opacity, paint} = regionPaper(drawing, theme);
     const surfaces = backing.map(base => compositeColor(fill, base, opacity));
     const stroke = readableColor(rawStroke, [...surfaces, ...backing], 3).color;
     const ink = readableColor(surfaceInk(surfaces[0], theme), surfaces, 4.5).color;
     const dark = luminance(unpackColor(ink)[0]) < .18;
-    const label = compositeColor(themePaper[theme], surfaces[0], .82);
-    return `--decoration-color-${theme}:${fill};--decoration-opacity-${theme}:${opacity * 100}%;--decoration-stroke-${theme}:${stroke};--decoration-ink-${theme}:${ink};--decoration-region-label-${theme}:${surfaceInk(label, theme, true)};--decoration-wash-${theme}:${dark ? '#fdfdfb' : '#1c1d1a'};`;
+    const label = drawing.container ? surfaces[0] : compositeColor(themePaper[theme], surfaces[0], .82);   // a container's title sits on its floor
+    return `--decoration-color-${theme}:${paint ?? fill};--decoration-opacity-${theme}:${opacity * 100}%;--decoration-stroke-${theme}:${stroke};--decoration-ink-${theme}:${ink};--decoration-region-label-${theme}:${surfaceInk(label, theme, true)};--decoration-wash-${theme}:${dark ? themePaper.light : themeColor('canvas', 'dark')};`;
   }).join('');
 }
 const icon = body => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -369,7 +369,7 @@ export class Whiteboard {
       this.toolbar.innerHTML=this.editor
         ? this.editor.rich?this.textEditorBar(this.editor)
         : `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
-        : this.bar(list,draft)+(grouping?barParts.group('Grouping',`<button type="button" class="whiteboard-action-caption" data-whiteboard-action="canvas-group">${grouping}</button>`):'');
+        : this.bar(list,draft)+(grouping?barParts.group('Grouping',`<button type="button" class="whiteboard-action-caption" data-whiteboard-action="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping}</button>`):'');
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }
     this.positionToolbar();

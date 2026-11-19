@@ -2,6 +2,11 @@ export function fileVersions(item) {
   return item?.versionStack?.versions || [];
 }
 
+// A version stack stands on one sheet per other version, at most three (depth.css data-sheets).
+export function versionSheets(item) {
+  return Math.max(0, Math.min(3, fileVersions(item).length - 1));
+}
+
 export function fileVersion(item, id = item?.versionStack?.defaultId) {
   return fileVersions(item).find(version => version.id === id) || null;
 }

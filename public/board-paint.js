@@ -1,5 +1,5 @@
 import {isDrawingColor, isPaletteColor} from "./drawing-palette.js";
-import {appearanceThemes, canvasBackdrop, compositeColor, renderDrawingColor, textFillColor, themePaper, unpackColor} from "./theme-colors.js";
+import {appearanceThemes, canvasBackdrop, compositeColor, fallbackDrawingColor, renderDrawingColor, textFillColor, trayFloor} from "./theme-colors.js";
 
 const paintCache = new WeakMap();
 const ordered = (a, b) => a.layer - b.layer || a.order - b.order;
@@ -14,13 +14,10 @@ const pointInside = (d, [x,y]) => {
 };
 
 export function regionPaper(drawing, theme) {
-  const value = isDrawingColor(drawing.color) ? drawing.color : "#78866c";
+  // A container is a tray sunk into the ground; `paint`, when present, is the CSS that paints its floor live.
+  if (drawing.container) return trayFloor(drawing.color, theme);
+  const value = isDrawingColor(drawing.color) ? drawing.color : fallbackDrawingColor;
   const fill = renderDrawingColor(value, "fill", theme);
-  if (drawing.container) {
-    const mixed = compositeColor(fill, unpackColor(themePaper[theme])[0], .28);
-    const opaque = "#" + mixed.map(channel => Math.round(channel).toString(16).padStart(2, "0")).join("");
-    return {fill: opaque, opacity: 1};
-  }
   if (drawing.shape || isPaletteColor(value)) return {fill, opacity: 1};
   return {fill, opacity: theme === "dark" ? .65 : .2};
 }
