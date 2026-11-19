@@ -317,7 +317,7 @@ export class WorkspaceBoard {
     this.installBoardCommands(bar);
     document.addEventListener("keydown", e => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== "z" ||
-          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") || inPopup(e)) return;
+          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]") || inPopup(e)) return;
       // Browser text editing keeps its own undo; movement replay is available
       // only when no pointer gesture or operation is still being committed.
       e.preventDefault(); e.stopImmediatePropagation();
@@ -727,7 +727,7 @@ export class WorkspaceBoard {
         const editing = "input,textarea,select,[contenteditable],[role=textbox],[role=dialog]";
         const drawnOnly = !this.clipboardCandidates().length && (this.keyboardDecorations?.().length || this.activeDecoration) && this.mode === "canvas";
         if (event.target.closest?.(editing) || document.activeElement?.closest(editing) ||
-            document.activeElement?.tagName === "IFRAME" || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") ||
+            document.activeElement?.tagName === "IFRAME" || document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]") ||
             !this.clipboardCandidates().length && !drawnOnly) return;
         if (drawnOnly) {
           event.preventDefault(); event.stopImmediatePropagation();
@@ -855,7 +855,7 @@ export class WorkspaceBoard {
   // Work in progress blocks every board command, clicked or typed.
   commandBusy() {
     return this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy ||
-      this.client.pendingWrites || this.saving || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]");
+      this.client.pendingWrites || this.saving || document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]");
   }
   // Keyboard and native clipboard events also yield to focused fields and panels.
   clipboardBlocked() {
@@ -1247,7 +1247,7 @@ export class WorkspaceBoard {
   }
   async replayMovement(direction, {explicit = false} = {}) {
     if (this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy || this.history?.busy || this.client.pendingWrites || this.saving ||
-        (!explicit && document.activeElement?.closest("input,textarea,select,[contenteditable],[role=dialog]")) || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") ||
+        (!explicit && document.activeElement?.closest("input,textarea,select,[contenteditable],[role=dialog]")) || document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]") ||
         !this.history.available(direction)) return;
     this.historyBusy = true;
     this.movePending = true;
@@ -2014,7 +2014,7 @@ export class WorkspaceBoard {
     const viewport = $("viewport");
     const emptyCanvas = e => {
       if (e.pointerType === "touch" || e.isPrimary === false || e.ctrlKey || e.metaKey || e.altKey ||
-          document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]")) return false;
+          document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]")) return false;
       const rect = viewport.getBoundingClientRect();
       if (e.clientX < rect.left + viewport.clientLeft || e.clientX >= rect.left + viewport.clientLeft + viewport.clientWidth ||
           e.clientY < rect.top + viewport.clientTop || e.clientY >= rect.top + viewport.clientTop + viewport.clientHeight) return false;
@@ -2275,7 +2275,7 @@ export class WorkspaceBoard {
     // which would clear only the drawn elements).
     window.addEventListener("keydown", e => {
       if (e.key !== "Escape" || !this.mixedGroup || this.whiteboard?.editor || this.context || this.addPopup ||
-          document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") || e.target.closest?.("input,textarea,select,[contenteditable]") || inPopup(e)) return;
+          document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]") || e.target.closest?.("input,textarea,select,[contenteditable]") || inPopup(e)) return;
       e.preventDefault(); e.stopImmediatePropagation();
       this.whiteboard?.clearSelection({finishEdit:true,focus:false});
       this.mixedGroup = false;
@@ -2738,7 +2738,7 @@ export class WorkspaceBoard {
   queueableKey(e) {
     const arrow = e.key?.startsWith("Arrow");
     if (e.isComposing || e.keyCode === 229 || e.repeat || (e.altKey && !arrow) || this.editorHold || this.whiteboard?.editing || this.documentEditing) return false;
-    if (document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") || document.activeElement?.tagName === "IFRAME" ||
+    if (document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]") || document.activeElement?.tagName === "IFRAME" ||
         e.target.closest?.("input,textarea,select,[contenteditable],[role=dialog],[role=textbox]") || inPopup(e)) return false;
     const key = e.key.toLowerCase();
     if (e.metaKey || e.ctrlKey) return ["z","d","a"].includes(key);

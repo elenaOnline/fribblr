@@ -142,9 +142,9 @@ export class WorkspaceHome {
     this.render();
   }
   async drainLive() {
-    if(!this.liveDirty||this.liveRunning||this.client.pendingWrites||document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]"))return;
+    if(!this.liveDirty||this.liveRunning||this.client.pendingWrites||document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]"))return;
     this.liveRunning=true;
-    try{while(this.liveDirty&&!document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]")){this.liveDirty=false;await this.refresh();}}
+    try{while(this.liveDirty&&!document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]")){this.liveDirty=false;await this.refresh();}}
     catch{this.liveDirty=true;document.getElementById("connection").textContent="Reconnecting";}
     finally{this.liveRunning=false;}
   }
@@ -345,7 +345,7 @@ export class WorkspaceHome {
       suppressClick = false;
       if (this.marquee) { finish(true); return; }
       if (!this.active || e.button !== 0 || !e.isPrimary || !["mouse", "pen"].includes(e.pointerType) ||
-          e.ctrlKey || e.metaKey || e.altKey || document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]")) return;
+          e.ctrlKey || e.metaKey || e.altKey || document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]")) return;
       const main = e.target.closest?.("main");
       if (!main || e.target.closest(NOT_EMPTY)) return;
       this.marquee = { pointerId: e.pointerId, start: { x: e.clientX, y: e.clientY }, last: { x: e.clientX, y: e.clientY },
@@ -387,7 +387,7 @@ export class WorkspaceHome {
     }, true);
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || !this.selected.size || e.defaultPrevented || e.isComposing ||
-          document.querySelector("dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]") || e.target.closest?.(FIELD)) return;
+          document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]") || e.target.closest?.(FIELD)) return;
       e.preventDefault();
       this.selected.clear();
       this.syncSelection();

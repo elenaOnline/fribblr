@@ -145,7 +145,7 @@ export function showFailure(error) {
 // element, which has the old dialog's close() and a "close" event.
 // A dialog opened while another dialog is open goes inside it, so the first one's inert page doesn't include it.
 function dialogHost() {
-  const open = [...document.querySelectorAll('ui-dialog-content[data-open],ui-alert-dialog-content[data-open]')].pop();
+  const open = [...document.querySelectorAll('ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')].pop();
   if (open) return open;
   return [...document.querySelectorAll('dialog[open]')].filter(d => d.matches(':modal')).pop() || document.body;
 }

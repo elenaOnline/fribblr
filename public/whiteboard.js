@@ -617,7 +617,7 @@ export class Whiteboard {
       if(e.target.closest('#viewport')&&!e.target.closest('.whiteboard-ports'))this.clearSelection({finishEdit:true,focus:false});
       return;
     }
-    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]')||this.host.pointerGesture||this.host.movePending)return;
+    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')||this.host.pointerGesture||this.host.movePending)return;
     if(e.target.closest('input,textarea,[contenteditable]'))return;
     let d=element&&this.find(element.dataset.decoration);if(!port&&!d)return;
     // Shift-click adds or removes a decoration from a multi-selection; no drag starts.
@@ -717,7 +717,7 @@ export class Whiteboard {
     if(this.handleEscape(e)){e.preventDefault();e.stopImmediatePropagation();return;}
     // Arrows, Home and End on the bar belong to ui-toolbar (it is one Tab stop and moves focus along its buttons).
     const group=e.target.closest('[data-decoration]');
-    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button')&&!document.querySelector('dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)){
+    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button')&&!document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)){
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);
     }
   }

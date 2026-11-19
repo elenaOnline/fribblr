@@ -172,7 +172,7 @@ export class ProjectNavigator {
   }
   // An open Tinka is a modal page of its own; the Navigator then lives inside it
   // (see host) and counts only other modal dialogs as blocking.
-  modalOpen(){try{return [...document.querySelectorAll('dialog:modal,ui-dialog-content[data-open]:not(.quick-jot),ui-alert-dialog-content[data-open]')].some(dialog=>!dialog.contains(this.panel));}catch{return false;}}
+  modalOpen(){try{return [...document.querySelectorAll('dialog:modal,ui-dialog-content[data-open][aria-modal=true]:not(.quick-jot),ui-alert-dialog-content[data-open]')].some(dialog=>!dialog.contains(this.panel));}catch{return false;}}
   toggles(){return [this.button,this.hostButton].filter(Boolean);}
   // Everything that opens the Navigator: its toggles and the Find buttons in the board and reader headers.
   openers(){return [...this.toggles(),...document.querySelectorAll('#chrome-search,#reader-search')];}

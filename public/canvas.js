@@ -1655,7 +1655,7 @@ document.addEventListener('pointerdown', event => {
   if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, #reader-more-menu, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
 });
 document.addEventListener('pointerdown', event => {
-  if (!$('board-info').hidden && !event.target.closest('#board-info, #board-info-toggle, .workspace-dialog, dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open], .workspace-add-menu, .workspace-popover, .feedback-panel')) setInfoOpen(false);
+  if (!$('board-info').hidden && !event.target.closest('#board-info, #board-info-toggle, .workspace-dialog, dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open], .workspace-add-menu, .workspace-popover, .feedback-panel')) setInfoOpen(false);
 }, true);
 let pendingDocumentOpen = 0;
 document.addEventListener('click', event => {
@@ -1728,7 +1728,7 @@ $('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka
 // ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
 document.addEventListener('keydown', event => {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'i' || event.repeat) return;
-  if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]') || inPopup(event)) return;
+  if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]') || inPopup(event)) return;
   event.preventDefault();
   const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : null;
   if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes'); return; }
@@ -1875,7 +1875,7 @@ function boardStep(direction) {
   announceView(`${target.concept.name}, ${sequence.indexOf(target) + 1} of ${sequence.length}`);
 }
 document.addEventListener('keydown', event => {
-  if (!graph || overview || dialog.open || event.defaultPrevented || document.querySelector('dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]')) return;
+  if (!graph || overview || dialog.open || event.defaultPrevented || document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')) return;
   const editable = !!event.target.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role=textbox]');
   const command = boardStepCommand(event, { mac: readerKeysMac, editable });
   if (!command || graph.boardCommandBlocked(event) || document.activeElement?.tagName === 'IFRAME') return;
@@ -2228,7 +2228,7 @@ viewport.addEventListener('gestureend', event => event.preventDefault());
 // keep the browser's own zoom.
 function boardOwnsPinch(event) {
   if (graph?.mode === 'grid' || viewport.contains(event.target)) return false;
-  return !document.querySelector('dialog[open],ui-dialog-content[data-open],ui-alert-dialog-content[data-open]');
+  return !document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]');
 }
 function viewportPinchPoint(event) {
   const r = viewport.getBoundingClientRect();
