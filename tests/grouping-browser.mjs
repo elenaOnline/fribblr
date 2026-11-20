@@ -94,7 +94,8 @@ try {
   assert.deepEqual(moved.groups,grouped.groups);
   await action('restoreMovement',()=>page.keyboard.press(`${mod}+z`));
   await groupButton.filter({hasText:/^Ungroup/}).waitFor();
-  await page.waitForFunction(()=>!document.querySelector('#chrome-redo').disabled);
+  // Redo is a top-bar toolbar item: disabled, it keeps focus and says so with aria-disabled (header-toolbar.js).
+  await page.waitForFunction(()=>{const redo=document.querySelector('#chrome-redo');return !redo.disabled&&redo.getAttribute('aria-disabled')!=='true';});
 
   const start=await center(draw('caption'));
   await page.mouse.move(start.x,start.y);

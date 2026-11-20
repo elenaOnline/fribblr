@@ -207,7 +207,6 @@ export function makeDialog(title, body, onSubmit, {
   let controller, dirty = false, done = false, saved = false;
   const finish = () => {
     if (done) return; done = true;
-    if (!saved) onDismiss?.(form);
     controller?.destroy(); d.dispatchEvent(new Event('close'));
   };
   d.close = () => { if (!controller?.pending || saved) root.api.close(); };
@@ -229,6 +228,8 @@ export function makeDialog(title, body, onSubmit, {
     if (event.detail.value) return;
     // Our opener first, then the "close" listeners: a caller that wants focus elsewhere has the last word.
     root.remove();
+    // A dismissed draft is kept at once, so the dialog reopened straight away (Enter on its opener) still has it.
+    if (!saved) onDismiss?.(form);
     // After the SDK has put focus back (it runs after this event), so a caller's "close" listener has the last word.
     requestAnimationFrame(() => { restoreFocus(opener); finish(); });
   });

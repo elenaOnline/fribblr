@@ -18,7 +18,10 @@ try{
  };
  const zoom=async value=>{await page.locator('#zoom-menu-toggle').click();await page.locator('#zoom-slider').evaluate((el,value)=>{el.value=String(value);el.dispatchEvent(new Event('input',{bubbles:true}));},sliderFromZoom(value/100));await page.keyboard.press('Escape');};
  const position=async(control,side,bottom=false)=>{
-  const v=await page.locator('#viewport').boundingBox(),target={x:side==='right'?v.x+v.width-65:v.x+65,y:bottom?v.y+v.height-65:v.y+115};
+  // A bottom-edge invoker sits just above the canvas tools rail (Tinka 1.4), which spans a phone's width near the
+  // bottom: under it, the press would land on the rail.
+  const v=await page.locator('#viewport').boundingBox(),rail=await page.locator('#edit-tools:not([hidden])').boundingBox().catch(()=>null);
+  const target={x:side==='right'?v.x+v.width-65:v.x+65,y:bottom?Math.min(v.y+v.height-65,rail?rail.y-30:Infinity):v.y+115};
   for(let i=0;i<3;i++){const r=await rect(control),dx=r.x+r.width/2-target.x,dy=r.y+r.height/2-target.y;if(Math.abs(dx)<2&&Math.abs(dy)<2)break;await page.mouse.move(v.x+v.width-2,v.y+v.height/2);await page.mouse.wheel(dx,dy);await page.waitForTimeout(80);}
  };
  const runCanvas=async(schema,id,side,scale,width,bottom=false)=>{

@@ -701,7 +701,7 @@ try {
     .getByRole("button", { name: "New board around selection…", exact: true })
     .click();
   await page
-    .getByLabel("Board title", { exact: true })
+    .getByLabel("Board name", { exact: true })
     .fill("Grouped atomically");
   await page
     .getByRole("button", { name: "Create board and move", exact: true })
@@ -1476,7 +1476,7 @@ try {
   await page.locator(".workspace-card").first().waitFor();
   for (const select of await page.locator("[data-placement-select]").all()) await select.click();
   await page.getByRole("button",{name:"New board around selection…",exact:true}).click();
-  await page.getByLabel("Board title",{exact:true}).fill("Grouped designs");
+  await page.getByLabel("Board name",{exact:true}).fill("Grouped designs");
   await page.getByRole("button",{name:"Create board and move",exact:true}).click();
   const immediate = page.locator(".workspace-card").filter({has:page.getByRole("heading",{name:"Grouped designs",exact:true})});
   await immediate.locator(".board-collage").waitFor();

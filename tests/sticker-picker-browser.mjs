@@ -144,9 +144,17 @@ try {
   await openPicker();
   for(let i=0;i<3;i++)await page.keyboard.press('Tab');
   assert.equal(await focused(),'grid');
+  // What follows the Sticker key in Tab order, outside its rail (one Tab stop) and the picker. The rail is the board's
+  // last control in the document, so on this board that is usually nothing: Tab then leaves the page (body).
+  const after=await page.evaluate(()=>{
+    const bar=document.querySelector('[data-edit-tool="sticker"]').closest('ui-toolbar'),picker=document.querySelector('.emoji-picker-results').closest('ui-popover');
+    const next=[...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].find(el=>(bar.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING)&&
+      !bar.contains(el)&&!picker.contains(el)&&el.tabIndex>=0&&!el.disabled&&el.getClientRects().length&&!el.closest('[inert],[hidden]'));
+    next?.setAttribute('data-test-after-rail','');return next?next.tagName:'BODY';});
   await page.keyboard.press('Tab');
   await dialog.waitFor({state:'detached'});
-  assert.ok(!['field','grid','rail','BODY','none'].includes(await focused()),`Tab from the grid moved on past the Sticker key (${await focused()})`);
+  assert.ok(await page.evaluate(want=>want==='BODY'?document.activeElement===document.body:!!document.activeElement?.hasAttribute('data-test-after-rail'),after),
+    `Tab from the grid moved on to what follows the Sticker key (${after}), not ${await focused()}`);
 
   // ---- Skin tone: a radio choice, applied to the stickers that take one, remembered between visits.
   await openPicker();
