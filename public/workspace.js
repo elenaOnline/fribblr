@@ -177,6 +177,8 @@ function dialogHost() {
   return [...document.querySelectorAll('dialog[open]')].filter(d => d.matches(':modal')).pop() || document.body;
 }
 const FIRST_FIELD = 'input:not([type=hidden],[type=checkbox],[type=radio],[readonly],[disabled]),textarea:not([readonly],[disabled]),select:not([disabled])';
+// Fields whose value is typed text (a discard question guards them in makeDialog).
+const TEXT_TYPES = new Set(['text', 'search', 'url', 'email', 'tel', 'password', 'number']);
 export function makeDialog(title, body, onSubmit, {
   opener = document.activeElement, compact = false, shortcutHint, onDismiss, className = '',
 } = {}) {
@@ -210,14 +212,22 @@ export function makeDialog(title, body, onSubmit, {
     controller?.destroy(); d.dispatchEvent(new Event('close'));
   };
   d.close = () => { if (!controller?.pending || saved) root.api.close(); };
-  // A form with typed-in changes asks before a stray Escape or backdrop press throws them away; the close key doesn't
-  // ask. A dialog that keeps its draft (onDismiss) has nothing to lose, so it never asks.
-  const touch = () => { if (onSubmit && !onDismiss && !dirty) { dirty = true; root.dismissible = false; } };
-  form.addEventListener('input', touch);
-  form.addEventListener('change', touch);
+  // Only typed text makes a stray Escape or backdrop press ask before closing: a choice (a radio, a checkbox, a select, a
+  // slider) costs one press to make again. Text back to what it was asks nothing. The close key never asks. A dialog
+  // that keeps its draft (onDismiss) has nothing to lose, so it never asks.
+  // Each field's value is noted just before her first edit to it (beforeinput), so text a caller fills in is not hers.
+  const typed = el => el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_TYPES.has(el.type));
+  const before = new Map();
+  form.addEventListener('beforeinput', event => { if (typed(event.target) && !before.has(event.target)) before.set(event.target, event.target.value); });
+  form.addEventListener('input', event => {
+    if (!onSubmit || onDismiss || !typed(event.target)) return;
+    if (!before.has(event.target)) before.set(event.target, event.target.defaultValue);
+    dirty = [...before].some(([el, value]) => el.isConnected && el.value !== value);
+    root.dismissible = !dirty;
+  });
   root.addEventListener('dismissattempt', async () => {
     if (controller?.pending || !dirty) return;
-    if (await confirmDialog({title: 'Discard your changes?', description: 'What you typed in this dialog has not been saved.', confirmLabel: 'Discard', cancelLabel: 'Keep editing'})) { root.dismissible = true; root.api.close(); }
+    if (await confirmDialog({title: 'Discard the text you typed', description: `Nothing in “${title}” is saved yet.`, confirmLabel: 'Discard', cancelLabel: 'Keep editing'})) { root.dismissible = true; root.api.close(); }
   });
   root.addEventListener('openchange', event => {
     if (event.detail.value) return;

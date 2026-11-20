@@ -308,8 +308,12 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
   `shortcutHint` as words); ⌘↩ saves (`bindForm`). Focus opens on `[autofocus]`, else the first field, else the close
   key. Tab wraps; Escape and a backdrop press close; focus returns to `opener` (default: the focused element). A
   save in flight holds the dialog open.
-- **Discard question.** Once a form with `onSubmit` has typed-in changes, the dialog becomes `dismissible=false`;
-  Escape or a backdrop press then asks "Discard your changes?" (an alert dialog). The × key never asks. A dialog with
+- **Discard question.** Only typed text asks. Once a text field or text area of a form with `onSubmit` holds text that
+  differs from what it held before her first edit (noted on `beforeinput`), the dialog becomes `dismissible=false`;
+  Escape or a backdrop press then asks, in an alert dialog titled "Discard the text you typed" ("Nothing in “Edit item”
+  is saved yet.", Keep editing / Discard). A choice (radio, checkbox, select, slider) never asks: it costs one press to
+  make again (the Move to a board destination). Text typed back to what it was asks nothing. The title is a statement,
+  not a question (plain, literal copy). The × key never asks. A dialog with
   `onDismiss(form)` keeps its draft instead and never asks; `onDismiss` runs as it closes unsaved, at once, so a
   dialog reopened straight away finds the draft.
 - **`confirmDialog({title, description, confirmLabel, cancelLabel, onConfirm, className})`** builds a

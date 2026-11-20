@@ -49,6 +49,8 @@ try{
  await page.keyboard.press('Escape');
  await page.locator('ui-alert-dialog-content[data-open]').waitFor();
  assert.equal((await active()).label,'Keep editing','the discard question starts on Keep editing');
+ assert.equal(await page.locator('ui-alert-dialog-content[data-open] h2').textContent(),'Discard the text you typed','the question says what is lost, as a statement');
+ assert.equal(await page.locator('ui-alert-dialog-content[data-open] p').first().textContent(),'Nothing in “QA form” is saved yet.');
  await page.keyboard.press('Escape');await page.locator('ui-alert-dialog-content').waitFor({state:'detached'});
  assert.equal(await page.locator('ui-dialog-content[data-open]').count(),1,'Escape on the question keeps the form');
  assert.equal(await page.locator('ui-dialog-content[data-open] input').inputValue(),'typed');
@@ -61,6 +63,16 @@ try{
  assert.equal((await active()).id,'qa-opener');
  await makeForm();await page.mouse.click(4,500);await page.locator('ui-dialog-content.workspace-dialog').waitFor({state:'detached'});
  ok('submit shortcut, backdrop closes a clean dialog');
+ // Only typed text asks: a choice costs one press to make again, and text typed back to what it was is nothing lost.
+ await page.evaluate(async()=>{const {makeDialog}=await import('/app/workspace.js');makeDialog('QA choice','<fieldset><legend>Where</legend><label><input type="radio" name="to" value="a" checked>A</label><label><input type="radio" name="to" value="b">B</label></fieldset><label><input type="checkbox" name="also">Also</label><label>Note<input name="note" value="kept"></label><button type="submit" class="workspace-primary">Save</button>',async()=>{});});
+ await page.locator('ui-dialog-content[data-open]').waitFor();
+ await page.locator('ui-dialog-content[data-open] input[value=a]').focus();await page.keyboard.press('ArrowDown');
+ assert.equal(await page.locator('ui-dialog-content[data-open] input[value=b]').isChecked(),true,'the radio choice moved');
+ await page.locator('ui-dialog-content[data-open] input[name=also]').check();
+ await page.locator('ui-dialog-content[data-open] input[name=note]').focus();await page.keyboard.press('End');await page.keyboard.type('x');await page.keyboard.press('Backspace');
+ await page.keyboard.press('Escape');await page.locator('ui-dialog-content.workspace-dialog').waitFor({state:'detached'});
+ assert.equal(await page.locator('ui-alert-dialog-content').count(),0,'a radio, a checkbox and text typed back to what it was close without a question');
+ ok('only typed text asks before discarding');
 
  // ---- Keyboard shortcuts dialog (?)
  await page.evaluate(()=>document.getElementById('qa-opener').remove());await page.locator('#viewport').click({position:{x:4,y:400}});
