@@ -81,7 +81,7 @@ try{
  // Board-tiles are places with a serif name, a window and a readable edited date.
  const tile=page.locator('.workspace-board-tile.workspace-place-only');assert.equal(await tile.count(),1);
  assert.match(await tile.locator('.workspace-place-meta').innerText(),/Board · 1 item · edited just now/);
- assert.ok(await tile.locator('.workspace-place-meta time[data-rel][datetime][title]').count());
+ assert.ok(await tile.locator('.workspace-place-meta time[data-rel][datetime][data-tip]').count());
  assert.match(await tile.locator('h3').evaluate(el=>getComputedStyle(el).fontFamily),/serif/);
  // The view pill: − · % · + · Fit, and a browser-local Dots / Grid / Plain choice per board.
  const pct=async()=>Number((await page.locator('#zoom-menu-toggle').innerText()).replace('%',''));

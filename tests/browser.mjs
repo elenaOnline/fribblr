@@ -580,7 +580,7 @@ try{
   // Up names the board, as ‹ Parent does on a board.
   assert.equal(await h.locator('#reader-dialog .reader-header #reader-up-label').textContent(),'History');
   assert.equal(await h.locator('#reader-hint').textContent(),'Try the first thing.');
-  assert((await h.locator('#reader-path').getAttribute('title')).includes('Try the first thing.'));
+  assert((await h.locator('#reader-path').getAttribute('data-tip')).includes('Try the first thing.'));
   assert.equal(await h.locator('#reader-standalone').getAttribute('href'),'/boards/history/files/alpha-one.html');
   assert.equal(await h.locator('#reader-standalone').getAttribute('target'),'_blank');
   // The stepper and the path's neighbour list follow board order across rounds; endpoints are disabled.
@@ -955,7 +955,7 @@ try{
   await writeFile(path.join(a.boards,'sweep-long','c1.html'),'<!doctype html><title>c1</title><body data-experiment="c1"><h1>c1, changed</h1>');
   await h.locator('#reader-update').waitFor();
   // A long project label too (labels come from the project's config; this instance's is short).
-  const longLabel=()=>h.evaluate(()=>{for(const el of document.querySelectorAll('.brand'))el.title='Tinka / A rather long project label';});
+  const longLabel=()=>h.evaluate(()=>{for(const el of document.querySelectorAll('.brand'))el.dataset.tip='Tinka / A rather long project label';});
   await longLabel();
   await sweep('reader header, long titles and reload banner',{root:'.reader-header',groups:['.brand','#close-reader','.reader-title-row','.chrome-actions'],pseudoTargets:'#reader-update'});
   await h.goto(`${a.url}boards/sweep-long/`);

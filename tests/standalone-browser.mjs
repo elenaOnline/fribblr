@@ -56,7 +56,7 @@ try{
 
  // (2) The opened Tinka's Inspector.
  await page.goto(`${base}/boards/lab/#items/${calm.placementIds[0]}`);await page.locator('#reader-dialog[open]').waitFor();
- eq(await page.locator('#reader-star').getAttribute('title'),'Favorite','The header ☆ says Favorite');
+ eq(await page.locator('#reader-star').getAttribute('data-tip'),'Favorite','The header ☆ says Favorite (its SDK tooltip)');
  await page.locator('#reader-info-toggle').click();const info=page.locator('#reader-info');await info.waitFor({state:'visible'});
  ok(await info.getByRole('heading',{name:'Where it lives'}).isVisible(),'Where it lives comes first');
  const standalone=info.getByRole('link',{name:'Open standalone ↗'});
