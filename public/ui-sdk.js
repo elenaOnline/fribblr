@@ -17,6 +17,7 @@ const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Ho
 export function widgetOwnsKey(event) {
   // Escape with a tooltip showing closes only the tooltip (tooltip.md § Keyboard), wherever focus is.
   if (event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
+  if (typeof Element === 'undefined') return false;  // no DOM (unit tests of board code)
   const target = event?.target instanceof Element ? event.target : document.activeElement;
   if (!target?.closest) return false;
   if (target.closest(OWNS_ALL_KEYS)) return true;

@@ -1,4 +1,5 @@
-// Headless checks for ⌥←/⌥→ on a board (the opened Tinka's step keys): the selection
+// Headless checks for [ / ] on a board (the opened Tinka's fallback step keys; on a board ⌥←/→ moves the focused item,
+// UI SDK's canvas norm): the selection
 // steps one Tinka at a time in the stepper's order, skipping what it skips, and each
 // one comes into view (zooming out only for a Tinka too big to fit); nothing selected
 // starts at an end; the ends stop; text fields keep the keys. Also: no dots until a
@@ -57,14 +58,14 @@ try{
 
  await open('steps');
  ok(!(await inView(p.east))&&!(await inView(p.last)),'Some Tinkas start off screen');
- // Nothing selected: ⌥→ starts at the first Tinka in stepper order.
- await step('Alt+ArrowRight');
+ // Nothing selected: ] starts at the first Tinka in stepper order.
+ await step(']');
  assert.deepEqual(await selected(),[sequence[0]]);checks++;
  ok(await inView(sequence[0]),'The first Tinka is in view');
  // Five more presses: five successive Tinkas, one at a time, each in view; reserved and board-only are skipped.
  const zoom0=await zoom();
  for(let i=1;i<=5;i++){
-  await step('Alt+ArrowRight');
+  await step(']');
   assert.deepEqual(await selected(),[sequence[i]],`Press ${i} selects ${sequence[i]}`);checks++;
   ok(await inView(sequence[i]),`Tinka ${i+1} of ${sequence.length} ends in view`);
   if(sequence[i]===p.giant)ok(await zoom()<zoom0,'A Tinka too big to fit zooms out just enough');
@@ -72,29 +73,29 @@ try{
  }
  await page.screenshot({path:path.join(evidence,'board-step-1244-last.png')});
  // The end stops, as the opened Tinka's stepper does.
- await step('Alt+ArrowRight');
+ await step(']');
  assert.deepEqual(await selected(),[p.last]);checks++;
  ok(await page.locator('#view-announce').textContent()==='Last Tinka on this board','The end is announced');
- // ⌥← goes back.
- await step('Alt+ArrowLeft');
+ // [ goes back.
+ await step('[');
  assert.deepEqual(await selected(),[sequence[4]]);checks++;
  ok(await inView(sequence[4]),'Stepping back brings it into view');
- // Escape clears the selection; ⌥← then continues from the board's current Tinka.
+ // Escape clears the selection; [ then continues from the board's current Tinka.
  await page.keyboard.press('Escape');assert.deepEqual(await selected(),[]);checks++;
- await step('Alt+ArrowLeft');assert.deepEqual(await selected(),[sequence[3]]);checks++;
- // With no current Tinka (a fresh tab), ⌥← starts at the last.
+ await step('[');assert.deepEqual(await selected(),[sequence[3]]);checks++;
+ // With no current Tinka (a fresh tab), [ starts at the last.
  await page.keyboard.press('Escape');
  await page.evaluate(()=>{for(const k of Object.keys(sessionStorage))if(k.endsWith('/step-cursor'))sessionStorage.removeItem(k);});await open('steps');
- await step('Alt+ArrowLeft');assert.deepEqual(await selected(),[p.last]);checks++;
+ await step('[');assert.deepEqual(await selected(),[p.last]);checks++;
  // From a selected board-only Tinka (the stepper skips it), next is the one after it.
  await page.keyboard.press('Escape');
  await page.locator(`.workspace-card[data-placement="${p.boardOnly}"] [data-placement-select]`).evaluate(b=>b.click());
  assert.deepEqual(await selected(),[p.boardOnly]);
- await step('Alt+ArrowRight');assert.deepEqual(await selected(),[p.east]);checks++;
+ await step(']');assert.deepEqual(await selected(),[p.east]);checks++;
  // The same order as the opened Tinka: open the third and read its stepper.
  await page.keyboard.press('Escape');
  await page.locator(`.workspace-card[data-placement="${sequence[0]}"] [data-placement-select]`).evaluate(b=>b.click());
- for(let i=0;i<2;i++)await step('Alt+ArrowRight');
+ for(let i=0;i<2;i++)await step(']');
  assert.deepEqual(await selected(),[sequence[2]]);checks++;
  await page.keyboard.press('Enter');
  await page.locator('#reader-dialog[open]').waitFor();
@@ -105,8 +106,10 @@ try{
  await page.locator('#board-info-toggle').click();
  const search=page.locator('#workspace-search');await search.click();
  const before=await selected();
- await page.keyboard.press('Alt+ArrowRight');await page.waitForTimeout(60);
- assert.deepEqual(await selected(),before,'⌥→ in a text field leaves the selection');checks++;
+ await page.keyboard.press(']');await page.waitForTimeout(60);
+ ok((await search.inputValue()).endsWith(']'),'The field kept the key');
+ await search.fill('');await page.waitForTimeout(120);
+ assert.deepEqual(await selected(),before,'] in a text field types and does not step the selection');checks++;
  await page.keyboard.press('Escape');
 
  // Dots: off on a board nobody has chosen for; an explicit choice is kept.
@@ -139,7 +142,7 @@ try{
  await page.keyboard.press('Shift+Tab');
  const tabbed=await page.evaluate(()=>({id:document.activeElement.id,outline:getComputedStyle(document.activeElement).outlineStyle}));
  ok(tabbed.id==='zoom-menu-toggle'&&tabbed.outline==='solid',`Tab focus keeps its ring: ${JSON.stringify(tabbed)}`);
- // The board remembers the current Tinka: open 4, step inside to 6, go back; ⌥→ is 7, ⌥← is 5.
+ // The board remembers the current Tinka: open 4, step inside to 6, go back; ] is 7, [ is 5 (inside the Tinka ⌥→ still steps).
  await open('cursor');
  const pick=async n=>{await page.locator(`.workspace-card[data-placement="${row[n-1]}"] [data-placement-select]`).evaluate(b=>b.click());await page.waitForTimeout(60);};
  const openAndStep=async()=>{await page.locator(`.workspace-card[data-placement="${row[3]}"] [data-open]`).first().evaluate(b=>b.click());await page.locator('#reader-dialog[open]').waitFor();
@@ -149,19 +152,19 @@ try{
   await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});await page.waitForTimeout(300);};
  await openAndStep();
  assert.deepEqual(await selected(),[],'Back on the board nothing stays selected (unchanged)');checks++;
- await step('Alt+ArrowRight');assert.deepEqual(await selected(),[row[6]],'⌥→ continues after the Tinka last viewed (7)');checks++;
+ await step(']');assert.deepEqual(await selected(),[row[6]],'] continues after the Tinka last viewed (7)');checks++;
  await openAndStep();
- await step('Alt+ArrowLeft');assert.deepEqual(await selected(),[row[4]],'⌥← goes to the one before it (5)');checks++;
+ await step('[');assert.deepEqual(await selected(),[row[4]],'[ goes to the one before it (5)');checks++;
  // A plain click on empty canvas clears the selection but not the cursor; a reload keeps it too.
  await page.keyboard.press('Escape');
  const vpBox=await page.locator('#viewport').boundingBox();await page.mouse.click(vpBox.x+vpBox.width/2,vpBox.y+vpBox.height-120);await page.waitForTimeout(60);
  assert.deepEqual(await selected(),[]);
- await step('Alt+ArrowRight');assert.deepEqual(await selected(),[row[5]],'After clicking empty canvas, ⌥→ continues from the cursor (5 → 6)');checks++;
+ await step(']');assert.deepEqual(await selected(),[row[5]],'After clicking empty canvas, ] continues from the cursor (5 → 6)');checks++;
  await page.keyboard.press('Escape');await open('cursor');
- await step('Alt+ArrowRight');assert.deepEqual(await selected(),[row[6]],'The cursor survives a reload in this tab (6 → 7)');checks++;
+ await step(']');assert.deepEqual(await selected(),[row[6]],'The cursor survives a reload in this tab (6 → 7)');checks++;
  // An explicit selection wins over the cursor.
  await page.keyboard.press('Escape');await pick(2);
- await step('Alt+ArrowRight');assert.deepEqual(await selected(),[row[2]],'An explicit selection wins (2 → 3)');checks++;
+ await step(']');assert.deepEqual(await selected(),[row[2]],'An explicit selection wins (2 → 3)');checks++;
 
  // Hold Z while drawing a selection box: releasing zooms to the box (Fit selection's margin), once.
  await open('steps');
@@ -236,7 +239,7 @@ try{
  const moving=await browser.newContext({viewport:{width:1244,height:820},colorScheme:'dark'});const mp=await moving.newPage();mp.on('pageerror',e=>errors.push(e.message));
  await mp.goto(base+'/boards/steps/',{waitUntil:'load'});await mp.locator('.workspace-card').first().waitFor();await mp.waitForTimeout(150);
  const plane=()=>mp.evaluate(()=>new DOMMatrix(getComputedStyle(document.getElementById('plane')).transform).e);
- await mp.keyboard.press('Alt+ArrowRight');await mp.keyboard.press('Alt+ArrowRight');const startX=await plane();await mp.waitForTimeout(80);const midX=await plane();await mp.waitForTimeout(500);const endX=await plane();
+ await mp.keyboard.press(']');await mp.keyboard.press(']');const startX=await plane();await mp.waitForTimeout(80);const midX=await plane();await mp.waitForTimeout(500);const endX=await plane();
  ok(midX!==endX&&startX!==endX,`The view glides to the next Tinka: ${startX} → ${midX} → ${endX}`);
  await mp.screenshot({path:path.join(evidence,'board-step-1244-dark.png')});
  await moving.close();

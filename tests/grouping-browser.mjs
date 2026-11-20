@@ -84,7 +84,7 @@ try {
   assert.equal(await tile(second).evaluate(el=>el.classList.contains('selected')),false);
 
   await page.locator('#viewport').focus();
-  await action('translatePlacements',()=>page.keyboard.press('Shift+ArrowRight'));
+  await action('translatePlacements',()=>page.keyboard.press('Alt+Shift+ArrowRight'));
   const moved=await snapshot();
   assert.equal(moved.placements.find(p=>p.id===first).x,110);
   assert.equal(moved.decorations.find(d=>d.id==='caption').x,420);

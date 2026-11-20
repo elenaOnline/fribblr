@@ -59,9 +59,9 @@ try{
     await page.keyboard.press('Escape');
     const pin=page.locator(`[data-comment-pin="${made.id}"]`);await pin.waitFor();
     const before=await pin.boundingBox();
-    // Nudge the card 10 units right: the pin follows.
+    // Nudge the card 10 units right (Option/Alt+Shift+arrow): the pin follows.
     await page.locator(`[data-placement="${card}"] [data-placement-select]`).click({force:true});
-    await page.keyboard.press('Shift+ArrowRight');
+    await page.keyboard.press('Alt+Shift+ArrowRight');
     assert.ok(await until(async()=>{const b=await pin.boundingBox();return b&&b.x>before.x+5;}),'pin followed the card');
   });
 
