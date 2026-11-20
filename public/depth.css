@@ -182,7 +182,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 :is(#canvas-header, #reader-header) .tk-btn:not(.chrome-search, .reader-down), :is(.canvas-footer, .reader-footer) .zoom-pill .tk-btn:not(.zoom-percent),
 .calm-side-head .tk-btn, .board-map-head .tk-btn, #board-info .inspector-row-btn, #board-info .inspector-sec .tk-btn.tk-tonal, #board-info > .info-actions button,
 .board-card .home-select-dot, .workspace-cover-count, .project-navigator .navigator-chip,
-.text-format-faces button, .text-format-options button, .text-size-controls [data-auto-height], .emoji-picker-link
+.text-format-faces button, .text-format-options button, .text-format-box-height button, .emoji-picker-link
 ) {
   --key-d: var(--depth-raised);
   background-color: var(--key-face, var(--surface-paper));

@@ -7,8 +7,6 @@ import {clampZoom, sameView, wheelZoomFactor} from './canvas-zoom.js';
 
 // A fitted Tinka shows its window at its true size or smaller.
 export const READER_FIT_MAX_ZOOM = 1;
-// At least this much of the sheet stays in view however far it is panned.
-const KEEP = 80;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Whether wheel movement (dx, dy) over `target` would scroll something in Tinka's content:
@@ -44,6 +42,14 @@ export function contentScrolls(target, dx, dy, top = window) {
   return false;
 }
 
+// Saved viewports use 40–10000; decoded images may be larger. Bound layout work
+// without changing their aspect ratio, and reject nonfinite/untrusted dimensions.
+export function resourceSize(width, height) {
+  if (![width, height].every(n => Number.isFinite(n) && n > 0)) return null;
+  const scale = Math.min(1, 16384 / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+
 export class ReaderCanvas {
   constructor(stage, plane, sheet, { onChange = () => {}, onBack = () => {}, reserveBottom = () => 0 } = {}) {
     Object.assign(this, { stage, plane, sheet, onChange, onBack, reserveBottom });
@@ -61,17 +67,25 @@ export class ReaderCanvas {
     stage.append(this.shield);
     this.bind();
   }
-  // Room around a fitted sheet (less on a phone), keeping the floating zoom pill clear of it,
-  // and of the sheet's lower side: the sheet is a slab, so its side stands below its box (depth.css).
+  // Native controls float over the resource; the surface owns the complete stage, less the strip under it
+  // where its lower side stands: the resource is the reader's slab, so its side is drawn below its box (depth.css).
   insets() {
-    const pad = innerWidth <= 650 ? 10 : 24;
     const css = getComputedStyle(this.sheet);
     const side = (parseFloat(css.getPropertyValue('--depth-slab')) || 0) + (parseFloat(css.getPropertyValue('--depth-edge-low')) || 0);
-    return { top: pad, right: pad, left: pad, bottom: Math.max(pad, Math.round(this.reserveBottom() || 0)) + Math.ceil(side) };
+    return { top: 0, right: 0, left: 0, bottom: Math.ceil(side + 1) };   /* and its hairline contour */
+  }
+  setResourceSize(width, height) {
+    const size = resourceSize(width, height);
+    if (this.resourceSize?.width === size?.width && this.resourceSize?.height === size?.height) return;
+    this.resourceSize = size;
+    this.dropBack();
+    // A late image load must not reset a view the person has already zoomed or panned.
+    this.resize();
   }
   area() { return { width: this.stage.clientWidth, height: this.stage.clientHeight }; }
-  // The Fit window size fills the stage, less that room.
+  // Fit uses authored resource dimensions, or the responsive stage for documents.
   fitSize() {
+    if (this.resourceSize) return this.resourceSize;
     const { width, height } = this.area(), i = this.insets();
     return { width: Math.max(240, Math.floor(width - i.left - i.right)), height: Math.max(200, Math.floor(height - i.top - i.bottom)) };
   }
@@ -88,10 +102,10 @@ export class ReaderCanvas {
     return { zoom, x: Math.round(i.left + (room.width - w * zoom) / 2), y: Math.round(i.top + (room.height - h * zoom) / 2) };
   }
   clamp({ zoom, x, y }) {
-    const { width, height } = this.area();
+    // Centred and bounded above the strip the slab's side stands in.
+    const { width } = this.area(), height = this.area().height - (this.insets?.().bottom ?? 0);
     const w = this.sheet.offsetWidth * zoom, h = this.sheet.offsetHeight * zoom;
-    const keepX = Math.min(KEEP, w, width / 3), keepY = Math.min(KEEP, h, height / 3);
-    return { zoom, x: Math.min(width - keepX, Math.max(keepX - w, x)), y: Math.min(height - keepY, Math.max(keepY - h, y)) };
+    return { zoom, x: w <= width ? (width - w) / 2 : Math.min(0, Math.max(width - w, x)), y: h <= height ? (height - h) / 2 : Math.min(0, Math.max(height - h, y)) };
   }
   apply() {
     this.view = this.clamp(this.view);

@@ -8,7 +8,9 @@ import {drawingColor, isDrawingColor, isPaletteColor} from './drawing-palette.js
 import {appearanceThemes, compositeColor, fallbackDrawingColor, luminance, readableColor, renderDrawingColor, surfaceInk, themeColor, themePaper, unpackColor} from './theme-colors.js';
 import {boardSurfaces, lineSurfacePoints, regionPaper, surfacePoints} from './board-paint.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
+import {syncTextInkPreview} from './text-ink-preview.js';
 import {placeWhiteboardPopover} from './whiteboard-popover.js';
+import {stackRank} from './stacking.js';
 import {snapBox, snapDisabled} from './snap-guides.js';
 import {isMacPlatform} from './reader-keys.js';
 import {canContain,containerDropLabel,containerFor,containerPlacementIds,expandContainerSelection,previewContainerMove,previewContainerLayout} from './containers.js';
@@ -150,7 +152,7 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
   if(current.sticker){
     const angle=Number.isFinite(current.rotation)?current.rotation:0;
     const handles=selected===true?`${stickerCorners}<button type="button" class="whiteboard-sticker-rotation" data-sticker-rotate aria-label="Rotate sticker" title="Drag to rotate, or use the arrow keys">${icon(icons.rotate)}</button>`:'';
-    return `<div tabindex="0" role="group" aria-label="${esc(`Sticker: ${current.text}`)}" class="workspace-decoration whiteboard-sticker${selected?' selected':''}" data-decoration="${esc(d.id)}" data-sticker style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;--sticker-size:${Math.min(w,h)*.82}px;--sticker-angle:${angle}deg"><span class="whiteboard-sticker-glyph" aria-hidden="true">${esc(current.text)}</span>${handles}</div>`;
+    return `<div tabindex="0" role="group" aria-label="${esc(`Sticker: ${current.text}`)}" class="workspace-decoration whiteboard-sticker${selected?' selected':''}" data-decoration="${esc(d.id)}" data-sticker style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;z-index:${stackRank(board,'decoration',d.id)};--sticker-size:${Math.min(w,h)*.82}px;--sticker-angle:${angle}deg"><span class="whiteboard-sticker-glyph" aria-hidden="true">${esc(current.text)}</span>${handles}</div>`;
   }
   const path = line ? linePath(resolved, current.route, current.bend) : null;
   const points = line ? lineSurfacePoints(path, box) : surfacePoints(box);
@@ -186,7 +188,7 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
   const labelSize=d.type==='region'&&!container&&current.textSize!==undefined?captionSize(current):null;
   const appearance=nativeText?textStyleVariables(current,color,backdrop):drawingStyles(current,color,backdrop)+(labelSize===null?'':`--drawing-label-size:${labelSize}px;`);
   const sizedLabel=labelSize===null?'':' data-drawing-label-size';
-  return `<div tabindex="0" role="group" aria-label="${esc(line?'Arrow':container?'Container':shapeNames[current.shape]||current.type)}: ${esc(label||'Untitled')}" class="workspace-decoration decoration-${esc(d.type)} ${container?'whiteboard-container':current.shape?'whiteboard-shape shape-'+esc(current.shape):''}${line&&current.route==='curved'?' whiteboard-curved-arrow':''}${!line&&['small','large'].includes(current.textSize)?' text-size-'+current.textSize:''}${!line&&['left','center','right'].includes(current.textAlign)?' text-align-'+current.textAlign:''} ${selected?'selected':''}" data-decoration="${esc(d.id)}"${isPaletteColor(color)?' data-named-color':''}${face}${sizedLabel} style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;${container?`--container-padding:${container.padding??16}px;`:''}${appearance}">${mark}${handles}</div>`;
+  return `<div tabindex="0" role="group" aria-label="${esc(line?'Arrow':container?'Container':shapeNames[current.shape]||current.type)}: ${esc(label||'Untitled')}" class="workspace-decoration decoration-${esc(d.type)} ${container?'whiteboard-container':current.shape?'whiteboard-shape shape-'+esc(current.shape):''}${line&&current.route==='curved'?' whiteboard-curved-arrow':''}${!line&&['small','large'].includes(current.textSize)?' text-size-'+current.textSize:''}${!line&&['left','center','right'].includes(current.textAlign)?' text-align-'+current.textAlign:''} ${selected?'selected':''}" data-decoration="${esc(d.id)}"${isPaletteColor(color)?' data-named-color':''}${face}${sizedLabel} style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;z-index:${stackRank(board,'decoration',d.id)};${container?`--container-padding:${container.padding??16}px;`:''}${appearance}">${mark}${handles}</div>`;
 }
 
 export class Whiteboard {
@@ -214,6 +216,8 @@ export class Whiteboard {
     this.hint=document.createElement('div'); this.hint.className='whiteboard-connect-hint'; this.hint.hidden=true;
     this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.menu,this.hint);
     if(this.host.hooks.viewOnly)return;
+    this.inkAppearanceObserver=new MutationObserver(()=>this.refreshTextInkPreview());
+    this.inkAppearanceObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-appearance']});
     this.recoverButton=document.getElementById('workspace-recover-text');
     if(this.recoverButton)this.recoverButton.onclick=()=>this.recoverText();
     document.addEventListener('pointerdown',e=>this.down(e),true);
@@ -373,6 +377,12 @@ export class Whiteboard {
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }
     this.positionToolbar();
+    this.refreshTextInkPreview();
+  }
+  refreshTextInkPreview() {
+    if(this.toolbar.hidden||this.editor)return;
+    const button=this.toolbar.querySelector('[data-whiteboard-action="text-ink"],[data-whiteboard-action="drawing-color"]');
+    syncTextInkPreview(button,this.selectedDecorations(),this.host.snapshot);
   }
   textEditorBar(session) {
     const {button,group}=barParts;
@@ -398,8 +408,10 @@ export class Whiteboard {
     const color=colorRole?button(first.type==='text'&&!multi?'text-ink':'drawing-color',colorLabel,colorDot(colorValue,colorRole),{
       extra:popup(first.type==='text'&&!multi?'text-ink':'drawing-color'),
     }):'';
-    const sizeGlyph=icon('<path d="M2 12l2.5-6L7 12M3 10h3m2 2 3-8 3 8m-5-2.5h4"/>');
+    const sizeGlyph=icon('<path d="M1.5 12.5 5 3.5l3.5 9M2.7 9.5h4.6M12.5 3.5v9M10.5 5.5l2-2 2 2m-4 5 2 2 2-2"/>');
     const size=key=>button(key,'Text size',sizeGlyph,{extra:popup(key)});
+    // The bar shows More only for an object's own actions; when it does, its menu adds
+    // the stacking commands (] and [ work for every selection).
     const more=this.objectMenuActions(list).length?button('more','More options',icon(icons.more),{
       extra:` aria-haspopup="menu" aria-expanded="${!this.menu.hidden&&!this.appearance&&!this.containerLayout}"`,
     }):'';
@@ -419,8 +431,10 @@ export class Whiteboard {
         value,pressed:value===(first.textAlign||'left'),
       })).join('');
       return group('Text appearance',color+size('text-size'))+group('Alignment',align)+
-        group('Text actions',button('text-appearance','Advanced text','<b class="whiteboard-size-letter">Aa</b>',{
+        group('Text actions',button('text-appearance','Typeface','<b class="whiteboard-size-letter">Aa</b>',{
           extra:popup('text-appearance'),
+        })+button('text-box','Text box',icon('<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M5 5.5h6M5 8h6M5 10.5h4"/>'),{
+          extra:popup('text-box'),
         })+more)+pending;
     }
     const arrange=multi&&this.host.arrangeObjects().length>1?button('arrange','Arrange: align, distribute, tidy',icon(icons.arrange),{extra:' aria-haspopup="dialog" aria-expanded="false"'}):'';
@@ -536,15 +550,18 @@ export class Whiteboard {
     const add=(action,label)=>actions.push([action,label]);
     if(list.length===1){
       const [d]=list;
-      if(d.type==='text'&&!d.sticker)add('fit-text','Fit height to text');
       if(d.type==='region'&&!d.shape&&!d.container)add('select-section','Select section contents');
       if(d.container)add('edit','Edit container title');
       if(containerFor(this.host.snapshot.decorations,d.id))add('container-detach','Remove from container');
     }
     return actions;
   }
+  // The More menu adds the stacking commands to the object's own actions.
+  menuActions(list) {
+    return [...this.objectMenuActions(list),...(this.host.hooks.viewOnly?[]:[['stack-front','Bring to front'],['stack-back','Send to back']])];
+  }
   openMenu() {
-    const actions=this.objectMenuActions(this.selectedDecorations());
+    const actions=this.menuActions(this.selectedDecorations());
     if(!actions.length)return false;
     this.menu.innerHTML=actions.map(([action,label])=>`<button type="button" role="menuitem" data-whiteboard-action="${action}">${label}</button>`).join('');
     this.menu.hidden=false;
@@ -554,6 +571,8 @@ export class Whiteboard {
     return true;
   }
   renderObjectFormat(session) {
+    const formatActions=actions=>actions.length?`<div class="whiteboard-format-actions">${actions.map(([id,label])=>
+      `<button type="button" data-whiteboard-action="${id}">${label}</button>`).join('')}</div>`:'';
     if(this.appearance!==session)return;
     if(session.weightControl?.editing||session.captionControl?.editing)return;
     const objects=session.ids.map(id=>this.find(id)).filter(Boolean);
@@ -580,15 +599,14 @@ export class Whiteboard {
       sections.push(
         choices('Arrowheads','heads',common(headsOf),[pick('none','No arrowheads'),pick('start','Arrowhead at start'),pick('end','Arrowhead at end'),pick('both','Arrowheads at both ends')]),
         '<fieldset class="whiteboard-format-section"><legend>Weight</legend><div data-arrow-weight></div></fieldset>',
-        choices('Stroke','dashed',String(common(d=>!!d.dashed)),[['false','Solid line',icon(icons.medium)],['true','Dashed line',icon(icons.dashed)]])
+        choices('Stroke','dashed',String(common(d=>!!d.dashed)),[['false','Solid line',icon(icons.medium)],['true','Dashed line',icon(icons.dashed)]]),
+        formatActions(this.menuActions(objects))
       );
     } else if(all(d=>d.type!=='line')){
       if(all(d=>d.shape&&d.shape!=='rectangle'))
         sections.push(choices('Shape','shape',common(d=>d.shape),['rounded','diamond','ellipse'].map(value=>pick(value,shapeNames[value]))));
       sections.push(choices('Alignment','align',common(d=>d.textAlign||defaultAlign(d)),['left','center','right'].map(value=>[value,`Align ${value}`,icon(icons['align-'+value])])));
-      const actions=this.objectMenuActions(objects);
-      if(actions.length)sections.push(`<div class="whiteboard-format-actions">${actions.map(([id,label])=>
-        `<button type="button" data-whiteboard-action="${id}">${label}</button>`).join('')}</div>`);
+      sections.push(formatActions(this.menuActions(objects)));
     }
     session.weightControl?.destroy({commit:false});
     session.captionControl?.destroy({commit:false});
@@ -692,7 +710,7 @@ export class Whiteboard {
   openTextAppearance(text,mode,trigger) {
     this.menu.classList.add('whiteboard-text-appearance');
     this.menu.setAttribute('role','dialog');
-    this.menu.setAttribute('aria-label',mode==='size'?'Text size':mode==='ink'?'Ink':'Advanced text');
+    this.menu.setAttribute('aria-label',({size:'Text size',ink:'Ink',face:'Typeface',box:'Text box'})[mode]);
     this.menu.hidden=false;
     this.appearance=mountTextAppearance(this.menu,text,{
       mode,
@@ -703,6 +721,7 @@ export class Whiteboard {
       },
       previewSize:size=>this.previewTextStyle(text.id,size===null?null:{textSize:size}),
       previewPadding:padding=>this.previewTextStyle(text.id,padding===null?null:{textPadding:padding}),
+      fitHeight:async()=>{await this.fitText(text.id);return this.find(text.id);},
       close:()=>this.closeMenu({focus:true}),
       layout:()=>this.positionMenu(),
     });
@@ -759,12 +778,12 @@ export class Whiteboard {
         trigger:action,label:control.getAttribute('aria-label')});
       return;
     }
-    if(['text-appearance','text-size','text-ink'].includes(action)){
+    if(['text-appearance','text-size','text-ink','text-box'].includes(action)){
       const objects=this.selectedDecorations(), open=this.appearance?.trigger===action;
       this.closeMenu({focus:open});
       if(!open&&objects.length){
         if(objects.length===1&&objects[0].type==='text')
-          this.openTextAppearance(objects[0],action==='text-size'?'size':action==='text-ink'?'ink':'advanced',action);
+          this.openTextAppearance(objects[0],({ 'text-size':'size','text-ink':'ink','text-box':'box','text-appearance':'face' })[action],action);
         else this.openObjectFormat(objects,{label:control.getAttribute('aria-label')});
       }
       return;
@@ -793,8 +812,8 @@ export class Whiteboard {
     if(action==='format-text'&&this.editor?.rich&&!this.editor.previewing&&!this.editor.composing){formatTextSelection(this.editor.textarea,control.dataset.value);return;}
     if(action==='text-preview'&&this.editor?.rich&&!this.editor.composing){this.setTextPreview(this.editor,!this.editor.previewing);return;}
     if(action==='retry'){this.saveDraft(id,{retry:true});return;}
-    if(action==='fit-text'){try{await this.fitText(id);}catch(error){showFailure(error);}return;}
     if(action==='select-section'){this.host.selectSection(id);return;}
+    if(action==='stack-front'||action==='stack-back'){await this.host.restackSelection(action==='stack-front'?'front':'back');return;}
     if(action==='canvas-group'){await this.host.toggleCanvasGroup();return;}
     this.commitEdit({focus:false});
     if(['color','route','heads','thickness','dashed','size','align','shape'].includes(action)){try{await this.restyle(ids,action,control.dataset.value);}catch(error){showFailure(error);}return;}
@@ -821,10 +840,10 @@ export class Whiteboard {
     const p=resolveEndpoint(from,this.host.snapshot),q=resolveEndpoint(endpoint,this.host.snapshot);
     await this.createLine({...lineBox(p,q),from,to:endpoint});
   }
-  async save(id,patch,options,unchanged) {
+  async save(id,patch,options,unchanged,extra) {
     this.host.decorationCommitting=true;
     const fitted=this.fitAutoText(id,patch),text=this.find(id);
-    const operation={boardId:this.host.snapshot.id,decorationId:id,patch:fitted};
+    const operation={boardId:this.host.snapshot.id,decorationId:id,patch:fitted,...extra};
     if(fitted!==patch&&text)this.syncDragGeometry(text,{...text,...fitted});
     try{await (unchanged?this.host.writeArrangement('updateDecoration',operation,unchanged):this.host.client.write('updateDecoration',operation,options));await this.host.refresh({saveReview:false});}
     catch(error){if(fitted!==patch)this.host.syncGeometry();throw error;}
@@ -1241,7 +1260,7 @@ export class Whiteboard {
     const own=e.target.closest('.whiteboard-toolbar,.whiteboard-menu,.whiteboard-editor,.whiteboard-draft-state');
     if(this.editor&&!own&&!e.target.closest(selector(this.editor.id)))this.commitEdit({focus:false});
     const menuLauncher=e.target.closest('[data-whiteboard-action]')?.dataset.whiteboardAction;
-    if(!e.target.closest('.whiteboard-menu')&&!['more','text-appearance','text-size','text-ink','drawing-color','caption-size','container-layout'].includes(menuLauncher))this.closeMenu();
+    if(!e.target.closest('.whiteboard-menu')&&!['more','text-appearance','text-size','text-ink','text-box','drawing-color','caption-size','container-layout'].includes(menuLauncher))this.closeMenu();
     if(this.drag){if(e.pointerId!==this.drag.pointerId)this.cancel();return;}
     if(own)return;
     const port=e.target.closest('[data-port]'),element=e.target.closest('[data-decoration]');
@@ -1379,7 +1398,8 @@ export class Whiteboard {
       }
       else if(done.bending)await this.save(done.d.id,{bend:done.next.bend},undefined,decorationUnchanged(done.d));
       else if(drop?.source||drop?.hit&&!drop.hit.blocked)await this.host.transferContainerMember(drop.member,drop.source,drop.hit,done.next);
-      else {const {id,...patch}=done.next;await this.save(id,patch,undefined,decorationUnchanged(done.d));}
+      // A dragged drop may come forward (the store's drop rule); a resize never reorders.
+      else {const {id,...patch}=done.next;await this.save(id,patch,undefined,decorationUnchanged(done.d),done.resize?undefined:{restack:'drop'});}
     } catch(error){if(done.creating)document.querySelector(selector(done.d.id))?.remove();showFailure(error);this.host.rebuild();}
     finally{this.host.decorationCommitting=false;this.host.hooks.liveReady?.();this.host.drainGeometryRefresh();}
   }

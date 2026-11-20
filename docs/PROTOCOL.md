@@ -193,7 +193,7 @@ drawn elements were copied. Mixed Paste and Duplicate each use one receipt.
 Paste creates fresh canonical and placement IDs in one revision, retaining saved
 content, review, resource references, dimensions, presentation, relative x/y and
 relative z distances. `targetPosition` anchors the selected minimum x/y corner;
-stacking begins above existing destination placements. Copies of the same selected
+stacking begins above everything on the destination board (see Stacking order). Copies of the same selected
 item share one new canonical identity. Originals remain unchanged, and the saved
 snapshot remains usable after their source placements move. Archived selections
 produce visible unarchived copies. Board copies retain their saved arrangement,
@@ -373,6 +373,50 @@ members dissolve the group. An occurrence copy preserves grouping when it
 copies every member. Moving every member of a placement-only group to another
 board carries the group membership with the new placements.
 
+#### Stacking order
+
+Everything on a Canvas shares one stacking order: Tinka placements and drawn
+elements alike (text, stickies, shapes, stickers, regions, containers and arrows).
+A placement's `z` is its place in that order. A drawn element may store an optional
+`z` in the same numeric space (finite, within ±10000000; `decoration.create` and
+`decoration.update` accept it). A drawn element without `z` keeps the level it has
+always had: plain regions and containers 0, text and shapes (stickies included) 1,
+stickers and arrows 2. Higher values paint above lower ones; at equal values drawn
+elements paint beneath placements, then in array order. Saved boards therefore look
+exactly as before until something is restacked, and no migration is involved. A
+container is always drawn directly beneath its lowest member. Pins, comment
+markers, ports, drop markers, guides and dragged objects stay above all content; a
+selected arrow or sticker is lifted while selected so its handles stay usable.
+`public/stacking.js` is the shared rule for the store and the browser.
+
+New objects land on top: `createItem` placements and `createDecoration` elements
+without an explicit `z` go above everything, beneath any existing object that rests
+on them. An object rests on another when more than half of it lies inside the
+other and it is at most half the other's size; arrows and stickers never act as a
+base. A colored region drawn around existing cards therefore goes under them.
+Pasted, imported and duplicated copies keep their own relative order (paste keeps
+relative `z` distances) and land on top of everything.
+
+Selecting, editing text, recoloring, restyling, resizing, keyboard nudges and
+`arrangePlacements` never change the order. A pointer drag may: `updatePlacement`
+(with `x` or `y`), `translatePlacements` and `updateDecoration` accept
+`restack:"drop"`, which the browser sends for drag drops. The moved objects (a
+container brings its members) come forward only when the drop makes them overlap
+something above them that they did not overlap before; arrows do not count as such
+a neighbour. They then rise above everything except the objects resting on them,
+which stay above them in their own order. A drop that creates no new overlap, such
+as a small slip or a slide among the same neighbours, leaves the order alone. The
+reorder is part of the move's revision and its one movement receipt, so Undo
+restores position and order together.
+
+`restackOccurrences` (`board.restack`) takes `boardId`, `placementIds` and/or
+`decorationIds` (at least one) and `to:"front"|"back"`. It moves the selection to the
+top or bottom of the order, keeping its relative order, and returns
+`{boardId,placementIds,decorationIds}` with a movement receipt. On Canvas, `]` and
+`[` (outside fields, dialogs and readers) and Bring to front / Send to back in a
+tile's ⋯ menu, a shape's, region's or arrow's options panel and a drawing's More
+menu (when it has one) run it on the current selection.
+
 Receipts are bound to their durable workspace and authenticated using a private
 key stored lazily in workspace metadata. Public workspace/board responses and
 CLI workspace views omit this key. A changed arrangement on either affected board
@@ -456,6 +500,23 @@ Collection covers are derived at read time from up to four visible placements in
 Local HTML cover thumbnails load from `/frames/items/ID/cover.html?v=REVISION`; the earlier `/api/items/ID/cover-thumbnail` path remains an alias. They use an inert sandbox with an opaque origin. The response adds a fixed script that posts `{tinkaCoverReady:ITEM_ID}` to the parent after load; the client keeps each cover frame invisible above its typed placeholder until that signal arrives, so blocked, failed or slow frames never show as blank cells. Local render scripts and styles can draw the design; parent access, storage, forms, nested frames, network APIs and remote assets are unavailable. Applications requiring those capabilities should supply a saved preview image. Relative local static assets are fingerprinted within their declared resource root with a bounded dependency walk (64 files, eight levels); content changes update the affected thumbnail while ordinary placement and review edits retain existing media documents.
 
 Grid and Canvas use the same placements. Review order is separate from freeform geometry and remains suitable for comparison. Graph boards retain the comparison reader's previous/next stepping, revisions, notes/star, sizing, standalone opening and browser Back/Forward behavior. The compact header shows Home, an explicit parent return when applicable, one current title and the Navigator toggle on the left, with Find, Undo/Redo, the Inspector and + Add on the right. The board Inspector contains Grid/Canvas, the browser-local Dots/Grid/Plain background (Plain until chosen), canvas filtering, recent, starred and archive views, board details, export and help. The background preference is not board metadata; no schema field was added for it. A valid `?from=BOARD_ID` retains the entry parent; ambiguous parents without entry context open a chooser. An opened item keeps the board's header pattern and zoom pill: Home, ‹ its board, one current item title with a where-you-are path (closing on a press outside it or Escape), a ↓ Board chip when the item has a board, and a ‹ n / N › stepper fixed at the right end of the title row, and its own canvas zoom; the % menu holds window size, version, light, type size and standalone opening, and its Inspector holds item actions. Stepping replaces the browser history entry; opening, going up and going down add one. Search, recent, starred and archive views operate on canonical items; a shared reference does not create another source of truth.
+
+### Opened resource surface
+
+HTML opens at the placement's authored `presentation.viewport` (1000×720 when
+omitted). An image uses its decoded natural dimensions, bounded to 16384 per side
+while keeping its aspect ratio. Fit frames the whole surface at no more than
+100%; pan clamps to its bounds, with smaller content centered. There is no outer
+card border or padding. The native header, conditional file-version strip,
+Inspector, notes and floating view controls remain available.
+
+Window Compact/Standard/Wide and custom corner resizing still reflow HTML.
+Canvas zoom magnifies the existing document without reloading it. Documents and
+nonvisual representations retain native scrolling and responsive stage sizing.
+An item/version switch refits; late image readiness preserves a view already
+adjusted by the person. Tinka reads dimensions only from its own media wrapper,
+not arbitrary embedded HTML or cross-origin apps. No content sizing message or
+SDK is required. Standalone links and resource bytes are unchanged.
 
 ### Discoverable tools, discovery cache and annotations
 
@@ -562,7 +623,8 @@ Cmd/Ctrl-Enter keep the edits, while Cancel discards them. The rendered block
 wraps at its width and scrolls when its content exceeds its height. Clicking
 a task changes only its checked marker in the stored text and is undoable.
 Select a Text block for its size control, ink swatch and alignment buttons.
-**Aa** holds typeface, fill, border and padding. The panels open away from the
+**Aa** chooses the typeface. **Text box** holds fill, border, padding and height
+controls. The panels open away from the
 selected block when there is room. `textSize` accepts the existing `small`,
 `medium` and `large` presets
 or an integer from 10 to 144 in logical pixels. `textAlign` controls alignment
@@ -588,7 +650,7 @@ Copies retain styling and sizing mode. New Text created on Canvas starts in
 **Auto height**. The editor previews fitted height at the wrapping width, then
 saves the rendered height together with the text. Changing type size in Auto
 height fits the block in the same write. Outline resize switches to **Fixed
-height**. Change modes in the Text size popup. **More → Fit height to text**
+height**. Change modes in **Text box**. **Fit height once** in that panel
 fits the block once while keeping its sizing mode. Attached connectors follow
 the new bounds. Agents can supply explicit logical dimensions and a sizing mode
 in one geometry patch. Store geometry is authoritative for API writes.
