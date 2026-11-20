@@ -609,7 +609,7 @@ try{
   await h.screenshot({path:path.join(evidence,'history-size-popover.png')});
   await h.locator('#size-menu [data-size="standard"]').click();
   assert.deepEqual(await h.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#size-menu [data-size="standard"]').getAttribute('aria-checked')]),['standard','true']);
-  assert((await h.locator('#reader-zoom-toggle').getAttribute('title')).includes('Window: Standard'));
+  assert((await h.locator('#reader-zoom-toggle').getAttribute('data-tip')).includes('Window: Standard'));
   await h.keyboard.press('Escape');
   assert.equal(await h.locator('#size-menu').isVisible(),false);
   assert.equal(await h.evaluate(()=>document.activeElement.id),'reader-zoom-toggle');

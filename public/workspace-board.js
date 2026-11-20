@@ -1672,9 +1672,9 @@ export class WorkspaceBoard {
       const bulk = (name, label, extra = "") => part(`<button type="button" class="tk-btn tk-sm ${extra}" data-bulk="${name}">${label}</button>`);
       el.innerHTML = `<strong role="status"></strong>`
         + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="dialog" aria-expanded="false" data-tip="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
-        + part(`<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" aria-keyshortcuts="Meta+G Control+G" hidden></button>`)
         + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" data-tip="Edit document" hidden>Edit document</button>`)
         + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" data-tip="Item details" hidden>Details…</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" aria-keyshortcuts="Meta+G Control+G" hidden></button>`)
         + bulk("feature", "Show on parent…") + bulk("move", "Move…") + bulk("reference", "Add reference…", "selection-wide") + bulk("new-board-around", "New board around selection…")
         + bulk("archive", "Archive here", "selection-wide") + bulk("remove", "Remove from board…", "tk-danger")
         + `<span class="tk-divider" aria-hidden="true"></span>`

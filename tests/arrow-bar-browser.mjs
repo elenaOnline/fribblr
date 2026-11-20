@@ -63,7 +63,7 @@ try{
  assert.equal(await bar('drawing-color').getAttribute('aria-label'),'Stroke color');
  const blue=page.locator('.whiteboard-menu [data-swatch="palette:blue"]');
  await blue.click();assert.equal(await eventually(async()=>(await find('flow')).color,v=>v==='palette:blue'),'palette:blue');
- assert.equal(await eventually(()=>blue.getAttribute('aria-pressed'),v=>v==='true'),'true');
+ assert.equal(await eventually(()=>blue.getAttribute('aria-checked'),v=>v==='true'),'true');
  await idle();await page.screenshot({path:path.join(evidence,'arrow-stroke-palette-light.png')});
  await format();
  await option('heads','both').click();const heads=await eventually(()=>find('flow'),d=>d.startArrow===true);assert.equal(heads.endArrow,true);
@@ -71,7 +71,7 @@ try{
  await option('heads','none').click();const none=await eventually(()=>find('flow'),d=>d.startArrow===false&&d.endArrow===false);assert.equal(none.endArrow,false);
  assert.equal(await eventually(()=>stroke('flow').getAttribute('marker-end'),v=>v===null),null);
  await option('heads','end').click();await eventually(()=>find('flow'),d=>d.endArrow===true);
- await idle();await page.locator('[data-arrow-weight]').getByRole('button',{name:'Thick line'}).click();assert.equal(await eventually(async()=>(await find('flow')).thickness,v=>v==='thick'),'thick');
+ await idle();await page.locator('[data-arrow-weight]').getByRole('radio',{name:'Thick line'}).click();assert.equal(await eventually(async()=>(await find('flow')).thickness,v=>v==='thick'),'thick');
  assert.equal(await eventually(()=>stroke('flow').getAttribute('stroke-width'),v=>v==='3.5'),'3.5');
  await option('dashed','true').click();assert.equal(await eventually(async()=>(await find('flow')).dashed,v=>v===true),true);
  assert.ok(await eventually(()=>stroke('flow').getAttribute('stroke-dasharray'),Boolean));

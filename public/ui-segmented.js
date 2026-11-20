@@ -23,7 +23,8 @@ export function segmentedHTML({ label, labelledby, className = '', id, attrs = {
 // Check an option from code. Fires no event, so writing our own model back never echoes.
 export function setSegmented(el, value) {
   if (!el) return;
-  if (el.api) el.value = value;
+  if (el.api) el.value = value ?? null;
+  else if (value == null) { el.removeAttribute('default-value'); el.removeAttribute('value'); }
   else { el.setAttribute('default-value', value); el.setAttribute('value', value); }
 }
 

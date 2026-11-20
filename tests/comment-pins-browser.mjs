@@ -216,7 +216,7 @@ try{
     const since=(await (await fetch(`${url}/api/inbox?actor=design-agent&wait=0`)).json()).nextSince||'';
     const watch=new AbortController(),held=fetch(`${url}/api/inbox?actor=design-agent&since=${encodeURIComponent(since)}&wait=20&label=Design%20agent`,{signal:watch.signal}).catch(()=>{});
     assert.ok(await until(async()=>await send.evaluate(el=>el.classList.contains('agent-watching'))),'watching shows');
-    assert.match(await send.getAttribute('title'),/Agent is watching/);
+    assert.match(await send.getAttribute('data-tip'),/Agent is watching/);
     assert.match(await send.getAttribute('aria-label'),/^Send 1 open comment to your agent · Agent is watching$/,'screen readers hear it too');
     if(evidence)await page.screenshot({path:path.join(evidence,'comment-watching.png')});
     watch.abort();await held;

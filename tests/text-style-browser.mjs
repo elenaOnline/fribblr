@@ -57,11 +57,11 @@ try {
   await sizeButton.click();
   const sizePanel=page.getByRole("dialog",{name:"Text size",exact:true});
   const fontSize=sizePanel.getByRole("slider",{name:"Adjust text size",exact:true});
-  const sizePreset=name=>sizePanel.getByRole("button",{name,exact:true});
+  const sizePreset=name=>sizePanel.getByRole("radio",{name,exact:true});
   assert.equal(await sizePanel.locator("[data-scrub-value]").count(),1);
   assert.equal(await fontSize.getAttribute("aria-valuemax"),"144");
   assert.equal(await sizePanel.locator("[data-padding-scrub],[data-swatch],input").count(),0);
-  assert.equal(await sizePreset("Medium").getAttribute("aria-pressed"),"true");
+  assert.equal(await sizePreset("Medium").getAttribute("aria-checked"),"true");
   await sizePreset("Large").click();
   await waitFor(async()=>(await saved("copy")).textSize==="large");
   assert.equal(await fontSize.getAttribute("aria-valuenow"),"36");
@@ -69,7 +69,7 @@ try {
   await fontSize.press("PageUp");
   await fontSize.press("ArrowRight");
   await waitFor(async()=>(await saved("copy")).textSize===21);
-  assert.equal(await sizePreset("Medium").getAttribute("aria-pressed"),"false");
+  assert.equal(await sizePreset("Medium").getAttribute("aria-checked"),"false");
   assert.equal(await sizePanel.locator(".preset-scrub-custom").getAttribute("data-active"),"true");
   await sizePreset("Large").click();
   await fontSize.press("ArrowRight");
@@ -88,12 +88,12 @@ try {
   assert.equal(await appearance.getByRole("button",{name:"Apply",exact:true}).count(),0);
   assert.equal(await appearance.locator('[data-text-size-scrub],[data-role=ink],[data-align]').count(),0);
   const padding=appearance.getByRole("slider",{name:"Adjust padding",exact:true});
-  const paddingPreset=name=>appearance.getByRole("button",{name,exact:true});
+  const paddingPreset=name=>appearance.getByRole("radio",{name,exact:true});
   assert.equal(await padding.isVisible(),true);
   assert.equal(await appearance.locator("[data-scrub-value]").count(),1);
   assert.equal(await padding.getAttribute("aria-valuemin"),"0");
   assert.equal(await padding.getAttribute("aria-valuemax"),"64");
-  assert.equal(await paddingPreset("Medium").getAttribute("aria-pressed"),"true");
+  assert.equal(await paddingPreset("Medium").getAttribute("aria-checked"),"true");
   await paddingPreset("Large").click();
   await waitFor(async()=>(await saved("copy")).textPadding===24);
   assert.equal(await padding.getAttribute("aria-valuenow"),"24");

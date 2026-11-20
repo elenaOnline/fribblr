@@ -492,3 +492,58 @@ frame is active, a script `focus()` only sets what gets focus when this frame is
 half would otherwise take the keys from the other); the element that had focus comes back when the frame becomes
 active again; and Tab wraps from the last control to the first (Shift+Tab the other way). The before half is served
 from branch `ux/base-framed`: the experiment's base plus `frame-focus.js`.
+
+### Toolbars, toggles, segmented controls and value controls (`r2/controls`)
+
+Files: `ui-toolbar.js` (`followVisibility`, toggle and choice helpers), `ui-segmented.js` (`segmentedHTML`, `setSegmented`,
+`onSegmented`, `focusSegmented`), `workspace-board.js` (selection bar, tools rail, Layout, Pattern, item appearance),
+`board.html` + `canvas.js` (the two zoom pills, map toggle, Pattern/Window/Light), `comment-pins.js` (the comment bar in the
+pill), `whiteboard.js` (object and arrow bar, format panel), `container-layout.js`, `kind-legend.js`, `text-appearance.js`,
+`color-control.js`, `preset-scrub.js`, `appearance.js`, `update-notice.js`, `home.js`/`home.html` (Sort), `workspace.js`
+(item editor sections). Tests: `toolbars-browser.mjs` (the norms), plus the surfaces' own browser tests.
+
+**Which component.** One question picks it:
+
+- Buttons that act: `ui-toolbar` > `ui-toolbar-button` > `button`; a named set is `ui-toolbar-group`. One Tab stop on the
+  item focused last, arrows along it (wrapping; Home/End), moving never presses. Every toolbar is a `ui-toolbar` and calls
+  `followVisibility(toolbar)` when items come and go (hidden items leave the order).
+- A button that stays down (Preview, the map, the tools rail): `ui-toggle` around the button. The app owns the state, so
+  `onPress(toggle, fn)` cancels the SDK's flip and `setPressed(button, on)` writes the answer. **The answer must be
+  written after the event returns** (the SDK restores a cancelled change when its `pressedchange` handler returns), so
+  `onPress`/`onChoose` hand it over in a microtask. Writing a property fires no event.
+- One of several keys, kept as real buttons so the theme's raised pressed-key look still draws (arrow route, text
+  alignment, container layout, typeface, fill and border style, the tool choice): a single-choice `ui-toggle-group`
+  (`deselectable="false"`). In a toolbar the group joins the arrows; Space/Enter chooses. `choiceHTML`, `setChoice`,
+  `onChoice`/`onChoose` in `ui-toolbar.js`; the object bar's `barParts.choice`.
+- One of a few options drawn as a track with a raised chosen cell (Layout, Pattern, Sort, Appearance rows, update policy,
+  item editor sections, Window, Light, Version, Gap/Padding/Columns, Fill/Border role, the S/M/L presets): a
+  `ui-segmented-control` (radio group): one Tab stop on the checked item, arrows check as they move.
+- One chosen colour among swatches (every palette): `ui-radio-group` of `ui-radio` chips (`color-control.js`: `setSwatch`,
+  `onSwatch`); arrows check as they move, the custom colour is a label with the system picker beside them.
+
+**Non-obvious.**
+
+- The SDK gives an item its role and tabindex a **microtask after** it is inserted (and reads its attributes then). A
+  control just rendered is focused with `focusSegmented()` (or `queueMicrotask`), never synchronously. Property writes
+  before that (`group.value = …`) are skipped: `setSegmented`, `setChoice` and `setSwatch` fall back to `default-value`.
+- `valuechange` / `pressedchange` do not bubble but do pass the capture phase: listen on the element, or capture on a
+  container (canvas.js hears every Pattern, Window, Light and Version copy from one capture listener on `document`; the
+  object bar cancels its toggles' own flips with a capture listener, since it redraws what is pressed from the object).
+- Segmented markup: `segmentedHTML()` makes `<ui-segmented-control class="tk-seg …">` so the theme's
+  `.tk-seg > [data-slot=segmented-control-item]` rules apply. An item with a hint sits in its `ui-tooltip-trigger`
+  (`tip:`), which is no longer a direct child of `.tk-seg`; those items still use the copied rule in `ui-sdk.css`
+  (`.tk-seg > ui-tooltip-trigger > …`).
+- The selection bar is built once and updated in place (count, Group/Restore labels, which actions show), so a focused
+  action keeps focus across selection changes. The canvas tools rail is a `ui-toolbar`: Navigation (Pointer, Pan) and
+  Feedback (Comment) are toggle groups, Draw is a `ui-toolbar-group` of buttons. The rail and map toggles are `ui-toggle`
+  items of the view pill.
+- A menu or panel button in a toolbar opens on ArrowDown (`openOnArrowDown`, now idempotent: a second handler for the same
+  press does nothing). The object bar opens every `[aria-haspopup]` button this way by clicking it, as Enter would.
+- **Scrub handle** (`preset-scrub.js`): a slider (spinbutton when unbounded) of its own, with the SDK slider's keys: arrow
+  step, Shift+arrow and Page Up/Down large step (ten steps), Home/End bounds; it previews on every step or drag tick and
+  commits once when the key comes up, the pointer lifts or focus leaves; Escape puts the preview back. It is not
+  `ui-slider`/`ui-number-input` because it also edits a mixed value by a relative amount and previews on the canvas.
+  Alt's small step is not offered: the values are whole pixels.
+- Left as native, on purpose: standalone `aria-pressed` buttons that are not in a toolbar (Favorites, Last 6 weeks,
+  Archive, auto height, automatic border) — a native toggle button already has the SDK toggle's keys; native radio
+  fieldsets (`workspace-choice-pills`) — native radios are already one Tab stop with arrows that check.
