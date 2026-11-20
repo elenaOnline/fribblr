@@ -5,6 +5,8 @@
 // - Delete on a focused drawn object (a Text block, a shape, an arrow; or ⌘D then Delete on the copy) moves focus to the
 //   nearest item, as deleting a card does.
 // - Board color and Background image… in the board Inspector are one toolbar, as the Filter row is.
+// - The reader opened from a card's menu (Shift+F10 or ⋯) gives focus back to the card when it closes, as it does when
+//   opened from the card itself.
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
@@ -104,6 +106,24 @@ try{
   eq(await label(),'Board color','Escape in the palette comes back to Board color');
   eq(await page.locator('#board-info [data-inspector-palette]').isHidden(),true,'and closes it');
   await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor({state:'hidden'});
+ }
+
+ // ---- 4. The reader opened from a card's menu closes back to the card. ----
+ {const reader=page.locator('#reader-dialog');
+  const card=page.locator(`#world [data-placement="${c.b}"]`);
+  const closeReader=async()=>{await reader.waitFor({state:'visible'});await page.waitForTimeout(400);
+   for(let i=0;i<4&&await reader.isVisible();i++){await page.keyboard.press('Escape');await page.waitForTimeout(250);}
+   await reader.waitFor({state:'hidden'});};
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await card.focus();await page.keyboard.press('Enter');await closeReader();
+  eq(await until(async()=>(await focused())==='card:Card B'&&focused()),'card:Card B','Opened from the card, the reader closes back to the card');
+  await card.focus();await page.keyboard.press('Shift+F10');await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor();
+  await page.keyboard.press('Enter');await closeReader();
+  eq(await until(async()=>(await focused())==='card:Card B'&&focused()),'card:Card B','Opened from the card\'s menu (Shift+F10, Open), it closes back to the card');
+  await page.waitForTimeout(600);eq(await focused(),'card:Card B','and focus stays there');
+  await card.hover();await card.locator('[data-controls-focus="menu"]').click();await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor();
+  await page.locator('#workspace-tile-menu ui-menu-item').first().click();await closeReader();
+  eq(await until(async()=>(await focused())==='card:Card B'&&focused()),'card:Card B','Opened from ⋯, it closes back to the card');
  }
 
  assert.deepEqual(errors,[]);checks++;

@@ -706,7 +706,9 @@ edits. What the browser leaves out is added:
   the reader. Escape during IME composition does nothing. A frame's own SDK popup with focus inside takes its Escape in
   the frame (the SDK calls `preventDefault`), so `media.js` and `item-content.js` never post `reader-close` for it.
 - **Focus goes back** (popups.md § Focus). Opened from a card on the board, focus returns to the card last viewed
-  (after any stepping) without moving the board: `graph.focusPlacement`, or the card's Open control. Opened from
+  (after any stepping) without moving the board: `graph.focusPlacement`, or the card's Open control. A card's menu
+  (⋯, right-click, Shift+F10, "Open") counts as the card (`openReader`): its item has left the page by the time the
+  reader closes, and the canvas would be the fallback. Opened from
   anything else, `rememberOpener()` / `openerToReturnTo()` return focus to that control while it is still on the page
   and focusable, else to the canvas.
 - **Stepper: `ui-pagination`** (`#reader-stepper`, "Step through <board>"; role `navigation`, a list inside). ‹ and ›

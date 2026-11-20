@@ -981,7 +981,13 @@ function openReader(key, revision = null, { history: mode = 'push', focus = 'tin
   const opening = !dialog.open;
   // Where focus goes back to on close (UI SDK Dialog: the element that opened it). Opened from a card on the board,
   // focus goes back to the board's cards: to the card last viewed, after any stepping.
-  if (opening) readerFromBoardItem = !!rememberOpener(dialog)?.closest?.('#world');
+  // A card's menu (⋯, right-click, Shift+F10) counts as the card: its item has left the page by the time the reader
+  // closes, and the card is where the menu came from.
+  if (opening) {
+    const from = rememberOpener(dialog);
+    readerFromBoardItem = !!from?.closest?.('#world') ||
+      (!!from?.closest?.('ui-menu-content,[role=menu]') && !!world.querySelector(`[data-key="${CSS.escape(concept.key)}"]`));
+  }
   setInfoOpen(false);
   active = concept;
   activeVariantId = variantId;
