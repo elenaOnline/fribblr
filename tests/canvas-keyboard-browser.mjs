@@ -208,10 +208,11 @@ try{
  assert.equal(firstStop,stackCard,'The first card on the board itself holds the stop at first');checks++;
  await page.locator('#world [data-decoration="rocket"]').focus();
  ok(await onlyStop(),'Task boxes, version tickers and handles inside items are out of the Tab order unless their item holds the stop');
- const tickerTabbable=()=>page.evaluate(id=>[...document.querySelectorAll(`#world .workspace-card[data-placement="${id}"] [data-file-version-step]`)].map(b=>b.tabIndex),stackCard);
- ok((await tickerTabbable()).length===2&&(await tickerTabbable()).every(t=>t===-1),'A version stack\'s ticker is out of the Tab order while another item holds the stop');
+ const tickerTabbable=()=>page.evaluate(id=>[...document.querySelectorAll(`#world .workspace-card[data-placement="${id}"] .workspace-file-versions button`)].map(b=>b.tabIndex),stackCard);
+ ok((await tickerTabbable()).length===3&&(await tickerTabbable()).every(t=>t===-1),'A version stack\'s ticker is out of the Tab order while another item holds the stop');
  await page.locator(`.workspace-card[data-placement="${stackCard}"]`).focus();
- ok((await tickerTabbable()).every(t=>t===0),'Focused, the version stack card brings its ticker into the Tab order after it');
+ // The ticker is a toolbar (‹ name ›): one Tab stop after the card, arrows along it.
+ ok((await tickerTabbable()).filter(t=>t===0).length===1&&(await tickerTabbable())[0]===0,'Focused, the version stack card brings its ticker into the Tab order after it, as one stop');
  const taskTab=()=>page.evaluate(()=>document.querySelector('#world [data-decoration="todo"] [data-deco-task]')?.tabIndex);
  assert.equal(await taskTab(),-1,'A text block\'s task box is out of the Tab order while another item holds the stop');checks++;
  await page.locator('#world [data-decoration="todo"]').focus();
