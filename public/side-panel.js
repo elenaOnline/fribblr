@@ -18,11 +18,18 @@ export function sidePanel(root, {openers = () => [], keepOpen = () => false, bod
   root.setAttribute('modal', 'false');
   root.setAttribute('close-on-outside-press', '');
   let closing = false;
+  // A press that began inside the panel is never a click-away, even when what was pressed is re-rendered away before
+  // the press ends (a Copy button, a choice that redraws its row): the SDK then finds the target outside.
+  let pressedInside = false;
+  document.addEventListener('pointerdown', event => { pressedInside = root.open && content.contains(event.target); }, true);
   root.addEventListener('openchange', event => {
     const {value, reason, event: cause} = event.detail || {};
     if (value) return;
     const target = cause?.target instanceof Node ? cause.target : null;
-    if (reason === 'outside-press' && target && (openers().some(el => el?.contains?.(target)) || keepOpen(target))) { event.preventDefault(); return; }
+    if (reason === 'outside-press' && (pressedInside || (target && !target.isConnected) || openers().some(el => el?.contains?.(target)) || keepOpen(target))) { event.preventDefault(); return; }
+    // The panels slide in and have no exit; the SDK keeps a closing popup until its animations end, so closing is
+    // immediate only when they are finished (as the Navigator does).
+    for (const animation of content.getAnimations?.() || []) animation.finish();
     if (closing) return;
     closing = true;
     panel.hadFocus = content.contains(document.activeElement);

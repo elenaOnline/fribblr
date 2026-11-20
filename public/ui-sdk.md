@@ -529,6 +529,12 @@ Files: `reader-dialog.js` (new: `trapTab`, `tabStops`, `rememberOpener`, `opener
   `pagechange`: our own click handlers step. What changes: at either end the step keeps focus and says it is disabled
   (`aria-disabled`, `data-disabled`) instead of turning natively disabled and dropping focus to the canvas
   (pagination.md: "Pressing Next onto the last page keeps focus on Next"). The dimmed look keys on `aria-disabled` too.
+- **Notes column: left as it is, with the reason.** `#notes-panel` is a column the reader lays out beside the content
+  (the content narrows), not a panel over it, so it stays an `aside` named by its heading. It already behaves as the
+  SDK's non-modal Dialog would: Notes opens it with focus in the field, Escape inside closes it and focus returns to
+  Notes, Tab moves on and it stays open, the × closes it. Converting it would change nothing she can feel.
+- **Footer:** the zoom pill and its % menu are the controls and menus streams'. Its place in the order is after the
+  content, before the notes column.
 - **Version switcher's place.** `#reader-file-versions` sits between the header and the stage in the DOM, so Tab goes
   header (navigation, then the actions toolbar) → version switcher → Inspector (when open) → content → zoom pill →
   notes, matching what the eye reads top to bottom. The switcher's own menu is the menus stream's.
