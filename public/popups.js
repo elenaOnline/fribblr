@@ -161,7 +161,8 @@ export function inPopup(event) {
 // Delegated on the toolbar, which survives its buttons being re-rendered; `selector` names the trigger buttons.
 export function openOnArrowDown(toolbar, selector, open) {
   toolbar?.addEventListener('keydown', event => {
-    if (event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    // A second opener on the same toolbar (two streams wire the same button) must not toggle it shut again.
+    if (event.defaultPrevented || event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
     const button = event.target.closest?.(selector);
     if (!button || !toolbar.contains(button) || button.disabled) return;
     event.preventDefault(); event.stopPropagation();
@@ -200,7 +201,8 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   const content = target?.closest('ui-popover-content[data-open],ui-dialog-content[data-open]:not([aria-modal="true"])');
   // The popup's root (in a sheet the content sits inside the root's viewport, not directly in it).
   const host = content?.closest('ui-popover,ui-dialog');
-  if (!content || !host || host.parentElement !== document.body) return;
+  // At the end of <body>, or at the end of the modal reader dialog that hosts it (its % popover).
+  if (!content || !host || (host.parentElement !== document.body && !host.parentElement?.closest('dialog'))) return;
   if (content.getAttribute('aria-modal') === 'true' || host.getAttribute('modal') === 'true' || host.getAttribute('modal') === 'trap-focus') return;
   const trigger = triggerOf(content);
   if (!trigger) return;

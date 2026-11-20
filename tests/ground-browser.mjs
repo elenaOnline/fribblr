@@ -63,17 +63,17 @@ try{
   await page.goto(base+'/boards/study/');await page.locator('.workspace-card').first().waitFor();
   await page.locator('#board-info-toggle').click();
   const inspector=page.locator('#board-info .inspector-appearance');await inspector.waitFor();
-  const boardGround=inspector.getByRole('group',{name:'Background',exact:true});
-  assert.equal(await boardGround.getByRole('button',{name:'White'}).getAttribute('aria-pressed'),'true');
-  await boardGround.getByRole('button',{name:'Blue'}).click();
+  const boardGround=inspector.getByRole('radiogroup',{name:'Background',exact:true});
+  assert.equal(await boardGround.getByRole('radio',{name:'White'}).getAttribute('aria-checked'),'true');
+  await boardGround.getByRole('radio',{name:'Blue'}).click();
   assert.equal(await html('data-ground'),'desk');assert.equal(await stored(),'desk');
-  await boardGround.getByRole('button',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
+  await boardGround.getByRole('radio',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
 
   // Dark has one ground: White is kept for light, and the row cannot be changed while dark.
-  const mode=inspector.getByRole('group',{name:'Appearance mode'});
-  await mode.getByRole('button',{name:'Dark'}).click();
+  const mode=inspector.getByRole('radiogroup',{name:'Appearance mode'});
+  await mode.getByRole('radio',{name:'Dark'}).click();
   assert.equal(await html('data-appearance'),'dark');assert.equal(await html('data-ground'),'desk');
-  assert.equal(await boardGround.getByRole('button',{name:'White'}).isDisabled(),true);assert.equal(await stored(),'white');
+  assert.equal(await boardGround.getByRole('radio',{name:'White'}).isDisabled(),true);assert.equal(await stored(),'white');
   await page.reload();await page.locator('.workspace-card').first().waitFor();
   assert.deepEqual((await first()).body,{ground:'desk',appearance:'dark'},'Dark reloads dark, on its own ground');
   await page.evaluate(()=>localStorage.setItem('tinka/appearance','light'));await page.reload();await page.locator('.workspace-card').first().waitFor();

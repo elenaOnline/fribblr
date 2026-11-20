@@ -214,7 +214,7 @@ function install(board) {
   document.addEventListener("pointerdown", event => {
     const session = editing.get(board); if (!session) return;
     const card = currentCard(session);
-    if (card && card.contains(event.target) && !event.target.closest("[data-open],.workspace-tile-toolbar,.workspace-card-menu,[data-placement-select]")) return;
+    if (card && card.contains(event.target) && !event.target.closest("[data-open]:not([data-slot]),.workspace-tile-toolbar,.workspace-card-menu,[data-placement-select]")) return;
     stopEditing(board);
   }, true);
 }

@@ -78,7 +78,7 @@ try{
     const editingCard=page.locator('.workspace-card.doc-editing');await editingCard.waitFor({timeout:6000});
     const frame=page.frameLocator('.workspace-card.doc-editing iframe');
     // No modal and no toolbar: the card's own page is editable, with "Untitled" selected.
-    assert.equal(await page.locator('dialog[open]').count(),0,'no dialog opens');
+    assert.equal(await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count(),0,'no dialog opens');
     await frame.locator('article.doc-editing h1').waitFor();
     assert.ok(await until(()=>frame.locator('body').evaluate(()=>getSelection().toString()==='Untitled')),'the title is selected');
     await page.keyboard.type('Hi');await page.keyboard.press('Escape');

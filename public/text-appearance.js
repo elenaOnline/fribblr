@@ -1,7 +1,10 @@
 import {restoreFocus} from "./interaction.js";
 import {drawingColor, isHexDrawingColor} from "./drawing-palette.js";
 import {appearanceThemes,canvasBackdrop,compositeColor,contrastRatio,fallbackEdge,fallbackInk,luminance,readableColor,renderDrawingColor,textFillColor,textFillColors as fillColors,textFillToken,themeColor,unpackColor} from "./theme-colors.js";
-import {colorDot,paletteMarkup,pickerHex} from "./color-control.js";
+import {colorDot,paletteMarkup,pickerHex,setSwatch,onSwatch} from "./color-control.js";
+import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from "./ui-segmented.js";
+import {choiceHTML,setChoice,onChoice} from "./ui-toolbar.js";
+import {tips} from "./tips.js";
 import {mountPresetScrub} from "./preset-scrub.js";
 
 export const isHexColor = isHexDrawingColor;
@@ -44,6 +47,9 @@ export function textStyleVariables(decoration, ink, backdrop = theme => [canvasB
 }
 
 const colorRoles = {ink:"ink",fill:"fill",border:"stroke"};
+// The chosen swatch is the group's Tab stop (the first when a custom colour is chosen). The SDK gives the radios their
+// role and tab stop a moment after they are inserted, so focus waits for that.
+const focusSwatch=group=>{const go=()=>(group?.querySelector("[data-swatch][data-checked]")??group?.querySelector("[data-swatch]"))?.focus({preventScroll:true});queueMicrotask(go);};
 const colorLabels = {ink:"Ink",fill:"Fill",border:"Border"};
 const formatTitles = {size:"Text size",ink:"Ink",advanced:"Advanced text"};
 const fills = [["none","None"],["paper","Paper"],["tint","Tint"],["strong","Strong"]];
@@ -65,22 +71,20 @@ const sizeMarkup = `<div class="text-size-controls">
   <button type="button" data-auto-height>${autoHeightIcon}</button>
 </div>`;
 
+// Each set of options is one choice. Typeface, fill and border are keys (raised, as depth.css draws pressed buttons): a
+// single-choice toggle group of real buttons, one Tab stop, arrows move and Space or Enter chooses. Which channel the
+// palette paints (Fill or Border) is a segmented control. The palette is a radio group (color-control.js).
 function advancedMarkup() {
-  return `<div class="text-format-faces" role="group" aria-label="Typeface">
-      ${faces.map(([id,label])=>`<button type="button" data-face="${id}" title="${label}"><span class="text-format-specimen" aria-hidden="true">Aa</span><span>${label}</span></button>`).join("")}
-    </div>
+  const roles=segmentedHTML({label:"Color applies to",className:"text-format-roles",value:"fill",items:[
+    {value:"fill",html:'<span data-role-dot></span>Fill',attrs:{"data-role":"fill"}},
+    {value:"border",html:'<span data-role-dot></span>Border',attrs:{"data-role":"border"}}]});
+  return choiceHTML({label:"Typeface",className:"text-format-faces",items:faces.map(([id,label])=>({value:id,attrs:{"data-face":id},tip:label,html:`<span class="text-format-specimen" aria-hidden="true">Aa</span><span>${label}</span>`}))})+`
     <div class="text-format-colors">
-      <div class="text-format-roles" role="group" aria-label="Color applies to">
-        <button type="button" data-role="fill"><span data-role-dot></span>Fill</button><button type="button" data-role="border"><span data-role-dot></span>Border</button>
-      </div>
-      <div class="text-format-options" data-fill-options role="group" aria-label="Fill style" hidden>
-        ${fills.map(([id,label])=>`<button type="button" data-fill="${id}"><span class="text-format-fill-preview"${fillColors[id]?` style="${colorStyles(id)}"`:""} aria-hidden="true"></span>${label}</button>`).join("")}
-      </div>
-      <div class="text-format-options" data-border-options role="group" aria-label="Border style" hidden>
-        ${borders.map(([id,label])=>`<button type="button" data-border="${id}"><span class="text-format-border-preview" aria-hidden="true"></span>${label}</button>`).join("")}
-      </div>
+      ${roles}
+      ${choiceHTML({label:"Fill style",className:"text-format-options",attrs:{"data-fill-options":"",hidden:""},items:fills.map(([id,label])=>({value:id,attrs:{"data-fill":id},html:`<span class="text-format-fill-preview"${fillColors[id]?` style="${colorStyles(id)}"`:""} aria-hidden="true"></span>${label}`}))})}
+      ${choiceHTML({label:"Border style",className:"text-format-options",attrs:{"data-border-options":"",hidden:""},items:borders.map(([id,label])=>({value:id,attrs:{"data-border":id},html:`<span class="text-format-border-preview" aria-hidden="true"></span>${label}`}))})}
       ${paletteMarkup(["fill","border"])}
-      <button type="button" data-border-auto title="Use the default border color" hidden>Automatic border color</button>
+      <button type="button" data-border-auto data-tip="Use the default border color" hidden>Automatic border color</button>
     </div>`;
 }
 
@@ -89,7 +93,7 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
   const content=mode==="size"?sizeMarkup:mode==="ink"?paletteMarkup(["ink"]):advancedMarkup();
   popover.innerHTML=`<div class="text-format-controls" data-text-format-mode="${mode}">
     <div class="text-format-header"><strong>${title}</strong>
-      <button type="button" data-format-close aria-label="Close ${title.toLowerCase()}" title="Close">${closeIcon}</button>
+      <button type="button" data-format-close aria-label="Close ${title.toLowerCase()}" data-tip="Close">${closeIcon}</button>
     </div>
     ${content}
     ${mode==="advanced"?`<div class="text-format-inset">
@@ -100,30 +104,30 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
   </div>`;
 
   const surface=popover.querySelector(".text-format-controls");
+  tips(surface);
   const get=selector=>surface.querySelector(selector);
   const custom=get("[name=custom]");
   const autoHeightToggle=get("[data-auto-height]");
   const customTarget=get(".text-format-custom"),status=get("[data-style-status]");
   const swatches=get("[data-color-swatches]");
   const fillOptions=get("[data-fill-options]"),borderOptions=get("[data-border-options]"),autoBorder=get("[data-border-auto]");
+  const facesGroup=get(".text-format-faces"),rolesControl=get(".text-format-roles");
   const pending=[];
   let saved={...decoration},channel=mode==="ink"?"ink":"fill";
   let active=true,writing=false,failed=null;
   const events=new AbortController();
   const on=(target,event,handler)=>target.addEventListener(event,handler,{signal:events.signal});
   const optimistic=()=>pending.reduce((d,change)=>({...d,...change(d)}),saved);
-  const press=(attribute,value)=>surface.querySelectorAll(`[${attribute}]`).forEach(button=>
-    button.setAttribute("aria-pressed",String(button.getAttribute(attribute)===value)));
   const borderFor=(d,color)=>({style:d.textBorder?.style??"solid",...(color?{color}:{})});
 
   function update() {
     if(!active)return;
     const d=optimistic();
     if(mode==="advanced"){
-      press("data-face",d.textFace??"serif");
-      press("data-role",channel);
-      press("data-fill",currentFill(d));
-      press("data-border",currentBorder(d));
+      setChoice(facesGroup,d.textFace??"serif");
+      setSegmented(rolesControl,channel);
+      setChoice(fillOptions,currentFill(d));
+      setChoice(borderOptions,currentBorder(d));
       get("[data-role=fill] [data-role-dot]").innerHTML=colorDot(d.textFill,"fill",fillColors[d.textFill]);
       get("[data-role=border] [data-role-dot]").innerHTML=colorDot(d.textBorder?.color,"stroke",
         d.textBorder?{light:fallbackEdge("light"),dark:fallbackEdge("dark")}:undefined);
@@ -134,7 +138,7 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
     }
     if(swatches){
       const selected=channel==="ink"?d.color:channel==="fill"?d.textFill:d.textBorder?.color;
-      press("data-swatch",selected);
+      setSwatch(swatches,selected);
       swatches.dataset.channel=channel;
       swatches.setAttribute("aria-label",`${colorLabels[channel]} color palette`);
       const theme=document.documentElement.dataset.appearance==="dark"?"dark":"light";
@@ -215,19 +219,22 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
       enqueue(change);
       return;
     }
-    if(role){channel=role;update();return;}
     if(button===autoHeightToggle){
       const sizing=optimistic().textSizing==="auto"?"fixed":"auto";
       field("textSizing",sizing,d=>d.textSizing??"fixed");
       return;
     }
-    if(face)field("textFace",face,d=>d.textFace??"serif");
-    if(fill)field("textFill",fill,currentFill);
-    if(border)enqueue(d=>currentBorder(d)===border?{}:{textBorder:border==="none"?null:{...d.textBorder,style:border}});
-    if(swatch)setColor(channel,swatch);
     if(button.hasAttribute("data-border-auto"))setColor("border",undefined);
   };
   on(surface,"click",choose);
+  // The choices report through valuechange (it does not bubble): listen on each control.
+  if(facesGroup){
+    onChoice(facesGroup,face=>field("textFace",face,d=>d.textFace??"serif"));
+    onSegmented(rolesControl,role=>{channel=role;update();});
+    onChoice(fillOptions,fill=>field("textFill",fill,currentFill));
+    onChoice(borderOptions,border=>enqueue(d=>currentBorder(d)===border?{}:{textBorder:border==="none"?null:{...d.textBorder,style:border}}));
+  }
+  if(swatches)onSwatch(swatches,id=>setColor(channel,id));
   if(custom)on(custom,"change",()=>setColor(channel,custom.value));
   update();
   return {
@@ -240,7 +247,8 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
     },
     focus() {
       if(sizeControl)sizeControl.focus();
-      else restoreFocus(get("[data-face][aria-pressed=true],[data-swatch][aria-pressed=true]")??get("[data-swatch]"));
+      else if(facesGroup)restoreFocus(get("[data-face][aria-pressed=true]")??get("[data-face]"));
+      else focusSwatch(swatches);
     },
   };
 }

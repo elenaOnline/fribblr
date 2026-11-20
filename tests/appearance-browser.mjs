@@ -102,8 +102,8 @@ try{
   await check('#reader-name','.reader-header');await check('#reader-note',null);
   await page.screenshot({path:path.join(evidence,'reader-dark.png')});await page.locator('#close-reader').click();
   await page.locator('#board-info-toggle').click();
-  const appearanceGroup=page.locator('#board-info').getByRole('group',{name:'Appearance'});
-  const appearance={selectOption:async value=>{if(!await appearanceGroup.isVisible())await page.locator('#board-info-toggle').click();await appearanceGroup.getByRole('button',{name:value[0].toUpperCase()+value.slice(1),exact:true}).click();}};
+  const appearanceGroup=page.locator('#board-info').getByRole('radiogroup',{name:'Appearance'});
+  const appearance={selectOption:async value=>{if(!await appearanceGroup.isVisible())await page.locator('#board-info-toggle').click();await appearanceGroup.getByRole('radio',{name:value[0].toUpperCase()+value.slice(1),exact:true}).click();}};
   await appearance.selectOption('light');
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   await check(`[data-placement="${placements.white}"] h3 button`,'.workspace-card');
@@ -114,7 +114,7 @@ try{
   await appearance.selectOption('system');assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   await page.emulateMedia({colorScheme:'dark'});await page.waitForFunction(()=>document.documentElement.dataset.appearance==='dark');
   await page.locator('#board-info-toggle').click();
-  await page.setViewportSize({width:390,height:844});await page.goto(base+`/boards/round/?reveal=${placements.town}`);await page.locator(`[data-placement="${placements.town}"]`).waitFor();await page.waitForFunction(half=>Number(document.querySelector('#zoom-slider').value)>half,sliderFromZoom(.5));await page.locator('#workspace-toast').waitFor({state:'hidden'});
+  await page.setViewportSize({width:390,height:844});await page.goto(base+`/boards/round/?reveal=${placements.town}`);await page.locator(`[data-placement="${placements.town}"]`).waitFor();await page.waitForFunction(half=>Number(document.querySelector('#zoom-slider').value)>half,sliderFromZoom(.5));await page.locator('.workspace-toast').first().waitFor({state:'hidden'});
   await page.screenshot({path:path.join(evidence,'mixed-dark-narrow.png')});
   await openItemDetails(page.locator(`[data-placement="${placements.town}"] [data-item-controls]`));await page.screenshot({path:path.join(evidence,'item-popup-dark-narrow.png')});await page.locator('[data-context-close]').click();
   await page.getByRole('button',{name:'Navigator',exact:true}).click();await page.locator('#project-navigator').waitFor({state:'visible'});await page.getByText('Loading project boards…',{exact:true}).waitFor({state:'hidden'});await check('.navigator-status','#project-navigator');

@@ -85,13 +85,13 @@ try{
  await toHandle.focus();
  await page.keyboard.press('Delete');
  assert.deepEqual(await eventually(async()=>(await find('attached')).to,p=>Number.isFinite(p.x)),{x:280,y:90});
- assert.equal(await page.locator('dialog[open]').count(),0);
+ assert.equal(await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count(),0);
  // Reattach with visible grab points, preserving the untouched start.
  await page.locator('[data-decoration=attached] [data-decoration-label]').click();
  const handle=page.locator('[data-decoration=attached] [data-endpoint=to]'),h=await centre(handle);
  await page.mouse.move(h.x,h.y);await page.mouse.down();await page.mouse.move(h.x+10,h.y,{steps:2});
  const port=page.getByRole('button',{name:'Connect Ready? left',exact:true});await port.waitFor();const end=await centre(port);await page.mouse.move(end.x,end.y,{steps:5});await page.mouse.up();
- await page.waitForFunction(()=>!document.querySelector('dialog[open]'));await page.waitForTimeout(100);
+ await page.waitForFunction(()=>!document.querySelector(':is(dialog[open],[data-slot$=dialog-content][data-open])'));await page.waitForTimeout(100);
  assert.equal((await find('attached')).to.decorationId,'decision');
  // Move an endpoint across both axes, then reconnect it to the original edge.
  await page.locator('[data-decoration=attached] [data-decoration-label]').click();const fromHandle=page.locator('[data-decoration=attached] [data-endpoint=from]');

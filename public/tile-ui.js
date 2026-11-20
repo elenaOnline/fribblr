@@ -1,3 +1,4 @@
+import './vendor/ui-sdk/web/popover.js';
 import {bindForm, commitShortcutLabel, restoreFocus, setCommitHint} from './interaction.js';
 
 // Menus and note editors live in viewport space, independent of canvas zoom.
@@ -16,17 +17,26 @@ export function positionTilePopover(element, anchor, point) {
   Object.assign(element.style,{left:`${x}px`,top:`${y}px`});
 }
 
+// The tile notes editor: a UI SDK ui-popover (non-modal), anchored to the control that opened it, in the body so card
+// handlers never hear it. Enter-free: Cmd/Ctrl+Enter saves (bindForm); Escape or any other way out keeps the draft and
+// returns focus; Cancel discards the draft. Saving holds the popover open.
 export class TileNotes {
   constructor({read, save, discard = async()=>{}, draftKey}) {this.read=read;this.save=save;this.discard=discard;this.draftKey=draftKey;this.drafts=new Map();}
-  close({cancel=false, focus=false}={}) {
-    if (!this.element || this.binding.pending) return false;
+  // Everything that ends an open editor: draft kept or dropped, listeners and form binding released. Safe to run twice.
+  teardown({cancel=false}={}) {
+    if (!this.element) return false;
     const {key}=this;
     if (cancel) {this.drafts.delete(key);try{localStorage.removeItem(this.draftKey(key));}catch{}}
     else this.remember();
-    this.binding.destroy();this.element.remove();this.element=null;
-    document.removeEventListener('pointerdown',this.outside,true);
+    this.binding.destroy();this.element=null;this.anchorMark?.removeAttribute('data-note-anchor');
     window.removeEventListener('resize',this.reposition);
     document.removeEventListener('wheel',this.viewMoved,true);document.removeEventListener('scroll',this.viewMoved,true);
+    return true;
+  }
+  close({cancel=false, focus=false}={}) {
+    if (!this.element || this.binding.pending) return false;
+    this.teardown({cancel});
+    this.root.api.close();
     if(focus)restoreFocus(this.invoker);
     return true;
   }
@@ -47,32 +57,46 @@ export class TileNotes {
   async open({key,title,anchor}) {
     if(this.cancelPromise)await this.cancelPromise;
     if(this.element && !this.close())return;
+    // A popover still animating out never sits beside the new one.
+    this.root?.remove();
     this.key=key;
     const attribute=anchor?.matches('[data-item-controls]')?'data-item-controls':anchor?.matches('[data-legacy-menu]')?'data-legacy-menu':'data-tile-notes';
     const controlId=anchor?.getAttribute(attribute);
     this.invoker=()=>controlId?document.querySelector(`[${attribute}="${CSS.escape(controlId)}"]`)||anchor:anchor;
-    const form=document.createElement('form');form.className='tile-notes';form.setAttribute('role','dialog');form.setAttribute('aria-label',`Notes on ${title}`);form.setAttribute('aria-modal','false');
-    form.innerHTML='<header><strong>Notes</strong><button type="button" data-note-close aria-label="Close notes">×</button></header><textarea name="note" data-tile-note aria-label="Note"></textarea><div class="tile-note-actions"><small></small><button type="button" data-note-cancel>Cancel</button><button type="submit" class="tk-btn tk-primary">Save note</button></div><p data-form-status role="status"></p>';
+    const root=document.createElement('ui-popover');
+    root.innerHTML='<ui-popover-content class="tile-notes" side="bottom" align="end" side-offset="6" collision-padding="8" initial-focus="textarea" hidden><form><header><strong>Notes</strong><ui-popover-close><button type="button" data-note-close aria-label="Close notes">×</button></ui-popover-close></header><textarea name="note" data-tile-note aria-label="Note"></textarea><div class="tile-note-actions"><small></small><button type="button" data-note-cancel>Cancel</button><button type="submit" class="tk-btn tk-primary">Save note</button></div><p data-form-status role="status"></p></form></ui-popover-content>';
+    const content=root.querySelector('ui-popover-content'),form=content.querySelector('form');
+    content.setAttribute('aria-label',`Notes on ${title}`);
+    const mark=this.invoker();
+    if(mark){mark.setAttribute('data-note-anchor','');content.setAttribute('anchor','[data-note-anchor]');this.anchorMark=mark;}
     const field=form.querySelector('textarea');field.setAttribute('aria-label',`Notes on ${title}`);field.setAttribute('aria-keyshortcuts','Meta+Enter Control+Enter');
     let draft=this.drafts.get(key);try{draft??=localStorage.getItem(this.draftKey(key))??undefined;}catch{}
-    field.value=draft??this.read(key);this.field=field;this.element=form;
+    field.value=draft??this.read(key);this.field=field;this.element=content;this.root=root;
     setCommitHint(form.querySelector('small'), 'save');
     let saved=false;
     this.binding=bindForm(form,{submit:async()=>{await this.save(key,field.value);},onSuccess:()=>{saved=true;},onError:error=>{this.remember();const status=form.querySelector('[data-form-status]');status.textContent=error.message||'Note not saved. Try again.';status.setAttribute('role','alert');},onPendingChange:pending=>{field.readOnly=pending;form.querySelectorAll('[data-note-close],[data-note-cancel]').forEach(b=>b.disabled=pending);if(!pending&&saved)this.close({cancel:true,focus:true});}});
-    form.querySelector('[data-note-close]').onclick=()=>this.close({focus:true});
     form.querySelector('[data-note-cancel]').onclick=()=>this.cancel({focus:true});
     field.oninput=()=>this.remember();
-    form.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.isComposing){event.preventDefault();event.stopImmediatePropagation();this.close({focus:true});}},true);
-    this.outside=event=>{if(!form.contains(event.target)&&!event.target.closest('[data-tile-notes]'))this.close();};
+    // Ways out the popover owns (Escape, a press outside, Tab out, the close key): the draft is kept; a save in flight refuses them.
+    root.addEventListener('openchange',event=>{
+      if(event.detail.value)return;
+      if(this.binding?.pending){event.preventDefault();return;}
+      if(this.root===root&&this.element===content){this.teardown();if(['escape-key','close-press'].includes(event.detail.reason))this.returnFocus=true;}
+    });
+    root.addEventListener('openchangecomplete',event=>{
+      if(event.detail.value)return;
+      root.remove();
+      if(this.root===root&&this.returnFocus){this.returnFocus=false;restoreFocus(this.invoker);}
+    });
     let origin;
-    this.reposition=()=>{const control=this.invoker();positionTilePopover(form,control);origin=control?.getBoundingClientRect();};
+    this.reposition=()=>{origin=this.invoker()?.getBoundingClientRect();};
     this.viewMoved=event=>{
-      if(form.contains(event.target))return;
+      if(content.contains(event.target))return;
       const control=this.invoker(),current=control?.getBoundingClientRect();
       if(event.type==='wheel'||!origin||!control?.isConnected||Math.abs(current.x-origin.x)>.5||Math.abs(current.y-origin.y)>.5)this.close();
     };
-    document.body.append(form);this.reposition();document.addEventListener('pointerdown',this.outside,true);window.addEventListener('resize',this.reposition);
+    document.body.append(root);this.reposition();window.addEventListener('resize',this.reposition);
     document.addEventListener('wheel',this.viewMoved,{capture:true,passive:true});document.addEventListener('scroll',this.viewMoved,true);
-    field.focus({preventScroll:true});
+    root.api.open();
   }
 }
