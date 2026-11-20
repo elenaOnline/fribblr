@@ -307,7 +307,7 @@ export function newBoardDialog(client, {parentBoardId, opener, refresh}) {
 }
 export async function enableOrganization(config) {
   confirmDialog({
-    title: "Enable flexible boards?",
+    title: "Enable flexible boards",
     description: "Convert the existing board metadata to stable items and placements. Existing board files, prior rounds, revisions, stars and notes remain in place. New organization changes live beside your project data. This is an explicit workspace conversion. Resource files are not moved or deleted.",
     confirmLabel: "Enable organization",
     onConfirm: async () => {

@@ -433,7 +433,7 @@ export class WorkspaceHome {
       }
       if (type === "remove") {
         confirmDialog({
-          title: "Remove boards from home?",
+          title: "Remove boards from home",
           description: "Remove these home placements. Their boards, items, references, notes and resource files remain intact. You can still reach them through existing links or references.",
           confirmLabel: "Remove from home",
           onConfirm: async () => {

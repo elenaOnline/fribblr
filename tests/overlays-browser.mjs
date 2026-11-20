@@ -84,7 +84,7 @@ try{
  // ---- Alert dialog: Cancel first, backdrop does nothing, Escape says no, confirm removes
  await page.locator(`[data-placement-select="${placements.c}"]`).click();
  await page.getByRole('button',{name:'Remove from board…'}).click();
- const alert=page.getByRole('alertdialog',{name:'Remove these placements?'});await alert.waitFor();
+ const alert=page.getByRole('alertdialog',{name:'Remove from this board'});await alert.waitFor();
  assert.equal((await active()).label,'Cancel','a confirmation starts on Cancel');
  await page.mouse.click(4,500);await page.waitForTimeout(300);assert.equal(await alert.count(),1,'a press on the backdrop does not answer a confirmation');
  await page.keyboard.press('Tab');await page.keyboard.press('Tab');assert.equal((await active()).label,'Cancel','Tab wraps inside the confirmation');

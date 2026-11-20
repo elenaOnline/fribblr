@@ -1916,7 +1916,7 @@ export class WorkspaceBoard {
         if (!ids.length) return;
         const drawnCount = this.groupDecorations().length;
         if (await confirmDialog({
-          title: "Remove these placements?",
+          title: "Remove from this board",
           description: `Remove ${ids.length} placement${ids.length === 1 ? "" : "s"} from this board${drawnCount ? ` and delete ${drawnCount} drawn element${drawnCount === 1 ? "" : "s"}` : ""}. Other references, canonical items, notes and all resource files remain intact.`,
           confirmLabel: "Remove from this board",
         })) await this.removePlacements(ids);
