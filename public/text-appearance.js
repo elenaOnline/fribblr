@@ -3,7 +3,7 @@ import {drawingColor, isHexDrawingColor} from "./drawing-palette.js";
 import {appearanceThemes,canvasBackdrop,compositeColor,contrastRatio,fallbackEdge,fallbackInk,luminance,readableColor,renderDrawingColor,textFillColor,textFillColors as fillColors,textFillToken,themeColor,unpackColor} from "./theme-colors.js";
 import {colorDot,paletteMarkup,pickerHex,setSwatch,onSwatch} from "./color-control.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from "./ui-segmented.js";
-import {choiceHTML,setChoice,onChoice} from "./ui-toolbar.js";
+import {choiceHTML,setChoice,onChoice,onPress,setPressed} from "./ui-toolbar.js";
 import {tips} from "./tips.js";
 import {mountPresetScrub} from "./preset-scrub.js";
 
@@ -51,7 +51,7 @@ const colorRoles = {ink:"ink",fill:"fill",border:"stroke"};
 // role and tab stop a moment after they are inserted, so focus waits for that.
 const focusSwatch=group=>{const go=()=>(group?.querySelector("[data-swatch][data-checked]")??group?.querySelector("[data-swatch]"))?.focus({preventScroll:true});queueMicrotask(go);};
 const colorLabels = {ink:"Ink",fill:"Fill",border:"Border"};
-const formatTitles = {size:"Text size",ink:"Ink",advanced:"Advanced text"};
+const formatTitles = {size:"Text size",ink:"Ink",face:"Typeface",box:"Text box"};
 const fills = [["none","None"],["paper","Paper"],["tint","Tint"],["strong","Strong"]];
 const borders = [["none","None"],["solid","Solid"],["dashed","Dashed"]];
 const closeIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>';
@@ -66,20 +66,21 @@ const currentPadding = d => d.textPadding??12;
 const currentFill = d => d.textFill??"none";
 const currentBorder = d => d.textBorder?.style??"none";
 
-const sizeMarkup = `<div class="text-size-controls">
-  <div data-text-size-scrub></div>
-  <button type="button" data-auto-height>${autoHeightIcon}</button>
-</div>`;
+const sizeMarkup = '<div data-text-size-scrub></div>';
 
 // Each set of options is one choice. Typeface, fill and border are keys (raised, as depth.css draws pressed buttons): a
 // single-choice toggle group of real buttons, one Tab stop, arrows move and Space or Enter chooses. Which channel the
 // palette paints (Fill or Border) is a segmented control. The palette is a radio group (color-control.js).
-function advancedMarkup() {
+// 1.4 split the old Advanced text popover in two: Typeface (the faces) and Text box (fill, border, padding, height).
+function faceMarkup() {
+  return choiceHTML({label:"Typeface",className:"text-format-faces",items:faces.map(([id,label])=>({value:id,attrs:{"data-face":id},tip:label,html:`<span class="text-format-specimen" aria-hidden="true">Aa</span><span>${label}</span>`}))});
+}
+
+function boxMarkup() {
   const roles=segmentedHTML({label:"Color applies to",className:"text-format-roles",value:"fill",items:[
     {value:"fill",html:'<span data-role-dot></span>Fill',attrs:{"data-role":"fill"}},
     {value:"border",html:'<span data-role-dot></span>Border',attrs:{"data-role":"border"}}]});
-  return choiceHTML({label:"Typeface",className:"text-format-faces",items:faces.map(([id,label])=>({value:id,attrs:{"data-face":id},tip:label,html:`<span class="text-format-specimen" aria-hidden="true">Aa</span><span>${label}</span>`}))})+`
-    <div class="text-format-colors">
+  return `<div class="text-format-colors">
       ${roles}
       ${choiceHTML({label:"Fill style",className:"text-format-options",attrs:{"data-fill-options":"",hidden:""},items:fills.map(([id,label])=>({value:id,attrs:{"data-fill":id},html:`<span class="text-format-fill-preview"${fillColors[id]?` style="${colorStyles(id)}"`:""} aria-hidden="true"></span>${label}`}))})}
       ${choiceHTML({label:"Border style",className:"text-format-options",attrs:{"data-border-options":"",hidden:""},items:borders.map(([id,label])=>({value:id,attrs:{"data-border":id},html:`<span class="text-format-border-preview" aria-hidden="true"></span>${label}`}))})}
@@ -88,18 +89,22 @@ function advancedMarkup() {
     </div>`;
 }
 
-export function mountTextAppearance(popover, decoration, {save, close, layout, previewSize, previewPadding, mode="advanced"}) {
+export function mountTextAppearance(popover, decoration, {save, close, layout, previewSize, previewPadding, fitHeight, mode="face"}) {
   const title=formatTitles[mode];
-  const content=mode==="size"?sizeMarkup:mode==="ink"?paletteMarkup(["ink"]):advancedMarkup();
+  const content=mode==="size"?sizeMarkup:mode==="ink"?paletteMarkup(["ink"]):mode==="box"?boxMarkup():faceMarkup();
   popover.innerHTML=`<div class="text-format-controls" data-text-format-mode="${mode}">
     <div class="text-format-header"><strong>${title}</strong>
       <button type="button" data-format-close aria-label="Close ${title.toLowerCase()}" data-tip="Close">${closeIcon}</button>
     </div>
     ${content}
-    ${mode==="advanced"?`<div class="text-format-inset">
+    ${mode==="box"?`<div class="text-format-inset">
       <span class="text-format-inset-label" aria-hidden="true">${insetIcon}Padding</span>
       <div data-padding-scrub></div>
-    </div>`:""}
+    </div>
+    <ui-toolbar class="text-format-box-height" aria-label="Box height">
+      <ui-toggle><button type="button" data-auto-height data-tip="The box grows and shrinks with its text">${autoHeightIcon}<span>Auto height</span></button></ui-toggle>
+      <ui-toolbar-button><button type="button" data-fit-height data-tip="Make the box as tall as its text, once">Fit height once</button></ui-toolbar-button>
+    </ui-toolbar>`:""}
     <div data-style-feedback hidden><span data-style-status role="status"></span><button type="button" data-style-retry hidden>Retry</button></div>
   </div>`;
 
@@ -108,6 +113,7 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
   const get=selector=>surface.querySelector(selector);
   const custom=get("[name=custom]");
   const autoHeightToggle=get("[data-auto-height]");
+  const fitHeightButton=get("[data-fit-height]");
   const customTarget=get(".text-format-custom"),status=get("[data-style-status]");
   const swatches=get("[data-color-swatches]");
   const fillOptions=get("[data-fill-options]"),borderOptions=get("[data-border-options]"),autoBorder=get("[data-border-auto]");
@@ -123,8 +129,8 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
   function update() {
     if(!active)return;
     const d=optimistic();
-    if(mode==="advanced"){
-      setChoice(facesGroup,d.textFace??"serif");
+    if(facesGroup)setChoice(facesGroup,d.textFace??"serif");
+    if(mode==="box"){
       setSegmented(rolesControl,channel);
       setChoice(fillOptions,currentFill(d));
       setChoice(borderOptions,currentBorder(d));
@@ -150,16 +156,17 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
       custom.value=pickerHex(isHexColor(selected) ? selected : renderDrawingColor(selected,colorRoles[channel],theme)??fillColors[selected]?.[theme],
         {ink:fallbackInk,fill:theme=>themeColor("tint",theme),border:fallbackEdge}[channel](theme));
     }
-    if(sizeControl){
-      const autoHeight=d.textSizing==="auto";
-      const action=autoHeight?"Disable auto height":"Enable auto height";
-      autoHeightToggle.setAttribute("aria-pressed",String(autoHeight));
-      autoHeightToggle.setAttribute("aria-label",action);
-      autoHeightToggle.title=action;
-      sizeControl.setValue(currentSize(d),sizeSelection(d));
+    if(autoHeightToggle){
+      // A toggle keeps one name in both states (UI SDK toggle); its pressed state says which.
+      setPressed(autoHeightToggle,d.textSizing==="auto");
+      // While a fit is saving, Fit height once stays reachable (aria-disabled) but ignores presses (UI SDK toolbar).
+      const fitting=pending.some(change=>change.fit);
+      fitHeightButton.closest("ui-toolbar-button").toggleAttribute("disabled",fitting);
+      fitHeightButton.setAttribute("aria-disabled",String(fitting));
     }
+    sizeControl?.setValue(currentSize(d),sizeSelection(d));
     paddingControl?.setValue(currentPadding(d));
-    const message=failed?"Change wasn’t saved.":"";
+    const message=failed?(failed.change.fit?"Couldn’t fit the text height.":"Change wasn’t saved."):"";
     get("[data-style-feedback]").hidden=!message;
     get("[data-style-retry]").hidden=!failed;
     if(status.textContent!==message)status.textContent=message;
@@ -180,11 +187,12 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
     writing=true;
     while(pending.length){
       const change=pending[0],patch=change(saved);
-      if(Object.keys(patch).length){
+      if(change.fit||Object.keys(patch).length){
         try {
-          if(await save(patch)===false)throw new Error("Style change was rejected");
-          saved={...saved,...patch};
-          if(failed&&JSON.stringify(failed.patch)===JSON.stringify(patch))failed=null;
+          const result=change.fit?await fitHeight():await save(patch);
+          if(result===false)throw new Error("Style change was rejected");
+          saved={...saved,...(change.fit&&result&&typeof result==="object"?result:patch)};
+          if(failed&&(failed.change.fit===change.fit)&&JSON.stringify(failed.patch)===JSON.stringify(patch))failed=null;
         } catch {failed={change,patch};}
       }
       pending.shift();
@@ -199,7 +207,7 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
     value:currentSize(decoration),selection:sizeSelection(decoration),preview:previewSize,
     commit:(value,{preset})=>field("textSize",preset??value,storedSize),
   }):null;
-  const paddingControl=mode==="advanced"?mountPresetScrub(get("[data-padding-scrub]"),{
+  const paddingControl=mode==="box"?mountPresetScrub(get("[data-padding-scrub]"),{
     label:"Padding",inputLabel:"Adjust padding",unit:"px",presets:paddingPresets,min:0,max:64,
     value:currentPadding(decoration),preview:previewPadding,
     commit:value=>field("textPadding",value,currentPadding),
@@ -216,26 +224,33 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
     if(button.hasAttribute("data-style-retry")&&failed){
       const {change}=failed;
       failed=null;
-      enqueue(change);
+      if(change.fit){pending.push(change);update();void drain();}
+      else enqueue(change);
       return;
     }
-    if(button===autoHeightToggle){
-      const sizing=optimistic().textSizing==="auto"?"fixed":"auto";
-      field("textSizing",sizing,d=>d.textSizing??"fixed");
+    if(button===fitHeightButton){
+      if(pending.some(change=>change.fit))return;
+      const change=()=>({});
+      change.fit=true;
+      pending.push(change);
+      update();
+      void drain();
       return;
     }
     if(button.hasAttribute("data-border-auto"))setColor("border",undefined);
   };
   on(surface,"click",choose);
   // The choices report through valuechange (it does not bubble): listen on each control.
-  if(facesGroup){
-    onChoice(facesGroup,face=>field("textFace",face,d=>d.textFace??"serif"));
+  if(facesGroup)onChoice(facesGroup,face=>field("textFace",face,d=>d.textFace??"serif"));
+  if(rolesControl){
     onSegmented(rolesControl,role=>{channel=role;update();});
     onChoice(fillOptions,fill=>field("textFill",fill,currentFill));
     onChoice(borderOptions,border=>enqueue(d=>currentBorder(d)===border?{}:{textBorder:border==="none"?null:{...d.textBorder,style:border}}));
   }
   if(swatches)onSwatch(swatches,id=>setColor(channel,id));
   if(custom)on(custom,"change",()=>setColor(channel,custom.value));
+  // Auto height is the app's state: the SDK's own flip is cancelled and the stored sizing answers (setPressed in update).
+  if(autoHeightToggle)onPress(autoHeightToggle,()=>{if(!active)return;field("textSizing",optimistic().textSizing==="auto"?"fixed":"auto",d=>d.textSizing??"fixed");});
   update();
   return {
     destroy({commit=true}={}) {
@@ -248,6 +263,8 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
     focus() {
       if(sizeControl)sizeControl.focus();
       else if(facesGroup)restoreFocus(get("[data-face][aria-pressed=true]")??get("[data-face]"));
+      // Text box: its first control, Color applies to (Fill or Border), as a Popover focuses on open.
+      else if(rolesControl)focusSegmented(rolesControl);
       else focusSwatch(swatches);
     },
   };

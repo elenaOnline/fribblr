@@ -223,8 +223,10 @@ content sits on a canvas of its own: ⌘/Ctrl-scroll or pinch zooms it about the
 pointer, also over Tinka's own local content, and the page never zooms; drag the
 background, or hold Space and drag, to pan. Scrolling pans over the background, and
 over content with nothing to scroll, such as an image zoomed in to fill the view;
-documents and pages that scroll keep scrolling themselves. Fit (F or ⇧1) shows the whole window
-again, never past 100%, and Back returns to the view before it. Canvas zoom
+documents and pages that scroll keep scrolling themselves. Fit (F or ⇧1) shows the whole resource
+again, never past 100%, and Back returns to the view before it. HTML starts at
+its saved preview viewport (1000 × 720 when unspecified); images use their natural
+dimensions. The resource has no outer card, and pan stops at its bounds. Canvas zoom
 magnifies; Window and Type size reflow. The % menu also holds what the old View
 panel did: Window (Fit, Compact, Standard, Wide or a custom size dragged from the
 window's corner) and Version, Light (Paper/Night), Type size and Open standalone.
@@ -261,7 +263,7 @@ the right end of the title row whatever the title, steps through the board in re
 skipping reserved, building and board-only Tinkas; the count opens the same list,
 and **↓ Board · N** goes down into the Tinka's own board. Keys: ⌥← / ⌥→ on a Mac or
 Ctrl+← / Ctrl+→ on Windows and Linux step, also while Tinka's own local content has
-focus but never inside a text field; [ and ] step too, and plain ← / → step while
+focus but never inside a text field; [ and ] and K and J step too, and plain ← / → step while
 Tinka rather than the content has focus (opening a Tinka leaves focus there, and
 content that grabs focus as it loads hands it back until you click into it or press Tab).
 ⌥↑ / Ctrl+↑ or Escape goes up to the board, and ⌥↓ / Ctrl+↓ goes down. Stepping
@@ -361,6 +363,19 @@ objects in place as separate selections. Both actions support Undo and Redo.
 Select a container itself to group it with other objects. Its children follow
 the container's layout.
 
+Everything on a Canvas, Tinkas and drawings alike, sits in one stacking order.
+New things land on top, except that a colored region or other backdrop drawn
+around existing objects goes under them. Dragging something onto an object above
+it, that it was not touching before, brings it forward; a small slip, a slide
+among the same neighbours, arrow-key nudges, resizing, recoloring and editing
+leave the order alone. A backdrop you drag stays beneath the things resting on it
+(more than half inside it and no more than half its size). Press **]** to bring the
+selection to the front or **[** to send it to the back, or choose Bring to front /
+Send to back from a Tinka's ⋯ menu or a shape's, region's or arrow's options. Undo
+restores the order with the move that changed it. On boards saved before this
+order, drawings without a saved place keep their kind's level: regions, shapes and
+text beneath every Tinka, arrows and stickers above.
+
 Hold **Option** (**Alt** on Windows or Linux) as you start dragging a card or
 drawn element to place a copy on the same canvas. Drag a selected member to copy
 the whole selection in one Undo step. A card copy has its own position and size
@@ -376,9 +391,9 @@ originals. They become selected and are one Undo/Redo step. ⌘A / Ctrl-A select
 all rendered cards; Enter opens the sole selected item; ⌘/Ctrl-K or / opens
 Navigator; ⌘/Ctrl-I opens the Inspector; F fits the selection, then the board;
 Shift-1 fits the board, Shift-2 fits the selection (by physical key, on any
-layout) and Shift-0 zooms to 100%; M shows or hides the board map. ⌥← / ⌥→ (Ctrl+← / Ctrl+→ on Windows and
+layout) and Shift-0 zooms to 100%; M shows or hides the board map. K / J (also Ctrl+← / Ctrl+→ on Windows and
 Linux) select the previous or next Tinka in the same order an opened Tinka steps through,
-and bring it into view. With nothing selected they continue from the board's current
+and bring it into view; ⌥← / ⌥→ moves the focused item. With nothing selected they continue from the board's current
 Tinka: the one you last opened or stepped to inside it, stepped to on the board or
 selected on its own (remembered per board in this tab). T, S and D add Text, a Sticky note or a Markdown
 Document at the pointer, N opens Quick jot, A shows or hides the edit tools, E
@@ -526,13 +541,15 @@ tile, with checklists, strikethrough, nested formatting, and live highlights and
 comments. After a save, highlights and comments follow their exact quoted text when
 it can be placed without guessing; edited quotes and ties stay for review.
 
-Text blocks offer size, ink and alignment on their contextual bar. Pick S, M or
+Text blocks offer size, ink and alignment on their contextual bar. The Ink dot
+shows the painted text color. The palette keeps the chosen color, and the dot
+explains when contrast adjustment changes the displayed ink. Pick S, M or
 L for text and label sizes, or drag the adjustment control. The control also
 accepts the arrow keys and announces the current size. New Text uses
 **Auto height** and grows as you type or change the font size at its current
-wrapping width. Resizing its outline turns Auto height off. Toggle it beside
-the size choices. **Aa** opens typeface, fill, border and padding. **More → Fit height to
-text** fits a fixed block once. Delete or Backspace removes selected drawings,
+wrapping width. Resizing its outline turns Auto height off. **Aa** chooses the
+typeface. **Text box** holds fill, border, padding and the Auto height toggle.
+**Fit height once** in that panel fits a fixed block once. Delete or Backspace removes selected drawings,
 and Undo restores them. Stickies start with a paper color dot and text size.
 Shapes, regions and containers show their fill color in the same place. Tile
 paper and board color use the same palette from their Inspectors. Native colors

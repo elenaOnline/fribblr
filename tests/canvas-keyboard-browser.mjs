@@ -172,11 +172,19 @@ try{
  await page.locator(`.workspace-card[data-placement="${c.b1}"] .workspace-item-footer`).first().click({modifiers:['Shift'],position:{x:12,y:10}});
  await page.locator('#viewport').focus();await page.keyboard.press('Tab');
  assert.equal(await focused(),'card:B1','After a click, Tab lands on the clicked card');checks++;
- // ] steps the selection and focus follows to the stepped card; on a Mac ⌥→ no longer steps.
+ // J steps the selection and focus follows to the stepped card; on a Mac ⌥→ no longer steps.
  await page.keyboard.press('Escape');
- await page.keyboard.press(']');
- ok(await until(async()=>(await selected()).length===1),'] selects one card');
+ await page.keyboard.press('j');
+ ok(await until(async()=>(await selected()).length===1),'J selects one card');
  ok(await until(async()=>(await focused())===`card:${(await selected())[0]}`),'Focus follows the step to its card');
+ // ] brings the focused, selected card to the front (1.4) and never steps; focus and the selection stay on it.
+ {const card=await focused(),held=await selected();
+  const sent=page.waitForRequest(r=>r.url().endsWith('/api/operations')&&r.postDataJSON()?.type==='restackOccurrences',{timeout:3000});
+  await page.keyboard.press(']');
+  ok((await sent.then(r=>r.postDataJSON()?.to).catch(()=>null))==='front','] writes Bring to front');
+  await page.waitForTimeout(300);
+  assert.deepEqual(await selected(),held,'] does not step the selection');checks++;
+  ok(await until(async()=>(await focused())===card),'Focus stays on the card after Bring to front');}
  // While a keyboard move is still being written, Space on a select circle still presses it (the key queue must not
  // swallow a button's native press), and a second Option-arrow waits its turn instead of racing the first.
  await page.keyboard.press('Escape');

@@ -26,7 +26,7 @@
       <p id="board-description"></p>
       <p class="info-meta"><span id="experiment-count">Experiments</span><span id="round-count">Explorations</span><span>Notes saved on this Mac</span></p>
       <details class="board-help"><summary>How to use this board</summary>
-        <div id="help-panel"><strong>Make yourself at home.</strong> Drag or scroll to move anywhere on the canvas, past the edges of the board too. Pinch, or hold Control or ⌘ while scrolling, to zoom; the zoom controls and Fit float at the lower right. With items selected, Fit (or F) frames the selection, then the whole board; ⌥-click fits the board. Back returns to where you were before a fit. The map button (M) shows the whole board: click or drag in it to move there. With the canvas focused, the arrow keys and Page Up / Page Down pan, Home and End go to the first and last exploration, and + / − zoom. Open an experiment to try it: it keeps this header pattern and the same zoom controls. Step through the others with ‹ › beside its title, ⌥← / ⌥→ (Ctrl+← / Ctrl+→ on Windows and Linux) or [ and ]; hover or click its title for where you are and what sits beside it. Escape returns here, as does ⌥↑ (Ctrl+↑ on Windows and Linux). Stars and notes are saved on this Mac.</div>
+        <div id="help-panel"><strong>Make yourself at home.</strong> Drag or scroll to move anywhere on the canvas, past the edges of the board too. Pinch, or hold Control or ⌘ while scrolling, to zoom; the zoom controls and Fit float at the lower right. With items selected, Fit (or F) frames the selection, then the whole board; ⌥-click fits the board. Back returns to where you were before a fit. The map button (M) shows the whole board: click or drag in it to move there. With the canvas focused, the arrow keys and Page Up / Page Down pan, Home and End go to the first and last exploration, and + / − zoom. Open an experiment to try it: it keeps this header pattern and the same zoom controls. Step through the others with ‹ › beside its title, ⌥← / ⌥→ (Ctrl+← / Ctrl+→ on Windows and Linux), [ and ] or K and J; hover or click its title for where you are and what sits beside it. Escape returns here, as does ⌥↑ (Ctrl+↑ on Windows and Linux). Stars and notes are saved on this Mac.</div>
       </details>
       <div class="info-actions"><button id="export" type="button">Export notes</button></div>
     </ui-dialog-content></ui-dialog>
@@ -122,9 +122,9 @@
             <div class="tk-msep"></div>
             <div id="size-menu" class="reader-menu-group" role="group" aria-labelledby="reader-window-label">
               <div class="tk-mlabel" id="reader-window-label">Window</div>
-              <ui-segmented-control class="tk-seg reader-sizes" aria-labelledby="reader-window-label" default-value="fit"><ui-segmented-control-item value="fit" data-size="fit" data-tip="Fills the stage">Fit</ui-segmented-control-item><ui-segmented-control-item value="compact" data-size="compact" data-tip="440 × 620">Compact</ui-segmented-control-item><ui-segmented-control-item value="standard" data-size="standard" data-tip="1000 × 720">Standard</ui-segmented-control-item><ui-segmented-control-item value="wide" data-size="wide" data-tip="1380 × 840">Wide</ui-segmented-control-item></ui-segmented-control>
+              <ui-segmented-control class="tk-seg reader-sizes" aria-labelledby="reader-window-label" default-value="fit"><ui-segmented-control-item value="fit" data-size="fit" data-tip="Fits the authored resource viewport">Fit</ui-segmented-control-item><ui-segmented-control-item value="compact" data-size="compact" data-tip="440 × 620">Compact</ui-segmented-control-item><ui-segmented-control-item value="standard" data-size="standard" data-tip="1000 × 720">Standard</ui-segmented-control-item><ui-segmented-control-item value="wide" data-size="wide" data-tip="1380 × 840">Wide</ui-segmented-control-item></ui-segmented-control>
               <button type="button" class="tk-mi reader-custom-size" data-size="custom" aria-pressed="false" hidden><span>Custom</span><small id="custom-size"></small></button>
-              <p class="reader-menu-hint">Drag the window's lower-right corner for a custom size.</p>
+              <p class="reader-menu-hint">Choose a Window size to reflow HTML; drag its lower-right corner for a custom size.</p>
               <div id="revision-group" class="revision-group" role="group" aria-labelledby="revision-label" hidden><div class="tk-mlabel" id="revision-label">Version</div><div id="revision-options"></div></div>
             </div>
             <div class="tk-msep"></div>
@@ -143,7 +143,7 @@
         <p id="reader-save-status" class="reader-save-status" role="status">Notes saved on this Mac</p>
       </aside>
     </div>
-    <span id="reader-position" class="sr-only" role="status" aria-live="polite"></span>
+    <span id="reader-position" class="sr-only" role="status" aria-live="polite"></span><span id="reader-view-announce" class="sr-only" role="status" aria-live="polite"></span>
   </dialog>
   <script type="module" src="/app/canvas.js"></script>
   <script type="module" src="/app/reader-focus.js"></script>

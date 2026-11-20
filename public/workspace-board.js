@@ -29,6 +29,7 @@ import {timeHTML} from "./relative-dates.js";
 import {navigationGraph} from "./navigator-graph.js";
 import {isMacPlatform,stepModifierLabel} from "./reader-keys.js";
 import {snapBox,boundsOf,snapDisabled,GuideLayer} from "./snap-guides.js";
+import {stackRanks,stackRef} from "./stacking.js";
 import {CommentPins,COMMENT_ICON,refBox} from "./comment-pins.js";
 import {CLIPBOARD_MIME,CLIPBOARD_PREFIX,clipboardBounds,clipboardBytes,readClipboard,externalClipboard} from "./clipboard.js";
 import {EMOJI_STICKER_MIME,emojiSticker} from "./emoji-stickers.js";
@@ -961,6 +962,9 @@ export class WorkspaceBoard {
         action = () => this.hooks.fit?.("board");
       else if (!command && shifted(2) && this.mode === "canvas")
         action = () => this.hooks.fit?.("selection");
+      // ] brings the selection to the front and [ sends it to the back.
+      else if (!command && (key === "]" || key === "[") && this.stackSelection())
+        action = () => this.restackSelection(key === "]" ? "front" : "back");
       // M shows or hides the board map.
       else if (!command && !event.shiftKey && key === "m" && this.mode === "canvas")
         action = () => this.hooks.toggleMap?.();
@@ -1000,9 +1004,10 @@ export class WorkspaceBoard {
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
       <dt>⌘/Ctrl-D</dt><dd>Duplicate selection</dd>
+      <dt>] / [</dt><dd>Bring the selection to the front / send it to the back</dd>
       <dt>⌘/Ctrl-G</dt><dd>Group the selected Canvas objects, or ungroup the selected group (select with Space, then ⌘/Ctrl-G)</dd>
       <dt>${isMacPlatform() ? "Option" : "Alt"}-drag</dt><dd>Place another copy on this canvas. Cards share their item; drawn elements have their own content.</dd>
-      <dt>${isMacPlatform() ? "[ · ]" : `${MOD}← · ${MOD}→ or [ · ]`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
+      <dt>${isMacPlatform() ? "K · J" : `${MOD}← · ${MOD}→ or K · J`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
       <dt>Tab, then arrow keys</dt><dd>Go to the board’s items: the arrows move to the nearest item that way; Home · End go to the first · last</dd>
       <dt>Space</dt><dd>Select or deselect the focused item (a grouped item brings its group)</dd>
       <dt>Enter</dt><dd>Open the focused Tinka, or the one selected; on a container, go in among its contents</dd>
@@ -1029,7 +1034,7 @@ export class WorkspaceBoard {
       <dt>⌘/Ctrl-Z · Shift-⌘/Ctrl-Z</dt><dd>Undo · Redo</dd>
       <dt>${isMacPlatform() ? "⌥" : "Alt+"}Arrow · ${isMacPlatform() ? "⌥⇧" : "Alt+Shift+"}Arrow</dt><dd>Move the focused item, and the selection or group with it, 1 · 10 units; in a container, move it one place · to the first or last place</dd>
       <dt>Escape</dt><dd>Close the newest panel or menu, then cancel a gesture, pending Cut or selection</dd>
-      <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ]</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
+      <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ] · K · J</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
     dialog.addEventListener("close", () => {
       if (returnFocus?.isConnected) returnFocus.focus({preventScroll:true});
     });
@@ -1529,6 +1534,8 @@ export class WorkspaceBoard {
       this.origin = origin;
     }
     // Keep the URL stamped by live content updates when its source is unchanged.
+    // Cards and drawn elements paint in the board's one shared stacking order.
+    const stackRank = this.mode === "canvas" ? stackRanks(this.snapshot, {fresh:true}) : null;
     const previews = new Map((versionCard ? [versionCard] : [...world.querySelectorAll("[data-placement]")]).map(card =>
       [card.dataset.placement, { frame: card.querySelector(".workspace-live-preview iframe"), image: card.querySelector(".workspace-card-preview img"), pdf:card.querySelector(".workspace-pdf-preview") }]));
     const renderCard = (c) => {
@@ -1590,7 +1597,7 @@ export class WorkspaceBoard {
         : `<span class="workspace-title-art">${esc(item.preview?.text || item.title)}</span>`;
       const paper = paperVariables(p.presentation?.paper, theme => boardSurfaces(this.snapshot, theme, surfacePoints(p))[0]);
       const dimensions = this.mode === "canvas"
-        ? `left:${p.x + this.origin.x}px;top:${p.y + this.origin.y}px;width:${p.width}px;height:${p.height}px;z-index:${p.z};`
+        ? `left:${p.x + this.origin.x}px;top:${p.y + this.origin.y}px;width:${p.width}px;height:${p.height}px;z-index:${stackRank?.get(stackRef("placement", p.id)) || 1};`
         : panel || icon ? `width:${p.width}px;height:${p.height}px;` : "";
       return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)}${versionSheets(item) ? ` data-sheets="${versionSheets(item)}"` : ""} data-build-state="${esc(item.build?.state || "ready")}"${paper ? " data-custom-paper" : ""} style="${dimensions}${paper}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}${this.mode === "canvas" && !this.hooks.viewOnly ? tileResizeEdges : ""}</article>`;
     };
@@ -2131,6 +2138,8 @@ export class WorkspaceBoard {
       + mi("notes", "Notes") + mi("details", "Details…", {shortcut:"mod+i"})
       + menuSeparator
       + mi("star", star ? "Unfavorite" : "Favorite") + mi("move", "Move to board…") + mi("duplicate", "Duplicate", {shortcut:"mod+d"})
+      // 1.4's stacking commands, on Canvas only; ] and [ run them from the board too.
+      + (this.mode === "canvas" && !this.hooks.viewOnly ? mi("front", "Bring to front", {shortcut:"]"}) + mi("back", "Send to back", {shortcut:"["}) : "")
       + menuSeparator
       + mi("remove", "Remove from board…", {destructive:true, className:"tk-danger"});
     // At the pointer: the menu's corner sits on it. Under the ⋯: right edges line up, as before.
@@ -2168,6 +2177,7 @@ export class WorkspaceBoard {
     else if (action === "star") card()?.querySelector("[data-star]")?.click();
     else if (action === "move") this.bulk("move");
     else if (action === "duplicate") this.duplicateSelection({explicit:true});
+    else if (action === "front" || action === "back") this.restackSelection(action);
     else if (action === "remove") this.bulk("remove");
   }
   // Keys that open the card and board menus, asked by the board's key handler before its own: Shift+F10 or the
@@ -3092,6 +3102,8 @@ export class WorkspaceBoard {
               placementIds:done.entries.map(entry => entry.p.id),
               ...(done.decorations?.length ? {decorationIds:done.decorations.map(d => d.id)} : {}),
               ...done.translation,
+              // The drop comes forward only if it newly overlaps something above it.
+              restack:"drop",
             }, latest => unmoved(latest, done));
             saved = true;
             this.moveCommitting = false;
@@ -3118,6 +3130,8 @@ export class WorkspaceBoard {
             boardId: this.snapshot.id,
             placementId: done.id,
             patch: done.patch,
+            // A dragged drop may come forward; resizing never reorders.
+            ...(done.resize ? {} : {restack:"drop"}),
           }, latest => unmoved(latest, done));
           this.moveCommitting = false;
           await this.refresh({saveReview:false});
@@ -3533,6 +3547,23 @@ export class WorkspaceBoard {
   groupForOccurrence({placementId,decorationId}) {
     return this.canvasGroups().find(group => group.placementIds.includes(placementId) ||
       group.decorationIds.includes(decorationId));
+  }
+  // Bring to front / Send to back act on the selected cards and drawn elements.
+  stackSelection() {
+    if (this.mode !== "canvas" || this.hooks.viewOnly || !this.snapshot?.id) return null;
+    const placementIds = this.clipboardCandidates().map(p => p.id);
+    const decorationIds = [...new Set([...(this.decorationSelection || []), this.activeDecoration].filter(Boolean))];
+    return placementIds.length || decorationIds.length ? {placementIds, decorationIds} : null;
+  }
+  async restackSelection(to) {
+    const selection = this.stackSelection();
+    if (!selection || this.commandBusy() || this.history?.busy) return;
+    const present = latest => selection.placementIds.every(id => latest.placements.some(p => p.id === id && !p.removedAt && !p.deletedAt)) &&
+      selection.decorationIds.every(id => (latest.decorations || []).some(d => d.id === id));
+    try {
+      await this.writeArrangement("restackOccurrences", {boardId:this.snapshot.id, ...selection, to}, present);
+      await this.refresh({saveReview:false});
+    } catch (error) { toast(error.message); }
   }
   groupSelectionIds() {
     const contained = containedOccurrences(this.snapshot.decorations || []);
