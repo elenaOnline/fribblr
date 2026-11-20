@@ -3730,7 +3730,7 @@ export class WorkspaceBoard {
     const {root, content} = this.arrangeMenuElement();
     const item = ([kind,label,icon]) => menuItem(kind, label, {icon:svg16(icon), disabled:kind.startsWith("distribute") && count < 3, attrs:`data-arrange="${kind}"`});
     content.innerHTML = menuGroup("Align", ARRANGE.slice(0,6).map(item).join("")) + menuGroup("Distribute", ARRANGE.slice(6,8).map(item).join(""))
-      + menuSeparator + menuItem("tidy", "Tidy into grid", {icon:svg16(ARRANGE[8][2]), title:"Tidy the selection into a grid, keeping reading order", attrs:'data-arrange="tidy"'});
+      + menuSeparator + menuItem("tidy", "Tidy into grid", {icon:svg16(ARRANGE[8][2]), tip:"Tidy the selection into a grid, keeping reading order", attrs:'data-arrange="tidy"'});
     this.arrangeAnchor?.setAttribute("aria-expanded", "false");
     this.arrangeAnchor = anchor;
     anchor.setAttribute("aria-haspopup", "menu");

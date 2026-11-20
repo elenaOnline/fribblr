@@ -4,7 +4,7 @@ import {appearanceThemes,canvasBackdrop,compositeColor,contrastRatio,fallbackEdg
 import {colorDot,paletteMarkup,pickerHex,setSwatch,onSwatch} from "./color-control.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from "./ui-segmented.js";
 import {choiceHTML,setChoice,onChoice} from "./ui-toolbar.js";
-import {tips} from "./tips.js";
+import {tips,setTip} from "./tips.js";
 import {mountPresetScrub} from "./preset-scrub.js";
 
 export const isHexColor = isHexDrawingColor;
@@ -155,7 +155,7 @@ export function mountTextAppearance(popover, decoration, {save, close, layout, p
       const action=autoHeight?"Disable auto height":"Enable auto height";
       autoHeightToggle.setAttribute("aria-pressed",String(autoHeight));
       autoHeightToggle.setAttribute("aria-label",action);
-      autoHeightToggle.title=action;
+      setTip(autoHeightToggle,action);
       sizeControl.setValue(currentSize(d),sizeSelection(d));
     }
     paddingControl?.setValue(currentPadding(d));

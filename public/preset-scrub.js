@@ -38,7 +38,7 @@ export function mountPresetScrub(element, {
   const custom=document.createElement("button");
   custom.type="button";
   custom.className="preset-scrub-custom";
-  custom.title=`Drag to adjust ${label.toLowerCase()}`;
+  custom.dataset.tip=`Drag to adjust ${label.toLowerCase()}`;
   custom.dataset.scrubValue="";
   custom.setAttribute("role",boundedTrack?"slider":"spinbutton");
   custom.setAttribute("aria-label",inputLabel);

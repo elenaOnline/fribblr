@@ -74,22 +74,23 @@ export function sharedPopover({id, label = '', className = '', host = document.b
 const keycap = shortcut => `<ui-menu-shortcut><kbd class="tk-kbd">${esc(formatShortcut(shortcut).replace(/[\u2066-\u2069]/g, ''))}</kbd></ui-menu-shortcut>`;
 const keys = shortcut => shortcut ? ` aria-keyshortcuts="${esc(ariaKeyshortcuts(shortcut))}"` : '';
 
-// One plain item. `icon` is decorative markup kept out of the accessible name and typeahead.
-export function menuItem(value, label, {shortcut, disabled, destructive, icon, title, className = '', attrs = ''} = {}) {
-  return `<ui-menu-item class="tk-mi ${className}" value="${esc(value)}"${keys(shortcut)}${disabled ? ' disabled' : ''}${destructive ? ' destructive' : ''}${title ? ` title="${esc(title)}"` : ''} ${attrs}>${icon ? `<ui-menu-item-icon>${icon}</ui-menu-item-icon>` : ''}<span class="tk-mi-label">${esc(label)}</span>${shortcut ? keycap(shortcut) : ''}</ui-menu-item>`;
+// One plain item. `icon` is decorative markup kept out of the accessible name and typeahead. `tip` is a hint on the
+// shared tooltip (its delegate, tips.js: on hover, as in native menus).
+export function menuItem(value, label, {shortcut, disabled, destructive, icon, tip, className = '', attrs = ''} = {}) {
+  return `<ui-menu-item class="tk-mi ${className}" value="${esc(value)}"${keys(shortcut)}${disabled ? ' disabled' : ''}${destructive ? ' destructive' : ''}${tip ? ` data-tip="${esc(tip)}"` : ''} ${attrs}>${icon ? `<ui-menu-item-icon>${icon}</ui-menu-item-icon>` : ''}<span class="tk-mi-label">${esc(label)}</span>${shortcut ? keycap(shortcut) : ''}</ui-menu-item>`;
 }
 // An item that is a link (Enter follows it like a click, keeping target and modifier keys).
 export function menuLink(href, label, {target = '_blank', className = ''} = {}) {
   return `<ui-menu-item as-child><a class="tk-mi ${className}" href="${esc(href)}"${target ? ` target="${esc(target)}" rel="noopener noreferrer"` : ''}><span class="tk-mi-label">${esc(label)}</span></a></ui-menu-item>`;
 }
-export function menuCheckbox(value, label, {checked = false, shortcut, disabled, title} = {}) {
-  return `<ui-menu-checkbox-item class="tk-mi" value="${esc(value)}" checked="${checked}"${keys(shortcut)}${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(label)}</span>${shortcut ? keycap(shortcut) : ''}</ui-menu-checkbox-item>`;
+export function menuCheckbox(value, label, {checked = false, shortcut, disabled, tip} = {}) {
+  return `<ui-menu-checkbox-item class="tk-mi" value="${esc(value)}" checked="${checked}"${keys(shortcut)}${disabled ? ' disabled' : ''}${tip ? ` data-tip="${esc(tip)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(label)}</span>${shortcut ? keycap(shortcut) : ''}</ui-menu-checkbox-item>`;
 }
 // A radio group: [[value, label, {detail}]…]; `value` is the chosen one. `detail` is a quiet second line (a modified
 // time). Radio items stay open as they change (menu.md); `closeOnSelect` makes a choice close the menu, for a group
 // that picks what to show rather than a setting.
-export function menuRadioGroup(name, label, options, value, {disabled = false, title = '', closeOnSelect = false} = {}) {
-  return `<ui-menu-radio-group name="${esc(name)}" value="${esc(value)}"${title ? ` title="${esc(title)}"` : ''}>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${options.map(([v, text, {detail = ''} = {}]) => `<ui-menu-radio-item class="tk-mi${detail ? ' tk-mi2' : ''}" value="${esc(v)}"${disabled ? ' disabled' : ''}${closeOnSelect ? ' close-on-select' : ''}${detail ? ` label="${esc(text)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(text)}${detail ? `<small>${esc(detail)}</small>` : ''}</span></ui-menu-radio-item>`).join('')}</ui-menu-radio-group>`;
+export function menuRadioGroup(name, label, options, value, {disabled = false, tip = '', closeOnSelect = false} = {}) {
+  return `<ui-menu-radio-group name="${esc(name)}" value="${esc(value)}"${tip ? ` data-tip="${esc(tip)}"` : ''}>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${options.map(([v, text, {detail = ''} = {}]) => `<ui-menu-radio-item class="tk-mi${detail ? ' tk-mi2' : ''}" value="${esc(v)}"${disabled ? ' disabled' : ''}${closeOnSelect ? ' close-on-select' : ''}${detail ? ` label="${esc(text)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(text)}${detail ? `<small>${esc(detail)}</small>` : ''}</span></ui-menu-radio-item>`).join('')}</ui-menu-radio-group>`;
 }
 export function menuGroup(label, items) {
   return `<ui-menu-group>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${items}</ui-menu-group>`;
