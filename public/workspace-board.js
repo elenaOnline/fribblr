@@ -26,7 +26,7 @@ import {snapBox,boundsOf,snapDisabled,GuideLayer} from "./snap-guides.js";
 import {CommentPins,COMMENT_ICON,refBox} from "./comment-pins.js";
 import {CLIPBOARD_MIME,CLIPBOARD_PREFIX,clipboardBounds,clipboardBytes,readClipboard,externalClipboard} from "./clipboard.js";
 import {EMOJI_STICKER_MIME,emojiSticker} from "./emoji-stickers.js";
-import {mountEmojiPicker} from "./emoji-picker.js";
+import {openEmojiPicker} from "./emoji-picker.js";
 import {copyCardPreview} from "./copy-preview.js";
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions, versionSheets} from "./version-stack.js";
 import {
@@ -3055,6 +3055,7 @@ export class WorkspaceBoard {
     };
     menu.querySelector("button").focus({ preventScroll: true });
   }
+  // The emoji sticker picker (emoji-picker.js): a UI SDK popover beside its opener. Pressing the opener again closes it.
   openStickerPicker(anchor, point) {
     if(this.hooks.viewOnly||this.commandBusy())return;
     const alreadyOpen=this.stickerPicker?.anchor===anchor;
@@ -3063,47 +3064,22 @@ export class WorkspaceBoard {
     this.closeContext();
     this.whiteboard.closeMenu();
     if(this.mode!=="canvas")this.setMode("canvas");
-    const popup=document.createElement('div'), events=new AbortController();
-    popup.className='tk-menu workspace-sticker-picker';
-    let stylesheet=document.querySelector('link[data-emoji-styles]');
-    if(!stylesheet){
-      stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href='/app/emoji-picker.css';
-      stylesheet.dataset.emojiStyles='';document.head.append(stylesheet);
-    }
-    document.body.append(popup);
-    const position=()=>{
-      const rect=anchor.getBoundingClientRect(), width=popup.offsetWidth, height=popup.offsetHeight;
-      const left=Math.max(8,Math.min(innerWidth-width-8,rect.left+(rect.width-width)/2));
-      const above=rect.top-height-6;
-      const top=rect.bottom+height+14<=innerHeight?rect.bottom+6:Math.max(8,above);
-      Object.assign(popup.style,{left:`${left}px`,top:`${top}px`,maxHeight:`${Math.max(0,innerHeight-top-8)}px`});
-    };
     let attempt;
-    const controls=mountEmojiPicker(popup,{
+    const picker=openEmojiPicker({
+      anchor,
       choose:emoji=>{
         if(attempt?.value!==emoji)attempt={value:emoji,operationId:crypto.randomUUID()};
         return this.createEmojiSticker(emoji,point,attempt);
       },
-      close:()=>this.closeStickerPicker({focus:popup.contains(document.activeElement)}),
+      onClosed:()=>{if(this.stickerPicker===picker)this.stickerPicker=null;},
     });
-    this.stickerPicker={popup,anchor,controls,events};
-    const away=event=>{
-      if(!popup.contains(event.target)&&!anchor.contains(event.target))this.closeStickerPicker();
-    };
-    document.addEventListener('pointerdown',away,{capture:true,signal:events.signal});
-    document.addEventListener('focusin',away,{capture:true,signal:events.signal});
-    window.addEventListener('resize',position,{signal:events.signal});
-    stylesheet.addEventListener('load',position,{once:true,signal:events.signal});
-    const contents=new ResizeObserver(position);contents.observe(popup.firstElementChild);
-    this.stickerPicker.contents=contents;
-    position();controls.focus();
+    this.stickerPicker=picker;
   }
   closeStickerPicker({focus=false}={}) {
     const picker=this.stickerPicker;
     if(!picker)return;
     this.stickerPicker=null;
-    picker.events.abort();picker.contents.disconnect();picker.controls.destroy();picker.popup.remove();
-    if(focus)picker.anchor.focus({preventScroll:true});
+    picker.close({focus});
   }
   async createEmojiSticker(value, screen, attempt={}) {
     const emoji=emojiSticker(value);
