@@ -127,7 +127,7 @@ export function tip(el, text) {
   el.removeAttribute('title');
   // Inside a delegated zone (the board's cards, segmented controls) the control keeps no wrapper: the delegate below
   // serves it. A changed hint still reaches an open tooltip.
-  if (el.closest(ZONE)) {
+  if (unwrapped(el)) {
     if (text !== undefined && current?.el === el && current.root.api?.getPayload?.() === el) fill(current.root, el);
     return null;
   }
@@ -158,8 +158,8 @@ export function tipOuter(el) {
 // Connect every [data-tip] control under root (and root itself).
 export function tips(root = document) {
   if (!root) return;
-  if (root instanceof Element && root.matches('[data-tip]') && !root.closest(ZONE)) tip(root);
-  for (const el of root.querySelectorAll('[data-tip]')) if (!el.closest(ZONE)) tip(el);
+  if (root instanceof Element && root.matches('[data-tip]') && !unwrapped(root)) tip(root);
+  for (const el of root.querySelectorAll('[data-tip]')) if (!unwrapped(el)) tip(el);
 }
 
 // Render markup for a control that a reconciled render keeps: the wrapper is written in the markup, tips() sets its
@@ -188,7 +188,7 @@ export function tooltipOpen() {
 // The board's cards carry hundreds of hinted controls (showcase-dense: 84 cards × 6–7). A <ui-tooltip-trigger> around
 // each one made every whole-board restyle about 20% slower (wheel pan, the hottest path; ui-sdk.md § Tooltips). A
 // segmented item can't sit in a trigger either without leaving its control's direct-child rules. So a control inside a
-// [data-tip-zone] (the board's #world) or a segmented control carries only data-tip, gets no wrapper (tips() skips it), and one
+// [data-tip-zone] (the board's #world …), a segmented control, a radio group (colour swatches) or a pagination carries only data-tip, gets no wrapper (tips() skips it), and one
 // set of listeners on the document opens the page's shared tooltip for it through the tooltip's controller
 // (api.open({anchor, payload})): nothing per card, nothing on the pan, zoom or drag paths.
 //
@@ -211,7 +211,10 @@ export function tooltipOpen() {
 // Hand-over works both ways with the wrapped chrome: both open the same shared tooltip, so the SDK's group sees one
 // tooltip.
 const DELAY = 600, WARM = 400, HULL_PAD = 4;
-const ZONE = '[data-tip-zone], ui-segmented-control';
+const ZONE = '[data-tip-zone], ui-segmented-control, ui-radio-group, ui-pagination';
+// Served by the delegate, never wrapped: a control in a zone, and a form field (the trigger writes type="button" on its
+// control, which turns an <input type=range> into a button: the zoom and type-size sliders).
+const unwrapped = el => !!el.closest(ZONE) || el.matches('input, select, textarea');
 let modality = 'pointer', windowBlurred = false;
 let lastClosed = -Infinity;
 const openRoots = new Set();
@@ -244,6 +247,7 @@ function release() {
   current = null;
   stopTracking();
   if (!was) return;
+  was.root.querySelector('ui-tooltip-content')?.removeAttribute('data-pass');
   if (was.describedBy === null) was.el.removeAttribute('aria-describedby');
   else if (was.describedBy !== undefined) was.el.setAttribute('aria-describedby', was.describedBy);
 }
@@ -269,6 +273,9 @@ function show(el, by, event) {
   if (current?.el !== el) return;
   if (!root.api.isOpen() || root.api.getPayload() !== el) { current = null; return; }
   openRoots.add(root);
+  // On the board a tooltip sits over other targets (the line above a bend handle, the next card). Presses pass through
+  // it to what is underneath, as under a native title; the pointer resting on it still keeps it open (the hull, above).
+  root.querySelector('ui-tooltip-content')?.toggleAttribute('data-pass', !!el.closest('#world'));
   // Only the control that opened the shared tooltip is described by it (tooltip.md § Shared).
   const id = root.querySelector('ui-tooltip-content')?.id;
   if (id) { current.describedBy = el.getAttribute('aria-describedby'); el.setAttribute('aria-describedby', id); }

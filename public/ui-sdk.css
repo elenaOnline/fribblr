@@ -44,6 +44,8 @@ ui-tooltip-trigger[hidden] { display: none; }
 }
 .tk-tip:is([data-starting-style], [data-ending-style]) { opacity: 0; }
 .tk-tip[data-instant] { transition: none; }
+/* A delegated tooltip on the board lets presses through to what it covers (tips.js). */
+.tk-tip[data-pass] { pointer-events: none; }
 .tk-tip-keys { margin-left: 8px; white-space: nowrap; opacity: .72; }
 .tk-tip-keys[hidden] { display: none; }
 .tk-tip-key { font: inherit; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
