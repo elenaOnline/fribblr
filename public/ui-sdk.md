@@ -735,12 +735,13 @@ Opened item (`reader-keys.js` `readerCommand`, `canvas.js`):
 | Keys | Action |
 |---|---|
 | ⌥ ← / → (Ctrl elsewhere), [ / ], K / J | Previous / next Tinka |
-| Plain ← / → | Previous / next, while focus is on Tinka's own chrome or canvas (`readerTinkaFocus`; not in a toolbar, toggle group, segmented control, the Navigator, the Inspector or the notes) |
+| Plain ← / → | Previous / next, while focus is on Tinka's own chrome or canvas (`readerTinkaFocus`; not in a toolbar, toggle group, segmented control, the Navigator, the Inspector or the notes) and all of the Tinka is in view |
+| Plain arrows, Shift + arrows | Pan, while zoomed in past fit (part of the Tinka out of view, `ReaderCanvas.overflows`): 80 px a press, a screenful (87.5% of the stage) with Shift; held, they keep panning. They never step while zoomed, not even at an edge |
 | ⌥ ↑ (Ctrl elsewhere), Escape | Up to the board (Escape after the ladder) |
 | ⌥ ↓ (Ctrl elsewhere) | Down into the Tinka's own board |
 | F, ⇧1; 0, ⇧0; + / − | Fit; 100%; zoom (announced in `#reader-view-announce`) |
 | ⌘/Ctrl I | Toggle the Inspector |
-| Space-drag | Pan a magnified resource (the reader has no keyboard pan) |
+| Space-drag | Pan a magnified resource with the pointer |
 | ? | Shortcuts |
 
 Same-origin content forwards the step, up and down chords. Text fields keep every one of these keys. The controls
@@ -1065,7 +1066,17 @@ its heading. It behaves as a non-modal Dialog would: Notes opens it with focus i
 focus returns to Notes, Tab moves on and it stays open, × closes it (§ 5).
 
 **Resource surface.** `reader-resource-surface.js`, `reader-canvas.js`. No new controls; Window and zoom are the % popover
-and pill. Keys follow the viewport norms (`+` / `−` / `0` / F, announced in `#reader-view-announce`). Fit's window has no
+and pill. Keys follow the viewport norms (`+` / `−` / `0` / F, announced in `#reader-view-announce`).
+
+**Keyboard pan of a zoomed Tinka** (the rule, `canvas.js` `READER_PAN`, `ReaderCanvas.overflows`). Plain ← / → step to the
+previous / next Tinka (approved), so the arrows have two jobs, and the view decides which, as in macOS Preview and Photos
+and Windows Photos: while all of the Tinka is in view (at fit, or zoomed out, or zoomed in on something small that still
+fits), ← / → step; once part of it is out of view, every arrow pans towards the part it points at, 80 px a press (the
+board's arrow pan) and a screenful with Shift, and a held arrow keeps panning. While zoomed they never step, not even
+at an edge: a pan run to the edge that then jumped to another Tinka would move something she didn't ask to move, and
+a held arrow would race past it. Stepping stays at any zoom on [ ] / J K / ⌥ ← →, and F (or zooming out until it fits)
+gives ← / → their step back. Keys only on Tinka's own canvas and chrome (`readerTinkaFocus`); content, fields and
+toolbars keep their arrows. The canvas's `aria-label` and the Keyboard shortcuts sheet say so. Fit's window has no
 hint; a chosen Window size keeps its resize hint.
 
 **Board map.** `board-map.js` (`mapHeadToolbar`, Escape and `0`), `canvas.js` (`actualSize`, announced zoom),

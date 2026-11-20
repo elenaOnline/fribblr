@@ -1253,7 +1253,8 @@ function readerShortcuts() {
   return makeDialog('Keyboard shortcuts', `<p>Use these keys on an opened Tinka. Text fields keep their own keys, and so does content you are working in.</p>
     <dl><dt>${MOD}← · ${MOD}→</dt><dd>Previous · next Tinka on this board (also while local content has focus)</dd>
     <dt>[ · ] or K · J</dt><dd>Previous · next Tinka</dd>
-    <dt>← · →</dt><dd>Previous · next, while Tinka (not the content) has focus</dd>
+    <dt>← · →</dt><dd>Previous · next, while Tinka (not the content) has focus and all of it is in view</dd>
+    <dt>Arrows · Shift-arrows</dt><dd>Pan, while zoomed in past fit (a screenful with Shift)</dd>
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
     <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
@@ -1274,6 +1275,8 @@ function readerTinkaFocus(target) {
   if (!target?.closest || !dialog.contains(target) || target === $('active-reader')) return false;
   return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
+// Which way an arrow pans a zoomed Tinka: towards the part it points at.
+const READER_PAN = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 function readerBlocked() { return !dialog.open || !!document.querySelector('.workspace-dialog:is([open],[data-open])'); }
 let readerAnnounceTimer = 0;
 function announceReaderView(text = `Zoom ${Math.round(readerCanvas.view.zoom * 100)}%`) {
@@ -1309,6 +1312,18 @@ document.addEventListener('keydown', event => {
   if (inPopup(event)) return;
   // The Navigator keeps its own arrows and typing.
   if (event.target?.closest?.('.project-navigator') && !event.altKey && !event.ctrlKey) return;
+  // Zoomed in past what fits, the arrows pan the view instead of stepping, as in Preview and Photos: 80 px a press (as on
+  // the board), a screenful with Shift; a held arrow keeps panning. They never step while zoomed, so a pan run to the
+  // edge never turns into a jump to another Tinka; F (or zooming out until it fits) gives ←/→ back their step, and
+  // [ ] J K and the step chord step at any zoom.
+  const pan = READER_PAN[event.key];
+  if (pan && !event.altKey && !event.ctrlKey && !event.metaKey && !event.isComposing && readerTinkaFocus(event.target) && !readerEditable(event.target) && readerCanvas.overflows()) {
+    event.preventDefault(); event.stopImmediatePropagation();
+    const { width, height } = readerCanvas.area();
+    const step = event.shiftKey ? [width * .875, height * .875] : [80, 80];
+    readerCanvas.panBy(-pan[0] * step[0], -pan[1] * step[1]);
+    return;
+  }
   const command = readerCommand(event, { mac: readerKeysMac, editable: readerEditable(event.target), tinkaFocus: readerTinkaFocus(event.target) });
   if (!command) return;
   event.preventDefault(); event.stopImmediatePropagation();

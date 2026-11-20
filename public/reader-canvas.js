@@ -193,6 +193,12 @@ export class ReaderCanvas {
     const sx = Math.max(0, Math.min(r.width, clientX - r.left)), sy = Math.max(0, Math.min(r.height, clientY - r.top));
     this.zoomTo(this.view.zoom * factor, sx, sy);
   }
+  // Part of the window is out of view (zoomed in past what fits): there is something to pan to. The arrow keys pan then,
+  // and step to another Tinka only while it all fits (canvas.js, ui-sdk.md § Opened item).
+  overflows() {
+    const { width } = this.area(), height = this.area().height - (this.insets?.().bottom ?? 0), zoom = this.view.zoom;
+    return this.sheet.offsetWidth * zoom > width + 1 || this.sheet.offsetHeight * zoom > height + 1;
+  }
   panBy(dx, dy) {
     if (!dx && !dy) return;
     this.stopGlide(); this.dropBack();
