@@ -678,21 +678,56 @@ ui-dialog-backdrop, ui-alert-dialog-backdrop { position: fixed; inset: 0; backgr
   box-shadow: inset 0 0 0 1px var(--line-seam);
   color: var(--ink);
 }
+/* Comparison order: a reorderable list (order-list.js). The row is the option: focus ring on it; a held row shows on
+   the chosen surface where it will drop; a pointer drags a floating copy of it. */
+.workspace-order-list {
+  display: block;
+  margin: 4px 0 12px;
+}
 .workspace-order-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   border-top: 1px solid var(--line-hair);
-  padding: 8px 0;
+  padding: 8px 6px;
+  border-radius: var(--shape-cell);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
-.workspace-order-row span {
+.workspace-order-row:focus { outline: none; }
+.workspace-order-row:focus-visible { outline: 2px solid var(--mark-blue); outline-offset: -2px; }
+.workspace-order-row[data-grabbed] {
+  border-top-color: transparent;
+  background: var(--surface-chosen);
+  cursor: grabbing;
+}
+/* The copy a pointer drags (createReorder's preview, in the top layer): a floating row. */
+.workspace-order-row[data-drag-preview] {
+  border: 0;
+  background: var(--surface-frame);
+  box-shadow: 0 0 0 1px var(--line-seam), 0 6px 18px color-mix(in srgb, var(--ink) 16%, transparent);
+  color: var(--ink);
+  font: var(--type-ui)/1.3 var(--type-sans);
+  cursor: grabbing;
+}
+.workspace-order-row[data-drag-preview] .workspace-order-number { visibility: hidden; }
+.workspace-order-grip {
+  flex: none;
+  width: 12px;
+  height: 16px;
+  fill: var(--ink-2);
+}
+.workspace-order-number {
+  flex: none;
+  min-width: 2ch;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.workspace-order-title {
   flex: 1;
   min-width: 0;
-}
-.workspace-order-row button {
-  min-width: 44px;
-  padding: 0;
-  font-size: 18px;
 }
 .workspace-home-toolbar {
   margin-bottom: 22px;

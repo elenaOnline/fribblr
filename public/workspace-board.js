@@ -4041,39 +4041,54 @@ export class WorkspaceBoard {
       form.requestSubmit();
     });
   }
-  orderForm() {
-    const placements = this.snapshot.reviewOrder
+  // Comparison order: a reorderable list (order-list.js; ui-sdk.md § Comparison order). One Tab stop, ↑/↓ move focus;
+  // Space/Enter picks a row up, ↑/↓ carry it, Space/Enter drops it, Escape puts it back; ⌥↑/↓ moves at once (⇧ to an
+  // end), as a container's members move on the board; a pointer drags a row.
+  async orderForm() {
+    await import("./order-list.js");
+    const placements = new Map(this.snapshot.reviewOrder
       .map((id) => this.snapshot.placements.find((p) => p.id === id))
-      .filter((p) => p && !p.removedAt);
+      .filter((p) => p && !p.removedAt)
+      .map((p) => [p.id, p]));
+    const title = id => this.snapshot.items[placements.get(id)?.itemId]?.title || placements.get(id)?.itemId || "Item";
+    const hint = "workspace-order-keys";
     const d = makeDialog(
       "Comparison order",
-      `<p>Set which item opens next in the reader.</p><div id="workspace-order"></div><button type="submit" class="workspace-primary">Save order</button>`,
+      `<p>Set which item opens next in the reader. Drag a row, or press Space to pick it up, ↑ or ↓ to move it and Space to drop it; Escape puts it back.</p><p id="${hint}" class="sr-only">Space picks up the item, the up and down arrows move it, Space drops it, Escape puts it back. Option or Alt with an arrow moves it one place at once.</p><fr-order-list id="workspace-order" class="workspace-order-list" aria-label="Comparison order" aria-describedby="${hint}">${[...placements.keys()].map((id, i) => `<fr-order-item value="${esc(id)}"><div class="workspace-order-row" aria-describedby="${hint}"><svg class="workspace-order-grip" viewBox="0 0 12 16" aria-hidden="true"><circle cx="4" cy="4" r="1.2"/><circle cx="8" cy="4" r="1.2"/><circle cx="4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg><span class="workspace-order-number" aria-hidden="true">${i + 1}</span><span class="workspace-order-title">${esc(title(id))}</span></div></fr-order-item>`).join("")}</fr-order-list><button type="submit" class="workspace-primary">Save order</button>`,
       async () => {
         await this.client.write("updateBoard", {
           boardId: this.snapshot.id,
-          patch: { reviewOrder: placements.map((p) => p.id) },
+          patch: { reviewOrder: list.api.order() },
         });
         await this.refresh();
       },
     );
-    const render = () => {
-      d.querySelector("#workspace-order").innerHTML = placements
-        .map(
-          (p, i) =>
-            `<div class="workspace-order-row"><span>${i + 1}. ${esc(this.snapshot.items[p.itemId]?.title || p.itemId)}</span><button type="button" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move ${esc(this.snapshot.items[p.itemId]?.title)} earlier">↑</button><button type="button" data-down="${i}" ${i === placements.length - 1 ? "disabled" : ""} aria-label="Move ${esc(this.snapshot.items[p.itemId]?.title)} later">↓</button></div>`,
-        )
-        .join("");
-      d.querySelectorAll("[data-up],[data-down]").forEach(
-        (b) =>
-          (b.onclick = () => {
-            const i = Number(b.dataset.up ?? b.dataset.down),
-              j = i + (b.dataset.up !== undefined ? -1 : 1);
-            [placements[i], placements[j]] = [placements[j], placements[i]];
-            render();
-          }),
-      );
-    };
-    render();
+    const list = d.querySelector("#workspace-order");
+    list.label = title;
+    list.value = [...placements.keys()];
+    list.addEventListener("valuechange", event => { list.value = event.detail.value; });
+    // Draw the rows in the list's order (a row still held moves as it is carried). The row being carried, or the
+    // focused one, never moves in the DOM, so it keeps focus and its pointer capture; the others are placed around it.
+    let shown = [...placements.keys()].join();
+    list.api.subscribe(order => {
+      if (order.join() === shown) return;
+      shown = order.join();
+      const nodes = new Map([...list.querySelectorAll("fr-order-item")].map(node => [node.getAttribute("value"), node]));
+      const fixedKey = order.find(key => list.api.held(key)) ?? document.activeElement?.closest?.("fr-order-item")?.getAttribute("value");
+      const fixed = nodes.get(fixedKey) || null, at = fixed ? order.indexOf(fixedKey) : -1;
+      let after = fixed;
+      order.forEach((key, index) => {
+        const node = nodes.get(key);
+        if (!node) return;
+        node.querySelector(".workspace-order-number").textContent = String(index + 1);
+        if (node === fixed) return;
+        if (!fixed) { list.append(node); return; }
+        if (index < at) list.insertBefore(node, fixed);
+        else { after.after(node); after = node; }
+      });
+    });
+    // Focus starts in the list, on its first row (dialog.md: the first control of the body).
+    requestAnimationFrame(() => { if (d.isConnected && d.contains(document.activeElement) && !list.contains(document.activeElement)) list.api.focus(); });
   }
   persistDrafts() {
     try {
