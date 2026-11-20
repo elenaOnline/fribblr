@@ -4,6 +4,7 @@
 //   nothing pending goes back to its object.
 // - Delete on a focused drawn object (a Text block, a shape, an arrow; or ⌘D then Delete on the copy) moves focus to the
 //   nearest item, as deleting a card does.
+// - Board color and Background image… in the board Inspector are one toolbar, as the Filter row is.
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
@@ -82,6 +83,27 @@ try{
   eq(await focused(),after,'and stays there');
   await page.keyboard.press(process.platform==='darwin'?'Meta+z':'Control+z');
   ok(await until(async()=>await page.locator('#world [data-decoration="shape"]').count()===1),'⌘Z puts the shape back');
+ }
+
+ // ---- 3. Board color and Background image… are one toolbar. ----
+ {await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await page.locator('#board-info-toggle').click();await page.locator('#board-info .inspector-background-row').waitFor();await page.waitForTimeout(300);
+  const row=page.locator('#board-info .inspector-background-row');
+  eq(await row.evaluate(t=>[t.getAttribute('role'),t.getAttribute('aria-label')]),['toolbar','Board background'],'Board color and Background image… are a toolbar named "Board background"');
+  eq(await row.evaluate(t=>[...t.querySelectorAll('button')].filter(b=>b.tabIndex>=0).map(b=>b.textContent.trim())),['Board color'],'one Tab stop, on Board color');
+  const label=()=>page.evaluate(()=>document.activeElement?.textContent.trim());
+  await page.locator('#board-info [data-inspector-color]').focus();
+  const seen=[];for(const key of ['ArrowRight','ArrowRight','End','Home','ArrowLeft']){await page.keyboard.press(key);seen.push(await label());}
+  eq(seen,['Background image…','Board color','Background image…','Board color','Background image…'],'←/→ wrap along it; Home and End reach its ends');
+  await page.keyboard.press('Tab');
+  eq(await page.evaluate(()=>document.activeElement?.id),'workspace-search','Tab leaves the row for the next section');
+  await page.keyboard.press('Shift+Tab');eq(await label(),'Background image…','Shift+Tab comes back to the button focused last');
+  await page.keyboard.press('Home');await page.keyboard.press('Enter');
+  ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('#board-info [data-inspector-palette]'))),'Enter on Board color opens its palette with focus inside');
+  await page.keyboard.press('Escape');
+  eq(await label(),'Board color','Escape in the palette comes back to Board color');
+  eq(await page.locator('#board-info [data-inspector-palette]').isHidden(),true,'and closes it');
+  await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor({state:'hidden'});
  }
 
  assert.deepEqual(errors,[]);checks++;

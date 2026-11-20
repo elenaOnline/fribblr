@@ -555,6 +555,15 @@ export class WorkspaceBoard {
       clear:()=>{const {color,...background}=this.snapshot.background||{};return this.saveBackground(background);}});
     const image = boardBackground.querySelector("[data-background-image]");
     image.onclick = () => this.backgroundImageDialog(image);
+    // Board color and Background image… are drawn as the Filter row is, so they are one toolbar too (one Tab stop, ←/→
+    // along it with wrap, Home/End). Board color's palette opens under the row, outside the toolbar, so its own arrows
+    // stay its own; Escape there comes back to Board color.
+    const backgroundBar = document.createElement("ui-toolbar");
+    backgroundBar.className = "inspector-row inspector-background-row";
+    backgroundBar.setAttribute("aria-label", "Board background");
+    for (const button of [boardBackground.querySelector("[data-inspector-color]"), image]) { const part = document.createElement("ui-toolbar-button"); button.before(part); part.append(button); }
+    backgroundBar.append(...boardBackground.querySelectorAll(":scope > ui-toolbar-button"));
+    boardBackground.prepend(backgroundBar);
     // "Pattern", not "Background": Background is the ground in Appearance (fribblr).
     const view = section("View", "", [choice("Layout", segments), choice("Pattern", pattern), boardBackground], "inspector-view");
     // Favorites / Last 6 weeks / Archive: one toolbar (one Tab stop, arrows along it), as the same row on Home.
