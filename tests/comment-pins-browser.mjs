@@ -77,6 +77,19 @@ try{
     if(evidence)await page.screenshot({path:path.join(evidence,'comment-detached.png')});
   });
 
+  await run('A focused pin keeps focus when the board is rebuilt around it',async(page,id,card,open)=>{
+    const t=await comment(id,{kind:'point',x:400,y:60,decorationId:'note',relative:{x:.44,y:.375}},'Still the plan?');
+    await open();
+    const pin=page.locator(`[data-comment-pin="${t}"]`);await pin.waitFor();
+    await pin.focus();
+    assert.equal(await page.evaluate(()=>document.activeElement?.dataset.commentPin),t);
+    // A live change rebuilds the world (taking the comment layer out and back): the pin is a new element, and focus is on it.
+    await applyOperation(config,{type:'createItem',boardId:id,item:{title:'Another card'},placement:{x:0,y:400,width:240,height:180}});
+    await page.locator('.workspace-card',{hasText:'Another card'}).waitFor();
+    await new Promise(r=>setTimeout(r,500));
+    assert.equal(await page.evaluate(()=>document.activeElement?.dataset.commentPin),t,'focus stays on the pin through the rebuild');
+  });
+
   await run('Send to agent marks open threads sent and copies a prompt',async(page,id,card,open)=>{
     const a=await comment(id,{kind:'point',x:60,y:60,placementId:card,relative:{x:.25,y:.33}},'Borrow the tone of B');
     const b=await comment(id,{kind:'point',x:20,y:300},'Add an FAQ link');

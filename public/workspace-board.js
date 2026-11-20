@@ -1572,6 +1572,8 @@ export class WorkspaceBoard {
       .join("");
     // On Canvas, stickies, shapes, text, regions and arrows also make a board non-empty.
     const canvasEmpty = !cards && !(this.snapshot.decorations || []).length;
+    // A rebuild takes the comment layer out of the world and puts it back (syncGeometry): a pin that has focus keeps it.
+    const pinFocus = this.commentPins?.focusToken();
     this.reconcile(world, `${this.mode === "canvas" ? this.decorations() : ""}${this.mode === "grid" ? grid || '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : `<div class="workspace-cards">${canvasEmpty ? '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : cards}</div>`}`);
     // The foot's kind legend counts exactly the cards just drawn.
     (this.kindLegend ||= new KindLegend(world)).update(this.snapshot.id);
@@ -1618,6 +1620,7 @@ export class WorkspaceBoard {
     this.hooks.layout();
     this.positionContext();
     this.syncGeometry();
+    this.commentPins?.restoreFocus(pinFocus);
   }
   reconcile(parent, markup) {
     const template = document.createElement("template");
