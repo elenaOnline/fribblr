@@ -3732,6 +3732,8 @@ export class WorkspaceBoard {
       if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
       // The focused board map owns its arrows, Escape and +/−.
       if (e.target.closest?.(".board-map-stage")) return;
+      // An open UI SDK menu or popover owns every key, Escape included (the rule of inPopup() in popups.js).
+      if (e.target.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])')) return;
       if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
       if (this.feedback?.consumeEscape(e)) return;
       if (this.whiteboard?.handleEscape(e)) return;
