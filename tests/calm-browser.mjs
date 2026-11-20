@@ -55,7 +55,8 @@ try{
  const inspector=page.locator('#workspace-item-controls');await inspector.waitFor();
  const box=await inspector.boundingBox();assert.ok(box.x+box.width>1440-12&&box.width>=300,'Item Inspector is the right-side panel');
  assert.ok(await inspector.locator('textarea[data-note]').count());assert.equal(await inspector.locator('[data-presentation]').count(),3);
- assert.match(await inspector.locator('.inspector-props').innerText(),/Created\s+just now/);
+ // Details shows the exact date as text ("Nov 20, 2026, 9:10 AM"), not a relative one behind a tooltip.
+ assert.match(await inspector.locator('.inspector-props').innerText(),/Created\s+[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}/);
  await clickBlank();assert.equal(await inspector.count(),0,'Click-away closes the item Inspector');
  await openItemDetails(card(a).locator('[data-item-controls]'));await inspector.waitFor();await page.keyboard.press('Escape');assert.equal(await inspector.count(),0);
  // The action menu selects its target; start this separate selection case empty.
