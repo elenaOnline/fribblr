@@ -29,7 +29,14 @@
 .preset-scrub-row > button[data-active=true] {
   color:var(--ink);   /* the chosen preset is a raised cell in its sunken track (depth.css), like any segmented choice */
 }
-.preset-scrub-row > button:focus-visible { outline:2px solid var(--mark-blue); outline-offset:-2px; }
+.preset-scrub-row > button:focus-visible, .preset-scrub-presets > [data-slot=segmented-control-item]:focus-visible { outline:2px solid var(--mark-blue); outline-offset:-2px; }
+/* The presets are a segmented control (a radio group) with no track of its own: its items are cells of this row, and the
+   chosen one is the raised cell the theme draws for any chosen segment. Items with a hint sit in their tooltip trigger. */
+.preset-scrub-row > .preset-scrub-presets { display:contents; }   /* beats .tk-seg's display, which tokens.css sets later */
+:is(.preset-scrub-row > .preset-scrub-presets, .preset-scrub-row > .preset-scrub-presets > ui-tooltip-trigger) > [data-slot=segmented-control-item] {
+  box-sizing:border-box; width:100%; min-width:0; height:auto; min-height:34px; padding:0; margin:0; border:0;
+  font:600 12px/1 var(--type-sans); display:grid; place-items:center;
+}
 .preset-scrub-row svg { width:16px; height:16px; }
 .preset-scrub-custom {
   cursor:ew-resize;
@@ -48,5 +55,6 @@
 .preset-scrub-announcement { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 @media (pointer:coarse) {
   .whiteboard-menu .preset-scrub-row > button,
-  .preset-scrub-row > button { min-height:44px; }
+  .preset-scrub-row > button,
+  :is(.preset-scrub-row > .preset-scrub-presets, .preset-scrub-row > .preset-scrub-presets > ui-tooltip-trigger) > [data-slot=segmented-control-item] { min-height:44px; }
 }

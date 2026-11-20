@@ -54,7 +54,7 @@ try{
   // An unrelated same-origin frame cannot relay a selected quote.
   await page.evaluate(({itemId})=>{window.postMessage({type:'tinka-comment-selection',itemId,anchor:{kind:'text',quote:'forged',start:0,end:6,sourceRevision:'sha256:'+'0'.repeat(64)}},location.origin);},{itemId:item.itemId});
   await page.evaluate(({itemId})=>{const frame=document.getElementById('active-reader');frame.contentWindow.postMessage({type:'tinka-comment-selection',itemId,anchor:{kind:'text',quote:'forged',start:0,end:6,sourceRevision:'sha256:'+'0'.repeat(64)}},location.origin);window.dispatchEvent(new MessageEvent('message',{origin:'https://invalid.example',source:frame.contentWindow,data:{type:'tinka-comment-selection',itemId,anchor:{kind:'text',quote:'forged',start:0,end:6,sourceRevision:'sha256:'+'0'.repeat(64)}}}));},{itemId:item.itemId});
-  assert.equal(await page.locator('dialog.workspace-dialog').count(),0);
+  assert.equal(await page.locator('.workspace-dialog').count(),0);
   await media.locator('.markdown').evaluate(()=>parent.postMessage(null,location.origin));
   // Use a real mouse text selection through both nested frames.
   const coordinates=await media.locator('.markdown p').first().evaluate(paragraph=>{
@@ -67,7 +67,7 @@ try{
   const readerFrame=await page.locator('#active-reader').elementHandle(),readerURL=page.url();
   await media.locator('[data-document-comment]').click();
   await page.locator('.feedback-panel[data-mode=reader]').waitFor({state:'visible'});
-  assert.equal(await page.locator('#reader-dialog').evaluate(node=>node.open),true);assert.equal(await page.locator('dialog.workspace-dialog').count(),0);
+  assert.equal(await page.locator('#reader-dialog').evaluate(node=>node.open),true);assert.equal(await page.locator('.workspace-dialog').count(),0);
   const composer=page.locator('.feedback-composer textarea');await composer.fill('Tighten this selected passage.');await composer.press('Enter');await composer.type('Keep the intent.');
   await page.screenshot({path:path.join(evidence,'document-composer-wide.png')});
   const savedComment=page.waitForResponse(response=>response.url().endsWith('/api/operations')&&response.request().method()==='POST');
@@ -114,5 +114,5 @@ try{
   await page.waitForFunction(({id})=>{const frame=document.querySelector(`[data-placement="${id}"] .workspace-live-preview iframe`);try{return frame?.contentDocument?.querySelector('.markdown')?.textContent.includes('replacement paragraph');}catch{return false;}},{id:item.placementId},{timeout:10000});
   assert.match(await card.locator('.workspace-live-preview iframe').getAttribute('src'),/mode=panel/);
   assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,evidence,checks:'actual linked panel/reader; DOM/parser parity; Contents/source; reader context preserved; multiline/ControlEnter/MetaEnter; independent highlight add/remove/CLI; draftEscape/reopen; constrained390; matched/uncertain/stale; historic read-only; narrow layout; source update/panel identity'}));
-}catch(error){if(page){await page.screenshot({path:path.join(evidence,'document-failure.png')});console.error(JSON.stringify({evidence,dialogs:await page.locator('dialog.workspace-dialog').allTextContents(),feedback:await page.locator('.feedback-panel').allTextContents()}));}throw error;}
+}catch(error){if(page){await page.screenshot({path:path.join(evidence,'document-failure.png')});console.error(JSON.stringify({evidence,dialogs:await page.locator('.workspace-dialog').allTextContents(),feedback:await page.locator('.feedback-panel').allTextContents()}));}throw error;}
 finally{await browser?.close();if(server)await closeAppServer(server);await rm(fixture,{recursive:true,force:true});}

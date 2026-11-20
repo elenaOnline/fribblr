@@ -158,7 +158,8 @@ export function inPopup(event) {
 // Delegated on the toolbar, which survives its buttons being re-rendered; `selector` names the trigger buttons.
 export function openOnArrowDown(toolbar, selector, open) {
   toolbar?.addEventListener('keydown', event => {
-    if (event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    // A second opener on the same toolbar (two streams wire the same button) must not toggle it shut again.
+    if (event.defaultPrevented || event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
     const button = event.target.closest?.(selector);
     if (!button || !toolbar.contains(button) || button.disabled) return;
     event.preventDefault(); event.stopPropagation();

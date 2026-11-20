@@ -1,4 +1,5 @@
 import {mountPresetScrub} from './preset-scrub.js';
+import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
 
 export const containerLayouts = [
   ['vertical','Stack','M5 4h10v4H5zm0 8h10v4H5z'],
@@ -13,24 +14,22 @@ const defaults = {gap:12,padding:16,columns:2};
 export function mountContainerLayout(popup, config, {save, preview, reposition, draft={}, failedDraft={}, report}) {
   const state = {...defaults,...config,...draft};
   let metric = 'gap', active = true, failed = {...failedDraft}, control;
-  popup.innerHTML = `<div class="container-layout-metrics" role="group" aria-label="Layout spacing">${Object.entries(metrics).map(([key,[label]])=>
-    `<button type="button" data-layout-metric="${key}">${label}</button>`).join('')}</div>
+  // What to adjust is one choice of Gap, Padding (and Columns, for a grid): a segmented control, a radio group, so
+  // arrows choose as they move. The layout can't change while this panel is open, so Columns is simply left out.
+  popup.innerHTML = `${segmentedHTML({label:'Layout spacing',className:'container-layout-metrics',value:metric,
+    items:Object.entries(metrics).filter(([key])=>key!=='columns'||state.layout==='grid').map(([key,[label]])=>({value:key,label,attrs:{'data-layout-metric':key}}))})}
   <div class="container-layout-adjust"></div>
   <p class="container-layout-status" role="status"></p><button type="button" data-layout-retry hidden>Retry change</button>
   <div class="container-object-actions"><button type="button" data-whiteboard-action="edit">Edit title</button></div>`;
   const adjust = popup.querySelector('.container-layout-adjust');
   const status = popup.querySelector('.container-layout-status');
   const retry = popup.querySelector('[data-layout-retry]');
-  const measures = [...popup.querySelectorAll('[data-layout-metric]')];
+  const measures = popup.querySelector('.container-layout-metrics');
 
   function sync() {
-    for (const button of measures) {
-      const key = button.dataset.layoutMetric;
-      button.hidden = key==='columns' && state.layout!=='grid';
-      button.setAttribute('aria-pressed',String(key===metric));
-    }
-    for (const button of adjust.querySelectorAll('[data-columns]'))
-      button.setAttribute('aria-pressed',String(Number(button.dataset.columns)===state.columns));
+    setSegmented(measures,metric);
+    const columns = adjust.querySelector('.container-column-options');
+    if (columns) setSegmented(columns,String(state.columns));
     retry.hidden = !Object.keys(failed).length;
     reposition();
   }
@@ -48,13 +47,13 @@ export function mountContainerLayout(popup, config, {save, preview, reposition, 
   function mountMetric() {
     const key=metric,[label,values]=metrics[key];
     if (key==='columns') {
-      adjust.innerHTML=`<div class="container-column-options" role="group" aria-label="Grid columns">
-        ${Array.from({length:8},(_,index)=>{
+      adjust.innerHTML=segmentedHTML({label:'Grid columns',className:'container-column-options',value:String(state.columns),
+        items:Array.from({length:8},(_,index)=>{
           const count=index+1;
-          return `<button type="button" data-columns="${count}" aria-label="${count} ${count===1?'column':'columns'}">${count}</button>`;
-        }).join('')}</div>`;
-      adjust.querySelectorAll('[data-columns]').forEach(button=>button.onclick=()=>{
-        const count=Number(button.dataset.columns);
+          return {value:String(count),label:String(count),ariaLabel:`${count} ${count===1?'column':'columns'}`,attrs:{'data-columns':String(count)}};
+        })});
+      onSegmented(adjust.querySelector('.container-column-options'),value=>{
+        const count=Number(value);
         if(count!==state.columns)commit({columns:count});
       });
       return;
@@ -68,19 +67,19 @@ export function mountContainerLayout(popup, config, {save, preview, reposition, 
       commit:value=>{if(value!==state[key])commit({[key]:value});},
     });
   }
-  for (const button of measures) button.onclick=()=>{
-    if(metric===button.dataset.layoutMetric)return;
+  onSegmented(measures,value=>{
+    if(metric===value)return;
     control?.destroy({commit:true});
     control=null;
-    metric = button.dataset.layoutMetric;
+    metric = value;
     mountMetric();
     sync();
-  };
+  });
   retry.onclick=()=>commit({...failed});
   mountMetric();
   sync();
   return {
-    focus:()=>measures[0]?.focus({preventScroll:true}),
+    focus:()=>focusSegmented(measures),
     destroy({commit=true}={}) {active=false;control?.destroy({commit});},
   };
 }

@@ -45,7 +45,7 @@ try {
   await graphRequest;
   const masthead = page.getByRole('button',{name:'New board',exact:true});
   await masthead.click();
-  assert.equal(await page.locator('#new-dialog[open]').count(),0,'Early New Board waits for graph Home.');
+  assert.equal(await page.locator('#new-dialog[data-open]').count(),0,'Early New Board waits for graph Home.');
   resumeHome();
   await dialog.waitFor();
   await page.unroute('**/api/workspace?view=home');

@@ -52,15 +52,15 @@ try{
  assert.equal(await page.locator('.whiteboard-port').count(),4);
  await page.screenshot({path:path.join(evidence,'sticky-bar-light.png')});
  await bar('drawing-color').click();
- for(const b of await page.locator('.whiteboard-arrow-bar [role=group]:not([aria-label=Container]) button').all())assert.ok(await b.getAttribute('title'),'every bar control has a tooltip');
- assert.equal(await swatch('palette:gold').getAttribute('aria-pressed'),'true');
+ for(const b of await page.locator('.whiteboard-arrow-bar [role=group]:not([aria-label=Container]) button').all()){assert.ok(await b.getAttribute('data-tip'),'every bar control has a tooltip');assert.equal(await b.getAttribute('title'),null,'on the UI SDK tooltip, not a native title');}
+ assert.equal(await swatch('palette:gold').getAttribute('aria-checked'),'true');
  await page.screenshot({path:path.join(evidence,'sticky-paper-palette-light.png')});
  await swatch('palette:rose').click();assert.equal(await eventually(async()=>(await find('note')).color,v=>v==='palette:rose'),'palette:rose');
  await idle();await bar('caption-size').click();await size('large').click();assert.equal(await eventually(async()=>(await find('note')).textSize,v=>v==='large'),'large');
  assert.equal(await eventually(()=>css('[data-decoration=note] .workspace-decoration-label','fontSize'),v=>v==='28px'),'28px');
- // Keyboard: Tab walks the format controls, Enter applies, focus stays on the control.
- await size('large').and(page.locator('[aria-pressed=true]')).waitFor();
- await idle();await format();await option('align','left').focus();await page.keyboard.press('Tab');
+ // Keyboard: a choice is one Tab stop; an arrow moves along it, Enter applies, focus stays on the control.
+ await size('large').and(page.locator('[aria-checked=true]')).waitFor();
+ await idle();await format();await option('align','left').focus();await page.waitForTimeout(250);await page.keyboard.press('ArrowRight');
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'center');await page.keyboard.press('Enter');
  assert.equal(await eventually(async()=>(await find('note')).textAlign,v=>v==='center'),'center');
  assert.equal(await eventually(()=>css('[data-decoration=note] .workspace-decoration-label','textAlign'),v=>v==='center'),'center');
@@ -93,7 +93,7 @@ try{
  await select('note');await shiftClick('[data-decoration=note2] [data-decoration-label]');
  assert.equal(await eventually(()=>page.locator('.whiteboard-toolbar').getAttribute('aria-label'),v=>v==='2 sticky notes'),'2 sticky notes');
  assert.deepEqual(await groups(),['Appearance','Drawing actions']);await bar('caption-size').click();
- assert.equal(await page.locator('.whiteboard-menu [data-scrub-preset][aria-pressed=true]').count(),0,'differing sizes show no current size');
+ assert.equal(await page.locator('.whiteboard-menu [data-scrub-preset][aria-checked=true]').count(),0,'differing sizes show no current size');
  assert.equal(await bar('wrap-container').count(),1,'selection can become one container');
  assert.equal(await page.locator('[data-decoration].selected').count(),2);
  await page.screenshot({path:path.join(evidence,'multi-sticky-light.png')});
@@ -102,7 +102,7 @@ try{
  assert.equal((await find('note')).textSize,'large');assert.equal((await getBoardSnapshot(config,board.boardId)).revision,revision+1,'one write for both');
  await idle();await bar('drawing-color').click();await swatch('palette:green').click();await eventually(async()=>(await find('note2')).color,v=>v==='palette:green');assert.equal((await find('note')).color,'palette:green');
  // Mixed kinds show only the shared options.
- await swatch('palette:green').and(page.locator('[aria-pressed=true]')).waitFor();
+ await swatch('palette:green').and(page.locator('[aria-checked=true]')).waitFor();
  await page.keyboard.press('Escape');
  await shiftClick('[data-decoration=words] [data-decoration-label]');
  assert.equal(await eventually(()=>page.locator('.whiteboard-toolbar').getAttribute('aria-label'),v=>v==='3 objects'),'3 objects');

@@ -31,7 +31,7 @@ try{
  const blank=()=>page.evaluate(()=>{const v=document.querySelector('#viewport').getBoundingClientRect();for(let y=v.top+30;y<v.bottom-90;y+=20)for(let x=v.left+30;x<v.left+v.width/2;x+=20){const el=document.elementFromPoint(x,y);if(el&&el.matches('#viewport,#plane,#world'))return {x,y};}return null;});
  const clickBlank=async()=>{const p=await blank();await page.mouse.click(p.x,p.y);};
  await page.goto(base+'/boards/studio/');await card(a).waitFor();
- if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+ if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
  await page.locator('#fit').click();
  // Left is where (Navigator), right is what (Inspector, then the single primary Add).
  const order=await page.locator('#canvas-header').evaluate(el=>[...el.querySelectorAll('#project-navigator-toggle,.brand,#chrome-search,#board-info-toggle,#workspace-add')].map(n=>n.id||'brand'));

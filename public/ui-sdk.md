@@ -140,8 +140,9 @@ Each surface lists its files and the SDK components it uses. Added as surfaces l
 
 ### Toasts, dialogs, confirmations, notes popover, Quick jot (overlays stream)
 
-Files: `toasts.js` (new), `workspace.js` (`makeDialog`, `confirmDialog`, re-exports `toast`), `agent-prompt.js`,
-`update-notice.js`, `home.html`, `tile-ui.js` (`TileNotes`), `quick-jot.js`, `comment-pins.js` (send-prompt dialog);
+Files: `toasts.js`, `workspace.js` (`makeDialog`, `confirmDialog`, re-exports `toast`), `agent-prompt.js`,
+`update-notice.js`, `home.html` + `home.js` (the new-board dialog), `tile-ui.js` (`TileNotes`), `quick-jot.js`, `comment-pins.js` (send-prompt dialog),
+`workspace-board.js` / `workspace-home.js` (confirmations);
 CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop, `.workspace-alert`), `home.css`,
 `update-notice.css`, `whiteboard.css`.
 
@@ -150,8 +151,11 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
   region per page on first use (bottom centre, where the old status node sat) with a close button and an action slot;
   duration is kept at 6 s. Live status regions that are not toasts (connection, form status) are untouched. Tests find
   toasts by `.workspace-toast`; several can be on screen at once, so use `.first()`/`.last()`/`filter`.
-- **Dialog** (`ui-dialog`, modal). `makeDialog(title, body, onSubmit, {className})` keeps its shape: it returns the
+- **Dialog** (`ui-dialog`, modal). `makeDialog(title, body, onSubmit, {opener, compact, shortcutHint, onDismiss, className})`
+  keeps upstream's 1.3 signature and footer (the submit key and its hint go in `footer.workspace-dialog-actions`): it returns the
   `ui-dialog-content` element (class `workspace-dialog`), which has `close()` and fires a `close` event once closed.
+  `onDismiss(form)` runs when the dialog closes without saving. A dialog that has it keeps its draft (the new-board dialog),
+  so it never asks "Discard your changes?". `opener` is where focus goes back on close (default: the focused element).
   Focus opens on the first field (`autofocus` is set on it), else the close key; Tab wraps; Escape and a press on the
   backdrop close; focus returns to what had it. A form with typed-in changes asks "Discard your changes?" (an alert
   dialog) before Escape or the backdrop throw them away; the × key never asks. ⌘↩ still saves (`bindForm`). A dialog
@@ -160,9 +164,12 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
 - **Alert dialog** (`ui-alert-dialog`). `confirmDialog({title, description, confirmLabel, cancelLabel, onConfirm})`
   resolves true for the confirming answer. Focus opens on Cancel, Escape means no, a backdrop press does nothing.
   `onConfirm` (async) keeps the dialog open with the confirm key pending and shows a failure inside it. Used for
-  Remove placements, Remove from home, Archive/Restore everywhere, Enable flexible boards.
-- **Agent prompt, update consent, Home new-board dialogs** are `ui-dialog` with their own classes
-  (`agent-dialog`, `update-dialog`, `home-dialog`); the update dialog starts on Later (`autofocus`).
+  Remove placements (its toast has an Undo action that runs the same undo as the shortcut), Remove from home,
+  Archive/Restore everywhere, Enable flexible boards, and the discard question above.
+- **Agent prompt, update consent, Home's legacy new-board dialog, the comments send-prompt dialog**: the first three are
+  `ui-dialog` built by hand with their own classes (`agent-dialog`, `update-dialog`, `#new-dialog`); the update dialog
+  starts on Later (`autofocus`), the agent prompt in its text. The send-prompt dialog is `makeDialog` with no submit.
+  Home's graph "New board" dialog is `newBoardDialog` (`makeDialog`, compact).
 - **Tile notes** (`TileNotes`): `ui-popover` (non-modal) in the body, anchored by a temporary
   `data-note-anchor` attribute on the opener, so card handlers never hear it. Saving holds it open; Escape, a press
   outside, Tab out and × keep the draft; Cancel drops it. Focus returns to the opener control.
@@ -173,7 +180,8 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
   (`canvas.js` click handler, `board-document.js`); a bare `closest('[data-open]')` treats any click inside a popup as
   "open that experiment".
 - **Gotcha: open-dialog checks.** Code that asked `document.querySelector('dialog[open]')` now also asks
-  `ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]`. The `aria-modal` part matters:
+  `ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]`; code that asked
+  `dialog.workspace-dialog[open]` asks `.workspace-dialog:is([open],[data-open])`. The `aria-modal` part matters:
   the Navigator and Quick jot are non-modal `ui-dialog-content`, and must not pause the board (the SDK writes
   `aria-modal="true"` only on modal dialogs).
 
@@ -203,6 +211,13 @@ Applies to the organized Home (`WorkspaceHome`); the legacy shelf in `home.js` (
 - **Not the SDK's Listbox component:** `ui-listbox` arrows wrap and a plain click toggles in multiple mode; here a
   click opens a board, and a 2-D grid doesn't wrap top to bottom. Escape clearing the selection is the app's
   existing behaviour (the SDK's selection helper maps no Escape; Listbox leaves the selection alone).
+
+- **Toolbars on Home:** the Favorites/Archive row (`.workspace-home-toolbar`) and the floating selection bar are
+  `ui-toolbar`s of `ui-toolbar-button`s: one Tab stop each, arrows and Home/End along the actions. The bar is built once
+  on the first selection and updated in place (count, Archive/Restore label), so a focused action keeps focus as the
+  selection changes; `followVisibility` keeps it out of the Tab order while hidden. Its Clear button carries the SDK
+  tooltip (`data-tip`, `aria-keyshortcuts="Escape"`). The sort control and Appearance menu belong to the toolbars and
+  menus streams.
 
 ### Navigator (⌘K, `/`, the header toggle, Find boards and items, the reader's toggle)
 
@@ -588,6 +603,71 @@ whole map, not only its stage). Component: Toolbar.
 - **Escape anywhere in the map** (stage or head) closes it and focus goes to its toggle (the head is new; the stage did
   this already). A tooltip showing takes the first Escape.
 
+### Sticker picker (`r2/stickers`)
+
+Files: `emoji-picker.js` (the popup and the picker), `emoji-picker.css`, `emoji-search.js` (matching, skin tones);
+openers in `workspace-board.js` (`openStickerPicker(anchor, point)` / `closeStickerPicker()`: the Edit tools' Sticker
+key and the Add menu's Sticker row call it with themselves as the anchor). Components: Popover, Toggle Group, Segmented
+Control. Core: `createVirtualizer`, `createPreference`, `createLocalStorage`. Tests: `tests/sticker-picker-browser.mjs`,
+`tests/stickers.test.mjs`.
+
+- **Popup: a non-modal `ui-popover`** made per open at the end of `<body>`, opened from code with `api.open({anchor})`
+  against the opener: `side=bottom align=center side-offset=6 collision-padding=8`, so it flips above the Edit tools
+  (they sit at the bottom) and shifts to stay 8 px inside the window at any width. Focus goes to the search field
+  (`initial-focus`); Escape (after the query, below) and the opener's own press close it and focus goes back to the opener
+  (focused just before opening, the SDK's rule for a popup opened from code). An outside press closes it and reaches what
+  it hit, without taking focus back; focus leaving closes it. Tab order runs as if the picker followed its opener:
+  Shift+Tab from the field goes to the opener, Tab from the grid goes on past the opener. The opener gets
+  `aria-expanded` and `aria-controls` (the content's id) while it is open. The opener counts as part of the picker, as a
+  popover's own trigger does: `openchange` for `outside-press` or `focus-out` caused inside it is cancelled, so its click
+  toggles the picker closed, and Shift+Tab back to it leaves the picker open.
+  Placing a sticker focuses and selects the new sticker, as adding any drawn element does; the picker closes because focus
+  left it.
+- **Field: a combobox over a grid** (`role=combobox`, `aria-haspopup=grid`, `aria-controls` the grid,
+  `aria-activedescendant`). The caret stays in the field: ↓ starts a highlight on the first sticker; with a highlight the
+  four arrows move it in two dimensions (← and → in reading order across row ends), PageUp/PageDown by the rows in view;
+  ↑ from the first row ends the highlight, giving ← → back to the caret. Home and End move the caret (command.md). Typing
+  highlights the best match, so Enter places it (combobox.md § Auto Highlight); Enter places the highlighted sticker.
+  Escape empties the query first (the popover's `openchange` for `escape-key` is cancelled while there is one), then
+  closes. Matching ignores case and accents (`words()` in `emoji-search.js`: NFKD, marks removed); the SDK's own
+  matching is not used, because the ranking (exact name, name prefix, every word a prefix, favourites) is upstream's.
+- **Grid: one Tab stop with one highlight.** `role=grid` > `role=row` > `role=gridcell`, focus stays on the grid and
+  `aria-activedescendant` names the highlighted cell (Listbox's `virtual-focus` model, so the field and the grid share
+  one highlight; `createGridFocus` moves real focus, which the field could not share). Keys are `createGridFocus`'s:
+  arrows, Home/End for the row, Ctrl/⌘+Home/End for the first and last sticker, PageUp/PageDown, Enter or Space places.
+  Entering the grid highlights its first sticker; a letter typed on the grid goes to the search field (the grid's
+  typeahead is the search). Hovering highlights (one highlight for pointer and keys, as in menus); a click places, a drag
+  onto the board places where it drops. The foot names the highlighted sticker (or counts the view); messages (no match,
+  adding, failures) replace it in a `role=status`.
+- **Long list: `createVirtualizer`** over rows (46 px each; columns measured from the grid's width, 7 at 344 px), with the
+  highlighted row kept rendered (`keep`) and revealed with `scrollToIndex`. The whole view (a category or all search
+  results, up to ~1,900) scrolls as one list; upstream's 108-per-page pages and their ‹ › buttons are gone. Cells carry
+  `aria-rowindex` on rows and `aria-rowcount`/`aria-colcount` on the grid.
+- **Categories: `ui-toggle-group deselectable=false`** of `ui-toggle` around our buttons: one Tab stop, ← → move focus
+  without choosing, Space/Enter chooses, pressing the chosen one keeps it. While a search shows results the group's value
+  is `[]` (set as a property, no event), so no category reads as chosen.
+- **Skin tone: `ui-segmented-control`** (a radio group, `segmentedHTML`): default and the five tones, arrows check as
+  they move. A chosen tone replaces each emoji that takes one with its one-tone variant (favourites and search results
+  too); a query naming "skin" or "tone" still lists every variant, mixed tones included. Upstream's "Skin tones" button
+  (show all five variants beside each emoji) is replaced by this choice. Remembered between visits and shared by every
+  board: `createPreference` with `createLocalStorage('tinka/emoji-skin-tone')` (core.md § Preferences uses exactly this
+  example; it insists on an `attribute`, which we don't apply anywhere).
+- **Board keys.** The picker stops keydown from reaching the board (except Escape, which goes on to the popover); the
+  board's capture handlers already step aside (`widgetOwnsKey`: `role=combobox`, `role=grid`, open popup content). The
+  board's document Escape ladder (clear a drawn element's selection, the card selection) now returns for a key from
+  inside open popup content (inPopup's rule, written inline because `workspace-board.js` doesn't import `popups.js` on
+  this base; the experiment called `inPopup(e)` there): with a sticker selected it called `preventDefault` on Escape and
+  the popover ignored it.
+- **Shared fix in `canvas.js`:** the document click handler's `closest('[data-open]')` now asks
+  `[data-open]:not([data-slot])` (as in the experiment): open popover content carries `data-open`, so any click in the
+  picker (a category, a tone) opened an empty reader.
+- **Performance** (headless, `team/ux/r2/stickers/perf.mjs`, press on the Sticker key to the first frame with cells, and
+  keydown to the first frame showing new results; medians of 5 warm runs, three runs each): open 14–16 ms on both
+  `main` and this branch (cold, first open with the catalogue import: 30–34 ms on both); keystroke to results 3.2 ms
+  here, 3.3 ms on `main`. In page, the input handler costs 1.4 ms here against 2.2 ms on `main` (fewer cells: about 60 in view
+  and overscan instead of a 108-cell page). The stylesheet is still loaded on first open; the picker waits for it
+  before opening so the SDK places it at its final size.
+
 ### Side-by-side page (`compare.html`)
 
 `public/compare.html` is generated by `team/ux/guide/compare.py` (outside the repo) from the guide's steps. It shows the
@@ -599,3 +679,70 @@ frame is active, a script `focus()` only sets what gets focus when this frame is
 half would otherwise take the keys from the other); the element that had focus comes back when the frame becomes
 active again; and Tab wraps from the last control to the first (Shift+Tab the other way). The before half is served
 from branch `ux/base-framed`: the experiment's base plus `frame-focus.js`.
+
+### Update notice chip and popover (`update-notice.js`)
+
+The chip ("Tinka 1.1 available") is rebuilt on every render, so it is no `ui-popover-trigger`: its popover is one shared
+non-modal `ui-popover` (`sharedPopover`, `modal="false"`, `final-focus="none"`) opened from code with the chip as anchor,
+content refilled per state (compatible, review, failed). The SDK supplies Escape, a press outside, focus leaving and
+placement (below the chip, flipping above near the window bottom; width capped to the window). Focus: the chip is focused
+as it opens, so the SDK's rule returns there; because the chip may be a new element by then, `openchangecomplete` focuses
+`.update-chip` again after Escape or a code close (not after a press elsewhere). Tab: `content.tabTrigger` names the chip
+so popups.js's Tab-out rule closes the popover and continues from it. The class `workspace-popover` stays on the content
+so the board Inspector stays open while it is used. The major-update consent is a `ui-dialog` (focus starts on Later) and
+the policy control a segmented control.
+
+### Toolbars, toggles, segmented controls and value controls (`r2/controls`)
+
+Files: `ui-toolbar.js` (`followVisibility`, toggle and choice helpers), `ui-segmented.js` (`segmentedHTML`, `setSegmented`,
+`onSegmented`, `focusSegmented`), `workspace-board.js` (selection bar, tools rail, Layout, Pattern, item appearance),
+`board.html` + `canvas.js` (the two zoom pills, map toggle, Pattern/Window/Light), `comment-pins.js` (the comment bar in the
+pill), `whiteboard.js` (object and arrow bar, format panel), `container-layout.js`, `kind-legend.js`, `text-appearance.js`,
+`color-control.js`, `preset-scrub.js`, `appearance.js`, `update-notice.js`, `home.js`/`home.html` (Sort), `workspace.js`
+(item editor sections). Tests: `toolbars-browser.mjs` (the norms), plus the surfaces' own browser tests.
+
+**Which component.** One question picks it:
+
+- Buttons that act: `ui-toolbar` > `ui-toolbar-button` > `button`; a named set is `ui-toolbar-group`. One Tab stop on the
+  item focused last, arrows along it (wrapping; Home/End), moving never presses. Every toolbar is a `ui-toolbar` and calls
+  `followVisibility(toolbar)` when items come and go (hidden items leave the order).
+- A button that stays down (Preview, the map, the tools rail): `ui-toggle` around the button. The app owns the state, so
+  `onPress(toggle, fn)` cancels the SDK's flip and `setPressed(button, on)` writes the answer. **The answer must be
+  written after the event returns** (the SDK restores a cancelled change when its `pressedchange` handler returns), so
+  `onPress`/`onChoose` hand it over in a microtask. Writing a property fires no event.
+- One of several keys, kept as real buttons so the theme's raised pressed-key look still draws (arrow route, text
+  alignment, container layout, typeface, fill and border style, the tool choice): a single-choice `ui-toggle-group`
+  (`deselectable="false"`). In a toolbar the group joins the arrows; Space/Enter chooses. `choiceHTML`, `setChoice`,
+  `onChoice`/`onChoose` in `ui-toolbar.js`; the object bar's `barParts.choice`.
+- One of a few options drawn as a track with a raised chosen cell (Layout, Pattern, Sort, Appearance rows, update policy,
+  item editor sections, Window, Light, Version, Gap/Padding/Columns, Fill/Border role, the S/M/L presets): a
+  `ui-segmented-control` (radio group): one Tab stop on the checked item, arrows check as they move.
+- One chosen colour among swatches (every palette): `ui-radio-group` of `ui-radio` chips (`color-control.js`: `setSwatch`,
+  `onSwatch`); arrows check as they move, the custom colour is a label with the system picker beside them.
+
+**Non-obvious.**
+
+- The SDK gives an item its role and tabindex a **microtask after** it is inserted (and reads its attributes then). A
+  control just rendered is focused with `focusSegmented()` (or `queueMicrotask`), never synchronously. Property writes
+  before that (`group.value = …`) are skipped: `setSegmented`, `setChoice` and `setSwatch` fall back to `default-value`.
+- `valuechange` / `pressedchange` do not bubble but do pass the capture phase: listen on the element, or capture on a
+  container (canvas.js hears every Pattern, Window, Light and Version copy from one capture listener on `document`; the
+  object bar cancels its toggles' own flips with a capture listener, since it redraws what is pressed from the object).
+- Segmented markup: `segmentedHTML()` makes `<ui-segmented-control class="tk-seg …">` so the theme's
+  `.tk-seg > [data-slot=segmented-control-item]` rules apply. An item with a hint sits in its `ui-tooltip-trigger`
+  (`tip:`), which is no longer a direct child of `.tk-seg`; those items still use the copied rule in `ui-sdk.css`
+  (`.tk-seg > ui-tooltip-trigger > …`).
+- The selection bar is built once and updated in place (count, Group/Restore labels, which actions show), so a focused
+  action keeps focus across selection changes. The canvas tools rail is a `ui-toolbar`: Navigation (Pointer, Pan) and
+  Feedback (Comment) are toggle groups, Draw is a `ui-toolbar-group` of buttons. The rail and map toggles are `ui-toggle`
+  items of the view pill.
+- A menu or panel button in a toolbar opens on ArrowDown (`openOnArrowDown`, now idempotent: a second handler for the same
+  press does nothing). The object bar opens every `[aria-haspopup]` button this way by clicking it, as Enter would.
+- **Scrub handle** (`preset-scrub.js`): a slider (spinbutton when unbounded) of its own, with the SDK slider's keys: arrow
+  step, Shift+arrow and Page Up/Down large step (ten steps), Home/End bounds; it previews on every step or drag tick and
+  commits once when the key comes up, the pointer lifts or focus leaves (closing the panel completes a step in progress, as before). It is not
+  `ui-slider`/`ui-number-input` because it also edits a mixed value by a relative amount and previews on the canvas.
+  Alt's small step is not offered: the values are whole pixels.
+- Left as native, on purpose: standalone `aria-pressed` buttons that are not in a toolbar (Favorites, Last 6 weeks,
+  Archive, auto height, automatic border) — a native toggle button already has the SDK toggle's keys; native radio
+  fieldsets (`workspace-choice-pills`) — native radios are already one Tab stop with arrows that check.

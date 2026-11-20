@@ -327,7 +327,7 @@ try{
   assert.equal(await a.page.locator('#reader-name').textContent(),'Pages 2');
   assert.equal(new URL(a.page.url()).hash,'#second/pages');
   assert.equal(await position(),'2 / 3');
-  assert.deepEqual(await a.page.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#reader-theme').getAttribute('aria-pressed'),document.querySelector('#reader-type').value]),['compact','true','130']);
+  assert.deepEqual(await a.page.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#reader-theme').getAttribute('aria-checked'),document.querySelector('#reader-type').value]),['compact','true','130']);
   await a.page.locator('#reader-next').click();
   await readerFocused();
   assert.equal(await a.page.locator('#reader-next').isDisabled(),true);
@@ -454,7 +454,7 @@ try{
   // Removed chrome stays removed; the board footer carries the view controls.
   assert.equal(await h.locator('select:not(#navigator-scope):not([aria-label="Appearance"])').count(),0);
   // One in the board's Inspector, one in an opened Tinka's.
-  assert.equal(await h.getByRole('group',{name:'Appearance',includeHidden:true}).count(),2);
+  assert.equal(await h.getByRole('radiogroup',{name:'Appearance',includeHidden:true}).count(),2);
   assert.equal(await h.getByRole('combobox',{name:'Appearance',includeHidden:true}).count(),0);
   assert.equal(await h.locator('#round-picker, #concept-nav, [data-jump], #zoom-in, #zoom-out, #zoom-level, #overview, #reset-view, #toggle-header, .toolbar, .intro, .reader-bar, .reader-bottom, #reader-size').count(),0);
   assert.equal(await h.locator('#canvas-header button:visible').count(),3);
@@ -599,7 +599,7 @@ try{
   assert.equal(await h.locator('#reader-type').getAttribute('aria-valuetext'),'115%');
   await h.waitForFunction(()=>document.querySelector('#active-reader').contentDocument.body.dataset.scale==='115');
   await h.locator('#reader-theme').click();
-  assert.equal(await h.locator('#reader-theme').getAttribute('aria-pressed'),'true');
+  assert.equal(await h.locator('#reader-theme').getAttribute('aria-checked'),'true');
   await h.waitForFunction(()=>document.querySelector('#active-reader').contentDocument.body.dataset.theme==='night');
   assert.equal(await h.locator('#size-menu').isVisible(),true);
   assert.equal(await h.locator('#reader-zoom-toggle').getAttribute('aria-expanded'),'true');
@@ -608,8 +608,8 @@ try{
   assert.equal(await h.locator('#revision-group').isVisible(),true);
   await h.screenshot({path:path.join(evidence,'history-size-popover.png')});
   await h.locator('#size-menu [data-size="standard"]').click();
-  assert.deepEqual(await h.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#size-menu [data-size="standard"]').getAttribute('aria-pressed')]),['standard','true']);
-  assert((await h.locator('#reader-zoom-toggle').getAttribute('title')).includes('Window: Standard'));
+  assert.deepEqual(await h.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#size-menu [data-size="standard"]').getAttribute('aria-checked')]),['standard','true']);
+  assert((await h.locator('#reader-zoom-toggle').getAttribute('data-tip')).includes('Window: Standard'));
   await h.keyboard.press('Escape');
   assert.equal(await h.locator('#size-menu').isVisible(),false);
   assert.equal(await h.evaluate(()=>document.activeElement.id),'reader-zoom-toggle');
@@ -623,7 +623,7 @@ try{
   assert.equal(await h.locator('#size-menu [data-size="custom"]').isVisible(),true);
   assert.equal(await h.locator('#custom-size').textContent(),'600 × 500');
   await h.locator('#size-menu [data-size="fit"]').click();
-  assert.deepEqual(await h.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#reader-window').style.width,document.querySelector('#size-menu [data-size="fit"]').getAttribute('aria-pressed')]),['fit','','true']);
+  assert.deepEqual(await h.evaluate(()=>[document.querySelector('#reader-window').dataset.size,document.querySelector('#reader-window').style.width,document.querySelector('#size-menu [data-size="fit"]').getAttribute('aria-checked')]),['fit','','true']);
   await h.keyboard.press('Escape');
   // Hovering the title shows where you are and what sits beside it.
   await h.locator('#reader-path').hover();
@@ -935,7 +935,7 @@ try{
   await h.keyboard.press('ArrowRight');
   assert.equal(await h.locator('#reader-type').getAttribute('aria-valuetext'),'115%');
   await h.locator('#reader-theme').click();
-  assert.equal(await h.locator('#reader-theme').getAttribute('aria-pressed'),'true');
+  assert.equal(await h.locator('#reader-theme').getAttribute('aria-checked'),'true');
   await h.locator('#size-menu [data-size="compact"]').click();
   assert.equal(await h.locator('#reader-window').getAttribute('data-size'),'compact');
   await h.keyboard.press('Escape');
