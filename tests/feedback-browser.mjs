@@ -41,6 +41,11 @@ try{
    else{await button.evaluate(el=>el.focus({preventScroll:true}));await page.keyboard.press('Enter');}
  };
  const clickVote=()=>viaPill('[data-item-vote]');
+ // ⋯ Conversation options is a UI SDK menu (checkbox items stay open as they toggle; an action runs once it has closed).
+ const options=async()=>{await page.locator('[data-feedback-settings]').click();await page.locator('#feedback-options-menu ui-menu-content[data-open]').waitFor();};
+ const option=value=>page.locator(`#feedback-options-menu [value="${value}"]`);
+ const closeOptions=async()=>{await page.keyboard.press('Escape');await page.locator('#feedback-options-menu ui-menu-content[data-open]').waitFor({state:'detached'}).catch(()=>{});await page.waitForFunction(()=>!document.querySelector('#feedback-options-menu ui-menu-content[data-open]'));};
+ const pointMode=async()=>{await options();await option('point').click();await page.locator('#viewport.feedback-point-mode').waitFor({state:'attached'});};
  await clickVote();
  await page.locator('[data-feedback-vote=yes]').click();
  await page.waitForFunction(()=>document.querySelector('[data-feedback-vote=yes]')?.getAttribute('aria-pressed')==='true');
@@ -70,14 +75,14 @@ try{
  await page.locator('[data-feedback-reply]').click();await page.locator('.feedback-composer textarea').fill('Keep the simplest approach.');await page.locator('[data-feedback-post]').click();
  await page.locator('.feedback-reply').waitFor();
  await page.locator('[data-feedback-resolve]').click();await page.waitForFunction(()=>document.querySelector('.feedback-thread')?.classList.contains('resolved'));
- await page.locator('[data-feedback-settings]').click();await page.locator('[data-feedback-unresolved]').check();await page.locator('.feedback-thread').waitFor({state:'detached'});
- await page.locator('[data-feedback-unresolved]').uncheck();await page.locator('[data-feedback-settings]').click();await page.locator('[data-feedback-resolve]').click();await page.waitForFunction(()=>!document.querySelector('.feedback-thread')?.classList.contains('resolved'));
- await page.locator('[data-feedback-settings]').click();await page.locator('[data-feedback-point]').click();
+ await options();await option('unresolved').click();assert.equal(await option('unresolved').getAttribute('aria-checked'),'true');await page.locator('.feedback-thread').waitFor({state:'detached'});
+ await option('unresolved').click();assert.equal(await option('unresolved').getAttribute('aria-checked'),'false');await closeOptions();await page.locator('[data-feedback-resolve]').click();await page.waitForFunction(()=>!document.querySelector('.feedback-thread')?.classList.contains('resolved'));
+ await pointMode();
  const box=await page.locator('#viewport').boundingBox();await page.mouse.click(box.x+420,box.y+150);
  await page.locator('.feedback-composer textarea').fill('Leave more space here.');await page.locator('[data-feedback-post]').click();await page.locator('.comment-pins .comment-pin').waitFor();
  assert.equal(await page.locator('.feedback-pin').count(),0,'the old numbered canvas pins stay off');
- await page.locator('[data-feedback-settings]').click();await page.locator('[data-feedback-pins]').uncheck();assert.equal(await page.locator('.comment-pins').isVisible(),false,'Show pins hides the comment layer');
- await page.locator('[data-feedback-pins]').check();assert.equal(await page.locator('.comment-pins').isVisible(),true);if(await page.locator('[data-feedback-board]').isVisible())await page.locator('[data-feedback-board]').click();else await page.locator('[data-feedback-settings]').click();
+ await options();await option('pins').click();assert.equal(await page.locator('.comment-pins').isVisible(),false,'Show pins hides the comment layer');
+ await option('pins').click();assert.equal(await page.locator('.comment-pins').isVisible(),true);if(await option('board').count())await option('board').click();else await closeOptions();
  await page.locator('.feedback-composer textarea').click();await page.locator('.feedback-composer textarea').fill('Board-wide decision: keep this release focused.');await page.locator('[data-feedback-post]').click();
  await page.waitForFunction(()=>document.querySelectorAll('.feedback-thread').length===3);
  await page.screenshot({path:path.join(evidence,'feedback-wide.png')});
@@ -90,7 +95,7 @@ try{
  await page.waitForFunction(()=>document.querySelectorAll('.feedback-thread').length===1);
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(evidence,'feedback-narrow.png')});
  const bounds=await page.locator('.feedback-panel').boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=391);
- await page.locator('[data-feedback-settings]').click();await page.locator('[data-feedback-point]').click();
+ await pointMode();
  assert.equal(await page.locator('.feedback-panel').isVisible(),false,'390px point picking exposes the canvas');
  const narrowCanvas=await page.locator('#viewport').boundingBox();await page.mouse.click(narrowCanvas.x+Math.min(180,narrowCanvas.width-20),narrowCanvas.y+Math.min(180,narrowCanvas.height-20));
  await page.locator('.feedback-composer textarea').fill('Narrow screen point survives.');await page.locator('[data-feedback-post]').click();
@@ -111,7 +116,7 @@ try{
  const current=JSON.parse(await main(['tools','call','board.get','--config',configFile,'--json',JSON.stringify({boardId:board.boardId})]));
  const placement=current.placements.find(p=>p.itemId===item.itemId),card=page.locator(`[data-placement="${placement.id}"]`),shape=page.locator('[data-decoration="feedback-shape"]');
  async function addTargetPoint(target,body){
-   await viaPill('[data-item-feedback]');await page.locator('[data-feedback-settings]').click();await page.locator('[data-feedback-board]').click();await page.locator('[data-feedback-settings]').click();await page.locator('[data-feedback-point]').click();
+   await viaPill('[data-item-feedback]');await options();await option('board').click();await page.waitForFunction(()=>document.activeElement?.id==='feedback-message');await pointMode();
    const rect=await target.boundingBox();await page.mouse.click(rect.x+rect.width*.25,rect.y+rect.height*.5);
    await page.locator('.feedback-composer textarea').fill(body);await page.locator('[data-feedback-post]').click();
    await page.waitForFunction(text=>document.querySelector('.feedback-list')?.textContent.includes(text),body);
@@ -151,6 +156,34 @@ try{
  let release;const gate=new Promise(resolve=>{release=resolve;});const hold=async route=>{if(route.request().postDataJSON().type==='addComment')await gate;await route.continue();};await page.route('**/api/operations',hold);
  await composer.press('Control+Enter');await page.waitForFunction(()=>document.querySelector('.feedback-composer').getAttribute('aria-busy')==='true');await viaPill(`[data-item-feedback="${child.itemId}"]`);assert.equal(await composer.inputValue(),'Child scoped draft');release();await page.waitForFunction(()=>!document.querySelector('.feedback-composer').hasAttribute('aria-busy'));assert.equal(await composer.inputValue(),'Child scoped draft','other scope survives delayed successful post');await page.unroute('**/api/operations',hold);
  await page.screenshot({path:path.join(evidence,'feedback-draft-scopes.png')});
+ // Keyboard (UI SDK): ⋯ is a menu button, the name field a popover, the ballot a popover holding a toggle group.
+ await page.keyboard.press('Escape');await page.locator('.feedback-panel').waitFor({state:'hidden'});
+ await viaPill(`[data-item-feedback="${item.itemId}"]`);
+ const settings=page.locator('[data-feedback-settings]');await settings.focus();await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.activeElement?.getAttribute('role')==='menuitemcheckbox');
+ assert.equal(await page.locator('#feedback-options-menu ui-menu-content').getAttribute('role'),'menu');
+ assert.equal(await settings.getAttribute('aria-expanded'),'true');
+ await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-settings]'));
+ assert.equal(await page.locator('.feedback-panel').isVisible(),true,'Escape closes only the menu');
+ await page.keyboard.press('ArrowDown');await page.waitForFunction(()=>document.activeElement?.getAttribute('role')==='menuitemcheckbox');
+ await page.keyboard.press('y');assert.match(await page.evaluate(()=>document.activeElement.textContent),/Your name/,'typeahead');
+ await page.keyboard.press('Enter');await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-name]'));
+ await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-settings]'));
+ assert.equal(await page.locator('.feedback-panel').isVisible(),true,'Escape closes only the name field');
+ const identity=page.locator('[data-feedback-identity]');await identity.focus();await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-name]'));assert.equal(await identity.getAttribute('aria-expanded'),'true');
+ await page.locator('[data-feedback-name]').fill('Reviewer');await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-identity]'));assert.equal(await identity.textContent(),'As Reviewer');
+ await page.keyboard.press('Escape');await page.locator('.feedback-panel').waitFor({state:'hidden'});
+ const voteButton=page.locator(`[data-item-vote="${item.itemId}"]`);await voteButton.evaluate(el=>el.focus());await page.waitForTimeout(150);await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.activeElement?.dataset.feedbackVote==='yes','focus starts on the choice');
+ await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.activeElement?.dataset.feedbackVote==='no');
+ assert.equal(await page.locator('[data-feedback-vote=no]').getAttribute('aria-pressed'),'false','moving focus never votes');
+ await page.keyboard.press('Space');await page.waitForFunction(()=>document.querySelector('[data-feedback-vote=no]')?.getAttribute('aria-pressed')==='true');
+ assert.equal(await page.evaluate(()=>document.activeElement?.dataset.feedbackVote),'no','focus stays on the choice as the vote saves');
+ assert.equal(await page.locator('ui-tooltip-content[data-open]').count(),0,'no hint shows over the open ballot');
+ await page.keyboard.press('Escape');await page.waitForFunction(id=>document.activeElement?.dataset.itemVote===id,item.itemId);
+ assert.equal(await page.locator('.feedback-ballot[data-open]').count(),0);
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({passed:true,threads:saved.threads.length+3,checks:'inline conversation, distinct ballot, vote replace/clear, multiline Enter, IME/repeat, failed retry identity, no duplicate post, retained scoped/reloaded drafts, delayed scope switch, comment/reply, resolve/reopen/filter, point, hide/show, reload persistence, 1440/390 layout, target point picking, target move/resize preview, detached fallback, HTTP/CLI read parity, child layout copy',evidence}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(fixture,{recursive:true,force:true});}

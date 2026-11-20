@@ -77,7 +77,7 @@ export class FeedbackController {
     for(const [name,value] of [['align','end'],['side-offset','4'],['collision-padding','8']])options.content.setAttribute(name,value);
     options.content.addEventListener('checkedchange',e=>{
       const option=e.target.closest('[value]')?.getAttribute('value');e.target.closest('[value]')?.setAttribute('checked',String(e.detail.value));
-      if(option==='pins'){this.pinsVisible=e.detail.value;this.syncPins();}
+      if(option==='pins'){this.pinsVisible=e.detail.value;this.syncPins();document.dispatchEvent(new CustomEvent('tinka:show-points',{detail:{visible:e.detail.value}}));}
       if(option==='unresolved'){this.onlyUnresolved=e.detail.value;this.reload().catch(error=>this.failure(error));}
     },true);
     // An action runs once the menu has closed and handed focus back, so the focus it moves (the composer, the name
@@ -92,6 +92,8 @@ export class FeedbackController {
         else if(action==='name')this.openName(this.panel.querySelector('[data-feedback-settings]'));
       });
     });
+    // The board's comment layer (comment-pins.js) says whether its points show (⇧C toggles them too).
+    this.pointsShown=e=>{this.pinsVisible=!!e.detail?.visible;};document.addEventListener('tinka:points-shown',this.pointsShown);
     const name=this.nameUI=sharedPopover({id:'feedback-name-popover',label:'Your name',className:'feedback-settings feedback-name'});
     name.content.innerHTML=`<label>Your name<input maxlength="120" aria-label="Your comment name" data-feedback-name></label><p>Your name is saved in this browser.</p>`;
     name.content.setAttribute('collision-padding','8');name.content.setAttribute('side-offset','6');
@@ -278,5 +280,5 @@ export class FeedbackController {
     for(const pin of this.layer.querySelectorAll('[data-feedback-pin]'))pin.onclick=e=>{e.stopPropagation();this.open({itemId:this.itemId,threadId:pin.dataset.feedbackPin,returnFocus:pin});};
   }
   sync(overrides){this.syncPins(overrides);this.syncVoteTriggers();if(this.visible)this.renderScope();}
-  destroy(){cancelAnimationFrame(this.sizingFrame);this.formBinding?.destroy();window.removeEventListener('click',this.clickHandler,true);window.removeEventListener('pointerdown',this.pointHandler,true);window.removeEventListener('pointerdown',this.outsideHandler,true);window.removeEventListener('keydown',this.keyHandler,true);window.removeEventListener('resize',this.repositionHandler);window.visualViewport?.removeEventListener('resize',this.repositionHandler);this.closeVote({restoreFocus:false});this.optionsUI?.root.remove();this.nameUI?.root.remove();this.ballotUI?.root.remove();this.panel?.remove();this.layer?.remove();this.toggle?.remove();}
+  destroy(){cancelAnimationFrame(this.sizingFrame);this.formBinding?.destroy();window.removeEventListener('click',this.clickHandler,true);window.removeEventListener('pointerdown',this.pointHandler,true);window.removeEventListener('pointerdown',this.outsideHandler,true);window.removeEventListener('keydown',this.keyHandler,true);window.removeEventListener('resize',this.repositionHandler);window.visualViewport?.removeEventListener('resize',this.repositionHandler);this.closeVote({restoreFocus:false});document.removeEventListener('tinka:points-shown',this.pointsShown);this.optionsUI?.root.remove();this.nameUI?.root.remove();this.ballotUI?.root.remove();this.panel?.remove();this.layer?.remove();this.toggle?.remove();}
 }
