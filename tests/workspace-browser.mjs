@@ -337,8 +337,10 @@ try {
   );
   await page.locator("#reader-note").fill("Immediate child navigation draft");
   await page.locator("#notes-close").click();
+  const parentPath = new URL(page.url()).pathname;
   await page.locator("#reader-down").click();
-  await page.waitForURL(/\/boards\//);
+  // The old board's URL already matches /boards/: wait for the child board's own page.
+  await page.waitForURL(url => url.pathname !== parentPath);
   await boardTool("#workspace-owner");
   await page.locator("#reader-dialog[open]").waitFor();
   assert.equal(await page.locator("#reader-name").textContent(), "One");
