@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {mkdtemp, mkdir, rm} from "node:fs/promises";
+import {mkdtemp, mkdir, readdir, readFile, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import {applyOperation, readWorkspace, getBoardSnapshot} from "../lib/workspace.mjs";
@@ -278,4 +278,67 @@ test("Bring to front and Send to back reorder a selection as one undoable step",
   assert.ok(undo.history);
   await assert.rejects(write("restackOccurrences",{placementIds:[a],to:"middle"}),{status:400});
   await assert.rejects(write("restackOccurrences",{placementIds:[],to:"front"}),{status:400});
+});
+
+// A board saved before the shared order (drawings without z, card z a creation count).
+// Every write that gives objects a z (Bring to front, Send to back, a new object, a
+// pointer drop, duplicating) keeps everything it did not move in the order it painted in.
+test("on a board saved without drawing z, a reorder moves only what it was asked to move",async t => {
+  const {config,write,card,board} = await stackFixture(t);
+  const cards = [];
+  for (let i = 0; i < 12; i++) cards.push(await card(`Card ${i}`,(i % 4) * 340,Math.floor(i / 4) * 260,300,200));
+  const drawn = [
+    {id:"area",type:"region",x:-40,y:-40,width:1400,height:820,color:"palette:sage",text:"Area"},
+    {id:"box",type:"region",shape:"rectangle",x:20,y:20,width:200,height:120,color:"palette:gold",text:""},
+    {id:"label",type:"text",x:10,y:240,width:300,height:40,color:"palette:neutral",text:"Label"},
+    ...Array.from({length:4},(_,i) => ({id:`arrow-${i}`,type:"line",x:150 + i * 340,y:100,width:340,height:260,color:"#6c8060",text:"",endArrow:true,from:{x:150 + i * 340,y:100},to:{x:490 + i * 340,y:360}})),
+    {id:"sticker",type:"text",sticker:true,text:"🚀",x:400,y:20,width:96,height:96,color:"palette:neutral"},
+  ];
+  for (const decoration of drawn) await write("createDecoration",{decoration});
+  // Saved by 1.3: placements z 0..11 by creation, drawings without z. Each check below
+  // starts again from this board.
+  const files = path.join(config.boardsRoot,".tinka","boards");
+  let savedFile, saved;
+  for (const name of await readdir(files)) {
+    const file = path.join(files,name), board = JSON.parse(await readFile(file,"utf8"));
+    if (board.id !== "b") continue;
+    board.placements.forEach((p,index) => { p.z = index; });
+    for (const d of board.decorations) delete d.z;
+    savedFile = file; saved = JSON.stringify(board,null,2);
+  }
+  const fresh13 = () => writeFile(savedFile,saved);
+  const without = (order,moved) => order.filter(id => !moved.includes(id));
+  const keeps = async (label,moved,writeIt) => {
+    await fresh13();
+    const before = stacked(await board());
+    const result = await writeIt();
+    const after = stacked(await board());
+    assert.deepEqual(without(after,[...moved,...(result?.fresh || [])]),without(before,moved),label);
+    return {before,after,result};
+  };
+  await fresh13();
+  const initial = stacked(await board());
+  assert.deepEqual(initial.slice(-5),["arrow-0","arrow-1","arrow-2","arrow-3","sticker"]);
+  // Bring each card to the front and send it to the back, one at a time.
+  for (const id of [cards[0],cards[5],cards[11]]) {
+    const front = await keeps(`] on ${id}`,[id],() => write("restackOccurrences",{placementIds:[id],to:"front"}));
+    assert.equal(front.after.at(-1),id);
+    const back = await keeps(`[ on ${id}`,[id],() => write("restackOccurrences",{placementIds:[id],to:"back"}));
+    assert.equal(back.after[0],id);
+    // Undo puts the whole order back, the drawings without z included.
+    await fresh13();
+    const moved = await write("restackOccurrences",{placementIds:[id],to:"front"});
+    await applyOperation(config,{type:"restoreMovement",history:moved.history});
+    assert.deepEqual(stacked(await board()),initial,`undo of ] on ${id}`);
+  }
+  // The same for drawings saved without z.
+  for (const id of ["area","box","label","arrow-0","arrow-2","arrow-3","sticker"]) {
+    await keeps(`] on ${id}`,[id],() => write("restackOccurrences",{placementIds:[],decorationIds:[id],to:"front"}));
+    await keeps(`[ on ${id}`,[id],() => write("restackOccurrences",{placementIds:[],decorationIds:[id],to:"back"}));
+  }
+  // A new card, a pointer drop onto other cards, and a duplicate leave the rest alone.
+  await keeps("a new card",[],async () => ({fresh:[await card("New",700,300)]}));
+  await keeps("a drop",[cards[3]],() => write("updatePlacement",{placementId:cards[3],patch:{x:40,y:40},restack:"drop"}));
+  await keeps("a duplicate",[],async () => { const r = (await write("duplicateOccurrences",{placementIds:[cards[7]],decorationIds:["arrow-1"],dx:30,dy:30})).result;
+    return {fresh:[...r.placementIds,...r.decorationIds]}; });
 });

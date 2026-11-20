@@ -99,9 +99,27 @@ try{
  await page.locator(`${card(cards['rounded/0'])} h3 button`).click({modifiers:['Shift']});
  ok(await page.locator(`${card(cards['rounded/0'])}.selected`).count()===1,'A card on a shape is still selectable');
  await page.keyboard.press('Escape');
+ const shapeAt=async(id,fx,fy)=>{const r=await page.locator(`[data-decoration="${id}"]`).boundingBox();await page.mouse.click(r.x+r.width*fx,r.y+r.height*fy);};
+ // Bring to front and Send to back move only what is selected: everything else keeps
+ // the order it painted in, also the drawings saved without z (which a restack writes).
+ const painted=()=>page.evaluate(()=>[...document.querySelectorAll('#world [data-placement],#world [data-decoration]')]
+  .map(el=>[el.dataset.placement||el.dataset.decoration,Number(getComputedStyle(el).zIndex)]).sort((a,b)=>a[1]-b[1]).map(([id])=>id));
+ const restacked=async(label,id,select,key)=>{
+  const before=await painted();await select();await page.keyboard.press(key);
+  await page.waitForFunction(before=>JSON.stringify([...document.querySelectorAll('#world [data-placement],#world [data-decoration]')]
+   .map(el=>[el.dataset.placement||el.dataset.decoration,Number(getComputedStyle(el).zIndex)]).sort((a,b)=>a[1]-b[1]).map(([i])=>i))!==JSON.stringify(before),before);
+  await page.keyboard.press('Escape');await page.waitForTimeout(150);
+  const after=await painted(),rest=list=>list.filter(other=>other!==id);
+  assert.equal(key===']'?after.at(-1):after[0],id,`${label}: it goes to the ${key===']'?'front':'back'}`);
+  assert.deepEqual(rest(after),rest(before),`${label}: nothing else changes place`);checks++;
+ };
+ const pick=id=>async()=>{await page.locator(`${card(id)} h3 button`).click({modifiers:['Shift']});};
+ await restacked('Send to back on a shape saved without z','under-ellipse',()=>shapeAt('under-ellipse',.995,.5),'[');
+ await page.keyboard.press('Escape');
+ await restacked('Bring to front on a card',cards['ellipse/1'],pick(cards['ellipse/1']),']');
+ await restacked('Send to back on a card',cards['diamond/2'],pick(cards['diamond/2']),'[');
  // The one order still rules: Bring to front lifts a shape saved without z over its
  // cards, Send to back puts it beneath them again, each as a saved z.
- const shapeAt=async(id,fx,fy)=>{const r=await page.locator(`[data-decoration="${id}"]`).boundingBox();await page.mouse.click(r.x+r.width*fx,r.y+r.height*fy);};
  await shapeAt('under-rounded',.995,.5);await page.keyboard.press(']');
  await page.waitForFunction(id=>document.elementFromPoint(...(r=>[r.left+r.width/2,r.top+r.height/2])(document.querySelector(`.workspace-card[data-placement="${id}"]`).getBoundingClientRect()))?.closest('[data-decoration="under-rounded"]'),cards['rounded/40']);
  ok(await topAt(card(cards['rounded/40']))==='decoration:under-rounded','Bring to front lifts a shape saved without z above the z 40 card on it');
