@@ -349,6 +349,13 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   Whiteboard's (options, edit text). ⇧-click stays a toggle on the canvas (round 1's decision: a 2-D board has no order for
   a range). Focus ring: an ink ring outside the blue selection line, following the card's squircle and standing clear of
   a version stack's sheets (`--under-d`), so a focused selected item shows both. Drawn elements get the same ring, square.
+- **Commands with nothing selected act on the focused item.** ⌘I opens the focused card's Details (focus comes back to
+  the card), ⌘D duplicates it, E edits a focused Markdown document, `]` / `[` restack it: the keys the card's menu prints
+  act on what the menu belongs to (`focusedTarget()`, `adoptFocusedTarget()` in `workspace-board.js`; Duplicate and
+  restack make the focused item the selection first, as opening its menu does). With a selection they act on the
+  selection, as before. **Delete is the exception**: it removes only what is selected, because a slip costs work and
+  the menu prints no Delete key; on an unselected focused item it removes nothing and says "Nothing is selected. Press
+  Space to select <item>, then Delete." (live region and toast).
 - **Option/Alt + arrow moves the focused item**, 1 unit, 10 with Shift (`createMove`'s keys and steps). A focused item
   that is selected carries the selection (and a mixed group's drawn elements); a grouped one that is not selected carries
   its group, as dragging it does; one that is neither moves alone; with no item focused, the selection moves. A container

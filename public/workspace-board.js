@@ -845,6 +845,32 @@ export class WorkspaceBoard {
   clipboardCandidates() {
     return this.renderedPlacements().filter(p => this.selection.has(p.id));
   }
+  // With nothing selected, the board's commands act on the item that has keyboard focus (on it, or on a control inside
+  // it), as its own menu advertises (Details… ⌘I, Duplicate ⌘D, Edit document E, Bring to front ]). With a selection
+  // they act on the selection. Focus is not selection (ui-sdk.md § Board canvas); this only names a target when there
+  // is no selection to act on.
+  focusedTarget() {
+    if (this.mode !== "canvas" || this.selection.size || this.activeDecoration || this.decorationSelection?.size) return null;
+    const el = this.boardFocus.item(document.activeElement);
+    if (!el || document.activeElement.closest("input,textarea,select,[contenteditable],[role=textbox]")) return null;
+    return el.dataset.placement ? {placementId:el.dataset.placement} : {decorationId:el.dataset.decoration};
+  }
+  // The focused item becomes the selection, as the card's menu makes it when it opens, so a command that works on the
+  // selection (Duplicate, Bring to front) acts on it. A grouped item brings its group, as a click does. Focus stays.
+  adoptFocusedTarget() {
+    const ref = this.focusedTarget();
+    if (!ref) return false;
+    const key = this.boardFocus.key(this.boardFocus.item(document.activeElement));
+    this.toggleOccurrence(ref);
+    this.boardFocus.keepOn(key);
+    return true;
+  }
+  // The focused Markdown document card when nothing is selected (E edits it).
+  focusedDocument() {
+    const ref = this.focusedTarget();
+    const p = ref?.placementId && this.snapshot.placements.find(p => p.id === ref.placementId), item = p && this.snapshot.items[p.itemId];
+    return item && this.editableDocument(item) ? {item, placementId:p.id} : null;
+  }
   boardCommandBlocked(event) {
     return this.clipboardBlocked() || this.history?.busy ||
       event?.target.closest?.("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]") ||
@@ -917,11 +943,14 @@ export class WorkspaceBoard {
         const hasDrawings = this.mode === "canvas" && (this.decorationSelection?.size || this.activeDecoration);
         if (event.target.closest?.(editing) || document.activeElement?.closest(editing) ||
             document.activeElement?.tagName === "IFRAME" || document.querySelector(MODAL_OPEN) || widgetOwnsKey(event) ||
-            !this.clipboardCandidates().length && !hasDrawings) return;
+            !this.clipboardCandidates().length && !hasDrawings && !this.focusedTarget()) return;
         // Board-owned Duplicate never falls through to browser Bookmark while
         // a held key or an in-flight action suppresses another duplication.
         event.preventDefault(); event.stopImmediatePropagation();
-        if (!event.repeat && !this.boardCommandBlocked(event)) this.duplicateSelection();
+        if (event.repeat || this.boardCommandBlocked(event)) return;
+        // Nothing selected: the focused item is duplicated, as its menu's Duplicate ⌘D does.
+        if (!this.clipboardCandidates().length && !hasDrawings) this.adoptFocusedTarget();
+        this.duplicateSelection();
         return;
       }
       // F fits when it is released, so it (and Z) can be held through a selection box.
@@ -965,8 +994,8 @@ export class WorkspaceBoard {
       else if (!command && shifted(2) && this.mode === "canvas")
         action = () => this.hooks.fit?.("selection");
       // ] brings the selection to the front and [ sends it to the back.
-      else if (!command && (key === "]" || key === "[") && this.stackSelection())
-        action = () => this.restackSelection(key === "]" ? "front" : "back");
+      else if (!command && (key === "]" || key === "[") && (this.stackSelection() || this.focusedTarget() && this.mode === "canvas" && !this.hooks.viewOnly))
+        action = () => { if (!this.stackSelection()) this.adoptFocusedTarget(); this.restackSelection(key === "]" ? "front" : "back"); };
       // M shows or hides the board map.
       else if (!command && !event.shiftKey && key === "m" && this.mode === "canvas")
         action = () => this.hooks.toggleMap?.();
@@ -977,9 +1006,10 @@ export class WorkspaceBoard {
         action = () => this.setCanvasTool(key === "h" ? "pan" : "pointer");
       else if (!command && key === "?") action = () => this.keyboardShortcuts();
       // E edits the one selected Markdown document.
-      else if (!command && !event.shiftKey && key === "e" && this.selectedDocument()) {
-        const id = this.selectedDocument().id;
-        action = () => this.editDocument(id);
+      else if (!command && !event.shiftKey && key === "e" && (this.selectedDocument() || this.focusedDocument())) {
+        const focused = this.selectedDocument() ? null : this.focusedDocument();
+        const id = focused ? focused.item.id : this.selectedDocument().id;
+        action = () => this.editDocument(id, focused ? {placementId:focused.placementId} : {});
       }
       // C arms the Comment tool; Shift-C shows or hides the comments layer.
       else if (!command && key === "c" && this.mode === "canvas" && this.commentPins)
@@ -1005,8 +1035,8 @@ export class WorkspaceBoard {
     closePanel($("board-info"));
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
-      <dt>⌘/Ctrl-D</dt><dd>Duplicate selection</dd>
-      <dt>] / [</dt><dd>Bring the selection to the front / send it to the back</dd>
+      <dt>⌘/Ctrl-D</dt><dd>Duplicate selection (with nothing selected, the focused item)</dd>
+      <dt>] / [</dt><dd>Bring the selection (or the focused item) to the front / send it to the back</dd>
       <dt>⌘/Ctrl-G</dt><dd>Group the selected Canvas objects, or ungroup the selected group (select with Space, then ⌘/Ctrl-G)</dd>
       <dt>${isMacPlatform() ? "Option" : "Alt"}-drag</dt><dd>Place another copy on this canvas. Cards share their item; drawn elements have their own content.</dd>
       <dt>${isMacPlatform() ? "K · J" : `${MOD}← · ${MOD}→ or K · J`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
@@ -1015,7 +1045,7 @@ export class WorkspaceBoard {
       <dt>Enter</dt><dd>Open the focused Tinka, or the one selected; on a container, go in among its contents</dd>
       <dt>Escape on an item in a container</dt><dd>Back out to the container</dd>
       <dt>⌘/Ctrl-K or /</dt><dd>Find across this project (Navigator)</dd>
-      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka or this board</dd>
+      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka (with nothing selected, the focused one) or this board</dd>
       <dt>Shift-click · ⌘/Ctrl-click</dt><dd>Add a Tinka to the selection</dd>
       <dt>F</dt><dd>Fit the selection, then the whole board (⌥-click Fit always fits the board)</dd>
       <dt>Hold F · Z while drawing a selection box</dt><dd>When you let go: fit what the box selected · zoom to the box itself</dd>
@@ -1026,13 +1056,13 @@ export class WorkspaceBoard {
       <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
-      <dt>E</dt><dd>Edit the selected Markdown document</dd>
+      <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
       <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment · Show or hide comments</dd>
       <dt>N</dt><dd>Quick jot: type a line, Enter adds it as a sticky; Escape closes</dd>
       <dt>?</dt><dd>Show keyboard shortcuts</dd>
       <dt>⌘/Ctrl-C · X · V</dt><dd>Copy · Cut · Paste</dd>
       <dt>Shift-⌘/Ctrl-C</dt><dd>Copy this board's notes as Markdown (text, stickies and linked item titles)</dd>
-      <dt>Delete / Backspace</dt><dd>Remove selection from this board</dd>
+      <dt>Delete / Backspace</dt><dd>Remove selection from this board (only what is selected: Space selects the focused item)</dd>
       <dt>⌘/Ctrl-Z · Shift-⌘/Ctrl-Z</dt><dd>Undo · Redo</dd>
       <dt>${isMacPlatform() ? "⌥" : "Alt+"}Arrow · ${isMacPlatform() ? "⌥⇧" : "Alt+Shift+"}Arrow</dt><dd>Move the focused item, and the selection or group with it, 1 · 10 units; in a container, move it one place · to the first or last place</dd>
       <dt>Escape</dt><dd>Close the newest panel or menu, then cancel a gesture, pending Cut or selection</dd>
@@ -3930,6 +3960,15 @@ export class WorkspaceBoard {
       if (["Delete", "Backspace"].includes(e.key)) {
         if (e.repeat || e.shiftKey || this.clipboardBlocked() || this.history?.busy) return;
         const ids = this.clipboardCandidates().map(p => p.id);
+        // Delete removes the selection only, never an item that merely has focus: removing is the one board command
+        // whose slip costs work, and the card's menu prints no Delete key. With nothing selected it says how instead
+        // of doing nothing silently.
+        if (!ids.length && this.focusedTarget() && e.target === this.boardFocus.item(e.target)) {
+          e.preventDefault();
+          const message = `Nothing is selected. Press Space to select ${this.boardFocus.label(e.target)}, then Delete.`;
+          announce(message); toast(message);
+          return;
+        }
         if (!ids.length) return;
         e.preventDefault(); e.stopImmediatePropagation();
         this.removePlacements(ids);

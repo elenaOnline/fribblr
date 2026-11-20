@@ -45,7 +45,7 @@ test('duplicate participates in existing whole-group history and reciprocal redo
 
 test('board-owned duplicate consumes repeat and busy defaults without mutating; native contexts retain defaults', t => {
   const prior=globalThis.document;
-  let handler, busy=false, writes=0, editing=false, selected=true;
+  let handler, busy=false, writes=0, editing=false, selected=true, focused=null, adopted=0;
   globalThis.document={
     activeElement:{closest:()=>null,tagName:'DIV'},
     createElement:()=>({}),addEventListener:(_,fn)=>{handler=fn;},querySelector:()=>null,
@@ -53,6 +53,8 @@ test('board-owned duplicate consumes repeat and busy defaults without mutating; 
   t.after(()=>{globalThis.document=prior;});
   const board={
     boardCommandBlocked:()=>busy,clipboardCandidates:()=>selected?[{id:'a'}]:[],
+    // With nothing selected, ⌘D duplicates the item that has keyboard focus, after making it the selection.
+    focusedTarget:()=>selected?null:focused,adoptFocusedTarget:()=>{adopted++;selected=true;return true;},
     duplicateSelection:()=>{writes++;},
   };
   WorkspaceBoard.prototype.installBoardCommands.call(board,{append:()=>{}});
@@ -80,4 +82,9 @@ test('board-owned duplicate consumes repeat and busy defaults without mutating; 
   selected=false;
   assert.equal(dispatch(),false);
   assert.equal(writes,1);
+  // Nothing selected, a card focused: ⌘D is the board's and duplicates it (its menu's Duplicate ⌘D).
+  focused={placementId:'b'};
+  assert.equal(dispatch(),true);
+  assert.equal(adopted,1);
+  assert.equal(writes,2);
 });

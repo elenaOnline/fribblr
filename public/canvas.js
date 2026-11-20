@@ -1900,13 +1900,15 @@ $('view-back').onclick = goBack;
 $('board-info-toggle').onclick = () => setInfoOpen(!boardInspector.isOpen, { focus: true, opener: $('board-info-toggle') });
 $('board-info-close').onclick = () => setInfoOpen(false, { focus: true });
 $('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('chrome-search') } }));
-// ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
+// ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one; with nothing selected, the focused
+// card (its menu's Details… ⌘I), focus coming back to the card when it closes; otherwise the board.
 document.addEventListener('keydown', event => {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'i' || event.repeat) return;
   if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]') || inPopup(event)) return;
   event.preventDefault();
-  const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : null;
-  if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes'); return; }
+  const focusedCard = graph?.selection?.size ? null : graph?.focusedTarget?.()?.placementId || null;
+  const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : focusedCard;
+  if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes', { returnToCard: !!focusedCard }); return; }
   if (graph?.context) { graph.closeContext(true); return; }
   setInfoOpen(!boardInspector.isOpen, { focus: true });
 }, true);

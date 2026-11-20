@@ -9,7 +9,7 @@
 // - in a popover, arrows don't walk between controls (Tab does), and a slider's arrows stay the slider's;
 // - the reader's path menu marks the current place with aria-current, not with the highlight's look.
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -30,6 +30,9 @@ try{
  const add=async(title,x,y)=>(await op('createItem',{boardId:'fixes',item:{title,content:{kind:'note',text:`${title}.`}},placement:{x,y,width:240,height:160}})).placementIds[0];
  const c={};
  c.a=await add('Card A',0,0);c.b=await add('Card B',300,0);c.m=await add('Member card',0,640);
+ const assets=path.join(config.boardsRoot,'assets');await mkdir(assets);await writeFile(path.join(assets,'doc.md'),'# A document\n\nSome text.\n');
+ await op('updateWorkspace',{patch:{resourceRoots:{assets:{path:'../assets'}}}});
+ c.doc=(await op('createItem',{boardId:'fixes',item:{title:'A document',content:{kind:'markdown',resource:{rootId:'assets',path:'doc.md'}}},placement:{x:900,y:0,width:320,height:240,presentation:{mode:'card'}}})).placementIds[0];
  const text=(id,body,x,y)=>({id,type:'text',x,y,width:220,height:60,text:body,color:'#456139'});
  for(const decoration of [
    text('words','Some words',0,240),
@@ -94,6 +97,41 @@ try{
  await page.locator(`#world [data-placement="${c.b}"]`).focus();
  {const r=await page.locator('#viewport').boundingBox();await page.mouse.click(r.x+r.width-80,r.y+r.height/2);await page.waitForTimeout(200);}
  eq(await focused(),'viewport','A press on the empty canvas takes focus to the canvas');
+
+ // ---- 2. With nothing selected, board commands act on the focused item; with a selection, on the selection. ----
+ await clear();await idle();
+ const cardCount=async()=>(await snapshot()).placements.filter(p=>!p.removedAt&&!p.deletedAt).length;
+ const selectedCards=()=>page.evaluate(()=>[...document.querySelectorAll('#world .workspace-card.selected')].map(c=>c.getAttribute('aria-label')).sort());
+ const focusCard=async id=>{await page.locator(`#world .workspace-card[data-placement="${id}"]`).focus();await page.waitForTimeout(80);};
+ await focusCard(c.b);eq(await selectedCards(),[],'Card B has focus and nothing is selected');
+ await page.keyboard.press(`${mod}+i`);
+ ok(await until(async()=>(await page.locator('#workspace-item-controls').getAttribute('aria-label'))==='Details of Card B'),'⌘I opens the focused card\'s Details, as its menu advertises');
+ eq(await page.locator('#board-info[data-open]').count(),0,'and not the board Inspector');
+ await page.keyboard.press('Escape');
+ ok(await until(async()=>(await focused())==='card:Card B'),`Escape from those Details returns focus to the card: ${await focused()}`);
+ {const n=await cardCount();await focusCard(c.b);await page.keyboard.press(`${mod}+d`);
+  ok(await until(async()=>(await cardCount())===n+1),'⌘D duplicates the focused card');}
+ await clear();await idle();
+ {await focusCard(c.a);
+  const sent=page.waitForRequest(r=>r.url().endsWith('/api/operations')&&r.postDataJSON()?.type==='restackOccurrences',{timeout:3000});
+  await page.keyboard.press(']');
+  eq(await sent.then(r=>r.postDataJSON().placementIds).catch(()=>null),[c.a],'] brings the focused card to the front');
+  ok(await until(async()=>(await focused())==='card:Card A'),'Focus stays on it');}
+ await clear();await idle();
+ await focusCard(c.doc);await page.keyboard.press('e');
+ ok(await until(()=>page.evaluate(()=>!!document.activeElement?.contentDocument?.activeElement?.isContentEditable)),'E edits the focused document');
+ await page.keyboard.press('Escape');await page.waitForTimeout(400);await clear();await idle();
+ // With a selection, the commands act on the selection, not on the focused card.
+ await focusCard(c.a);await page.keyboard.press('Space');await focusCard(c.b);
+ await page.keyboard.press(`${mod}+i`);
+ ok(await until(async()=>(await page.locator('#workspace-item-controls').getAttribute('aria-label'))==='Details of Card A'),'With a selection, ⌘I opens the selected card\'s Details');
+ await page.keyboard.press('Escape');await clear();await idle();
+ // Delete never removes an item that only has focus; it says how instead.
+ {const n=await cardCount();await focusCard(c.b);await page.keyboard.press('Delete');await page.waitForTimeout(300);
+  eq(await page.locator('ui-alert-dialog-content[data-open]').count(),0,'Delete on an unselected focused card asks nothing');
+  eq(await cardCount(),n,'and removes nothing');
+  ok((await page.locator('[aria-live]').allTextContents()).join(' ').includes('Nothing is selected. Press Space to select Card B, then Delete.'),'It says how to remove it');}
+ await clear();
 
  assert.deepEqual(errors,[]);checks++;
  console.log(`Board fixes browser checks passed: ${checks} assertions. Evidence: ${evidence}`);
