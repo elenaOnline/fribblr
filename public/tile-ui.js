@@ -17,34 +17,6 @@ export function positionTilePopover(element, anchor, point) {
   Object.assign(element.style,{left:`${x}px`,top:`${y}px`});
 }
 
-export function bindTileMenu(menu, {close, returnFocus, anchor}) {
-  const origin=anchor?.getBoundingClientRect();
-  const moved=event=>{
-    if(menu.contains(event.target))return;
-    const current=anchor?.getBoundingClientRect();
-    // A queued scroll notification from revealing the invoker can arrive after
-    // opening. Close only for a new gesture or an actually moved anchor.
-    if(event.type==='wheel'||!origin||!anchor?.isConnected||Math.abs(current.x-origin.x)>.5||Math.abs(current.y-origin.y)>.5)close();
-  };
-  document.addEventListener('wheel',moved,{capture:true,passive:true});
-  document.addEventListener('scroll',moved,true);
-  window.addEventListener('resize',close);
-
-  menu.addEventListener('keydown', event => {
-    const entries = [...menu.querySelectorAll('[role="menuitem"]:not(:disabled)')];
-    const index = entries.indexOf(document.activeElement);
-    if (event.key === 'Escape') {event.preventDefault(); event.stopImmediatePropagation(); close(); restoreFocus(returnFocus);}
-    else if (event.key === 'Tab') {close();restoreFocus(returnFocus);}
-    else if (['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
-      event.preventDefault();
-      const next = event.key === 'Home' ? 0 : event.key === 'End' ? entries.length-1 : (index+(event.key === 'ArrowDown' ? 1 : -1)+entries.length)%entries.length;
-      entries[next]?.focus({preventScroll:true});
-    }
-  });
-  menu.querySelector('[role="menuitem"]:not(:disabled)')?.focus({preventScroll:true});
-  return {destroy(){document.removeEventListener('wheel',moved,true);document.removeEventListener('scroll',moved,true);window.removeEventListener('resize',close);}};
-}
-
 // The tile notes editor: a UI SDK ui-popover (non-modal), anchored to the control that opened it, in the body so card
 // handlers never hear it. Enter-free: Cmd/Ctrl+Enter saves (bindForm); Escape or any other way out keeps the draft and
 // returns focus; Cancel discards the draft. Saving holds the popover open.

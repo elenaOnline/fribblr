@@ -85,9 +85,11 @@ export function menuLink(href, label, {target = '_blank', className = ''} = {}) 
 export function menuCheckbox(value, label, {checked = false, shortcut, disabled, title} = {}) {
   return `<ui-menu-checkbox-item class="tk-mi" value="${esc(value)}" checked="${checked}"${keys(shortcut)}${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(label)}</span>${shortcut ? keycap(shortcut) : ''}</ui-menu-checkbox-item>`;
 }
-// A radio group: [[value, label, {disabled, title}]…]; `value` is the chosen one.
-export function menuRadioGroup(name, label, options, value, {disabled = false, title = ''} = {}) {
-  return `<ui-menu-radio-group name="${esc(name)}" value="${esc(value)}"${title ? ` title="${esc(title)}"` : ''}>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${options.map(([v, text]) => `<ui-menu-radio-item class="tk-mi" value="${esc(v)}"${disabled ? ' disabled' : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(text)}</span></ui-menu-radio-item>`).join('')}</ui-menu-radio-group>`;
+// A radio group: [[value, label, {detail}]…]; `value` is the chosen one. `detail` is a quiet second line (a modified
+// time). Radio items stay open as they change (menu.md); `closeOnSelect` makes a choice close the menu, for a group
+// that picks what to show rather than a setting.
+export function menuRadioGroup(name, label, options, value, {disabled = false, title = '', closeOnSelect = false} = {}) {
+  return `<ui-menu-radio-group name="${esc(name)}" value="${esc(value)}"${title ? ` title="${esc(title)}"` : ''}>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${options.map(([v, text, {detail = ''} = {}]) => `<ui-menu-radio-item class="tk-mi${detail ? ' tk-mi2' : ''}" value="${esc(v)}"${disabled ? ' disabled' : ''}${closeOnSelect ? ' close-on-select' : ''}${detail ? ` label="${esc(text)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(text)}${detail ? `<small>${esc(detail)}</small>` : ''}</span></ui-menu-radio-item>`).join('')}</ui-menu-radio-group>`;
 }
 export function menuGroup(label, items) {
   return `<ui-menu-group>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${items}</ui-menu-group>`;
@@ -142,15 +144,17 @@ if (typeof document !== 'undefined') document.addEventListener('pointerdown', ev
 // ladders and command keys step aside for it: the popup's own handlers (Escape peels one layer, typeahead, arrows)
 // run after them. widgetOwnsKey() (ui-sdk.js) covers the board command keys; this narrower check is for handlers that
 // must keep their keys in non-popup dialogs such as the Inspector.
-export function inPopup(event) {
-  // Escape with a tooltip showing belongs to the tooltip: it closes only the tooltip (tooltip.md § Keyboard).
-  if (event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
-  const target = event?.target instanceof Element ? event.target : document.activeElement;
+export function inPopup(event, {tooltips = true} = {}) {
+  // Escape with a tooltip showing belongs to the tooltip: it closes only the tooltip (tooltip.md § Keyboard). A handler
+  // whose Escape already did its job before the SDK's (the drawn-object bar's panels) passes tooltips: false.
+  if (tooltips && event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
+  // (Loads under node for the unit tests, which pass plain objects for events and the document.)
+  const target = typeof Element !== 'undefined' && event?.target instanceof Element ? event.target : event?.target?.closest ? event.target : globalThis.document?.activeElement;
   if (target?.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])')) return true;
   // The trigger of a popup that has just opened: focus moves into it a frame later, and a key pressed in that frame
   // (Escape right after a click) still belongs to the popup, whose layer takes it.
   const controls = target?.closest?.('[aria-expanded="true"][aria-controls]')?.getAttribute('aria-controls');
-  return !!(controls && document.getElementById(controls)?.matches('[data-slot$="-content"][data-open]'));
+  return !!(controls && globalThis.document?.getElementById?.(controls)?.matches('[data-slot$="-content"][data-open]'));
 }
 
 // A menu or popover trigger inside a horizontal ui-toolbar opens on ArrowDown (the toolbar norm: arrows along the bar
@@ -198,7 +202,8 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   const content = target?.closest('ui-popover-content[data-open],ui-dialog-content[data-open]:not([aria-modal="true"])');
   // The popup's root (in a sheet the content sits inside the root's viewport, not directly in it).
   const host = content?.closest('ui-popover,ui-dialog');
-  if (!content || !host || host.parentElement !== document.body) return;
+  // At the end of <body>, or at the end of the modal reader dialog that hosts it (its % popover).
+  if (!content || !host || (host.parentElement !== document.body && !host.parentElement?.closest('dialog'))) return;
   if (content.getAttribute('aria-modal') === 'true' || host.getAttribute('modal') === 'true' || host.getAttribute('modal') === 'trap-focus') return;
   const trigger = triggerOf(content);
   if (!trigger) return;

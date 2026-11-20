@@ -16,8 +16,9 @@
 // (inPopup in popups.js).
 
 const TABBABLE = 'a[href],button,input,select,textarea,iframe,summary,[tabindex],[contenteditable=""],[contenteditable="true"]';
-// Containers inside the reader that keep their own Tab: a nested modal dialog traps it, a menu closes on it.
-const OWN_TAB = 'dialog,[aria-modal="true"],ui-alert-dialog-content,ui-menu-content,ui-select-content,[role="menu"],[role="listbox"]';
+// Containers inside the reader that keep their own Tab: a nested modal dialog traps it, a menu closes on it, a popover
+// (the % popover) walks out to its trigger's next control (popups.js).
+const OWN_TAB = 'dialog,[aria-modal="true"],ui-alert-dialog-content,ui-menu-content,ui-popover-content,ui-select-content,[role="menu"],[role="listbox"]';
 
 export function tabStops(root) {
   return [...root.querySelectorAll(TABBABLE)].filter(element => {

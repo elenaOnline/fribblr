@@ -45,12 +45,14 @@ try{
   await page.goto(base+'/');await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   // Home's Appearance is a menu (fribblr): one button opening the Mode and Background rows.
-  const homeMode=async name=>{const menu=page.getByRole('button',{name:'Appearance',exact:true});if(await menu.getAttribute('aria-expanded')!=='true')await menu.click();return page.getByRole('radiogroup',{name:'Appearance mode'}).getByRole('radio',{name,exact:true});};
+  const homeMode=async name=>{const menu=page.getByRole('button',{name:'Appearance',exact:true});if(await menu.getAttribute('aria-expanded')!=='true')await menu.click();return page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name,exact:true});};
+  // Home's Appearance is a UI SDK menu: Mode is a group of radio items (aria-checked).
   assert.equal(await (await homeMode('Light')).getAttribute('aria-checked'),'true');
   await (await homeMode('Dark')).click();
   await page.reload();await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'dark');
   assert.equal(await (await homeMode('Dark')).getAttribute('aria-checked'),'true');
+  await page.keyboard.press('Escape');
   await page.screenshot({path:path.join(evidence,'home-dark.png')});
   // Preview launch buttons cover the artwork. Their hover backgrounds must
   // remain translucent in both appearances, including the legacy viewer.
@@ -117,7 +119,7 @@ try{
   await openItemDetails(page.locator(`[data-placement="${placements.town}"] [data-item-controls]`));await page.screenshot({path:path.join(evidence,'item-popup-dark-narrow.png')});await page.locator('[data-context-close]').click();
   await page.getByRole('button',{name:'Navigator',exact:true}).click();await page.locator('#project-navigator').waitFor({state:'visible'});await page.getByText('Loading project boards…',{exact:true}).waitFor({state:'hidden'});await check('.navigator-status','#project-navigator');
   await page.screenshot({path:path.join(evidence,'navigator-dark-narrow.png')});await page.keyboard.press('Escape');
-  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('radiogroup',{name:'Appearance mode'}).getByRole('radio',{name:'System'}).getAttribute('aria-checked'),'true');
+  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name:'System'}).getAttribute('aria-checked'),'true');
   assert.deepEqual(errors,[]);
   await writeFile(path.join(evidence,'appearance-report.json'),JSON.stringify({passed:true,contrasts,checks:['system/light/dark persistence','mixed building and review cards','explicit white and dark paper','popup field text and boundary','authored media retains source colors','home and navigator','normal and narrow'],errors},null,2));
   console.log(JSON.stringify({passed:true,evidence,contrasts,errors}));

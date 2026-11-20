@@ -116,12 +116,12 @@ try{
  await page.mouse.move(region.x+50,region.y+70);await page.mouse.down();await page.mouse.move(region.x+180,region.y+140,{steps:4});await page.locator('#workspace-marquee').waitFor();await page.keyboard.press('Escape');await page.mouse.up();assert.equal((await snapshot()).revision,regionRevision);
  await page.screenshot({path:path.join(evidence,'whiteboard-wide.png')});
  // Human Add menu creates the compact flowchart preset, using scoped metadata.
- await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('[data-add=ellipse]').click();
+ await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('#workspace-add-menu [data-add=ellipse]').click();
  await page.locator('.whiteboard-editor textarea').waitFor();await page.keyboard.press('Escape');assert.ok(await eventually(async()=>(await snapshot()).decorations.some(d=>d.shape==='ellipse'&&d.type==='region'),Boolean));
  // Keyboard-reachable actions fit at a narrow width and ordinary objects resize at their outline.
  await page.setViewportSize({width:390,height:844});await page.locator('[data-decoration=sticky]').scrollIntoViewIfNeeded();
  await page.locator('[data-decoration=sticky]').focus();await page.keyboard.press('Enter');
- const menu=page.locator('.whiteboard-menu');await menu.waitFor();
+ const menu=page.locator('.whiteboard-menu:not([data-slot])');await menu.waitFor();
  assert.equal(await menu.getByText("Position & size", {exact:false}).count(),0);
  const bounds=await menu.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=391);await page.screenshot({path:path.join(evidence,'whiteboard-narrow.png')});await page.keyboard.press('Escape');
  await op({type:'removeDecoration',decorationId:'decision'});await page.reload();await page.locator('.whiteboard-detached').first().waitFor();assert.equal(await page.evaluate(()=>document.querySelector('.whiteboard-detached')?.textContent),'Detached');

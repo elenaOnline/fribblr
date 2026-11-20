@@ -17,7 +17,7 @@ import {mountPresetScrub} from './preset-scrub.js';
 import {announce, decorationLabel, sdkCore} from './board-focus.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tips} from './tips.js';
-import {openOnArrowDown} from './popups.js';
+import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -231,6 +231,7 @@ export class Whiteboard {
     this.menu.setAttribute('role','menu'); this.menu.setAttribute('aria-label','Object actions');
     this.hint=document.createElement('div'); this.hint.className='whiteboard-connect-hint'; this.hint.hidden=true;
     this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.menu,this.hint);
+    this.mountPopups();
     followVisibility(this.toolbar);
     // The bar draws what is pressed from the object itself: cancel a toggle's own flip (the SDK reports it in the capture
     // phase, the events don't bubble) and let the action's save re-render the bar.
@@ -427,7 +428,7 @@ export class Whiteboard {
     const sizeGlyph=icon('<path d="M2 12l2.5-6L7 12M3 10h3m2 2 3-8 3 8m-5-2.5h4"/>');
     const size=key=>button(key,'Text size',sizeGlyph,{extra:popup(key)});
     const more=this.objectMenuActions(list).length?button('more','More options',icon(icons.more),{
-      extra:` aria-haspopup="menu" aria-expanded="${!this.menu.hidden&&!this.appearance&&!this.containerLayout}"`,
+      extra:` aria-haspopup="menu" aria-expanded="${this.moreOpen}"`,
     }):'';
     const pending=draft?.pending?'<span class="whiteboard-bar-status" role="status">Saving…</span>':'';
     if(!multi&&first.container){
@@ -566,15 +567,55 @@ export class Whiteboard {
     }
     return actions;
   }
-  openMenu() {
-    const actions=this.objectMenuActions(this.selectedDecorations());
+  // The bar's More and the container's More options are UI SDK popups at the end of <body> (popups.js), opened from
+  // code: the bar is rebuilt as the selection saves, so they anchor to whatever button or bar is current and return
+  // focus to it. More holds actions only, so it is a Menu (typeahead, arrows, Escape returns to More); the container's
+  // options hold spacing fields and column choices, so they are a Popover (Tab walks through them and out).
+  mountPopups() {
+    const more=this.moreUI=sharedMenu({id:'whiteboard-more-menu',label:'Object actions',className:'whiteboard-more-menu'});
+    more.content.setAttribute('align','end');more.content.setAttribute('side-offset','7');more.content.setAttribute('collision-padding','8');
+    more.root.addEventListener('openchange',e=>this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded',String(e.detail.value)));
+    more.root.addEventListener('action',e=>this.runMore(e.detail.value,more.root.api.getPayload()));
+    const layout=this.layoutUI=sharedPopover({id:'whiteboard-container-popover',label:'Container options',className:'whiteboard-menu whiteboard-container-layout'});
+    layout.content.setAttribute('align','center');layout.content.setAttribute('side-offset','7');layout.content.setAttribute('collision-padding','8');
+    // Tab from its last control goes on from the More options button (popups.js), which the bar may have rebuilt.
+    layout.content.tabTrigger=()=>this.toolbar.querySelector('[data-whiteboard-action=container-layout]');
+    layout.root.addEventListener('openchange',e=>{
+      if(e.detail.value)return;
+      // Closing completes a valid in-progress numeric edit (container-layout.js), whatever closed it.
+      const held=this.containerLayout;this.containerLayout=null;held?.destroy({commit:true});
+      this.toolbar.querySelector('[data-whiteboard-action=container-layout]')?.setAttribute('aria-expanded','false');
+    });
+    layout.root.addEventListener('openchangecomplete',e=>{
+      if(e.detail.value)return;
+      layout.content.replaceChildren();
+      // Escape or Tab back: focus returns to the button that opened it, as rebuilt by the bar.
+      if(document.activeElement===document.body||!document.activeElement)this.toolbar.querySelector('[data-whiteboard-action=container-layout]')?.focus({preventScroll:true});
+    });
+  }
+  get moreOpen() { return !!this.moreUI?.root.open; }
+  // The bar's popups stay on the canvas, below the header, as upstream's placement kept them (the SDK takes one
+  // padding for every window edge, so the canvas's top sets it).
+  popupPadding() { return String(Math.max(8,Math.round((document.getElementById('viewport')?.getBoundingClientRect().top||0)+8))); }
+  openMenu(event) {
+    const list=this.selectedDecorations(),actions=this.objectMenuActions(list);
     if(!actions.length)return false;
-    this.menu.innerHTML=actions.map(([action,label])=>`<button type="button" role="menuitem" data-whiteboard-action="${action}">${label}</button>`).join('');
-    this.menu.hidden=false;
-    this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','true');
-    this.positionMenu();
-    this.menu.querySelector('button')?.focus({preventScroll:true});
+    const more='.whiteboard-toolbar [data-whiteboard-action="more"]';
+    this.moreUI.content.innerHTML=actions.map(([action,label])=>menuItem(action,label,{attrs:`data-whiteboard-more="${action}"`})).join('');
+    // Away from the object, as the bar is: above a bar that sits above it, else below.
+    this.moreUI.content.setAttribute('side',this.toolbarSide==='top'?'top':'bottom');
+    this.moreUI.content.setAttribute('collision-padding',this.popupPadding());
+    const anchor={getBoundingClientRect:()=>(document.querySelector(more)||this.toolbar).getBoundingClientRect()};
+    openMenu(this.moreUI.root,{anchor,event,payload:list.map(d=>d.id),returnTo:more});
     return true;
+  }
+  closeMore() { if(this.moreOpen)this.moreUI.root.api.close({reason:'imperative'}); }
+  async runMore(action,ids=[]) {
+    const id=ids[0];if(!id)return;
+    if(action==='edit'){this.edit(id);return;}
+    if(action==='fit-text'){try{await this.fitText(id);}catch(error){showFailure(error);}return;}
+    if(action==='select-section'){this.host.selectSection(id);return;}
+    if(action==='container-detach'){this.commitEdit({focus:false});try{await this.detachContainerChild(id);}catch(error){showFailure(error);}}
   }
   renderObjectFormat(session) {
     if(this.appearance!==session)return;
@@ -737,12 +778,19 @@ export class Whiteboard {
     this.appearance.focus();
   }
   closeMenu({focus=false,commit=true}={}) {
-    const appearance=this.appearance, layout=this.containerLayout;
-    const trigger=appearance?.trigger||(layout?'container-layout':'more');
-    if(appearance||layout){
-      this.appearance=this.containerLayout=null;
-      if(appearance)appearance.destroy({commit});else layout.destroy({commit});
-      this.menu.classList.remove('whiteboard-text-appearance','whiteboard-container-layout');
+    this.closeMore();
+    if(this.layoutUI?.root.open){
+      const held=this.containerLayout;this.containerLayout=null;held?.destroy({commit});
+      this.layoutUI.root.api.close({reason:'imperative'});
+      if(focus)this.toolbar?.querySelector('[data-whiteboard-action=container-layout]')?.focus({preventScroll:true});
+      return;
+    }
+    const appearance=this.appearance;
+    const trigger=appearance?.trigger||'more';
+    if(appearance){
+      this.appearance=null;
+      appearance.destroy({commit});
+      this.menu.classList.remove('whiteboard-text-appearance');
       this.menu.setAttribute('role','menu');
       this.menu.setAttribute('aria-label','Object actions');
       this.menu.replaceChildren();
@@ -771,11 +819,11 @@ export class Whiteboard {
     const control=e.target.closest('[data-whiteboard-action]'),action=control?.dataset.whiteboardAction;if(!action)return;
     e.preventDefault();e.stopPropagation();
     if(action==='more'){
-      if(this.appearance||this.containerLayout){this.closeMenu();this.openMenu();}
-      else this.menu.hidden?this.openMenu():this.closeMenu({focus:true});
+      if(this.moreOpen){this.closeMore();return;}
+      this.closeMenu();this.openMenu(e);
       return;
     }
-    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control);return;}
+    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control,e);return;}
     if(action==='close-format'){this.closeMenu({focus:true});return;}
     if(action==='drawing-color'||action==='caption-size'){
       const objects=this.selectedDecorations(), open=this.appearance?.trigger===action;
@@ -799,8 +847,8 @@ export class Whiteboard {
       return;
     }
     if(action==='container-layout'){
-      if(this.containerLayout)this.closeMenu({focus:true});
-      else this.configureContainer(this.find());
+      if(this.layoutUI?.root.open)this.closeMenu({focus:true});
+      else this.configureContainer(this.find(),e);
       return;
     }
     if(action==='container-mode'){
@@ -981,24 +1029,25 @@ export class Whiteboard {
     await this.saveMany(this.host.snapshot.decorations.map(entry=>entry.id===id?{...entry,x}:
       entry.id===parent.id?{...entry,container:{...parent.container,children}}:entry));
   }
-  configureContainer(parent) {
+  configureContainer(parent,event) {
     if(!parent?.container)return;
     this.closeMenu();
     const trigger=this.toolbar.querySelector('[data-whiteboard-action=container-layout]');
-    this.menu.classList.add('whiteboard-container-layout');
-    this.menu.setAttribute('role','dialog');
-    this.menu.setAttribute('aria-label','Container options');
-    this.menu.hidden=false;
+    const {root,content}=this.layoutUI;
     const draft=this.containerLayoutDrafts?.get(parent.id);
-    this.containerLayout=mountContainerLayout(this.menu,parent.container,{
+    this.containerLayout=mountContainerLayout(content,parent.container,{
       draft:draft?.pending,failedDraft:draft?.failed,
       save:fields=>this.saveContainerLayout(parent.id,fields),
       preview:patch=>this.previewLayoutSpacing(parent.id,patch),
-      reposition:()=>this.positionMenu(),
+      reposition:()=>{},
       report:error=>toast(`Container layout could not be saved. Open More to retry. ${error.message}`),
     });
+    // Centred on the bar, away from the container, as the bar's other panels are.
+    content.setAttribute('side',this.toolbarSide==='top'?'top':'bottom');
+    content.setAttribute('collision-padding',this.popupPadding());
     trigger?.setAttribute('aria-expanded','true');
-    this.containerLayout.focus();
+    root.api.open({anchor:{getBoundingClientRect:()=>this.toolbar.getBoundingClientRect()}});
+    requestAnimationFrame(()=>{if(root.open&&this.containerLayout&&!content.contains(document.activeElement))this.containerLayout.focus();});
   }
   previewLayoutSpacing(id,patch) {
     if(patch===null){
@@ -1264,10 +1313,10 @@ export class Whiteboard {
   down(e) {
     this.suppressClick=false;
     if(this.host.panTool&&e.target.closest('#viewport'))return;
-    const own=e.target.closest('.whiteboard-toolbar,.whiteboard-menu,.whiteboard-editor,.whiteboard-draft-state');
+    const own=e.target.closest('.whiteboard-toolbar,.whiteboard-menu,.whiteboard-more-menu,.whiteboard-editor,.whiteboard-draft-state');
     if(this.editor&&!own&&!e.target.closest(selector(this.editor.id)))this.commitEdit({focus:false});
     const menuLauncher=e.target.closest('[data-whiteboard-action]')?.dataset.whiteboardAction;
-    if(!e.target.closest('.whiteboard-menu')&&!['more','text-appearance','text-size','text-ink','drawing-color','caption-size','container-layout'].includes(menuLauncher))this.closeMenu();
+    if(!e.target.closest('.whiteboard-menu,.whiteboard-more-menu')&&!['more','text-appearance','text-size','text-ink','drawing-color','caption-size','container-layout'].includes(menuLauncher))this.closeMenu();
     if(this.drag){if(e.pointerId!==this.drag.pointerId)this.cancel();return;}
     if(own)return;
     const port=e.target.closest('[data-port]'),element=e.target.closest('[data-decoration]');
@@ -1502,10 +1551,6 @@ export class Whiteboard {
       restoreFocus(this.editor.previewing?this.editor.preview:this.editor.textarea);return;
     }
     // Arrows, Home and End on the bar belong to ui-toolbar: one Tab stop, focus moves along the buttons.
-    if(e.target.closest('.whiteboard-menu')&&!this.appearance&&!this.containerLayout&&!e.target.closest('input,select,textarea')) {
-      const buttons=[...this.menu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
-      if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}
-    }
     const group=e.target.closest('[data-decoration]');
     if(group&&!e.target.closest('input,textarea,select,[contenteditable],button,[role=button],.whiteboard-editor')&&!document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)&&!e.altKey&&!e.metaKey&&!e.ctrlKey){
       // Enter on a container goes in among its contents (board-focus.js); an empty one opens its options.

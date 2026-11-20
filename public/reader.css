@@ -55,6 +55,10 @@
 }
 .reader-file-version-detail strong { color: var(--ink); font-size: var(--type-meta); font-weight: 500; }
 .reader-file-version-detail time { white-space: nowrap; }
+/* the name and time are one button that lists every version (a menu button, canvas.js): a quiet key, no frame of its own */
+button.reader-file-version-detail { margin: 0; padding: 5px 8px; border: 0; border-radius: var(--shape-cell); background: transparent; cursor: pointer; }
+button.reader-file-version-detail:hover, button.reader-file-version-detail[aria-expanded="true"] { background: var(--hover); }
+button.reader-file-version-detail > span { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 8px; }
 /* A changed source offers a reload at the top of the canvas, never crowding the header. */
 #reader-dialog #reader-update.reader-update {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 24px);

@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tinka</title>
   <script src="/app/appearance-boot.js"></script>
-  <link rel="stylesheet" href="/app/ui-sdk.css"><link rel="stylesheet" href="/app/popups.css"><link rel="stylesheet" href="/app/canvas.css">
+  <link rel="stylesheet" href="/app/ui-sdk.css"><link rel="stylesheet" href="/app/canvas.css">
   <link rel="stylesheet" href="/app/live.css">
   <link rel="stylesheet" href="/app/agent-prompt.css">
   <link rel="stylesheet" href="/app/preset-scrub.css">
-<link rel="stylesheet" href="/app/workspace.css"><link rel="stylesheet" href="/app/navigator.css"><link rel="stylesheet" href="/app/appearance.css"><link rel="stylesheet" href="/app/tokens.css"><link rel="stylesheet" href="/app/calm.css"><link rel="stylesheet" href="/app/depth.css"><link rel="stylesheet" href="/app/reader.css"><link rel="stylesheet" href="/app/update-notice.css"><link rel="stylesheet" href="/app/legend.css"><link rel="icon" href="/app/mark.svg" type="image/svg+xml"></head>
+<link rel="stylesheet" href="/app/workspace.css"><link rel="stylesheet" href="/app/navigator.css"><link rel="stylesheet" href="/app/appearance.css"><link rel="stylesheet" href="/app/tokens.css"><link rel="stylesheet" href="/app/calm.css"><link rel="stylesheet" href="/app/depth.css"><link rel="stylesheet" href="/app/reader.css"><link rel="stylesheet" href="/app/update-notice.css"><link rel="stylesheet" href="/app/legend.css"><link rel="stylesheet" href="/app/popups.css"><link rel="icon" href="/app/mark.svg" type="image/svg+xml"></head>
 <body>
   <header id="canvas-header" class="canvas-header">
     <nav class="identity" aria-label="Board navigation">
@@ -42,19 +42,7 @@
     <ui-toolbar class="view-tools zoom-pill" aria-label="Board view controls">
       <ui-toolbar-button><button id="zoom-minus" class="tk-btn tk-icon" type="button" aria-label="Zoom out" aria-keyshortcuts="Minus" data-tip="Zoom out"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10"/></svg></button></ui-toolbar-button>
       <span class="zoom-menu-wrap">
-        <ui-toolbar-button><button id="zoom-menu-toggle" class="tk-btn zoom-percent" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="zoom-menu" data-tip="Zoom and pattern">50%</button></ui-toolbar-button>
-        <div id="zoom-menu" class="tk-menu zoom-menu" role="group" aria-label="Zoom and pattern" hidden>
-          <button class="tk-mi" type="button" data-zoom-to="0.5">Zoom to 50%</button>
-          <button class="tk-mi" type="button" data-zoom-to="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
-          <button class="tk-mi" type="button" data-zoom-to="1.25">Zoom to 125%</button>
-          <label class="zoom-slider-row"><span>Zoom</span><input id="zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Board zoom" aria-valuetext="50 percent"></label>
-          <div class="tk-msep"></div>
-          <button class="tk-mi" type="button" data-zoom-to="fit" aria-keyshortcuts="Shift+1">Fit board</button>
-          <button class="tk-mi" type="button" data-zoom-to="selection" aria-keyshortcuts="Shift+2" hidden>Fit selection</button>
-          <div class="tk-msep"></div>
-          <div class="tk-mlabel" id="canvas-pattern-label">Pattern · this board</div>
-          <ui-segmented-control class="tk-seg canvas-pattern" aria-labelledby="canvas-pattern-label" default-value="plain"><ui-segmented-control-item value="dots" data-canvas-pattern="dots">Dots</ui-segmented-control-item><ui-segmented-control-item value="grid" data-canvas-pattern="grid">Grid</ui-segmented-control-item><ui-segmented-control-item value="plain" data-canvas-pattern="plain">Plain</ui-segmented-control-item></ui-segmented-control>
-        </div>
+        <ui-toolbar-button><ui-popover-trigger for="zoom-popover"><button id="zoom-menu-toggle" class="tk-btn zoom-percent" type="button" data-tip="Zoom and pattern">50%</button></ui-popover-trigger></ui-toolbar-button>
       </span>
       <ui-toolbar-button><button id="zoom-plus" class="tk-btn tk-icon" type="button" aria-label="Zoom in" aria-keyshortcuts="Plus" data-tip="Zoom in"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10"/></svg></button></ui-toolbar-button>
       <span class="tk-divider" aria-hidden="true"></span>
@@ -64,6 +52,22 @@
     </ui-toolbar>
     <span id="view-announce" class="sr-only" role="status" aria-live="polite"></span>
   </footer>
+  <!-- The zoom popover: zoom choices, a slider and the pattern control, so a Popover (a menu holds only items). Outside
+       the pill, which is a toolbar: popup events bubble to their DOM ancestors (popups.js). -->
+  <ui-popover id="zoom-popover" class="board-zoom-popover">
+    <ui-popover-content id="zoom-menu" class="tk-menu zoom-menu" aria-label="Zoom and pattern" side="top" align="end" align-offset="-40" side-offset="10" collision-padding="8">
+      <button class="tk-mi" type="button" data-zoom-to="0.5">Zoom to 50%</button>
+      <button class="tk-mi" type="button" data-zoom-to="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
+      <button class="tk-mi" type="button" data-zoom-to="1.25">Zoom to 125%</button>
+      <label class="zoom-slider-row"><span>Zoom</span><input id="zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Board zoom" aria-valuetext="50 percent"></label>
+      <div class="tk-msep"></div>
+      <button class="tk-mi" type="button" data-zoom-to="fit" aria-keyshortcuts="Shift+1">Fit board</button>
+      <button class="tk-mi" type="button" data-zoom-to="selection" aria-keyshortcuts="Shift+2" hidden>Fit selection</button>
+      <div class="tk-msep"></div>
+      <div class="tk-mlabel" id="canvas-pattern-label">Pattern · this board</div>
+      <ui-segmented-control class="tk-seg canvas-pattern" aria-labelledby="canvas-pattern-label" default-value="plain"><ui-segmented-control-item value="dots" data-canvas-pattern="dots">Dots</ui-segmented-control-item><ui-segmented-control-item value="grid" data-canvas-pattern="grid">Grid</ui-segmented-control-item><ui-segmented-control-item value="plain" data-canvas-pattern="plain">Plain</ui-segmented-control-item></ui-segmented-control>
+    </ui-popover-content>
+  </ui-popover>
   <dialog id="reader-dialog" aria-labelledby="reader-name">
     <header id="reader-header" class="reader-header">
       <nav class="identity" aria-label="Where you are">
@@ -71,9 +75,9 @@
         <a class="brand" id="reader-home" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="reader-project">Home</span></a>
         <a id="close-reader" class="workspace-parent reader-up" href="#" aria-keyshortcuts="Escape Alt+ArrowUp" title="Up to the board (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg><span id="reader-up-label" class="reader-up-label">Board</span></a>
         <span class="reader-title-row">
-          <button id="reader-path" class="reader-path" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop" title="Where you are: hover or click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button>
+          <ui-menu-trigger for="reader-path-menu"><button id="reader-path" class="reader-path" type="button" title="Where you are: click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button></ui-menu-trigger>
           <button id="reader-down" class="tk-btn reader-down" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5"/></svg><span id="reader-down-label">Board</span></button>
-          <ui-pagination id="reader-stepper" class="reader-stepper" aria-label="Step through this board" page="1" page-count="1" hidden><ui-pagination-list class="reader-stepper-list"><ui-pagination-item><ui-pagination-previous><button id="reader-previous" class="tk-btn tk-icon" type="button" aria-label="Previous Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button></ui-pagination-previous></ui-pagination-item><ui-pagination-item><button id="reader-count" class="tk-btn reader-count" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop">1 / 1</button></ui-pagination-item><ui-pagination-item><ui-pagination-next><button id="reader-next" class="tk-btn tk-icon" type="button" aria-label="Next Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></ui-pagination-next></ui-pagination-item></ui-pagination-list></ui-pagination>
+          <ui-pagination id="reader-stepper" class="reader-stepper" aria-label="Step through this board" page="1" page-count="1" hidden><ui-pagination-list class="reader-stepper-list"><ui-pagination-item><ui-pagination-previous><button id="reader-previous" class="tk-btn tk-icon" type="button" aria-label="Previous Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button></ui-pagination-previous></ui-pagination-item><ui-pagination-item><ui-menu-trigger for="reader-path-menu"><button id="reader-count" class="tk-btn reader-count" type="button">1 / 1</button></ui-menu-trigger></ui-pagination-item><ui-pagination-item><ui-pagination-next><button id="reader-next" class="tk-btn tk-icon" type="button" aria-label="Next Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></ui-pagination-next></ui-pagination-item></ui-pagination-list></ui-pagination>
         </span>
       </nav>
       <ui-toolbar class="chrome-actions" aria-label="Tinka actions">
@@ -84,10 +88,11 @@
     </header>
     <div id="reader-file-versions" role="group" aria-label="File versions" hidden>
       <button id="reader-older-file" class="tk-btn tk-icon" type="button" aria-label="Previous version"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button>
-      <span class="reader-file-version-detail" role="status"><strong id="reader-file-version-name"></strong><time id="reader-file-version-modified"></time></span>
+      <ui-menu-trigger for="reader-version-menu"><button id="reader-file-version-choose" class="reader-file-version-detail" type="button" title="Choose a version"><span role="status"><strong id="reader-file-version-name"></strong> <time id="reader-file-version-modified"></time></span></button></ui-menu-trigger>
       <button id="reader-newer-file" class="tk-btn tk-icon" type="button" aria-label="Next version"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
     </div>
-    <div id="reader-path-pop" class="reader-path-pop" role="dialog" aria-modal="false" aria-label="Where you are" hidden></div>
+    <ui-menu id="reader-version-menu"><ui-menu-content id="reader-version-list" class="tk-menu file-version-menu" aria-label="Versions" align="center" side-offset="6" collision-padding="8"></ui-menu-content></ui-menu>
+    <ui-menu id="reader-path-menu"><ui-menu-content id="reader-path-pop" class="tk-menu reader-path-pop" aria-label="Where you are" align="start" side-offset="6" collision-padding="8"></ui-menu-content></ui-menu>
     <ui-dialog id="reader-info-dialog"><ui-dialog-content id="reader-info" class="reader-info calm-side calm-side-right" inline aria-labelledby="reader-info-name" hidden></ui-dialog-content></ui-dialog>
     <div class="reader-area">
       <div class="reader-main">
@@ -97,28 +102,7 @@
           <ui-toolbar class="view-tools zoom-pill" aria-label="Tinka view controls">
             <ui-toolbar-button><button id="reader-zoom-minus" class="tk-btn tk-icon" type="button" aria-label="Zoom out" aria-keyshortcuts="Minus" data-tip="Zoom out"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10"/></svg></button></ui-toolbar-button>
             <span class="zoom-menu-wrap">
-              <ui-toolbar-button><button id="reader-zoom-toggle" class="tk-btn zoom-percent" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="reader-zoom-menu" data-tip="Zoom and view: window, version, light, type size">100%</button></ui-toolbar-button>
-              <div id="reader-zoom-menu" class="tk-menu zoom-menu reader-zoom-menu" role="group" aria-label="Zoom and view" hidden>
-                <button class="tk-mi" type="button" data-reader-zoom="0.5">Zoom to 50%</button>
-                <button class="tk-mi" type="button" data-reader-zoom="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
-                <button class="tk-mi" type="button" data-reader-zoom="2">Zoom to 200%</button>
-                <label class="zoom-slider-row"><span>Zoom</span><input id="reader-zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Tinka zoom"></label>
-                <button class="tk-mi" type="button" data-reader-zoom="fit" aria-keyshortcuts="F">Fit this Tinka</button>
-                <div class="tk-msep"></div>
-                <div id="size-menu" class="reader-menu-group" role="group" aria-labelledby="reader-window-label">
-                  <div class="tk-mlabel" id="reader-window-label">Window</div>
-                  <ui-segmented-control class="tk-seg reader-sizes" aria-labelledby="reader-window-label" default-value="fit"><ui-segmented-control-item value="fit" data-size="fit" data-tip="Fills the stage">Fit</ui-segmented-control-item><ui-segmented-control-item value="compact" data-size="compact" data-tip="440 × 620">Compact</ui-segmented-control-item><ui-segmented-control-item value="standard" data-size="standard" data-tip="1000 × 720">Standard</ui-segmented-control-item><ui-segmented-control-item value="wide" data-size="wide" data-tip="1380 × 840">Wide</ui-segmented-control-item></ui-segmented-control>
-                  <button type="button" class="tk-mi reader-custom-size" data-size="custom" aria-pressed="false" hidden><span>Custom</span><small id="custom-size"></small></button>
-                  <p class="reader-menu-hint">Drag the window's lower-right corner for a custom size.</p>
-                  <div id="revision-group" class="revision-group" role="group" aria-labelledby="revision-label" hidden><div class="tk-mlabel" id="revision-label">Version</div><div id="revision-options"></div></div>
-                </div>
-                <div class="tk-msep"></div>
-                <div class="tk-mlabel" id="reader-light-label" title="Light and Type size apply to documents and media Tinka shows; prototypes keep their own look">Light</div>
-                <ui-segmented-control class="tk-seg reader-light" aria-labelledby="reader-light-label" default-value="paper"><ui-segmented-control-item value="paper" data-reader-light="paper">Paper</ui-segmented-control-item><ui-segmented-control-item value="night" id="reader-theme" data-reader-light="night">Night</ui-segmented-control-item></ui-segmented-control>
-                <label class="reader-type-row"><span class="tk-mlabel">Type size</span><span class="type-glyph small" aria-hidden="true">A</span><input id="reader-type" class="type-slider" type="range" min="100" max="130" step="15" value="100" aria-label="Type size"><span class="type-glyph large" aria-hidden="true">A</span></label>
-                <div class="tk-msep"></div>
-                <a id="reader-standalone" class="tk-mi standalone" href="#" target="_blank" rel="noopener noreferrer">Open standalone ↗</a>
-              </div>
+              <ui-toolbar-button><ui-popover-trigger for="reader-zoom-popover"><button id="reader-zoom-toggle" class="tk-btn zoom-percent" type="button" data-tip="Zoom and view: window, version, light, type size">100%</button></ui-popover-trigger></ui-toolbar-button>
             </span>
             <ui-toolbar-button><button id="reader-zoom-plus" class="tk-btn tk-icon" type="button" aria-label="Zoom in" aria-keyshortcuts="Plus" data-tip="Zoom in"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10"/></svg></button></ui-toolbar-button>
             <span class="tk-divider" aria-hidden="true"></span>
@@ -126,6 +110,31 @@
             <ui-toolbar-button><button id="reader-fit" class="fit tk-btn" type="button" aria-label="Fit this Tinka" aria-keyshortcuts="F Shift+1" data-tip="Fit this Tinka in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4"/></svg><span class="fit-label">Fit</span></button></ui-toolbar-button>
           </ui-toolbar>
         </footer>
+        <!-- The opened item's % popover: zoom, window and version, light, type size, standalone. Fields and segmented
+             controls, so a Popover (popups.js), outside the pill toolbar and inside the modal reader dialog. -->
+        <ui-popover id="reader-zoom-popover" class="reader-zoom-popover">
+          <ui-popover-content id="reader-zoom-menu" class="tk-menu zoom-menu reader-zoom-menu" aria-label="Zoom and view" side="top" align="end" align-offset="-40" side-offset="10" collision-padding="8">
+            <button class="tk-mi" type="button" data-reader-zoom="0.5">Zoom to 50%</button>
+            <button class="tk-mi" type="button" data-reader-zoom="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
+            <button class="tk-mi" type="button" data-reader-zoom="2">Zoom to 200%</button>
+            <label class="zoom-slider-row"><span>Zoom</span><input id="reader-zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Tinka zoom"></label>
+            <button class="tk-mi" type="button" data-reader-zoom="fit" aria-keyshortcuts="F">Fit this Tinka</button>
+            <div class="tk-msep"></div>
+            <div id="size-menu" class="reader-menu-group" role="group" aria-labelledby="reader-window-label">
+              <div class="tk-mlabel" id="reader-window-label">Window</div>
+              <ui-segmented-control class="tk-seg reader-sizes" aria-labelledby="reader-window-label" default-value="fit"><ui-segmented-control-item value="fit" data-size="fit" data-tip="Fills the stage">Fit</ui-segmented-control-item><ui-segmented-control-item value="compact" data-size="compact" data-tip="440 × 620">Compact</ui-segmented-control-item><ui-segmented-control-item value="standard" data-size="standard" data-tip="1000 × 720">Standard</ui-segmented-control-item><ui-segmented-control-item value="wide" data-size="wide" data-tip="1380 × 840">Wide</ui-segmented-control-item></ui-segmented-control>
+              <button type="button" class="tk-mi reader-custom-size" data-size="custom" aria-pressed="false" hidden><span>Custom</span><small id="custom-size"></small></button>
+              <p class="reader-menu-hint">Drag the window's lower-right corner for a custom size.</p>
+              <div id="revision-group" class="revision-group" role="group" aria-labelledby="revision-label" hidden><div class="tk-mlabel" id="revision-label">Version</div><div id="revision-options"></div></div>
+            </div>
+            <div class="tk-msep"></div>
+            <div class="tk-mlabel" id="reader-light-label" title="Light and Type size apply to documents and media Tinka shows; prototypes keep their own look">Light</div>
+            <ui-segmented-control class="tk-seg reader-light" aria-labelledby="reader-light-label" default-value="paper"><ui-segmented-control-item value="paper" data-reader-light="paper">Paper</ui-segmented-control-item><ui-segmented-control-item value="night" id="reader-theme" data-reader-light="night">Night</ui-segmented-control-item></ui-segmented-control>
+            <label class="reader-type-row"><span class="tk-mlabel">Type size</span><span class="type-glyph small" aria-hidden="true">A</span><input id="reader-type" class="type-slider" type="range" min="100" max="130" step="15" value="100" aria-label="Type size"><span class="type-glyph large" aria-hidden="true">A</span></label>
+            <div class="tk-msep"></div>
+            <a id="reader-standalone" class="tk-mi standalone" href="#" target="_blank" rel="noopener noreferrer">Open standalone ↗</a>
+          </ui-popover-content>
+        </ui-popover>
       </div>
       <aside id="notes-panel" class="notes-panel" aria-labelledby="notes-heading" hidden>
         <div class="notes-head"><div><h2 id="notes-heading">Notes</h2><p id="notes-for"></p></div><button id="notes-close" class="notes-close" type="button" aria-label="Close notes">×</button></div>

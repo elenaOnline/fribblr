@@ -89,9 +89,9 @@ a{color:inherit}
 /* Small status buttons keep a 44px hit area. */
 #live-refresh::after,#reader-update::after{content:'';position:absolute;inset:-12px -4px}
 .view-tools{display:flex;align-items:center;gap:4px;justify-content:flex-end;min-width:0;flex:none}
-.view-tools input[type=range]{width:200px;min-width:56px;height:44px;margin:0;accent-color:var(--mark-blue);cursor:pointer}
-.view-tools button{min-height:44px;min-width:44px;border-color:transparent;padding:8px 12px;font-size:12px;white-space:nowrap}
-:where(.view-tools button:hover){background:color-mix(in srgb,var(--ink) 5%,transparent)}
+:is(.view-tools,.zoom-menu) input[type=range]{width:200px;min-width:56px;height:44px;margin:0;accent-color:var(--mark-blue);cursor:pointer}
+:is(.view-tools,.zoom-menu) button{min-height:44px;min-width:44px;border-color:transparent;padding:8px 12px;font-size:12px;white-space:nowrap}
+:where(:is(.view-tools,.zoom-menu) button:hover){background:color-mix(in srgb,var(--ink) 5%,transparent)}
 .view-tools .fit{border-left:1px solid var(--line-hair);border-radius:0;padding-left:14px;margin-left:4px}
 .view-tools .fit:hover{border-radius:6px}
 

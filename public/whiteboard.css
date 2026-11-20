@@ -100,7 +100,7 @@ html[data-appearance="dark"] .workspace-decoration { --decoration-color:var(--de
 .whiteboard-draft-state button { min-height:32px; font-size:12px; padding:4px 8px; }
 .whiteboard-connect-hint { position:fixed; bottom:52px; left:50%; transform:translateX(-50%); padding:8px 14px; background:var(--ink); color:var(--ink-on-mark); border-radius:var(--shape-key);  font:var(--type-ui)/1.4 var(--type-sans); z-index:100021; pointer-events:none; max-width:calc(100vw - 32px); }
 .workspace-add-menu { max-height:calc(100vh - 20px); overflow-y:auto; }
-body:has(.workspace-add-menu) > :is(.whiteboard-toolbar,.whiteboard-menu) { visibility:hidden; }
+body:has(.workspace-add-menu[data-open]) > :is(.whiteboard-toolbar,.whiteboard-menu) { visibility:hidden; }
 @media(max-width:600px) { .whiteboard-toolbar { flex-wrap:wrap; } .whiteboard-toolbar button,.whiteboard-menu button { min-height:44px; } .whiteboard-edit-hint { flex-basis:100%; } }
 /* Formatted Markdown body for Text and Sticky decorations (deco-format.js). */
 .deco-body{display:block;max-width:100%;white-space:normal}.deco-body ul,.deco-body ol{margin:0;padding-left:1.3em;text-align:left}.deco-heading{font-size:1.3em;font-weight:600}.deco-body code{font-family:ui-monospace,monospace;font-size:.9em}

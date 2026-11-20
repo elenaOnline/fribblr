@@ -100,7 +100,9 @@ try {
   const menuOn=async id=>{await page.locator(`#world .workspace-card[data-placement="${id}"]`).click({button:'right'});await page.locator('.workspace-tile-menu').waitFor();};
   await menuOn(docPlacement);
   const edit=page.locator('.workspace-tile-menu [data-tile-menu="edit-document"]'),details=page.locator('.workspace-tile-menu [data-tile-menu="details"]'),dup=page.locator('.workspace-tile-menu [data-tile-menu="duplicate"]');
-  assert.deepEqual([await cap(edit),await cap(details),await cap(dup)],['E',cmd('I'),cmd('D')]);
+  // Menu rows (UI SDK Menu) print their key in the row's shortcut part (popups.js menuItem).
+  const menuCap=locator=>locator.locator('ui-menu-shortcut kbd').textContent();
+  assert.deepEqual([await menuCap(edit),await menuCap(details),await menuCap(dup)],['E',cmd('I'),cmd('D')]);
   assert.equal(await page.locator('.workspace-tile-menu kbd').count(),4,'three printed caps and the Open row\'s own ↵');
   await page.screenshot({path:path.join(evidence,'card-menu.png')});
   await page.keyboard.press('Escape');await settle();
@@ -113,15 +115,15 @@ try {
   // --- The Add menu: Text (T), Sticky note (S), Document (D) ---
   const snapshotCount=async()=>(await getBoardSnapshot(config,'g')).decorations.length;
   const items=async()=>(await getBoardSnapshot(config,'g')).placements.length;
-  await page.locator('#workspace-add').click();await page.locator('.workspace-add-menu').waitFor();
-  const rows=Object.fromEntries(await Promise.all(['text','sticky','document','sticker','region','container','arrow','idea','board'].map(async id=>[id,page.locator(`.workspace-add-menu [data-add="${id}"]`)])));
-  assert.deepEqual([await cap(rows.text),await cap(rows.sticky),await cap(rows.document)],['T','S','D']);
+  await page.locator('#workspace-add').click();await page.locator('#workspace-add-menu .workspace-add-menu').waitFor();
+  const rows=Object.fromEntries(await Promise.all(['text','sticky','document','sticker','region','container','arrow','idea','board'].map(async id=>[id,page.locator(`#workspace-add-menu [data-add="${id}"]`)])));
+  assert.deepEqual([await menuCap(rows.text),await menuCap(rows.sticky),await menuCap(rows.document)],['T','S','D']);
   for(const id of ['sticker','region','container','arrow','idea','board'])assert.equal(await rows[id].locator('kbd').count(),0,`${id} has no key, so no cap`);
   await page.screenshot({path:path.join(evidence,'add-menu.png')});
   await page.keyboard.press('Escape');await settle();
   for(const [id,key,read] of [['text','t',snapshotCount],['sticky','s',snapshotCount],['document','d',items]]){
     let n=await read();
-    await page.locator('#workspace-add').click();await page.locator(`.workspace-add-menu [data-add="${id}"]`).click();
+    await page.locator('#workspace-add').click();await page.locator(`#workspace-add-menu [data-add="${id}"]`).click();
     await until(read,n+1,`${id} by click`);await settle(500);await page.keyboard.press('Escape');await settle(600);
     n=await read();
     await onBoard();await page.keyboard.press(key);

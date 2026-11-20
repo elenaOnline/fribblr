@@ -1494,6 +1494,8 @@ body.navigator-docked .edit-tools { left:calc((100vw + var(--navigator-dock-widt
 .workspace-item-footer .workspace-file-versions > button:hover:not([aria-disabled="true"]) { background:var(--hover); color:var(--ink); }
 .workspace-file-versions > button[aria-disabled="true"] { opacity:.42; cursor:default; }
 .workspace-file-versions > button svg { width:14px; height:14px; }
+/* the name opens the list of versions (a menu button), so it is a quiet key too, as wide as its name */
+.workspace-item-footer .workspace-file-versions > button.workspace-file-version-name { width:auto; padding:0 4px; color:var(--ink); font:inherit; }
 @container tinka-card (max-width:122px) {
   .workspace-file-versions { margin-inline:2px; }
   .workspace-item-footer .workspace-file-versions > button { width:21px; }

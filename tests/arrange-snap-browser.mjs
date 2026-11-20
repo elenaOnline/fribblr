@@ -90,13 +90,16 @@ try{
     await page.mouse.click(1240,450);await page.keyboard.press(`${MOD}+a`);
     const arrange=page.locator('#workspace-selection [data-arrange-open]');
     await arrange.click();
-    const panel=page.getByRole('dialog',{name:'Arrange',exact:true});
-    assert.equal(await panel.getByRole('button').count(),9);
+    // A UI SDK menu: nine named items, a pointer open focuses the menu, the arrows walk down it, typeahead finds by name.
+    const panel=page.getByRole('menu',{name:'Arrange',exact:true});
+    assert.equal(await panel.getByRole('menuitem').count(),9);
     assert.equal(await arrange.getAttribute('aria-expanded'),'true');
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await panel.getByRole('button',{name:'Align centres'}).evaluate(button=>button===document.activeElement),true);
+    await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
+    assert.equal(await panel.getByRole('menuitem',{name:'Align centres'}).evaluate(item=>item===document.activeElement),true);
+    await page.keyboard.press('t');
+    assert.equal(await panel.getByRole('menuitem',{name:'Tidy into grid'}).evaluate(item=>item===document.activeElement),true,'typeahead finds an item by the start of its name');
     await page.keyboard.press('Escape');
-    await panel.waitFor({state:'detached'});
+    await panel.waitFor({state:'hidden'});
     assert.equal(await arrange.evaluate(button=>button===document.activeElement),true);
     await arrange.click();
     if(evidence)await page.screenshot({path:path.join(evidence,'arrange-menu.png')});
