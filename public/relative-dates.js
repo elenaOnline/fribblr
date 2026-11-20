@@ -86,6 +86,22 @@ export function timeHTML(value, { prefix = '', verb = '', now = new Date(), focu
   return `<time data-rel datetime="${escapeHTML(d.toISOString())}"${prefix ? ` data-prefix="${escapeHTML(prefix)}"` : ''}${verb ? ` data-verb="${escapeHTML(verb)}"` : ''} data-tip="${escapeHTML(title)}"${focusable ? ' tabindex="0"' : ''}>${escapeHTML(prefixed(prefix, relDate(d, now, opts)))}</time>`;
 }
 
+/** "Nov 3, 2026, 3:58 PM": the exact date in one short line, for a details list; '' for an invalid date. */
+export function exactShortDate(date, opts = {}) {
+  const d = toDate(date);
+  if (!d) return '';
+  const { locale, hc } = settings(opts);
+  return clean(fmt('dt', locale, { dateStyle: 'medium', timeStyle: 'short', ...hc }).format(d));
+}
+
+/** Escaped <time> markup that shows the exact date as its text (exactShortDate), with no tooltip and no Tab stop: where
+ *  the date is the information (an Inspector's Details), as Finder's Get Info shows it. '' when missing or invalid. */
+export function exactTimeHTML(value, opts = {}) {
+  const d = toDate(value);
+  if (!d) return '';
+  return `<time datetime="${escapeHTML(d.toISOString())}">${escapeHTML(exactShortDate(d, opts))}</time>`;
+}
+
 /** Refresh every time[data-rel] under root. */
 export function renderTimes(root, now = new Date(), opts = {}) {
   if (!root?.querySelectorAll) return;

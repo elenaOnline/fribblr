@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {classify, relDate, inline, exactDate, timeHTML, toDate, calendarDaysBetween} from '../public/relative-dates.js';
+import {classify, relDate, inline, exactDate, exactShortDate, exactTimeHTML, timeHTML, toDate, calendarDaysBetween} from '../public/relative-dates.js';
 
 // Fixed local times keep every case independent of the machine's clock and zone.
 const en = {locale: 'en-US'};
@@ -84,4 +84,12 @@ test('timeHTML markup, escaping and invalid input', () => {
   for (const bad of [undefined, null, '', 'invalid', NaN, new Date(NaN), true]) assert.equal(timeHTML(bad), '');
   assert.equal(toDate('2026-11-03T21:02:00.000Z').toISOString(), '2026-11-03T21:02:00.000Z');
   assert.equal(classify('nope', NOW, en).rule, 'invalid');
+});
+
+test('exactTimeHTML: the exact date as text, no tooltip, no Tab stop', () => {
+  const created = at(2026, 10, 3, 14, 2);
+  assert.equal(exactShortDate(created, en), 'Nov 3, 2026, 2:02 PM');
+  assert.equal(exactTimeHTML(created, en), `<time datetime="${created.toISOString()}">Nov 3, 2026, 2:02 PM</time>`);
+  assert.equal(exactShortDate(created, {locale: 'en-US', hour12: false}), 'Nov 3, 2026, 14:02');
+  for (const bad of [undefined, null, '', 'invalid']) assert.equal(exactTimeHTML(bad), '');
 });

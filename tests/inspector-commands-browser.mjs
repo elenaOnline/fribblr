@@ -120,7 +120,20 @@ try{
  await page.keyboard.press('ArrowDown');assert.equal(await label(),'Connect');
  await page.keyboard.press('End');assert.equal(await label(),'Remove from board…');
  await page.keyboard.press('ArrowDown');assert.match(await label(),/^(De)?select$/i,'wraps');
- await page.keyboard.press('Escape');await page.locator('#workspace-item-controls').waitFor({state:'detached'});
+ // 8. Feedback (Favorite, Comments, Vote) is one toolbar, as on the card's strip; ↓ on Vote opens the ballot. The
+ // Details dates are text, not Tab stops: they show the exact date.
+ const feedbackRow=page.locator('#workspace-item-controls .inspector-feedback');
+ assert.equal(await feedbackRow.getAttribute('role'),'toolbar');assert.equal(await feedbackRow.getAttribute('aria-orientation'),'horizontal');
+ assert.equal(await feedbackRow.locator('button[tabindex="0"]').count(),1,'Feedback is one Tab stop');
+ await feedbackRow.locator('[data-context-star]').focus();await page.keyboard.press('ArrowRight');assert.equal(await label(),'Comments');
+ await page.keyboard.press('End');assert.equal(await label(),'Vote');await page.keyboard.press('ArrowRight');assert.match(await label(),/^(Un)?favorite$/i,'Feedback wraps');
+ const times=await page.evaluate(()=>[...document.querySelectorAll('#workspace-item-controls .inspector-props time')].map(t=>({tab:t.tabIndex,tip:t.hasAttribute('data-tip'),text:t.textContent})));
+ assert.ok(times.length>=2&&times.every(t=>t.tab<0&&!t.tip&&/\d{4}/.test(t.text)),'Created and Edited show the exact date and take no Tab stop: '+JSON.stringify(times));
+ await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowDown');
+ await page.locator('.feedback-ballot[data-open]').waitFor();
+ await page.keyboard.press('Escape');await page.locator('.feedback-ballot[data-open]').waitFor({state:'detached'}).catch(()=>{});
+ if(await page.locator('#workspace-item-controls').count()){await page.locator('#workspace-item-controls [data-context-close]').click();}
+ await page.locator('#workspace-item-controls').waitFor({state:'detached'});
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:7,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar']}));
+ console.log(JSON.stringify({passed:8,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar','Item Feedback is one toolbar; dates are text']}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

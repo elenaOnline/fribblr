@@ -1173,9 +1173,11 @@ function renderReaderInfo() {
     const count = threads?.length ? `${threads.length}${comments.value.nextCursor ? '+' : ''}` : '';
     const open = threads ? threads.filter(thread => !thread.resolved).length : 0;
     const totals = voteTotals(item.review?.votes), voted = totals.yes + totals.no + totals.abstain > 0;
+    // One vertical toolbar, as the same actions are one toolbar on the card's strip: ↑/↓ between the rows.
     feedback = `<section class="inspector-sec reader-feedback" aria-labelledby="reader-feedback-heading"><h3 id="reader-feedback-heading">Feedback</h3>
-      <button type="button" class="tk-btn reader-feedback-row" data-reader-act="comments"><span>Comments</span>${count ? `<span class="reader-count">${count}</span>` : ''}<small>${threads ? (threads.length ? `${open} open` : 'Start a conversation') : ''}</small></button>
-      <button type="button" class="tk-btn reader-feedback-row" data-reader-act="vote" aria-haspopup="dialog"><span>${voted ? 'Votes' : 'Vote…'}</span>${voted ? `<small>Yes ${totals.yes} · No ${totals.no} · Abstain ${totals.abstain}</small>` : ''}</button></section>`;
+      <ui-toolbar orientation="vertical" class="reader-feedback-rows" aria-labelledby="reader-feedback-heading">
+      <ui-toolbar-button><button type="button" class="tk-btn reader-feedback-row" data-reader-act="comments"><span>Comments</span>${count ? `<span class="reader-count">${count}</span>` : ''}<small>${threads ? (threads.length ? `${open} open` : 'Start a conversation') : ''}</small></button></ui-toolbar-button>
+      <ui-toolbar-button><button type="button" class="tk-btn reader-feedback-row" data-reader-act="vote" aria-haspopup="dialog"><span>${voted ? 'Votes' : 'Vote…'}</span>${voted ? `<small>Yes ${totals.yes} · No ${totals.no} · Abstain ${totals.abstain}</small>` : ''}</button></ui-toolbar-button></ui-toolbar></section>`;
   }
   const versionSection = versions.length ? `<section class="inspector-sec" aria-labelledby="reader-version-heading"><h3 id="reader-version-heading">Version</h3>${segmentedHTML({ label: 'Version', className: 'reader-version-seg', value: activeVariantId, items: versions.map(v => ({ value: v.id, label: v.name, attrs: { 'data-revision-choice': v.id } })) })}</section>` : '';
 

@@ -1020,10 +1020,16 @@ buttons: a panel's commands under section headings, Tab-walked as in any dialog.
 
 **Item Inspector.** `workspace-board.js` `itemControls`, `closeContext`. A side panel. Appearance rows are segmented
 controls; Paper colour is a swatch radio group. The actions are a vertical `ui-toolbar` (`orientation="vertical"`, rows
-that look like menu rows: ↑/↓ with wrap, Home/End). The Feedback row (Favorite, Comments, Vote) stays buttons.
+that look like menu rows: ↑/↓ with wrap, Home/End). The Feedback row (Favorite, Comments, Vote) is a horizontal
+`ui-toolbar` named by its heading, because the same actions are one toolbar on the card's strip: ←/→ with wrap,
+Home/End, and ↓ on Vote opens the ballot (`openOnArrowDown`), as on the strip. Details shows Created / Edited as the exact
+date in text (`exactTimeHTML` in `relative-dates.js`: "Nov 3, 2026, 2:02 PM"), as Finder's Get Info does, so nothing
+there needs a tooltip and no date is a Tab stop. Relative dates with an exact-date tooltip stay where a date is a
+passing remark (cards, Home, the Navigator), not focusable.
 
 **Reader Inspector.** `canvas.js` `readerInspector`, `setReaderInfoOpen`, `renderReaderInfo` (keeps the opening focus
-through its re-render); `board.html` `#reader-info-dialog`. A side panel.
+through its re-render); `board.html` `#reader-info-dialog`. A side panel. Its Feedback rows (Comments, Vote) are one
+vertical `ui-toolbar` (↑/↓), for the same reason as the item Inspector's. Organize and Help stay buttons (below).
 
 **Reader path.** `reader-path.js`, `board.html` `#reader-path-menu` (`ui-menu-trigger`, `guardMenu`). A Menu opened on a
 press on the title or count. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`). The
@@ -1097,7 +1103,7 @@ Archive/Restore; Enable flexible boards). The Keyboard shortcuts sheet is a `mak
 | Toolbars inside cards | `role=toolbar` roving markup, not `ui-toolbar`: no element or binding per card (§ Board canvas, § 6). |
 | Sticker grid focus | `createGridFocus` moves real focus, which the search field could not share; the grid uses `aria-activedescendant` with the same keys. |
 | The legacy Home shelf (`home.js`, organization off) | Unchanged upstream markup. |
-| Board Inspector Edit and Feedback rows, item Inspector Feedback row | A panel's commands under headings, Tab-walked as in any dialog. |
+| Board Inspector Edit and Feedback rows, reader Inspector Organize and Help rows | A panel's commands under headings, Tab-walked as in any dialog. None of them is a set of actions that is a toolbar elsewhere in the app (the item Inspector's Feedback row is: § 4). |
 
 ## 6. Performance rules
 
