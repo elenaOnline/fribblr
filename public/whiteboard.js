@@ -14,6 +14,7 @@ import {isMacPlatform} from './reader-keys.js';
 import {canContain,containerDropLabel,containerFor,containerPlacementIds,expandContainerSelection,previewContainerMove,previewContainerLayout} from './containers.js';
 import {containerLayouts,mountContainerLayout} from './container-layout.js';
 import {mountPresetScrub} from './preset-scrub.js';
+import {announce, decorationLabel, sdkCore} from './board-focus.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tips} from './tips.js';
 import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown} from './popups.js';
@@ -84,6 +85,10 @@ const resizeEdges = resizeDirections.map(direction=>
 const stickerCorners = resizeDirections.filter(direction=>direction.length===2).map(direction=>
   `<span class="workspace-decoration-resize" data-decoration-resize="${direction}" aria-hidden="true"></span>`
 ).join('');
+// The bottom-right corner is also a keyboard handle (UI SDK createResize: a focusable button named for its corner;
+// arrows move that corner, Shift for 10). The other handles stay pointer-only.
+const keyboardCorner = (handles, label) => handles.replace('data-decoration-resize="se" aria-hidden="true"',
+  `data-decoration-resize="se" role="button" tabindex="0" aria-label="Resize bottom right of ${esc(label||'Untitled')}" title="Drag to resize, or focus and use the arrow keys"`);
 const headsOf = d => d.startArrow ? d.endArrow ? 'both' : 'start' : d.endArrow ? 'end' : 'none';
 const sameTarget = (a,b) => !!a && !!b && (a.placementId ? a.placementId === b.placementId : !!a.decorationId && a.decorationId === b.decorationId);
 const isAttachment = endpoint => !!(endpoint?.placementId || endpoint?.decorationId);
@@ -161,7 +166,7 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
   const color = authoredColor(current.color), w = Math.max(1,box.width), h = Math.max(1,box.height);
   if(current.sticker){
     const angle=Number.isFinite(current.rotation)?current.rotation:0;
-    const handles=selected===true?`${stickerCorners}<button type="button" class="whiteboard-sticker-rotation" data-sticker-rotate aria-label="Rotate sticker" title="Drag to rotate, or use the arrow keys">${icon(icons.rotate)}</button>`:'';
+    const handles=selected===true?`${keyboardCorner(stickerCorners,`sticker ${current.text}`)}<button type="button" class="whiteboard-sticker-rotation" data-sticker-rotate aria-label="Rotate sticker" title="Drag to rotate, or use the arrow keys">${icon(icons.rotate)}</button>`:'';
     return `<div tabindex="0" role="group" aria-label="${esc(`Sticker: ${current.text}`)}" class="workspace-decoration whiteboard-sticker${selected?' selected':''}" data-decoration="${esc(d.id)}" data-sticker style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;--sticker-size:${Math.min(w,h)*.82}px;--sticker-angle:${angle}deg"><span class="whiteboard-sticker-glyph" aria-hidden="true">${esc(current.text)}</span>${handles}</div>`;
   }
   const path = line ? linePath(resolved, current.route, current.bend) : null;
@@ -193,6 +198,7 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
     if (selected === true && !container) handles = resizeEdges;
   }
   const label=d.type==='text'?(current.text||'').split(/\r?\n/).find(line=>line.trim())?.replace(/^#{1,6} /,'').slice(0,120):current.text;
+  if(handles===resizeEdges)handles=keyboardCorner(handles,label);
   const nativeText=d.type==='text';
   const face=nativeText&&['sans','serif','mono'].includes(current.textFace)?` data-text-face="${current.textFace}"`:'';
   const labelSize=d.type==='region'&&!container&&current.textSize!==undefined?captionSize(current):null;
@@ -313,7 +319,8 @@ export class Whiteboard {
     // A host keyed build that was already in flight must retain this native form.
     // Its live value/selection remain properties of the existing textarea node.
     if(this.editor?.id===d.id)rendered=rendered.replace(' data-decoration="', ' data-editing="" data-decoration="').replace(/<\/div>$/,this.editor.form.outerHTML+'</div>');
-    return rendered;
+    // One Tab stop for the board's items: only the roving stop keeps tabindex 0 (board-focus.js).
+    return this.host.boardFocus?this.host.boardFocus.decorationMarkup(rendered,d.id,{inner:this.editor?.id!==d.id}):rendered;
   }
   patch(d) {
     const el=document.querySelector(selector(d.id)); if(!el)return;
@@ -1490,12 +1497,38 @@ export class Whiteboard {
     this.save(d.id,patch,undefined,decorationUnchanged(d)).then(()=>{
       if(document.activeElement===document.body||document.activeElement===handle)
         restoreFocus(document.querySelector(selector(d.id))?.querySelector(endpoint?`[data-endpoint="${endpoint}"]`:'[data-arrow-bend]'));
+      const point=endpoint&&resolveLine(this.find(d.id)||d,this.host.snapshot)[endpoint];
+      announce(endpoint?`Arrow ${endpoint==='from'?'start':'end'} ${detach?'detached':'moved'} to ${Math.round(point.x)}, ${Math.round(point.y)}.`:'Arrow bend moved.');
     }).catch(showFailure);
     return true;
   }
+  // Arrows on a selected drawn element's focused bottom-right corner resize it, 1 unit, 10 with Shift (UI SDK
+  // createResize keys); a sticker keeps its proportions, as its corners do under the pointer. One save per press.
+  resizeHandleKey(e) {
+    const handle=e.target.closest('[data-decoration-resize="se"]');
+    const direction={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];
+    if(!handle||!direction||e.altKey||e.metaKey||e.ctrlKey)return false;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(this.host.commandBusy()||this.host.decorationCommitting||this.host.keysBusy?.())return true;
+    const d=this.find(handle.closest('[data-decoration]')?.dataset.decoration);
+    if(!d||d.type==='line'||d.container)return true;
+    const step=e.shiftKey?10:1;
+    const patch=resizeDecoration(d,'se',direction[0]*step,direction[1]*step,!!d.sticker);
+    if(patch.width===d.width&&patch.height===d.height)return true;
+    if(d.textSizing==='auto')patch.textSizing='fixed';
+    const work=async()=>{
+      await this.save(d.id,patch,undefined,decorationUnchanged(d));
+      const sdk=await sdkCore();
+      sdk.keepFocus(()=>document.querySelector(selector(d.id))?.querySelector('[data-decoration-resize="se"]'));
+      sdk.announce(sdk.resizeMessage({label:decorationLabel(d),handle:'se',box:{x:patch.x,y:patch.y,width:Math.round(patch.width),height:Math.round(patch.height)}}));
+    };
+    this.host.keyMoveRunning?this.host.keyMoveRunning(work):work().catch(showFailure);
+    return true;
+  }
   keydown(e) {
-    // An open UI SDK menu or popover owns its keys (typeahead, arrows, Escape peels one layer).
-    if(inPopup(e,{tooltips:false}))return;
+    // A key pressed inside an open SDK menu or popover (this bar's More, Arrange, the board's menus) is the popup's,
+    // Escape included. (A showing tooltip's Escape is left to the bar's own ladder here, as the controls stream has it.)
+    if(e.target.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])'))return;
     const task=e.target.closest('[data-deco-task]');
     if(task&&[' ','Enter'].includes(e.key)) {
       if(e.repeat)e.preventDefault();
@@ -1505,6 +1538,7 @@ export class Whiteboard {
     if(this.editor&&e.key==='Escape'&&(e.isComposing||e.keyCode===229||this.editor.composing)){e.stopImmediatePropagation();return;}
     if(this.handleEscape(e)){e.preventDefault();e.stopImmediatePropagation();return;}
     if(this.arrowHandleKey(e))return;
+    if(this.resizeHandleKey(e))return;
     const rotate=e.target.closest('[data-sticker-rotate]');
     const turn={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1,Home:0}[e.key];
     if(rotate&&turn!==undefined&&!e.altKey&&!e.metaKey&&!e.ctrlKey){
@@ -1518,7 +1552,9 @@ export class Whiteboard {
     }
     // Arrows, Home and End on the bar belong to ui-toolbar: one Tab stop, focus moves along the buttons.
     const group=e.target.closest('[data-decoration]');
-    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button,.whiteboard-editor')&&!document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)){
+    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button,[role=button],.whiteboard-editor')&&!document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)&&!e.altKey&&!e.metaKey&&!e.ctrlKey){
+      // Enter on a container goes in among its contents (board-focus.js); an empty one opens its options.
+      if(e.key==='Enter'&&!e.shiftKey&&e.target===group&&this.host.boardFocus?.enterContainer(group.dataset.decoration)){e.preventDefault();e.stopImmediatePropagation();return;}
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);
     }
   }
@@ -1541,6 +1577,7 @@ export class Whiteboard {
     this.save(d.id,{rotation},undefined,decorationUnchanged(d)).then(()=>{
       if(!handle.isConnected&&document.activeElement===document.body)
         restoreFocus(document.querySelector(selector(d.id))?.querySelector('[data-sticker-rotate]'));
+      announce(`Sticker rotated to ${rotation}°.`);
     }).catch(showFailure);
   }
 }
