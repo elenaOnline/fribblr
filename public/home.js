@@ -1,3 +1,4 @@
+import {setSegmented,onSegmented} from './ui-segmented.js';
 import {ProjectNavigator} from './navigator.js';
 import {mountAppearance} from './appearance.js';
 mountAppearance(document.querySelector('.masthead-tools'), { control: 'menu' });
@@ -71,10 +72,10 @@ const sortKey=()=>config.workspaceId?`tinka/${config.workspaceId}/home-sort`:nul
 function setSort(value,{save=true}={}){
  if(!SORT_LABELS[value])value='created';
  homeView.sort=value;
- for(const button of sortGroup.querySelectorAll('[data-sort]'))button.setAttribute('aria-pressed',String(button.dataset.sort===value));
+ setSegmented(sortGroup,value);
  if(save&&sortKey())try{localStorage.setItem(sortKey(),value);}catch{}
 }
-sortGroup.addEventListener('click',e=>{const button=e.target.closest('[data-sort]');if(!button||button.dataset.sort===homeView.sort)return;setSort(button.dataset.sort);rerender();});
+onSegmented(sortGroup,value=>{if(value===homeView.sort)return;setSort(value);rerender();});
 find.addEventListener('input',()=>{homeView.query=find.value;rerender();});
 find.addEventListener('keydown',e=>{if(e.key!=='Escape')return;e.preventDefault();if(find.value){find.value='';homeView.query='';rerender();}else find.blur();});
 const typing=el=>el?.closest?.('input,textarea,select,[contenteditable=""],[contenteditable="true"]');

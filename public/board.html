@@ -53,7 +53,7 @@
           <button class="tk-mi" type="button" data-zoom-to="selection" aria-keyshortcuts="Shift+2" hidden>Fit selection</button>
           <div class="tk-msep"></div>
           <div class="tk-mlabel" id="canvas-pattern-label">Pattern · this board</div>
-          <div class="tk-seg canvas-pattern" role="group" aria-labelledby="canvas-pattern-label"><button type="button" data-canvas-pattern="dots" aria-pressed="false">Dots</button><button type="button" data-canvas-pattern="grid" aria-pressed="false">Grid</button><button type="button" data-canvas-pattern="plain" aria-pressed="true">Plain</button></div>
+          <ui-segmented-control class="tk-seg canvas-pattern" aria-labelledby="canvas-pattern-label" default-value="plain"><ui-segmented-control-item value="dots" data-canvas-pattern="dots">Dots</ui-segmented-control-item><ui-segmented-control-item value="grid" data-canvas-pattern="grid">Grid</ui-segmented-control-item><ui-segmented-control-item value="plain" data-canvas-pattern="plain">Plain</ui-segmented-control-item></ui-segmented-control>
         </div>
       </span>
       <ui-toolbar-button><button id="zoom-plus" class="tk-btn tk-icon" type="button" aria-label="Zoom in" aria-keyshortcuts="Plus" data-tip="Zoom in"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10"/></svg></button></ui-toolbar-button>
@@ -107,14 +107,14 @@
                 <div class="tk-msep"></div>
                 <div id="size-menu" class="reader-menu-group" role="group" aria-labelledby="reader-window-label">
                   <div class="tk-mlabel" id="reader-window-label">Window</div>
-                  <div class="tk-seg reader-sizes"><button type="button" data-size="fit" aria-pressed="true" title="Fills the stage">Fit</button><button type="button" data-size="compact" aria-pressed="false" title="440 × 620">Compact</button><button type="button" data-size="standard" aria-pressed="false" title="1000 × 720">Standard</button><button type="button" data-size="wide" aria-pressed="false" title="1380 × 840">Wide</button></div>
+                  <ui-segmented-control class="tk-seg reader-sizes" aria-labelledby="reader-window-label" default-value="fit"><ui-segmented-control-item value="fit" data-size="fit" data-tip="Fills the stage">Fit</ui-segmented-control-item><ui-segmented-control-item value="compact" data-size="compact" data-tip="440 × 620">Compact</ui-segmented-control-item><ui-segmented-control-item value="standard" data-size="standard" data-tip="1000 × 720">Standard</ui-segmented-control-item><ui-segmented-control-item value="wide" data-size="wide" data-tip="1380 × 840">Wide</ui-segmented-control-item></ui-segmented-control>
                   <button type="button" class="tk-mi reader-custom-size" data-size="custom" aria-pressed="false" hidden><span>Custom</span><small id="custom-size"></small></button>
                   <p class="reader-menu-hint">Drag the window's lower-right corner for a custom size.</p>
                   <div id="revision-group" class="revision-group" role="group" aria-labelledby="revision-label" hidden><div class="tk-mlabel" id="revision-label">Version</div><div id="revision-options"></div></div>
                 </div>
                 <div class="tk-msep"></div>
                 <div class="tk-mlabel" id="reader-light-label" title="Light and Type size apply to documents and media Tinka shows; prototypes keep their own look">Light</div>
-                <div class="tk-seg reader-light" role="group" aria-labelledby="reader-light-label"><button type="button" data-reader-light="paper" aria-pressed="true">Paper</button><button id="reader-theme" type="button" data-reader-light="night" aria-pressed="false">Night</button></div>
+                <ui-segmented-control class="tk-seg reader-light" aria-labelledby="reader-light-label" default-value="paper"><ui-segmented-control-item value="paper" data-reader-light="paper">Paper</ui-segmented-control-item><ui-segmented-control-item value="night" id="reader-theme" data-reader-light="night">Night</ui-segmented-control-item></ui-segmented-control>
                 <label class="reader-type-row"><span class="tk-mlabel">Type size</span><span class="type-glyph small" aria-hidden="true">A</span><input id="reader-type" class="type-slider" type="range" min="100" max="130" step="15" value="100" aria-label="Type size"><span class="type-glyph large" aria-hidden="true">A</span></label>
                 <div class="tk-msep"></div>
                 <a id="reader-standalone" class="tk-mi standalone" href="#" target="_blank" rel="noopener noreferrer">Open standalone ↗</a>

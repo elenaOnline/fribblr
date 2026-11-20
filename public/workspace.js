@@ -1,4 +1,5 @@
 import {writesReady} from './update-hold.js';
+import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
 import {bindForm,restoreFocus,commitShortcutLabel,setCommitHint} from './interaction.js';
 // Small shared primitives for graph workspaces; the legacy board stays independent.
 export const escape = (value) =>
@@ -409,8 +410,9 @@ function itemChoices(name, label, choices, selected) {
 export function itemForm(client, { item, boardId, refresh, opener }) {
   const c = item?.content || {}, p = item?.preview || {};
   const sectionChoices = [["details", "Details"], ["content", "Content"], ["preview", "Preview"]];
-  const sections = `<div class="workspace-item-sections" role="group" aria-label="Item editor sections">${sectionChoices.map(([id, text]) =>
-    `<button type="button" data-item-section="${id}" aria-pressed="${id === "details"}">${text}</button>`).join("")}</div>`;
+  // Details, Content and Preview: one choice of which fields show, a segmented control (arrows choose as they move).
+  const sections = segmentedHTML({ label: "Item editor sections", className: "workspace-item-sections", value: "details",
+    items: sectionChoices.map(([id, text]) => ({ value: id, label: text, attrs: { "data-item-section": id } })) });
   const dialog = makeDialog(item ? "Edit item" : "Add an idea", `${sections}
     <div data-item-fields="details">
       <label>Title<input name="title" required maxlength="1000" value="${escape(item?.title)}" autofocus></label>
@@ -471,13 +473,10 @@ export function itemForm(client, { item, boardId, refresh, opener }) {
       toast(item ? "Item updated." : "Idea added.");
     }, {opener});
   const showSection = id => {
-    for (const button of dialog.querySelectorAll("[data-item-section]"))
-      button.setAttribute("aria-pressed", String(button.dataset.itemSection === id));
+    setSegmented(dialog.querySelector(".workspace-item-sections"), id);
     for (const fields of dialog.querySelectorAll("[data-item-fields]")) fields.hidden = fields.dataset.itemFields !== id;
   };
-  dialog.querySelector(".workspace-item-sections").addEventListener("click", event => {
-    if (event.target.dataset.itemSection) showSection(event.target.dataset.itemSection);
-  });
+  onSegmented(dialog.querySelector(".workspace-item-sections"), showSection);
   dialog.addEventListener("invalid", event => {
     const fields = event.target.closest("[data-item-fields]");
     if (fields) showSection(fields.dataset.itemFields);
