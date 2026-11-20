@@ -1,3 +1,8 @@
+import {segmentedHTML,setSegmented,onSegmented} from './ui-segmented.js';
+import {followVisibility,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
+import {openOnArrowDown} from './popups.js';
+import {widgetOwnsKey} from './ui-sdk.js';
+import {tips,tip,setTip,tipOuter} from './tips.js';
 import {positionTilePopover,bindTileMenu} from './tile-ui.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
@@ -104,10 +109,12 @@ const EDIT_TOOL_ICONS = {
   arrow: '<path d="M4 15c2.2-5 5.5-7.3 11.5-8.8M11.5 4l4.1 2.2-2.3 4.2"/>',
   sticker: '<path d="M16.5 10a6.5 6.5 0 11-6.5-6.5A6.5 6.5 0 0116.5 10zM7.7 11.5a2.7 2.7 0 004.6 0M7.8 8.2h.1m4.2 0h.1"/>',
 };
+// [name, tools, kind]: a "choice" group is the canvas's current tool (one pressed at a time, a ui-toggle-group);
+// "actions" make something (ui-toolbar-buttons). The Navigation choice always keeps one pressed, Comment can be put down.
 const EDIT_TOOL_GROUPS = [
-  ["Navigation",[["pointer","Pointer","V"],["pan","Pan","H"]]],
-  ["Draw",[["text","Text","T"],["sticky","Sticky note","S"],["container","Container"],["rounded","Rounded shape"],["arrow","Arrow"],["sticker","Sticker"]]],
-  ["Feedback",[["comment","Comment","C"]]],
+  ["Navigation",[["pointer","Pointer","V"],["pan","Pan","H"]],"choice"],
+  ["Draw",[["text","Text","T"],["sticky","Sticky note","S"],["container","Container"],["rounded","Rounded shape"],["arrow","Arrow"],["sticker","Sticker"]],"actions"],
+  ["Feedback",[["comment","Comment","C"]],"choice"],
 ];
 const $ = (id) => document.getElementById(id);
 const tilePaperChoices=[
@@ -389,12 +396,13 @@ export class WorkspaceBoard {
         e.stopImmediatePropagation();
       }
     }, true);
-    const selected = document.createElement("section");
+    const selected = document.createElement("ui-toolbar");
     selected.id = "workspace-selection";
     selected.className = "workspace-selection";
     selected.hidden = true;
     selected.setAttribute("aria-label", "Selected placements");
     $("canvas-header").after(selected);
+    followVisibility(selected);
     document
       .querySelectorAll("[data-mode]")
       .forEach((b) => (b.onclick = () => this.setMode(b.dataset.mode)));
@@ -805,7 +813,7 @@ export class WorkspaceBoard {
   boardCommandBlocked(event) {
     return this.clipboardBlocked() || this.history?.busy ||
       event?.target.closest?.("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]") ||
-      document.activeElement?.closest("[role=textbox]");
+      document.activeElement?.closest("[role=textbox]") || widgetOwnsKey(event);
   }
   installBoardCommands(bar) {
     const guide = document.createElement("button");
@@ -1658,40 +1666,46 @@ export class WorkspaceBoard {
       : el.clientWidth / width;
     el.style.setProperty("--preview-scale", String(scale));
   }
+  // The selection bar is one ui-toolbar built once; a selection change updates it in place (labels, which actions show),
+  // so a focused action stays focused and the toolbar keeps its place in the tab order (one Tab stop, arrows along it).
   selectionMenu() {
     this.closeArrangeMenu();
     const el = $("workspace-selection");
+    if (!el.dataset.built) {
+      el.dataset.built = "1";
+      const part = html => `<ui-toolbar-button>${html}</ui-toolbar-button>`;
+      const bulk = (name, label, extra = "") => part(`<button type="button" class="tk-btn tk-sm ${extra}" data-bulk="${name}">${label}</button>`);
+      el.innerHTML = `<strong role="status"></strong>`
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="dialog" aria-expanded="false" data-tip="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" aria-keyshortcuts="Meta+G Control+G" hidden></button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" data-tip="Edit document" hidden>Edit document</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" data-tip="Item details" hidden>Details…</button>`)
+        + bulk("feature", "Show on parent…") + bulk("move", "Move…") + bulk("reference", "Add reference…", "selection-wide") + bulk("new-board-around", "New board around selection…")
+        + bulk("archive", "Archive here", "selection-wide") + bulk("remove", "Remove from board…", "tk-danger")
+        + `<span class="tk-divider" aria-hidden="true"></span>`
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" aria-keyshortcuts="Escape" data-tip="Clear selection"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`);
+      el.querySelectorAll("[data-bulk]").forEach((b) => (b.onclick = () => this.bulk(b.dataset.bulk)));
+      el.querySelector("[data-arrange-open]").onclick = event => this.arrangeMenu(event.currentTarget);
+      el.querySelector("[data-selection-details]").onclick = () => { const id = [...this.selection][0]; if (id) this.itemControls(id, "notes"); };
+      el.querySelector("[data-edit-document]").onclick = () => { const doc = this.selectedDocument(); if (doc) this.editDocument(doc.id); };
+      openOnArrowDown(el, "[data-arrange-open]", (event, button) => { if (button.getAttribute("aria-expanded") !== "true") this.arrangeMenu(button); });
+      tips(el);
+    }
     el.hidden = !this.selection.size;
-    el.setAttribute("role", "toolbar");
+    const count = this.selectedCount();
+    el.querySelector("strong").textContent = `${count} selected`;
     const grouping = this.selection.size && this.groupAction();
-    const groupButton = grouping ? `<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping.label}</button>` : "";
-    el.innerHTML = `<strong role="status">${this.selectedCount()} selected</strong>${groupButton}<button class="tk-btn tk-sm" data-bulk="feature">Show on parent…</button><button class="tk-btn tk-sm" data-bulk="move">Move…</button><button class="tk-btn tk-sm selection-wide" data-bulk="reference">Add reference…</button><button class="tk-btn tk-sm" data-bulk="new-board-around">New board around selection…</button><button class="tk-btn tk-sm selection-wide" data-bulk="archive">${this.filters.archive ? "Restore here" : "Archive here"}</button><button class="tk-btn tk-sm tk-danger" data-bulk="remove">Remove from board…</button><span class="tk-divider" aria-hidden="true"></span><button class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" title="Clear selection (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`;
-    if (this.canvasGroups().some(group => group.placementIds.some(id => this.selection.has(id)) && group.decorationIds.length)) {
-      for (const action of ["feature","move","reference","new-board-around","archive"])
-        el.querySelector(`[data-bulk="${action}"]`).hidden = true;
-    }
-    if (this.mode === "canvas" && this.selectedCount() >= 2 && this.arrangeObjects().length >= 2) {
-      const arrange = document.createElement("button");
-      arrange.type = "button"; arrange.className = "tk-btn tk-sm tk-icon"; arrange.dataset.arrangeOpen = "";
-      arrange.setAttribute("aria-label", "Arrange"); arrange.setAttribute("aria-haspopup", "dialog");
-      arrange.setAttribute("aria-expanded", "false");
-      arrange.title = "Arrange: align, distribute, tidy into a grid"; arrange.innerHTML = ARRANGE_ICON;
-      arrange.onclick = () => this.arrangeMenu(arrange);
-      el.querySelector("strong")?.after(arrange);
-    }
-    el.querySelectorAll("[data-bulk]").forEach(
-      (b) => (b.onclick = () => this.bulk(b.dataset.bulk)),
-    );
-    if (this.selection.size === 1) {
-      const id = [...this.selection][0];
-      const controls = document.createElement('button'); controls.type='button'; controls.className='tk-btn tk-sm'; controls.textContent='Details…'; controls.setAttribute('aria-label','Item details'); controls.setAttribute('aria-keyshortcuts','Meta+I Control+I'); controls.title='Item details (⌘I)';
-      controls.onclick=()=>this.itemControls(id,'notes'); el.insertBefore(controls,el.querySelector('[data-bulk]'));
-      const doc = this.selectedDocument();
-      if (doc) {
-        const edit = document.createElement('button'); edit.type='button'; edit.className='tk-btn tk-sm'; edit.dataset.editDocument=''; edit.textContent='Edit document'; edit.setAttribute('aria-keyshortcuts','E'); edit.title='Edit document (E)';
-        edit.onclick=()=>this.editDocument(doc.id); el.insertBefore(edit,controls);
-      }
-    }
+    const groupButton = el.querySelector('[data-bulk="canvas-group"]');
+    groupButton.hidden = !grouping;
+    if (grouping) groupButton.textContent = grouping.label;
+    el.querySelector('[data-bulk="archive"]').textContent = this.filters.archive ? "Restore here" : "Archive here";
+    const withDrawn = this.canvasGroups().some(group => group.placementIds.some(id => this.selection.has(id)) && group.decorationIds.length);
+    for (const action of ["feature","move","reference","new-board-around","archive"])
+      el.querySelector(`[data-bulk="${action}"]`).hidden = withDrawn;
+    const one = this.selection.size === 1;
+    el.querySelector("[data-arrange-open]").hidden = !(this.mode === "canvas" && count >= 2 && this.arrangeObjects().length >= 2);
+    el.querySelector("[data-selection-details]").hidden = !one;
+    el.querySelector("[data-edit-document]").hidden = !(one && this.selectedDocument());
     this.updateHistoryControls();
     this.emitSelection();
     this.positionEditTools();
@@ -3286,40 +3300,33 @@ export class WorkspaceBoard {
   installEditTools() {
     if (this.hooks.viewOnly || $("edit-tools")) return;
     try { this.editToolsOpen = localStorage.getItem(this.editToolsKey()) !== "off"; } catch { this.editToolsOpen = true; }
-    const palette = document.createElement("div");
+    const palette = document.createElement("ui-toolbar");
     palette.id = "edit-tools";
     palette.className = "edit-tools";
-    palette.setAttribute("role", "toolbar");
     palette.setAttribute("aria-label", "Canvas tools");
-    palette.setAttribute("aria-orientation", "horizontal");
-    palette.innerHTML = EDIT_TOOL_GROUPS.map(([group,tools]) =>
-      `<div role="group" aria-label="${group}" class="edit-tool-group">${tools.filter(([tool])=>tool!=="sticker"||typeof this.openStickerPicker==="function").map(([tool,label,key]) => {
-        const icon = tool === "comment" ? COMMENT_ICON : `<svg viewBox="0 0 20 20" aria-hidden="true">${EDIT_TOOL_ICONS[tool]}</svg>`;
-        return `<button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" title="${label}${key?` (${key})`:""}"${key?` aria-keyshortcuts="${key}"`:""}${tool==="sticker"?' aria-haspopup="dialog"':""}>${icon}</button>`;
-      }).join("")}</div>`
-    ).join("");
+    const toolButton = ([tool,label,key]) => {
+      const icon = tool === "comment" ? COMMENT_ICON : `<svg viewBox="0 0 20 20" aria-hidden="true">${EDIT_TOOL_ICONS[tool]}</svg>`;
+      return `<button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" data-tip="${label}"${key?` aria-keyshortcuts="${key}"`:""}${tool==="sticker"?' aria-haspopup="dialog"':""}>${icon}</button>`;
+    };
+    palette.innerHTML = EDIT_TOOL_GROUPS.map(([group,tools,kind]) => {
+      const list = tools.filter(([tool])=>tool!=="sticker"||typeof this.openStickerPicker==="function");
+      return kind === "choice"
+        ? `<ui-toggle-group class="edit-tool-group" aria-label="${group}" data-edit-choice${group==="Navigation"?' deselectable="false" default-value="pointer"':""}>${list.map(tool => `<ui-toggle value="${tool[0]}">${toolButton(tool)}</ui-toggle>`).join("")}</ui-toggle-group>`
+        : `<ui-toolbar-group class="edit-tool-group" aria-label="${group}">${list.map(tool => `<ui-toolbar-button>${toolButton(tool)}</ui-toolbar-button>`).join("")}</ui-toolbar-group>`;
+    }).join("");
+    // A press on an action makes something. The choice groups report through valuechange (below).
     palette.onclick = e => {
       const button = e.target.closest("[data-edit-tool]");
-      if (!button || this.boardCommandBlocked()) return;
+      if (!button || button.closest("ui-toggle") || this.boardCommandBlocked()) return;
       const tool = button.dataset.editTool;
-      if (tool === "pointer" || tool === "pan" || tool === "comment") {
-        this.setCanvasTool(tool === "comment" && this.commentPins?.armed ? "pointer" : tool);
-        return;
-      }
       this.setCanvasTool("pointer");
       if (tool === "sticker") this.openStickerPicker(button);
       else this.createDecoration(tool);
     };
-    palette.onkeydown = event => {
-      if (!["ArrowLeft","ArrowRight","Home","End"].includes(event.key)) return;
-      const buttons = [...palette.querySelectorAll("button")];
-      const current = buttons.indexOf(document.activeElement);
-      const offset = event.key==="ArrowLeft" ? -1 : 1;
-      const next = event.key==="Home" ? 0 : event.key==="End" ? buttons.length-1 : (current+offset+buttons.length)%buttons.length;
-      event.preventDefault();
-      event.stopPropagation();
-      buttons[next]?.focus();
-    };
+    // The current tool is the board's to own: a choice asks for it here, syncEditTools() writes the answer back.
+    palette.querySelectorAll("[data-edit-choice]").forEach(group => onChoose(group, tool => { if (!this.boardCommandBlocked()) this.setCanvasTool(tool || "pointer"); }));
+    followVisibility(palette);
+    tips(palette);
     document.body.append(palette);
     const toggle = document.createElement("button");
     toggle.id = "edit-tools-toggle";
@@ -3328,11 +3335,18 @@ export class WorkspaceBoard {
     toggle.setAttribute("aria-controls", "edit-tools");
     toggle.setAttribute("aria-label", "Edit tools");
     toggle.setAttribute("aria-keyshortcuts", "A");
-    toggle.title = "Edit tools (A)";
+    toggle.dataset.tip = "Edit tools";
     toggle.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><circle cx="14" cy="6" r="3"/><path d="M6 11.5 9 16.5H3z"/><path d="M14 11.5v5M11.5 14h5"/></svg>';
-    toggle.onclick = () => this.toggleEditTools();
+    // A pressed/unpressed item of the view pill (ui-toggle): the board owns whether the tools show.
+    const item = document.createElement("ui-toggle");
+    item.append(toggle);
+    onPress(item, () => this.toggleEditTools());
     const map = $("board-map-toggle");
-    map?.parentElement?.insertBefore(toggle, map);
+    // Beside the map toggle, outside whatever wrappers (toggle, tooltip trigger) it already has.
+    let before = map;
+    while (before?.parentElement && !before.parentElement.matches("ui-toolbar")) before = before.parentElement;
+    before?.parentElement?.insertBefore(item, before);
+    tips(item);
     window.addEventListener("resize",()=>this.positionEditTools());
     this.syncEditTools();
   }
@@ -3362,9 +3376,8 @@ export class WorkspaceBoard {
     $("viewport").classList.toggle("canvas-pan-tool",!!this.panTool);
     palette.hidden = !(canvas && this.editToolsOpen);
     const current = this.panTool ? "pan" : this.commentPins?.armed ? "comment" : "pointer";
-    for (const tool of ["pointer","pan","comment"])
-      palette.querySelector(`[data-edit-tool="${tool}"]`)?.setAttribute("aria-pressed",String(tool===current));
-    if (toggle) { toggle.hidden = !canvas; toggle.setAttribute("aria-pressed", String(!!this.editToolsOpen)); }
+    for (const group of palette.querySelectorAll("[data-edit-choice]")) setChoice(group, [...group.querySelectorAll("[data-edit-tool]")].some(b => b.dataset.editTool === current) ? current : null);
+    if (toggle) { toggle.hidden = !canvas; setPressed(toggle, !!this.editToolsOpen); }
     this.positionEditTools();
   }
   // A mixed group: cards (this.selection) with drawn elements (this.decorationSelection),
@@ -3742,6 +3755,8 @@ export class WorkspaceBoard {
         if (this.selection.size) { this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault(); return; }
       }
       if (e.target.closest("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]")) return;
+      // A focused toolbar, radio group or slider owns its arrows (ui-sdk.js): they move along it, never a card.
+      if (widgetOwnsKey(e)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const delta = { ArrowLeft: [-1,0], ArrowRight: [1,0], ArrowUp: [0,-1], ArrowDown: [0,1] }[e.key];
       const resizeGrip = delta && e.target.closest("[data-resize]");

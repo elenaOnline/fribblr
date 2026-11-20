@@ -20,6 +20,8 @@ import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
+import {followVisibility, setPressed, onPress} from './ui-toolbar.js';
+import {tips, setTip} from './tips.js';
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './version-stack.js';
 
 const $ = id => document.getElementById(id);
@@ -461,7 +463,7 @@ function syncFitControls() {
   fit.dataset.target = target;
   fit.setAttribute('aria-label', target === 'selection' ? `Fit ${count} selected` : 'Fit board');
   fit.setAttribute('aria-keyshortcuts', target === 'selection' ? 'F Shift+2' : 'F Shift+1');
-  fit.title = target === 'selection' ? `Fit the ${count} selected (F or ⇧2) · ⌥-click fits the board` : 'Fit every item in view (F or ⇧1)';
+  setTip(fit, target === 'selection' ? `Fit the ${count} selected · ⌥-click fits the board` : 'Fit every item in view');
   $('view-back').hidden = !backView || !canvasMode;
   const fitSelected = boardMapElement()?.querySelector('[data-map-fit="selection"]');
   if (fitSelected) { fitSelected.hidden = !count; fitSelected.textContent = `Fit ${count} selected`; }
@@ -657,7 +659,7 @@ function renderSizeControls() {
   sizeMenu.querySelectorAll('[data-size]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.size === size)));
   sizeMenu.querySelector('[data-size="custom"]').hidden = size !== 'custom';
   $('custom-size').textContent = customText;
-  $('reader-zoom-toggle').title = `Zoom and view · Window: ${SIZE_NAMES[size]}${size === 'custom' ? ` ${customText}` : ''}${variant ? ` · Version: ${variant.name}` : ''}`;
+  setTip($('reader-zoom-toggle'), `Zoom and view · Window: ${SIZE_NAMES[size]}${size === 'custom' ? ` ${customText}` : ''}${variant ? ` · Version: ${variant.name}` : ''}`);
 }
 
 function setReaderSize(size) {
@@ -1142,7 +1144,7 @@ function readerEditable(target) {
 // Tinka (not the content, a panel or a menu) has focus.
 function readerTinkaFocus(target) {
   if (!target?.closest || !dialog.contains(target) || target === $('active-reader')) return false;
-  return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg');
+  return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
 function readerBlocked() { return !dialog.open || !!document.querySelector('dialog.workspace-dialog[open]'); }
 function runReaderCommand(command, { fromFrame = false } = {}) {
@@ -1741,7 +1743,10 @@ document.addEventListener('keydown', event => {
   if (graph?.context) { graph.closeContext(true); return; }
   setInfoOpen($('board-info').hidden, { focus: true });
 }, true);
-// The floating view pill: − · percent menu · + · Fit.
+// The floating view pill: − · percent menu · + · Fit. Each pill is a ui-toolbar: one Tab stop, arrows along it.
+for (const pill of document.querySelectorAll('.zoom-pill')) followVisibility(pill);
+// Hints on the pills, the map and the selection bar: UI SDK tooltips (tips.js).
+tips(document);
 function setZoomMenuOpen(open, { focus = false } = {}) {
   $('zoom-menu').hidden = !open;
   $('zoom-menu-toggle').setAttribute('aria-expanded', String(open));
@@ -1907,7 +1912,7 @@ function setMapOpen(open, { remember = false, focus = false } = {}) {
   open = open && mapAvailable();
   const hadFocus = boardMapElement().contains(document.activeElement);
   map.show(open);
-  $('board-map-toggle').setAttribute('aria-pressed', String(open));
+  setPressed($('board-map-toggle'), open);
   if (remember && innerWidth > 720) try { if (mapKey()) localStorage.setItem(mapKey(), open ? 'open' : 'closed'); } catch {}
   if (!open && (focus || hadFocus)) $('board-map-toggle').focus({ preventScroll: true });
   placeSelectionBar();
@@ -1978,7 +1983,7 @@ let barObserved = false;
 const footerObserver = new ResizeObserver(() => placeSelectionBar());
 for (const element of document.querySelectorAll('.canvas-footer, .canvas-footer .zoom-pill, .canvas-footer .status-line')) footerObserver.observe(element);
 addEventListener('resize', () => { placeSelectionBar(); boardMap?.resize(); });
-$('board-map-toggle').onclick = () => setMapOpen(!boardMap?.visible, { remember: true });
+onPress($('board-map-toggle'), () => setMapOpen(!boardMap?.visible, { remember: true }));
 // Dots, Grid or Plain: a per-board view preference kept in this browser.
 const PATTERNS = ['dots', 'grid', 'plain'];
 // No pattern until this board is given one: the dots are a choice, not the default.
