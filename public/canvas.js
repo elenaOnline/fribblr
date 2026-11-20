@@ -17,7 +17,7 @@ import {ReaderResourceSurface} from './reader-resource-surface.js';
 import {ReaderPath} from './reader-path.js';
 import {trapTab, rememberOpener, openerToReturnTo} from './reader-dialog.js';
 import {sidePanel} from './side-panel.js';
-import {headerToolbar} from './header-toolbar.js';
+import {headerToolbar,setItemDisabled} from './header-toolbar.js';
 import './vendor/ui-sdk/web/pagination.js';
 import {isMacPlatform, readerCommand, stepModifierLabel} from './reader-keys.js';
 import {boardStepCommand, boardStepTarget, isSteppable} from './board-step.js';
@@ -1541,10 +1541,11 @@ document.addEventListener('keydown',event=>{
 // ---- Notes ----
 function applyNotes() {
   $('reader-note').disabled=!graph&&!notesReady;
-  $('reader-star').disabled=!graph&&!notesReady;
-  document.querySelectorAll('[data-tile-notes]').forEach(element=>{const has=Boolean(notes[element.dataset.tileNotes]?.note);element.querySelector('.tile-note-dot')?.toggleAttribute('hidden',!has);setTip(element,has?'Notes · has a saved note':'Notes');});
+  // Favorite is an item of the Tinka's top-bar toolbar: disabled, it stays in the arrow order (header-toolbar.js).
+  setItemDisabled($('reader-star'),!graph&&!notesReady);
+  document.querySelectorAll('[data-tile-notes]').forEach(element=>{const has=Boolean(notes[element.dataset.tileNotes]?.note);element.querySelector('.tile-note-dot')?.toggleAttribute('hidden',!has);setTip(element,has?'Notes · has a saved note':'Notes');})
   document.querySelectorAll('[data-note]').forEach(element => { const value = notes[element.dataset.note]?.note || ''; if (element.value !== value) element.value = value; });
-  document.querySelectorAll('[data-star]').forEach(element => { const starred = Boolean(notes[element.dataset.star]?.star); element.setAttribute('aria-pressed', String(starred)); element.disabled=!graph&&!notesReady; if(!element.querySelector('svg'))element.textContent = starred ? '★' : '☆'; });
+  document.querySelectorAll('[data-star]').forEach(element => { const starred = Boolean(notes[element.dataset.star]?.star); element.setAttribute('aria-pressed', String(starred)); setItemDisabled(element,!graph&&!notesReady); if(!element.querySelector('svg'))element.textContent = starred ? '★' : '☆'; });
   syncReaderNotes();
 }
 

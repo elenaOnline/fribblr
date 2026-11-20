@@ -112,6 +112,8 @@ try{
 
  // ---- Quick jot: a non-modal dialog; the board stays usable; Escape returns focus
  await page.locator('#viewport').click({position:{x:4,y:600}});
+ // A press on the empty canvas takes focus off the items, onto the board, a frame later (workspace-board.js).
+ await page.waitForFunction(()=>document.activeElement?.id==='viewport');
  const beforeJot=await active();await page.keyboard.press('n');await page.locator('.quick-jot[data-open] input').waitFor();
  assert.equal((await active()).label,'Quick jot');assert.notEqual(await page.locator('.quick-jot').getAttribute('aria-modal'),'true');assert.equal(await page.locator('.quick-jot').getAttribute('role'),'dialog');
  await page.mouse.click(1400,300);assert.equal(await page.locator('.quick-jot[data-open]').count(),1,'a press on the board does not close a non-modal jot');

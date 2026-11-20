@@ -55,7 +55,7 @@ try{
  assert.ok(copies[0].types.includes('application/x-tinka-placements+json'),JSON.stringify(copies[0].types));
  const envelope=JSON.parse(copies[0].text.slice(copies[0].text.indexOf('\n')+1));
  assert.equal(envelope.placements.length,1);assert.equal(envelope.placements[0].id,first.placementIds[0]);
- await page.locator('.workspace-toast').filter({hasText:'Copied 1 Tinka'}).first().waitFor();
+ await page.locator('.workspace-toast').filter({hasText:'Copied selection.'}).first().waitFor();
  assert.equal(writes.length,before);
  // 3. Board keys pressed while focus sits on an Inspector button do not act on the board.
  const count=await active();

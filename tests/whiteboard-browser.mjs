@@ -121,9 +121,12 @@ try{
  // Keyboard-reachable actions fit at a narrow width and ordinary objects resize at their outline.
  await page.setViewportSize({width:390,height:844});await page.locator('[data-decoration=sticky]').scrollIntoViewIfNeeded();
  await page.locator('[data-decoration=sticky]').focus();await page.keyboard.press('Enter');
- const menu=page.locator('.whiteboard-menu:not([data-slot])');await menu.waitFor();
+ // Enter is Whiteboard's options: the object's More menu (a UI SDK menu, #whiteboard-more-menu), focus inside it.
+ const menu=page.getByRole('menu',{name:'Object actions'});await menu.waitFor();
+ assert.ok(await page.evaluate(()=>!!document.activeElement?.closest('#whiteboard-more-menu')),'Focus is in the More menu');
  assert.equal(await menu.getByText("Position & size", {exact:false}).count(),0);
  const bounds=await menu.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=391);await page.screenshot({path:path.join(evidence,'whiteboard-narrow.png')});await page.keyboard.press('Escape');
+ await menu.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>document.activeElement?.dataset.decoration),'sticky','Escape returns focus to the sticky Enter was pressed on');
  await op({type:'removeDecoration',decorationId:'decision'});await page.reload();await page.locator('.whiteboard-detached').first().waitFor();assert.equal(await page.evaluate(()=>document.querySelector('.whiteboard-detached')?.textContent),'Detached');
  assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,evidence,checks:'shape/card movement + resize with transient attached redraw, mounted preview identity, keyboard endpoint detach and direct reattach, cancellation, sticky whole body, region marquee, port creation, Add preset, keyboard actions at 390, detached fallback'}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(fixture,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
