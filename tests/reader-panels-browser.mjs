@@ -118,7 +118,7 @@ try{
  await page.waitForTimeout(150);
  ok(await card(ids[2]).evaluate(el=>el===document.activeElement||el.contains(document.activeElement)),'Closing returns focus to the card last viewed');
  // The reader's commands are a toolbar too; ←/→ move along it.
- await launch.focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();
+ await launch.focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(300);
  eq(await page.locator('#reader-header .chrome-actions').getAttribute('role'),'toolbar','The reader\'s commands are a toolbar');
  await page.locator('#reader-star').focus();await page.keyboard.press('ArrowRight');
  eq(await focused(),'notes-toggle','→ moves along the reader\'s toolbar, it does not step');
