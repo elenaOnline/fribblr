@@ -660,8 +660,10 @@ body .canvas-footer.status-yields .status-line { visibility: hidden; }
 .tinka-overview .board-map { display: none !important; }
 
 /* Focus rings are for the keyboard: a control focused by a click or tap (pointer-focus.js)
-   shows none, even after a later key press. Tab and keyboard commands keep the ring. */
-[data-pointer-focus]:focus-visible { outline: none !important; }
+   shows none, even after a later key press. Tab and keyboard commands keep the ring. The return pulse is not a focus
+   ring: the card a closed reader hands focus back to keeps its pulse (its outline is an animation, which an
+   !important outline would override). */
+[data-pointer-focus]:focus-visible:not(.return-pulse) { outline: none !important; }
 
 /* Holding F (fit what it selects) or Z (zoom to the box) while drawing a selection box. */
 body:is(.workspace-box-fit, .workspace-box-zoom) #workspace-marquee { border-style: dashed; background: color-mix(in srgb, var(--mark-blue) 12%, transparent); }
