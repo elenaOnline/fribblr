@@ -329,6 +329,13 @@ function installDelegate() {
     const modifier = event.metaKey || event.ctrlKey || event.altKey || /^(Meta|Control|Alt|Shift)$/.test(event.key);
     if (event.key === 'Tab' || !modifier) modality = 'keyboard';
     if (current && (event.key === 'Enter' || event.key === ' ') && current.el.contains(event.target)) close('trigger-press', event);
+    // Escape closes only the tooltip, "without closing a dialog or menu around it" (tooltip.md § Keyboard). A trigger
+    // inside a popup gets that from the SDK's layers; a controller open sits in no layer, so the press stops here (the
+    // board's own Escape handlers, on window, have already stepped aside for an open tooltip: widgetOwnsKey()).
+    if (current && event.key === 'Escape' && current.root.api?.isOpen?.()) {
+      close('escape-key', event);
+      event.preventDefault(); event.stopImmediatePropagation();
+    }
   }, true);
   document.addEventListener('pointerdown', event => {
     modality = 'pointer'; windowBlurred = false;
