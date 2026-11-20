@@ -151,10 +151,10 @@ test("arrangePlacements sets per-object positions for placements and drawn eleme
 });
 
 // One shared stacking order for cards and drawn elements (public/stacking.js).
-import {stackOrder} from "../public/stacking.js";
+import {applyStack,landOnTop,restack,stackOrder,stackRef} from "../public/stacking.js";
 const stacked = board => stackOrder(board).map(entry => entry.id);
 
-test("the default stacking order reproduces the fixed per-kind levels boards had before",() => {
+test("drawings saved without z keep their kind's level beneath or above every stored z",() => {
   const board = {
     decorations:[
       {id:"line",type:"line",x:0,y:0,width:10,height:10,color:"#000",text:""},
@@ -166,12 +166,24 @@ test("the default stacking order reproduces the fixed per-kind levels boards had
     ],
     placements:[{id:"p5",z:5},{id:"p0",z:0},{id:"p1",z:1},{id:"p2",z:2},{id:"gone",z:9,removedAt:"2026-01-01"}],
   };
-  // Regions/containers 0, text and shapes 1, stickers and arrows 2; at equal levels
-  // drawn elements paint first, as they came first in the board's markup.
-  assert.deepEqual(stacked(board),["region","box","p0","text","shape","p1","line","sticker","p2","p5"]);
+  // Regions/containers, then text and shapes, beneath every placement (even z 0), and
+  // stickers and arrows above every placement (even z 5); same levels keep array order.
+  assert.deepEqual(stacked(board),["region","box","text","shape","p0","p1","p2","p5","line","sticker"]);
   // A container is never drawn above its own members.
   board.decorations[5] = {...board.decorations[5],z:40};
-  assert.deepEqual(stacked(board),["region","p0","box","text","shape","p1","line","sticker","p2","p5"]);
+  assert.deepEqual(stacked(board),["region","box","text","shape","p0","p1","p2","p5","line","sticker"]);
+  board.decorations[5] = {...board.decorations[5],container:{layout:"vertical",children:[{placementId:"p1"}]}};
+  assert.deepEqual(stacked(board),["region","text","shape","p0","box","p1","p2","p5","line","sticker"]);
+  // The levels follow the stored range, wherever it lies; stored drawings sort by z.
+  board.decorations[5] = {...board.decorations[5],z:-3,container:undefined};
+  board.placements = [{id:"p50",z:50},{id:"p60",z:60}];
+  assert.deepEqual(stacked(board),["region","text","shape","box","p50","p60","line","sticker"]);
+  // Restacking gives a moved drawing a stored z and leaves the rest in place.
+  const lifted = restack(board,[stackRef("decoration","shape")],"front");
+  assert.deepEqual(stacked(applyStack(structuredClone(board),lifted)),["region","text","box","p50","p60","line","sticker","shape"]);
+  // A new object lands on top, above the arrows and stickers saved without z.
+  const fresh = {...structuredClone(board),placements:[...board.placements,{id:"new",x:500,y:500,width:10,height:10,z:Math.max(...stackOrder(board).map(e => e.key)) + 1}]};
+  assert.deepEqual(stacked(applyStack(fresh,landOnTop(fresh,[stackRef("placement","new")]))).slice(-3),["line","sticker","new"]);
 });
 
 async function stackFixture(t) {

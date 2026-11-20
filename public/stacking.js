@@ -3,12 +3,15 @@
 // Pure and shared by the store (lib/workspace.mjs) and the browser; no DOM.
 //
 // Placements keep their stored `z`. A drawn element may store an optional `z` in
-// the same numeric space; without one it keeps the level it always had (plain
-// regions and containers 0, text and shapes 1, stickers and arrows 2), so a saved
-// board looks exactly as before until something is restacked. Ties put drawn
-// elements beneath placements, then follow array order, which is the order the
-// board has always painted in. A container is drawn directly beneath its lowest
-// member, so its members always show on it.
+// the same numeric space. One without it (every drawing saved before this order
+// existed) keeps its kind's level: plain regions and containers, then text and
+// shapes, sit beneath everything that has a stored `z`, and stickers and arrows
+// above it, so no migration is needed. Those levels used to be compared with
+// placement z, which was a creation count: shapes and text covered a board's first
+// card (z 0), and every card after its third covered the arrows and stickers on it.
+// Ties put drawn elements beneath placements, then follow array order, which is
+// the order the board has always painted in. A container is drawn directly beneath
+// its lowest member, so its members always show on it.
 import {decorationBounds} from './whiteboard-geometry.js';
 
 export const STACK_RANGE = 10000000;
@@ -26,8 +29,13 @@ export function legacyStackLevel(d) {
 // Bottom-to-top entries: {kind,id,ref,value,key}.
 export function stackOrder(board) {
   const entries = [];
+  // Drawings without a stored z go beneath (levels 0, 1) or above (level 2) every stored value.
+  const stored = [...(board.decorations || []).filter(d => Number.isFinite(d.z)).map(d => d.z),
+    ...(board.placements || []).filter(live).map(p => Number.isFinite(p.z) ? p.z : 0)];
+  const low = stored.length ? Math.min(...stored) : 0, high = stored.length ? Math.max(...stored) : 0;
+  const legacyKey = d => { const level = legacyStackLevel(d); return level === 2 ? high + 1 : low - 2 + level; };
   (board.decorations || []).forEach((d, index) => entries.push({kind:'decoration', id:d.id, ref:stackRef('decoration', d.id), value:d,
-    key:Number.isFinite(d.z) ? d.z : legacyStackLevel(d), tie:0, index}));
+    key:Number.isFinite(d.z) ? d.z : legacyKey(d), tie:0, index}));
   (board.placements || []).forEach((p, index) => { if (live(p)) entries.push({kind:'placement', id:p.id, ref:stackRef('placement', p.id), value:p,
     key:Number.isFinite(p.z) ? p.z : 0, tie:1, index}); });
   entries.sort((a, b) => a.key - b.key || a.tie - b.tie || a.index - b.index);

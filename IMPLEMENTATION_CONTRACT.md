@@ -148,10 +148,11 @@ mounted throughout dragging and reconciliation.
 
 Stacking order (`public/stacking.js`, shared by store and browser): placements and
 drawn elements share one order. Placement `z` and an optional finite decoration `z`
-(±10000000) share one numeric space; a decoration without `z` keeps its former fixed
-level (plain region/container 0, text and shapes 1, sticker and line 2), ties put
-decorations beneath placements and then array order, so saved boards render
-unchanged without migration. A container paints directly beneath its lowest member.
+(±10000000) share one numeric space; ties put decorations beneath placements and
+then array order. A decoration without `z` keeps its kind's level against the stored
+values, without migration: plain region/container, then text and shapes, beneath the
+lowest stored z (keys low-2, low-1), sticker and line above the highest (high+1).
+A container paints directly beneath its lowest member.
 The browser paints each object at its 1-based rank as inline z-index; overlays
 (pins 10005/10006, ports 10001, selected-line/sticker lift, drag 100002, copy and
 drop layers) stay above content. createItem/createDecoration without explicit z land
