@@ -202,12 +202,20 @@ export function tooltipOpen() {
 //     the control and the tooltip, 4 px out, as the SDK computes it;
 //   - keyboard focus opens it at once; a click that focuses does not (the last input was a pointer: the SDK's modality
 //     rule, which a window blur also mutes until the next key); focus leaving closes a tooltip that focus opened;
-//   - a press (pointer down, Enter, Space) closes it, and after a pointer press it stays closed until the pointer
-//     leaves the control;
+//   - a press (pointer down, Enter, Space) closes it, and after a press it stays closed until the pointer leaves the
+//     control;
+//   - a popup opening (menu, popover, dialog), whatever opened it, closes the tooltip, and the control under the pointer
+//     counts as pressed (tooltip.md: pressing the trigger closes the tooltip and it stays closed until the pointer
+//     leaves; on a popover trigger "pressing opens the popover instead"). A popup opened from code (the ballot, a
+//     card's ⋯, the palettes) has no SDK trigger part to close its trigger's tooltip, so the delegate does it for all;
 //   - Escape closes only the tooltip, and a press outside, a window blur: the SDK's dismissal does these for any open;
 //   - touch never opens one.
 // Where the canvas needed a rule the SDK has no case for: a pointer moving with a button held (a drag, a marquee)
-// opens nothing, as native titles never did; a control that leaves the page while its tooltip shows closes it.
+// opens nothing, as native titles never did; a control that leaves the page while its tooltip shows closes it; and a
+// control that arrives under a resting pointer (a re-render: the pressed swatch rebuilt, a card's buttons shifting as
+// its Vote count appears) opens nothing until the pointer moves, as native titles behave. The browser reports such a
+// control as entered (pointerover) without a pointermove, at the pointer's last position. If the control the pointer
+// pressed was rebuilt that way, its replacement keeps the press.
 // Hand-over works both ways with the wrapped chrome: both open the same shared tooltip, so the SDK's group sees one
 // tooltip.
 const DELAY = 600, WARM = 400, HULL_PAD = 4;
@@ -221,7 +229,9 @@ const openRoots = new Set();
 let current = null;   // {el, root, by: 'hover' | 'keyboard', describedBy}
 let hovered = null;   // the delegated control under the pointer
 let pending = null;   // {el, timer}
-let pressed = null;   // a control pressed with the pointer: no hover tooltip until the pointer leaves it
+let pressed = null;   // a pressed control: no hover tooltip until the pointer leaves it
+let still = null;     // a control that arrived under the resting pointer: it waits for the pointer to move
+let pointerX = NaN, pointerY = NaN; // the pointer's last position (pointermove)
 let tracking = null;  // pointermove listener while the pointer travels from the control to the tooltip
 
 // A control the delegate serves: it carries data-tip and has no trigger wrapper of its own.
@@ -305,6 +315,13 @@ function hullOf(a, b) {
 }
 
 function enter(el, event) {
+  still = null;
+  if (event.type === 'pointerover' && event.clientX === pointerX && event.clientY === pointerY) {
+    // The page changed under a resting pointer: wait for it to move (the pointermove listener below).
+    if (pressed && !pressed.isConnected) pressed = el;
+    still = el;
+    return;
+  }
   if (pressed === el || event.buttons) return;
   cancelPending();
   if (current?.el === el) { stopTracking(); return; }
@@ -314,7 +331,9 @@ function enter(el, event) {
 
 function leave(el, event) {
   if (pending?.el === el) cancelPending();
-  if (pressed === el) pressed = null;
+  if (still === el) still = null;
+  // A control rebuilt away from under the pointer was not left: its replacement keeps the press (enter, above).
+  if (pressed === el && el.isConnected) pressed = null;
   if (current?.el !== el || current.by !== 'hover') return;
   const content = current.root.querySelector('ui-tooltip-content');
   const box = content?.getBoundingClientRect();
@@ -335,7 +354,11 @@ function installDelegate() {
     windowBlurred = false;
     const modifier = event.metaKey || event.ctrlKey || event.altKey || /^(Meta|Control|Alt|Shift)$/.test(event.key);
     if (event.key === 'Tab' || !modifier) modality = 'keyboard';
-    if (current && (event.key === 'Enter' || event.key === ' ') && current.el.contains(event.target)) close('trigger-press', event);
+    if (event.key === 'Enter' || event.key === ' ') {
+      if (current && current.el.contains(event.target)) close('trigger-press', event);
+      // A press from the keyboard counts for the pointer resting on the same control, as a click does.
+      if (hovered && hovered.contains(event.target)) { cancelPending(); still = null; pressed = hovered; }
+    }
     // Escape closes only the tooltip, "without closing a dialog or menu around it" (tooltip.md § Keyboard). A trigger
     // inside a popup gets that from the SDK's layers; a controller open sits in no layer, so the press stops here (the
     // board's own Escape handlers, on window, have already stepped aside for an open tooltip: widgetOwnsKey()).
@@ -353,6 +376,26 @@ function installDelegate() {
     if (current?.el === el) close('trigger-press', event);
   }, true);
   document.addEventListener('touchstart', () => { modality = 'pointer'; }, {capture: true, passive: true});
+  // The pointer's position, to tell a pointer that moved onto a control from a control that moved under the pointer.
+  // Two numbers per move, and a check only while a control waits for the pointer to move.
+  document.addEventListener('pointermove', event => {
+    if (event.clientX === pointerX && event.clientY === pointerY) return;
+    pointerX = event.clientX; pointerY = event.clientY;
+    if (still && hovered === still && event.pointerType !== 'touch') { const el = still; still = null; enter(el, event); }
+  }, {capture: true, passive: true});
+  // A popup opening closes the tooltip and keeps the control under the pointer quiet until the pointer leaves it,
+  // whichever control opened the popup and however (a press, a key, code). The SDK's openchange reaches the document in
+  // the capture phase; the check waits a microtask, after the popup's own listeners, so a cancelled open changes nothing.
+  document.addEventListener('openchange', event => {
+    if (event.detail?.value !== true || !(event.target instanceof Element) || event.target.closest('ui-tooltip')) return;
+    queueMicrotask(() => {
+      if (event.defaultPrevented) return;
+      cancelPending();
+      if (hovered) { still = null; pressed = hovered; }
+      if (current) close('trigger-press', event.detail.event);
+      for (const root of openRoots) if (root.api?.isOpen?.()) root.api.close({reason: 'trigger-press', event: event.detail.event});
+    });
+  }, true);
   addEventListener('blur', event => { if (event.target === window) windowBlurred = true; });
 
   document.addEventListener('pointerover', event => {

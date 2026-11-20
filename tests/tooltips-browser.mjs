@@ -109,6 +109,25 @@ try {
   check(await more.getAttribute('aria-describedby')===null,'card: the control it left is no longer described');
   await page.mouse.down();await page.mouse.up();await sleep(150);check((await tip()).n===0,'card: a press closes it');
   await sleep(800);check((await tip()).n===0,'card: it stays closed while the pointer rests on the control');
+  // A press re-renders what it pressed (a swatch turning checked, a card's Vote button gaining its count): the control
+  // rebuilt under the resting pointer is still the pressed one, and stays quiet.
+  await page.evaluate(()=>{const d=document.querySelectorAll('#world .workspace-card')[1].querySelector('.workspace-select-dot');d.replaceWith(d.cloneNode(true));});
+  await sleep(800);check((await tip()).n===0,'card: the pressed control, rebuilt under the resting pointer, stays quiet');
+  // A control that arrives under a resting pointer (the page moved, not the pointer) opens nothing until the pointer moves.
+  await rest();await hoverCard();const here=await at(card);
+  await page.evaluate(({x,y})=>{const b=document.createElement('button');b.type='button';b.className='tk-arrived';b.dataset.tip='Arrived';b.setAttribute('aria-label','Arrived');
+    b.style.cssText=`position:fixed;left:${x-20}px;top:${y-20}px;width:40px;height:40px;z-index:5`;document.body.append(b);},here);
+  await sleep(900);check((await tip()).n===0,'a control arriving under the resting pointer opens no tooltip');
+  await page.mouse.move(here.x+3,here.y+2);await sleep(800);t=await tip();
+  check(t.n===1&&t.text==='Arrived','once the pointer moves on it, its tooltip opens as usual',t);
+  // A popup opening closes the tooltip, whoever opened it (here code, as the ballot and a card's ⋯ open), and the
+  // control under the pointer stays quiet while the pointer rests there.
+  check((await tip()).text==='Arrived','(the tooltip is open)');
+  await page.evaluate(()=>document.querySelectorAll('#world .workspace-card')[1].querySelector('.workspace-tile-more').click());await sleep(250);
+  check(await page.evaluate(()=>!!document.querySelector('ui-menu-content[data-open]')),'a card\'s ⋯ opens its menu from code');
+  check((await tip()).n===0,'a popup opening closes the open tooltip');
+  await sleep(800);check((await tip()).n===0,'the control under the pointer stays quiet while the popup is open');
+  await page.keyboard.press('Escape');await sleep(200);await page.evaluate(()=>document.querySelector('.tk-arrived')?.remove());
   await page.keyboard.press('Escape');await sleep(100);
   // Hand-over from the chrome to a card control and back, with one tooltip.
   await rest();p=await at('#zoom-plus');await page.mouse.move(p.x,p.y);await sleep(750);check((await tip()).text==='Zoom in','chrome tooltip open');

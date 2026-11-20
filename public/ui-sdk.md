@@ -576,7 +576,11 @@ pickers, the comment card and `media.html`'s document tools. Component: Tooltip.
   - Keyboard focus opens it at once, a click that focuses does not: the SDK's modality rule (the last input was a key,
     not a lone modifier, or Tab; a window blur mutes it until the next key). Focus leaving closes a tooltip that focus
     opened.
-  - A press (pointer down, Enter, Space) closes it; after a pointer press it stays closed until the pointer leaves.
+  - A press (pointer down, Enter, Space) closes it; after a press it stays closed until the pointer leaves.
+  - A popup opening closes it, whatever opened the popup (a press, a key, code), and the delegated control under the
+    pointer counts as pressed (tooltip.md: pressing the trigger closes the tooltip; "pressing opens the popover
+    instead"). A popup opened from code (the ballot, a card's ⋯) has no SDK trigger part to close its trigger's tooltip,
+    so `tips.js` watches every non-tooltip `openchange` on `document` (capture) and closes any open tooltip.
   - Escape closes only the tooltip: a controller open sits in no SDK layer, so the delegate takes the press (capture on
     `document`, after the board's window handlers have stepped aside via `widgetOwnsKey()`) and stops it, so a menu or
     dialog around it stays. Window blur and the SDK's other dismissals apply as for any open.
@@ -585,7 +589,12 @@ pickers, the comment card and `media.html`'s document tools. Component: Tooltip.
   - Where the SDK has no case: a pointer moving with a button held (drag, marquee) opens nothing, as native titles never
     did; a control that leaves the page while its tooltip shows closes it (the anchor is read on every placement check);
     an iframe inside a hinted element is the page it shows, so the reader window's hint shows over its own box only; a
-    menu row's hint opens on hover only, as in native menus (arrowing through a menu opens nothing over it).
+    menu row's hint opens on hover only, as in native menus (arrowing through a menu opens nothing over it); a control
+    that arrives under a resting pointer (a re-render: the pressed swatch rebuilt, a palette that shifts as a choice
+    saves, a card's buttons moving as its Vote count appears) opens nothing until the pointer moves, as native titles
+    behave. The browser reports it as entered (`pointerover`) with no `pointermove`, at the pointer's last position, so
+    one passive `pointermove` listener keeps that position (two numbers per move). A pressed control rebuilt that way
+    hands its press to its replacement.
 - **Shortcuts** come from the control's `aria-keyshortcuts` (only this platform's: "Meta+K Control+K" shows ⌘K on a Mac)
   and show as `<ui-tooltip-shortcut>` parts, hidden from screen readers, printed as the app prints keycaps (`capLabel`),
   joined with "or". Hint text never carries keys. A labelled `tk-btn` with `aria-keyshortcuts` prints a visible keycap
