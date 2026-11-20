@@ -17,6 +17,7 @@ import {ReaderPath} from './reader-path.js';
 import {trapTab, rememberOpener, openerToReturnTo} from './reader-dialog.js';
 import {inPopup} from './popups.js';
 import {sidePanel} from './side-panel.js';
+import {headerToolbar} from './header-toolbar.js';
 import './vendor/ui-sdk/web/pagination.js';
 import {isMacPlatform, readerCommand, stepModifierLabel} from './reader-keys.js';
 import {boardStepCommand, boardStepTarget, isSteppable} from './board-step.js';
@@ -28,6 +29,8 @@ import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './ver
 
 const $ = id => document.getElementById(id);
 mountAppearance($('board-info'));
+// The top bars' command buttons: one Toolbar each (header-toolbar.js).
+for (const bar of document.querySelectorAll('#canvas-header > .chrome-actions, #reader-header > .chrome-actions')) headerToolbar(bar);
 const viewport = $('viewport');
 const world = $('world');
 const plane = $('plane');
@@ -1187,7 +1190,7 @@ function readerEditable(target) {
 // Tinka (not the content, a panel or a menu) has focus.
 function readerTinkaFocus(target) {
   if (!target?.closest || !dialog.contains(target) || target === $('active-reader')) return false;
-  return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg');
+  return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
 function readerBlocked() { return !dialog.open || !!document.querySelector('dialog.workspace-dialog[open]'); }
 function runReaderCommand(command, { fromFrame = false } = {}) {
@@ -1938,7 +1941,8 @@ function ensureBoardMap() {
     panBy: (dx, dy) => moveView(view.x - dx * zoom, view.y - dy * zoom),
     panScreen: (fx, fy) => moveView(view.x + fx * viewport.clientWidth, view.y + fy * viewport.clientHeight),
     zoomAt: (factor, wx, wy) => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor, view.x + wx * zoom, view.y + wy * zoom); },
-    zoomBy: factor => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor); },
+    zoomBy: factor => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor); announceView(`Zoom ${Math.round(zoom * 100)}%`); },
+    actualSize: () => { if (graph) graph.revealedPlacement = null; changeZoom(1); announceView('Zoom 100%'); },
     close: () => setMapOpen(false, { remember: true, focus: true }),
   });
   const el = boardMapElement();

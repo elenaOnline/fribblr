@@ -1,5 +1,7 @@
 import {closePanel, sidePanel} from "./side-panel.js";
 import {inPopup} from "./popups.js";
+import {setItemDisabled} from "./header-toolbar.js";
+import {tipOuter} from "./tips.js";
 import {positionTilePopover,bindTileMenu} from './tile-ui.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
@@ -347,7 +349,8 @@ export class WorkspaceBoard {
     const quick = document.createElement("span");
     quick.className = "chrome-history";
     quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
-    actions.insertBefore(quick, $("board-info-toggle"));
+    // Beside the Inspector toggle's outermost wrapper (toolbar part, tooltip trigger), never inside it.
+    tipOuter($("board-info-toggle")).before(quick);
     actions.append(add);
     this.installEditTools();
     const history = document.createElement("div");
@@ -1412,7 +1415,7 @@ export class WorkspaceBoard {
       button.disabled = !!busy || !this.history?.available(direction);
       button.title = direction === "undo" ? "Undo movement, paste or removal (⌘/Ctrl Z)" : "Redo movement, paste or removal (⌘/Ctrl Shift Z)";
       const quick = $("chrome-" + direction);
-      if (quick) { quick.disabled = button.disabled; quick.title = `${label ? `${verb} ${label.toLowerCase()}` : verb} (${direction === "undo" ? "⌘Z" : "⇧⌘Z"})`; }
+      if (quick) { setItemDisabled(quick, button.disabled); quick.title = `${label ? `${verb} ${label.toLowerCase()}` : verb} (${direction === "undo" ? "⌘Z" : "⇧⌘Z"})`; }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     const hasDrawings = this.mode === "canvas" && (this.activeDecoration || this.decorationSelection.size);
@@ -3753,8 +3756,8 @@ export class WorkspaceBoard {
     });
     document.addEventListener("keydown", async e => {
       if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
-      // The focused board map owns its arrows, Escape and +/−.
-      if (e.target.closest?.(".board-map-stage")) return;
+      // The board map owns its keys: the stage its arrows, Escape and +/−; the head its toolbar keys and Escape.
+      if (e.target.closest?.(".board-map")) return;
       // An open UI SDK menu, popover or panel with focus inside owns every key, Escape included.
       if (inPopup(e)) return;
       if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
