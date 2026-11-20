@@ -26,7 +26,7 @@ import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
 import {followVisibility, setPressed, onPress} from './ui-toolbar.js';
-import {inPopup, openOnArrowDown, guardMenu, menuRadioGroup, sharedMenu, openMenu, menuItem, menuLink, menuSeparator} from './popups.js';
+import {inPopup, openOnArrowDown, guardMenu, menuRadioGroup, sharedMenu, openMenu, menuItem, menuLink, menuSeparator, openOnChecked} from './popups.js';
 import {segmentedHTML, setSegmented, focusSegmented} from './ui-segmented.js';
 import {tips, setTip} from './tips.js';
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './version-stack.js';
@@ -780,7 +780,7 @@ function renderRevisionOptions() {
 
 // The version strip's name opens every version as a menu of radio items (board.html #reader-version-menu, inside the
 // reader dialog); choosing one opens it, as the arrows do.
-const readerVersionMenu = guardMenu($('reader-version-menu'));
+const readerVersionMenu = openOnChecked(guardMenu($('reader-version-menu')));
 readerVersionMenu.addEventListener('openchange', event => {
   if (!event.detail.value) return;
   const item = active?.graphItem;

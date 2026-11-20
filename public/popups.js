@@ -73,6 +73,26 @@ function inWindow(anchor, root) {
   return clamp().inside ? anchor : {getBoundingClientRect: () => clamp().rect};
 }
 
+// A menu that picks one of several (a version list) opens on the checked item, as a select or a native pop-up menu does:
+// it is highlighted, and the arrows and typeahead go on from there. Opened by keys (first item) or by a pointer (the menu
+// itself), focus moves to the checked radio item once the SDK has placed its own first focus.
+export function openOnChecked(root) {
+  root.addEventListener('openchange', event => {
+    if (!event.detail.value) return;
+    const content = root.querySelector('ui-menu-content');
+    const move = () => {
+      const checked = content?.querySelector('[role=menuitemradio][aria-checked=true]');
+      if (!root.open || !checked || document.activeElement === checked) return true;
+      if (!content.contains(document.activeElement)) return false;
+      checked.focus();
+      return true;
+    };
+    // A pointer open focuses the menu itself a little later than a keyboard open focuses its first item.
+    requestAnimationFrame(() => { if (!move()) content.addEventListener('focusin', () => queueMicrotask(move), {once: true}); });
+  });
+  return root;
+}
+
 // A popover root with its content, appended to `host`; triggers reach it with `for=`.
 export function sharedPopover({id, label = '', className = '', host = document.body}) {
   const root = document.createElement('ui-popover');

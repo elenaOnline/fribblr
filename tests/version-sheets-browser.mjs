@@ -72,6 +72,13 @@ try {
   assert.equal(await ticker.locator('[data-file-version-step=next]').getAttribute('aria-disabled'),'true','the newest version: Next stays reachable, disabled');
   await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');
   await page.locator('#file-version-menu ui-menu-content[data-open]').waitFor();
+  // The menu opens on the checked version, as a select does; the highlight is its fill, with no focus ring on top.
+  await page.waitForFunction(()=>document.activeElement?.matches('#file-version-menu [role=menuitemradio][aria-checked=true]'));
+  const highlight=await page.evaluate(()=>{const a=document.activeElement,cs=getComputedStyle(a);return {highlighted:a.hasAttribute('data-highlighted'),outline:cs.outlineStyle,shadow:cs.boxShadow};});
+  assert.deepEqual(highlight,{highlighted:true,outline:'none',shadow:'none'},'the checked version is highlighted by its fill alone');
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-file-version-menu]'));
+  await card('many').locator('[data-file-version-menu]').click();await page.locator('#file-version-menu ui-menu-content[data-open]').waitFor();
+  await page.waitForFunction(()=>document.activeElement?.matches('#file-version-menu [role=menuitemradio][aria-checked=true]'));
   await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-file-version-menu]'));
   await page.keyboard.press('Home');await page.keyboard.press('Enter');
   await page.waitForFunction(()=>/V04|v04/.test(document.querySelector('#world .workspace-file-version-name [role=status]')?.textContent||'')||[...document.querySelectorAll('#world [data-file-version-menu]')].some(b=>/04/.test(b.textContent)));
@@ -84,6 +91,9 @@ try {
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'reader-file-version-choose');
   await page.keyboard.press('ArrowRight');assert.equal(await page.evaluate(()=>document.activeElement?.id),'reader-newer-file');
   assert.equal(await strip.locator('button[tabindex="0"]').count(),1,'one Tab stop');
+  await page.keyboard.press('ArrowLeft');await page.keyboard.press('Enter');await page.locator('#reader-version-list[data-open]').waitFor();
+  await page.waitForFunction(()=>document.activeElement?.matches('#reader-version-list [role=menuitemradio][aria-checked=true]'));
+  await page.keyboard.press('Escape');
   assert.deepEqual(errors,[]);
   console.log('Version stacks stand on one sheet per other version (at most three), and the cast and selection follow. A card\'s hover strip and version ticker, and the reader\'s strip, are one toolbar stop each.');
 } finally {

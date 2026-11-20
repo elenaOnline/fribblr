@@ -2,7 +2,7 @@ import {closePanel, sidePanel} from "./side-panel.js";
 import {setItemDisabled} from "./header-toolbar.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
 import {followVisibility,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked} from './popups.js';
 import {widgetOwnsKey} from './ui-sdk.js';
 import {tips,tip,setTip,tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
@@ -605,6 +605,7 @@ export class WorkspaceBoard {
   versionMenuElement() {
     if (this.versionMenuUI) return this.versionMenuUI;
     const ui = this.versionMenuUI = sharedMenu({id:"file-version-menu", label:"Versions", className:"file-version-menu"});
+    openOnChecked(ui.root);
     ui.content.setAttribute("align", "center");
     ui.content.setAttribute("side-offset", "6");
     ui.content.setAttribute("collision-padding", "8");

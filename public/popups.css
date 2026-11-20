@@ -17,8 +17,10 @@ ui-popover-content:focus { outline: none; }
 .tk-menu ui-menu-item > a.tk-mi { cursor: default; user-select: none; text-decoration: none; }
 :is(ui-menu-content, ui-menu-sub-content) .tk-mi:is(:hover, :focus-visible):not([data-highlighted]) { background: transparent; }
 .tk-menu .tk-mi[data-highlighted] { background: var(--surface-chosen); outline: none; }
-/* The fill is the focus indicator in a menu (as in native menus): no ring on top of it. */
-:is(ui-menu-content, ui-menu-sub-content) :is(.tk-mi, .reader-path-row):focus-visible { outline: none; box-shadow: none; }
+/* The fill is the focus indicator in a menu (as in native menus): no ring on top of it. The theme's ring
+   (tokens.css: html[data-appearance] :is(…, [tabindex]):focus-visible, 0-3-1) is outweighed by naming the content's
+   data-slot and the item's role under :root (0-4-1), for every kind of item, links and the path rows included. */
+:root :is(ui-menu-content, ui-menu-sub-content)[data-slot] :is([role^=menuitem], .tk-mi, .reader-path-row):focus-visible { outline: none; box-shadow: none; }
 .tk-menu .tk-mi[data-disabled] { color: var(--ink-2); }
 .tk-menu .tk-mi[data-disabled][data-highlighted] { background: color-mix(in srgb, var(--surface-chosen) 55%, transparent); }
 .tk-menu .tk-mi[data-pending] { color: var(--ink-2); cursor: progress; }

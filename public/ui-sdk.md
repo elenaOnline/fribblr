@@ -183,7 +183,9 @@ before the board's, stops it. Board handlers that run earlier, on `window` captu
 **Looks** (`popups.css`). Menu content gets `.tk-menu` (the menu face and the float height); items keep `.tk-mi`,
 separators `.tk-msep`, group labels `.tk-mlabel`, a second line `.tk-mi2`. `popups.css` removes the UA popover box
 that Menu content keeps, lights the highlighted item from `data-highlighted` only (`:hover` alone does not, so pointer
-and keys never light two rows), draws no focus ring on menu items (the fill is the indicator, as in native menus),
+and keys never light two rows), draws no focus ring on menu items (the fill is the indicator, as in native menus;
+the rule names `:root`, the content's `[data-slot]` and the item's role so it outweighs the theme's ring on
+`[tabindex]:focus-visible` in `tokens.css`, which it otherwise lost to),
 shows checks from `data-checked`, and caps size at `--available-height`. Where an old class set `display` or
 `position` on the hand-rolled popup, `popups.css` puts back `revert-layer`, or a closed popup would show.
 
@@ -904,7 +906,8 @@ opens on the side of its bar away from the selection, and `positionArrangeMenu` 
 **Version stacks.** `workspace-board.js` `versionMenuElement`, `versionMenu`; `canvas.js` `#reader-version-menu` (with
 `guardMenu`). The version name on a stack's card and in the reader's strip is a menu button listing every version as
 radio items (name and modified time, `.tk-mi2`) that close the menu on choice; ‹ › still step. A Menu, not a Select
-(§ 7, gap 4). The name keeps a `role="status"` span, so stepping is announced. On a card the ticker is a roving toolbar
+(§ 7, gap 4). It opens on the checked version, as a select or a native pop-up menu does (`openOnChecked` in
+`popups.js`: once the SDK has placed its first focus, by keys or by a pointer, focus moves to the checked radio item). The name keeps a `role="status"` span, so stepping is announced. On a card the ticker is a roving toolbar
 (§ Board canvas); the reader's version strip is a plain `ui-toolbar` (`board.html`). A focused stack card brings its
 ticker in as one Tab stop.
 
