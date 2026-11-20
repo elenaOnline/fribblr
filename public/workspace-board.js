@@ -459,6 +459,7 @@ export class WorkspaceBoard {
     $("workspace-retry-drafts").hidden = !this.pendingReview.size;
     $("workspace-retry-drafts").onclick = () => this.saveReview([], {});
     window.addEventListener("pagehide", () => this.persistDrafts());
+    if (!this.hooks.viewOnly) this.pressFocus();
     this.whiteboard = new Whiteboard(this);
     this.whiteboard.mount();
     if (!this.hooks.viewOnly) {
@@ -3941,18 +3942,35 @@ export class WorkspaceBoard {
       const item = this.boardFocus.item(e.target);
       if (item) this.boardFocus.setStop(this.boardFocus.key(item));
     });
-    // A press on a drawn element makes it the focused item, as a press on a card does natively (Whiteboard's pointerdown
-    // prevents that for drawn elements), so Option-arrow and Space act on what was pressed, not on an item focused
-    // earlier. A press on the empty canvas (or a plain region's open middle, which works as empty canvas) takes focus
-    // off the items. One check per press; nothing on pointer moves.
-    document.addEventListener("pointerdown", e => {
-      if (this.mode !== "canvas" || e.button !== 0 || !e.target.closest?.("#viewport")) return;
-      if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],.whiteboard-editor,[data-port],.workspace-card,.board-map")) return;
-      let item = e.target.closest("#world .workspace-decoration[data-decoration]");
-      if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) item = null;
-      const target = item || (document.activeElement?.closest?.("#world") ? viewport : null);
-      if (target) requestAnimationFrame(() => {
-        if (target.isConnected && !document.activeElement?.matches?.("input,textarea,select,[contenteditable]")) target.focus({preventScroll:true});
+  }
+  // Focus follows a press: a press on any board item (card, drawn element, sticker, container member) makes it the
+  // focused item, so Option-arrow, Space and the board's commands act on what was just pressed, never on an item
+  // focused earlier. A card takes focus natively, but Whiteboard's pointerdown prevents that for drawn elements and
+  // stops the event on document capture, and a press that starts a group drag can stop it on window capture. So this
+  // listens on window capture, registered before any of those, and only notes the press; focus moves a frame later,
+  // by the item's key, because the press's own selection may re-render the element. A press on the empty canvas (or a
+  // plain region's open middle, which works as empty canvas) takes focus off the items. One check per press; nothing
+  // on pointer moves.
+  pressFocus() {
+    window.addEventListener("pointerdown", e => {
+      if (this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool || !e.target.closest?.("#viewport")) return;
+      if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],[data-deco-task],.whiteboard-editor,[data-port],.board-map,.whiteboard-ports")) return;
+      let item = this.boardFocus.item(e.target);
+      if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) {
+        const r = item.getBoundingClientRect();
+        if (e.clientX > r.left + 6 && e.clientX < r.right - 6 && e.clientY > r.top + 28 && e.clientY < r.bottom - 6) item = null;
+      }
+      const key = item && this.boardFocus.key(item);
+      if (!key && !document.activeElement?.closest?.("#world")) return;
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor")) return;
+        const target = key ? this.boardFocus.element(key) : $("viewport");
+        if (!target?.isConnected || active === target) return;
+        // A press on a card's own control area keeps native focus where it landed inside the card.
+        if (key?.startsWith("placement:") && target.contains(active) && active !== target) return;
+        if (key) this.boardFocus.setStop(key);
+        target.focus({preventScroll:true});
       });
     }, true);
   }

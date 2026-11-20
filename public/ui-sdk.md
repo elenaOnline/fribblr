@@ -379,9 +379,13 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   `stepLetter`; either case, never with Shift or a modifier, never in a field, never while a menu has focus: menus own
   typed letters). Ctrl+←/→ still steps on Windows and Linux. Inside an opened Tinka nothing stacks, so `[` / `]` and ⌥←/→
   still step there, and J / K step too. A step with focus on the board takes focus to the stepped card.
-- **Focus follows a press.** A press on a drawn element focuses it (a card takes focus natively; Whiteboard's pointerdown
-  prevents that for drawn elements), so Option-arrow and Space act on what was pressed, never on an item focused earlier;
-  a press on empty canvas takes focus off the items. Pointer focus draws no ring (`pointer-focus.js`).
+- **Focus follows a press.** A press on any board item (card, Text block, shape, arrow, sticker, container, container
+  member) focuses it, so Option-arrow, Space and the board's commands act on what was pressed, never on an item focused
+  earlier; a press on empty canvas takes focus off the items. A card takes focus natively, but Whiteboard's pointerdown
+  prevents that for drawn elements and stops the event on document capture (and a group drag can stop it on window
+  capture), so `pressFocus()` listens on window capture, registered before Whiteboard mounts, and focuses the item by
+  its key a frame later (the press's own selection may re-render it). Pointer focus draws no ring (`pointer-focus.js`).
+  Checked in `tests/board-fixes-browser.mjs`.
 - **Focus comes back.** Closing the reader returns focus to the card last viewed when it was opened from the board's
   items. Escape in the selection bar sends focus to the board's roving item (or the first card, or the canvas).
 - **The board's key handlers step aside** for SDK widgets: `inPopup()` first (an open menu or popover owns every key,
