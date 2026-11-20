@@ -42,7 +42,7 @@ function tooltipFor(host) {
     // Focus coming back to a trigger after its popup closed doesn't reopen the hint (tooltip.md § Focus).
     // Nor does focus the app placed as a key opened something (placedByKey, below).
     const focusTarget = event.detail.event?.target instanceof Element ? event.detail.event.target : root.api?.getPayload?.();
-    if (quiet(root.api?.getPayload?.()) || (event.detail.reason === 'trigger-focus' && (popupJustClosed() || (focusTarget instanceof Element && placedByKey(focusTarget))))) event.preventDefault();
+    if (quiet(root.api?.getPayload?.()) || (event.detail.reason === 'trigger-hover' && heldQuiet(focusTarget)) || (event.detail.reason === 'trigger-focus' && (popupJustClosed() || (focusTarget instanceof Element && placedByKey(focusTarget))))) event.preventDefault();
   });
   root.addEventListener('payloadchange', event => {
     if (quiet(event.detail.value)) { event.preventDefault(); queueMicrotask(() => root.api?.close?.()); return; }
@@ -56,6 +56,20 @@ function tooltipFor(host) {
   return root;
 }
 const roots = new Set();
+
+// A wrapped trigger that was pressed, or was under the pointer as a popup opened, opens no hover hint until the pointer
+// leaves it (tooltip.md: after a press the tooltip stays closed until the pointer leaves). The SDK's trigger keeps that
+// itself when it hears the press, but the board and the drawn-object bar stop pointerdown before it does, and the bar's
+// panels are not SDK popups.
+let quietTrigger = null;
+function holdQuiet(trigger) { if (trigger?.isConnected) quietTrigger = trigger; }
+function heldQuiet(el) {
+  if (!quietTrigger || !(el instanceof Element)) return false;
+  // Rebuilt under the resting pointer (the rail redraws its pressed tool as the picker opens): the replacement there
+  // keeps the press, as the delegate's controls do.
+  if (!quietTrigger.isConnected) quietTrigger = Number.isFinite(pointerX) && document.elementFromPoint(pointerX, pointerY)?.closest('ui-tooltip-trigger') || null;
+  return !!quietTrigger?.contains(el);
+}
 
 // Nothing to say: an empty hint (data-tip="", a control whose hint applies only sometimes), or a truncated title that fits.
 // data-tip-truncated may name the descendant whose text is cut off (a row's name inside its link); cut off sideways
@@ -401,6 +415,23 @@ function installDelegate() {
     if (event.pointerType !== 'touch') pressed = el;
     if (current?.el === el) close('trigger-press', event);
   }, true);
+  // A press on the control whose tooltip shows closes it, whoever handles the press. The drawn-object bar and the board
+  // stop pointerdown on document capture, before both the listener above and an SDK trigger's own hear it (the bar's
+  // buttons, the tools rail), so this runs on window capture, ahead of them. The control counts as pressed: no hint
+  // until the pointer leaves it (wrapped triggers: pressedTrigger, below).
+  addEventListener('pointerdown', event => {
+    if (event.pointerType === 'touch' || !(event.target instanceof Element)) return;
+    for (const root of roots) {
+      const payload = root.api?.isOpen?.() && root.api.getPayload?.();
+      if (!(payload instanceof Element) || !payload.contains(event.target)) continue;
+      cancelPending();
+      pressed = payload;
+      if (current?.root === root) close('trigger-press', event);
+      else root.api.close({reason: 'trigger-press', event});
+    }
+    const wrapped = event.target.closest('ui-tooltip-trigger');
+    if (wrapped) holdQuiet(wrapped);
+  }, true);
   document.addEventListener('touchstart', () => { modality = 'pointer'; }, {capture: true, passive: true});
   // The pointer's position, to tell a pointer that moved onto a control from a control that moved under the pointer.
   // Two numbers per move, and a check only while a control waits for the pointer to move.
@@ -418,6 +449,7 @@ function installDelegate() {
       if (event.defaultPrevented) return;
       cancelPending();
       if (hovered) { still = null; pressed = hovered; }
+      if (Number.isFinite(pointerX) && Number.isFinite(pointerY)) holdQuiet(document.elementFromPoint(pointerX, pointerY)?.closest('ui-tooltip-trigger'));
       if (current) close('trigger-press', event.detail.event);
       for (const root of openRoots) if (root.api?.isOpen?.()) root.api.close({reason: 'trigger-press', event: event.detail.event});
     });
@@ -426,6 +458,8 @@ function installDelegate() {
 
   document.addEventListener('pointerover', event => {
     if (event.pointerType === 'touch') return;
+    // The pointer left a quiet trigger (a control rebuilt under the resting pointer is not a move: enter, below).
+    if (quietTrigger && (event.clientX !== pointerX || event.clientY !== pointerY) && !(quietTrigger.isConnected && event.target instanceof Node && quietTrigger.contains(event.target))) quietTrigger = null;
     const el = delegated(event.target);
     if (el === hovered) return;
     const was = hovered;

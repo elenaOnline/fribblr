@@ -19,7 +19,7 @@ import {mountPresetScrub} from './preset-scrub.js';
 import {announce, decorationLabel, sdkCore} from './board-focus.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tips} from './tips.js';
-import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown, tabOutOfPanel} from './popups.js';
+import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown, tabOutOfPanel, reportPanel} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -229,6 +229,19 @@ export class Whiteboard {
       document.head.append(format);
     }
     this.ports=document.createElement('div'); this.ports.className='whiteboard-ports';
+    // The connection points are one Tab stop, as the comment pins and the board's items are: the point focused last
+    // holds it (else the first), an arrow goes to that side's point of the same object and, from a point already on
+    // that side, to the nearest point that way (UI SDK nearestInDirection on screen boxes: the destinations of a
+    // connection); Home and End reach the first and last. Enter or Space presses the focused point.
+    this.ports.setAttribute('role','group');this.ports.setAttribute('aria-label','Connection points');
+    this.portStop=null;
+    this.ports.addEventListener('focusin',e=>{
+      const port=e.target.closest?.('[data-port]');
+      if(!port||port.dataset.port===this.portStop)return;
+      this.portStop=port.dataset.port;
+      for(const el of this.ports.querySelectorAll('[data-port]'))el.tabIndex=el===port?0:-1;
+    });
+    this.ports.addEventListener('keydown',e=>this.portKeys(e));
     this.toolbar=document.createElement('ui-toolbar'); this.toolbar.className='whiteboard-toolbar';
     this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
     this.menu=document.createElement('div'); this.menu.className='whiteboard-menu'; this.menu.hidden=true;
@@ -310,16 +323,40 @@ export class Whiteboard {
     const own=ownTarget&&!ownTarget.sticker&&!this.drag&&(ownTarget.type==='text'||ownTarget.shape) ? [source] : [];
     const refs=this.drag?.endpoint||this.pendingFrom ? this.targets() : this.connectMode&&source ? [source] : own;
     const origin=this.host.origin||{x:0,y:0},snap=this.drag?.snap;
-    const markup=refs.flatMap(ref=>sides.map(side=>{
+    const ports=refs.flatMap(ref=>sides.map(side=>{
       const end={...ref,side},p=resolveEndpoint(end,this.host.snapshot,this.overrides);
+      return p.detached?null:{ref,side,p,key:JSON.stringify(end)};
+    })).filter(Boolean);
+    const stop=ports.some(port=>port.key===this.portStop)?this.portStop:ports[0]?.key;
+    const markup=ports.map(({ref,side,p,key})=>{
       const state=sameTarget(snap?.ref,ref)?snap.endpoint.side===side&&(snap.endpoint.offset??.5)===.5?' near snapped':' near':'';
-      return p.detached?'':`<button type="button" class="whiteboard-port${state}" data-port-side="${side}" data-port="${esc(JSON.stringify(end))}" aria-label="Connect ${esc(this.name(ref))} ${side}" data-tip="${esc(this.name(ref))}: ${side}" style="left:${p.x+origin.x}px;top:${p.y+origin.y}px"></button>`;
-    })).join('');
+      return `<button type="button" class="whiteboard-port${state}" data-port-side="${side}" data-port="${esc(key)}" tabindex="${key===stop?0:-1}" aria-label="Connect ${esc(this.name(ref))} ${side}" data-tip="${esc(this.name(ref))}: ${side}" style="left:${p.x+origin.x}px;top:${p.y+origin.y}px"></button>`;
+    }).join('');
     if(this.ports.innerHTML!==markup)this.ports.innerHTML=markup;
     this.ports.classList.toggle('snapping',!!snap);
     // Decoration patches rewrite class attributes, so the target mark follows each render.
     if(this.drag?.endpoint)this.highlight(snap?.ref);
     document.getElementById('world').append(this.ports);
+  }
+  portKeys(e) {
+    if(e.altKey||e.ctrlKey||e.metaKey||e.isComposing)return;
+    const from=e.target.closest?.('[data-port]');
+    const direction={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+    if(!from||(!direction&&e.key!=='Home'&&e.key!=='End'))return;
+    e.preventDefault();e.stopPropagation();
+    const all=[...this.ports.querySelectorAll('[data-port]')];
+    if(!direction){(e.key==='Home'?all[0]:all.at(-1))?.focus({preventScroll:true});return;}
+    // That side of the same object first: ↑ top, → right, ↓ bottom, ← left.
+    const side={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'top',ArrowDown:'bottom'}[e.key];
+    const target=port=>{try{const {side:_,...ref}=JSON.parse(port.dataset.port);return JSON.stringify(ref);}catch{return '';}};
+    const own=from.dataset.portSide!==side&&all.find(port=>port.dataset.portSide===side&&target(port)===target(from));
+    if(own){own.focus({preventScroll:true});return;}
+    const boxes=all.map((el,index)=>({el,key:String(index),rect:el.getBoundingClientRect()})),here=boxes.find(box=>box.el===from);
+    sdkCore().then(core=>{
+      if(document.activeElement!==from)return;
+      const key=core.nearestInDirection(here.rect,boxes.filter(box=>box!==here),direction);
+      boxes.find(box=>box.key===key)?.el.focus({preventScroll:true});
+    });
   }
   markup(d) {
     const held=this.drafts.get(d.id),draft=d.sticker||held?.nativeText&&d.type!=='text'?null:held;
@@ -641,8 +678,10 @@ export class Whiteboard {
     if(action==='container-detach'){this.commitEdit({focus:false});try{await this.detachContainerChild(id);}catch(error){showFailure(error);}}
   }
   renderObjectFormat(session) {
-    const formatActions=actions=>actions.length?`<div class="whiteboard-format-actions">${actions.map(([id,label])=>
-      `<button type="button" data-whiteboard-action="${id}"${stackKeys[id]?` aria-keyshortcuts="${stackKeys[id]}"`:''}>${label}</button>`).join('')}</div>`:'';
+    // The action rows (Bring to front, Send to back …) look like menu rows, so they are one vertical toolbar, as the %
+    // popover's zoom rows and the item Inspector's actions are: one Tab stop, ↑/↓ with wrap, Home/End.
+    const formatActions=actions=>actions.length?`<ui-toolbar orientation="vertical" class="whiteboard-format-actions" aria-label="Actions">${actions.map(([id,label])=>
+      `<ui-toolbar-button><button type="button" data-whiteboard-action="${id}"${stackKeys[id]?` aria-keyshortcuts="${stackKeys[id]}"`:''}>${label}</button></ui-toolbar-button>`).join('')}</ui-toolbar>`:'';
     if(this.appearance!==session)return;
     if(session.weightControl?.editing||session.captionControl?.editing)return;
     const objects=session.ids.map(id=>this.find(id)).filter(Boolean);
@@ -762,7 +801,7 @@ export class Whiteboard {
     this.menu.classList.add('whiteboard-text-appearance');
     this.menu.setAttribute('role','dialog');
     this.menu.setAttribute('aria-label',label);
-    this.menu.hidden=false;
+    this.menu.hidden=false;reportPanel(this.menu,true);
     this.toolbar.querySelector(`[data-whiteboard-action="${trigger}"]`)?.setAttribute('aria-expanded','true');
     this.renderObjectFormat(session);
     this.focusPanelStart();
@@ -803,7 +842,7 @@ export class Whiteboard {
     this.menu.classList.add('whiteboard-text-appearance');
     this.menu.setAttribute('role','dialog');
     this.menu.setAttribute('aria-label',({size:'Text size',ink:'Ink',face:'Typeface',box:'Text box'})[mode]);
-    this.menu.hidden=false;
+    this.menu.hidden=false;reportPanel(this.menu,true);
     this.appearance=mountTextAppearance(this.menu,text,{
       mode,
       save:patch=>{
@@ -840,7 +879,9 @@ export class Whiteboard {
       this.menu.setAttribute('aria-label','Object actions');
       this.menu.replaceChildren();
     }
+    const wasOpen=!this.menu.hidden;
     this.menu.hidden=true;this.toolbar?.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','false');
+    if(wasOpen)reportPanel(this.menu,false);
     const opener=this.toolbar?.querySelector(`[data-whiteboard-action=${trigger}]`);
     opener?.setAttribute('aria-expanded','false');
     if(focus)opener?.focus({preventScroll:true});
@@ -860,7 +901,10 @@ export class Whiteboard {
       await this.toggleTask(task);return;
     }
     const port=e.target.closest('[data-port]');
-    if(port&&e.detail===0){e.preventDefault();await this.choosePort(JSON.parse(port.dataset.port));return;}
+    // Enter or Space on a point. The click stops here: choosing redraws the points, so the pressed one has left the page
+    // by the time the canvas's own click handler reads it, and that handler cleared the selection (and the connection
+    // just begun) for a click it took to be on empty canvas.
+    if(port&&e.detail===0){e.preventDefault();e.stopPropagation();await this.choosePort(JSON.parse(port.dataset.port));return;}
     const control=e.target.closest('[data-whiteboard-action]'),action=control?.dataset.whiteboardAction;if(!action)return;
     e.preventDefault();e.stopPropagation();
     if(action==='more'){
@@ -927,12 +971,12 @@ export class Whiteboard {
     this.commitEdit({focus:false});this.connectMode=!this.connectMode;this.pendingFrom=null;this.closeMenu();
     this.hint.textContent=this.connectMode?'Choose a connection point, then its destination. Dragging also works.':'';
     this.hint.hidden=!this.connectMode;this.renderPorts();this.renderToolbar();
-    this.ports.querySelector('button')?.focus({preventScroll:true});
+    (this.ports.querySelector('button[tabindex="0"]')||this.ports.querySelector('button'))?.focus({preventScroll:true});
   }
   async choosePort(endpoint) {
     if(!this.pendingFrom) {
       this.pendingFrom=endpoint;this.connectMode=true;this.renderPorts();this.hint.hidden=false;this.hint.textContent='Choose the destination connection point.';
-      this.ports.querySelector('button')?.focus({preventScroll:true});return;
+      (this.ports.querySelector('button[tabindex="0"]')||this.ports.querySelector('button'))?.focus({preventScroll:true});return;
     }
     const from=this.pendingFrom;this.pendingFrom=null;
     if(JSON.stringify(from)===JSON.stringify(endpoint)){this.renderPorts();return;}

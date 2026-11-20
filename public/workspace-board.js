@@ -1,8 +1,8 @@
 import {closePanel, sidePanel} from "./side-panel.js";
 import {setItemDisabled} from "./header-toolbar.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
-import {followVisibility,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked} from './popups.js';
+import {followVisibility,setButtonOff,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked,focusAfterOutsidePress,placeInBoardOrder} from './popups.js';
 import {widgetOwnsKey} from './ui-sdk.js';
 import {tips,tip,setTip,tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
@@ -565,7 +565,23 @@ export class WorkspaceBoard {
     const filter = section("Filter", "", [pick(".workspace-search"), filterBar], "inspector-filter");
     const order = document.createElement("button"); order.type = "button"; order.className = "tk-btn tk-sm tk-tonal";
     order.textContent = "Comparison order…"; order.onclick = () => this.orderForm();
-    const edit = section("Edit", "", [row("inspector-edit-row", [...edits, order])], "inspector-edit");
+    // The Edit and Feedback rows are drawn as the Filter row is, so they behave as it does: one toolbar each, named by
+    // its heading (one Tab stop, ←/→ along it with wrap, Home/End). A button that is hidden (Retry unsaved feedback,
+    // Recover unsaved text, Open primary content) or disabled (Undo with nothing to undo) leaves the arrow order
+    // (followVisibility); their own modules still find them by id and write `disabled` as before.
+    const toolbarRow = (cls, heading, nodes) => {
+      const el = document.createElement("ui-toolbar");
+      el.className = `inspector-row ${cls}`;
+      el.setAttribute("aria-labelledby", `board-info-${heading}-heading`);
+      nodes.filter(Boolean).forEach(node => el.append(node));
+      // Right around the button, inside any tooltip trigger (which stays the outermost wrapper, ui-sdk.md § Tooltips).
+      const off = [];
+      for (const button of el.querySelectorAll("button")) { const part = document.createElement("ui-toolbar-button"); button.before(part); part.append(button); if (button.disabled) off.push(button); }
+      followVisibility(el);
+      for (const button of off) setButtonOff(button, true);
+      return el;
+    };
+    const edit = section("Edit", "", [toolbarRow("inspector-edit-row", "edit", [...edits, order])], "inspector-edit");
     // Feedback: board-wide Comments as one full-width row (as in the opened Tinka's
     // Inspector), anything else the feedback controls add, and notes export.
     const comments = pick("[data-feedback-toggle]");
@@ -574,7 +590,7 @@ export class WorkspaceBoard {
     const exporter = $("export"); exporter?.classList.add("tk-btn", "tk-sm", "tk-tonal");
     const copy = document.createElement("button"); copy.type = "button"; copy.className = "tk-btn tk-sm tk-tonal";
     copy.textContent = "Copy notes as Markdown"; copy.setAttribute("aria-keyshortcuts", "Shift+Meta+C Control+Shift+C"); copy.onclick = () => this.copyNotes();
-    const feedback = section("Feedback", "", [comments, ...extra, row("", [exporter, copy])], "inspector-feedback");
+    const feedback = section("Feedback", "", [toolbarRow("inspector-feedback-row", "feedback", [comments, ...extra, exporter, copy])], "inspector-feedback");
     const appearance = section("Appearance", "this browser", [row("", [panel.querySelector(".appearance-control")])], "inspector-appearance");
     const guide = pick("#workspace-keyboard-shortcuts"); guide?.classList.add("tk-btn", "tk-sm", "tk-tonal");
     const help = section("Help", "", [panel.querySelector(".board-help"), row("", [guide])], "inspector-help");
@@ -1531,15 +1547,17 @@ export class WorkspaceBoard {
       if (!button) continue;
       const verb = direction === "undo" ? "Undo" : "Redo", label = this.history?.label(direction);
       button.textContent = label ? `${verb} ${label.toLowerCase()}` : verb;
-      button.disabled = !!busy || !this.history?.available(direction);
+      // Through the Edit toolbar's part (setButtonOff): the SDK writes the button's `disabled` from it.
+      const off = !!busy || !this.history?.available(direction);
+      setButtonOff(button, off);
       setTip(button, direction === "undo" ? "Undo movement, paste or removal" : "Redo movement, paste or removal");
       const quick = $("chrome-" + direction);
-      if (quick) { setItemDisabled(quick, button.disabled); setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
+      if (quick) { setItemDisabled(quick, off); setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     const hasDrawings = this.mode === "canvas" && (this.activeDecoration || this.decorationSelection.size);
-    if (copy) copy.disabled = !!busy || !this.clipboardCandidates().length && !hasDrawings;
-    if (paste) paste.disabled = !!busy;
+    if (copy) setButtonOff(copy, !!busy || !this.clipboardCandidates().length && !hasDrawings);
+    if (paste) setButtonOff(paste, !!busy);
   }
   async replayMovement(direction, {explicit = false} = {}) {
     if (this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy || this.history?.busy || this.client.pendingWrites || this.saving ||
@@ -2104,12 +2122,13 @@ export class WorkspaceBoard {
     const cardSelector = `#world .workspace-card[data-placement="${CSS.escape(id)}"]`;
     const returnTo = again ? again.returnTo : fromMenu ? (document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`) ? `[data-item-controls="${CSS.escape(id)}"]` : null)
       : before?.id ? `#${CSS.escape(before.id)}` : before?.matches?.(cardSelector) ? cardSelector : null;
-    document.body.append(panelRoot);
+    placeInBoardOrder(panelRoot);
     tips(popover);
     this.context = popover;
     const invoker = () => document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`);
-    // Tab past the panel's last control continues from what opened it (popups.js, the SDK's non-modal dialog rule): the
-    // control that opened it while it is on screen, else the card's ⋯, else the card.
+    // The control that opened it while it is on screen, else the card's ⋯, else the card: where an outside press on
+    // nothing focusable returns focus (popups.js). (Tab needs no steering: the panel sits right after the board,
+    // placeInBoardOrder.)
     popover.tabTrigger = () => {
       const shown = el => el?.isConnected && el.getClientRects().length ? el : null;
       const card = document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`);
@@ -4078,22 +4097,38 @@ export class WorkspaceBoard {
     if (active !== el) el.focus({preventScroll:true});
     this.boardFocus.keepOn(key);
   }
+  // The board item a press lands on: its roving key, null for the empty canvas (or a plain region's open middle, which
+  // works as empty canvas), undefined for a press that is not the board's (outside the canvas, or on a control).
+  pressedKey(e) {
+    if (this.mode !== "canvas" || !e.target.closest?.("#viewport")) return undefined;
+    if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],[data-deco-task],.whiteboard-editor,[data-port],.board-map,.whiteboard-ports")) return undefined;
+    let item = this.boardFocus.item(e.target);
+    if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) {
+      const r = item.getBoundingClientRect();
+      if (e.clientX > r.left + 6 && e.clientX < r.right - 6 && e.clientY > r.top + 28 && e.clientY < r.bottom - 6) item = null;
+    }
+    return item ? this.boardFocus.key(item) : null;
+  }
   pressFocus() {
+    // A press that closes a popup (a menu swallows it; a popover lets it through) gives focus to what it pressed, as it
+    // would with no popup open: the pressed item, or the canvas (popups.js, focusAfterOutsidePress).
+    focusAfterOutsidePress(e => {
+      const key = this.pressedKey(e);
+      return key === undefined ? undefined : key ? this.boardFocus.element(key) : $("viewport");
+    });
     window.addEventListener("pointerdown", e => {
-      if (this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool || !e.target.closest?.("#viewport")) return;
-      if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],[data-deco-task],.whiteboard-editor,[data-port],.board-map,.whiteboard-ports")) return;
-      let item = this.boardFocus.item(e.target);
-      if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) {
-        const r = item.getBoundingClientRect();
-        if (e.clientX > r.left + 6 && e.clientX < r.right - 6 && e.clientY > r.top + 28 && e.clientY < r.bottom - 6) item = null;
-      }
-      const key = item && this.boardFocus.key(item);
-      if (!key && !document.activeElement?.closest?.("#world")) return;
+      if (e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool) return;
+      const key = this.pressedKey(e);
+      if (key === undefined) return;
       // Where focus was before the press, by element and by board item (a re-render replaces the element).
       const before = document.activeElement, beforeItem = before && this.boardFocus.item(before), beforeKey = beforeItem && this.boardFocus.key(beforeItem);
       requestAnimationFrame(() => {
         const active = document.activeElement;
-        if (active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor")) return;
+        // A field or editor keeps focus that code gave it on this press, and a field on the board itself (an editor
+        // the press finishes) keeps it too. A field the press left (Find, a panel's comment field) gives it up, as a
+        // press on any other focusable place takes it.
+        const field = active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor");
+        if (field && (active !== before || active.closest("#viewport"))) return;
         const target = key ? this.boardFocus.element(key) : $("viewport");
         if (!target?.isConnected || active === target) return;
         // Focus that moved on before this frame (code acting on the press, a click that an assistive technology

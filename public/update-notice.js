@@ -177,7 +177,7 @@ function consent(notice) {
   root.innerHTML = '<ui-dialog-backdrop hidden></ui-dialog-backdrop><ui-dialog-content class="update-dialog" hidden></ui-dialog-content>';
   const dialog = root.querySelector('ui-dialog-content');
   // Focus starts on Later (autofocus), so Enter never approves by accident; Escape and a press outside mean Later too, without asking again.
-  dialog.innerHTML = `<ui-dialog-close><button class="close" type="button" aria-label="Close">×</button></ui-dialog-close><p class="eyebrow">Major update · ${esc(view.project)}</p><ui-dialog-title as-child><h2>Update to Tinka ${esc(notice.display)}?</h2></ui-dialog-title>
+  dialog.innerHTML = `<ui-dialog-close><button class="close" type="button" aria-label="Close">×</button></ui-dialog-close><p class="eyebrow">Major update · ${esc(view.project)}</p><ui-dialog-title as-child><h2>Update to Tinka ${esc(notice.display)}</h2></ui-dialog-title>
   <p class="dialog-copy">Tinka ${esc(notice.display)} is a major update, so Tinka asks before installing it. You have ${esc(view.display)}. Some things may look or work differently afterwards.</p>
   <ul class="update-facts">
   <li>${ICON.check}<span>Your boards, notes and files stay exactly as they are.</span></li>
@@ -185,9 +185,9 @@ function consent(notice) {
   <li>${ICON.check}<span>Tinka restarts for a few seconds. Open boards wait, then offer Refresh.</span></li>
   <li>${ICON.check}<span>Only ${esc(view.project)} is updated. Other projects keep their own Tinka.</span></li></ul>
   ${notesLink(`What's new in ${esc(notice.display)}`).replace('class="update-notes"', 'class="update-link"')}
-  <div class="dialog-bottom"><span>Not now? Later asks again tomorrow.</span><div class="dialog-buttons"><button class="tk-btn tk-tonal" type="button" data-update="later" autofocus>Later</button><button class="tk-btn tk-primary" type="button" data-update="yes">Update to ${esc(notice.display)}</button></div></div>
+  <div class="dialog-bottom"><span>Later asks again tomorrow.</span><div class="dialog-buttons"><button class="tk-btn tk-tonal" type="button" data-update="later" autofocus>Later</button><button class="tk-btn tk-primary" type="button" data-update="yes">Update to ${esc(notice.display)}</button></div></div>
   <p class="update-status" role="status"></p>
-  <div class="update-alt"><span>Rather have your agent do it?</span><button class="tk-btn tk-sm" type="button" data-update="agent">${ICON.copy}<span>Copy the request</span></button></div>`;
+  <div class="update-alt"><span>Or have your agent do it</span><button class="tk-btn tk-sm" type="button" data-update="agent">${ICON.copy}<span>Copy the request</span></button></div>`;
   document.body.append(root);
   const status = dialog.querySelector('.update-status');
   dialog.close = () => root.api.close();

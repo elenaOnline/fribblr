@@ -1,6 +1,8 @@
 import {tip, tipOuter} from './tips.js';
 import {escape as esc} from './workspace.js';
 import {navigationGraph} from './navigator-graph.js';
+import {capLabel} from './keycaps.js';
+import {isMacPlatform} from './reader-keys.js';
 import './vendor/ui-sdk/web/dialog.js';
 import './vendor/ui-sdk/web/command.js';
 import './vendor/ui-sdk/web/tree.js';
@@ -28,8 +30,9 @@ const ICON = {
 };
 const kindIcon = kind => ICON[{board:'board',image:'image',svg:'image',video:'image',audio:'image',html:'code',prototype:'code',web:'code',url:'code',link:'code',note:'note',text:'note',sticky:'note'}[String(kind||'').toLowerCase()]||'doc'];
 const validId = id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(id);
-const isMac = /Mac|iPhone|iPad/.test(globalThis.navigator?.userAgentData?.platform || globalThis.navigator?.platform || '');
-const SHORTCUT = isMac ? '⌘K' : 'Ctrl K';
+// Printed as the header's keycaps print it (keycaps.js): ⌘K on Apple platforms, Ctrl+K elsewhere. (A case-sensitive
+// /Mac/ took userAgentData's "macOS" for another platform and printed Ctrl K beside the header's ⌘K.)
+const SHORTCUT = capLabel(isMacPlatform() ? 'Meta+K' : 'Control+K');
 const DOCK_WIDTH = 340, OUTLINE_LIMIT = 300, BOARD_LIMIT = 1000, DEBOUNCE = 150;
 const SCOPES = {project:'Whole project', board:'This board', descendants:'This board and descendants'};
 const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;

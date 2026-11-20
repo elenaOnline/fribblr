@@ -179,6 +179,49 @@ export const popupJustClosed = (within = 400) => performance.now() - lastPopupCl
 if (typeof document !== 'undefined') for (const type of ['openchange', 'openchangecomplete'])
   document.addEventListener(type, event => { if (event.detail?.value === false && !/^tooltip/.test(event.target?.dataset?.slot || event.target?.tagName?.toLowerCase().replace(/^ui-/, '') || '')) lastPopupClose = performance.now(); }, true);
 
+// ---- Focus after an outside press ----
+// A popup that an outside press closes leaves focus alone when the press lands on something focusable (popups.md
+// § Focus: "Closing because focus moved away never moves it back, and neither does pressing something focusable
+// outside"): the press is expected to focus what it pressed. But a menu swallows that press, and the board's own press
+// handling prevents native focus on the canvas, so focus fell to <body> (Add, the Comments count, the % popover, then a
+// click on empty canvas). Here, once the popup has closed with focus on <body> or still inside it, focus goes where the
+// press would have put it with no popup open: what `focusAfterOutsidePress(resolve)` names for the press (the board:
+// the pressed item, else the canvas), else the focusable element pressed. A press on nothing focusable goes back to the
+// popup's trigger (a shared menu, to its opener).
+const FOCUSABLE = 'a[href],button,input,select,textarea,summary,[tabindex],[contenteditable]:not([contenteditable="false"])';
+const pressResolvers = [];
+export function focusAfterOutsidePress(resolve) { pressResolvers.push(resolve); }
+function pressedFocusTarget(event, root) {
+  for (const resolve of pressResolvers) {
+    const found = resolve(event);
+    if (found !== undefined) return found;
+  }
+  const target = event.composedPath?.()[0] || event.target;
+  const element = target instanceof Element ? target.closest(FOCUSABLE) : null;
+  return element && !root.contains(element) && !element.disabled && !element.closest('[inert],[hidden]') ? element : null;
+}
+const outsidePresses = new WeakMap();
+if (typeof document !== 'undefined') {
+  document.addEventListener('openchange', event => {
+    const root = event.target, {value, reason, event: cause} = event.detail || {};
+    if (!(root instanceof Element) || /^ui-tooltip/.test(root.localName)) return;
+    if (!value && reason === 'outside-press' && cause?.target) outsidePresses.set(root, cause);
+    else outsidePresses.delete(root);
+  }, true);
+  document.addEventListener('openchangecomplete', event => {
+    const root = event.target, cause = event.detail?.value === false && outsidePresses.get(root);
+    if (!cause) return;
+    outsidePresses.delete(root);
+    const active = document.activeElement;
+    if (active && active !== document.body && !root.contains(active)) return;
+    // With nothing focusable pressed, back to the trigger, as popups.md says a closing popup returns focus. (The SDK
+    // defers that return until the press is over, and in 0.1.0-beta.10 it does not happen for a `for=` trigger.)
+    const content = root.querySelector('ui-menu-content,ui-popover-content,ui-dialog-content');
+    const next = pressedFocusTarget(cause, root) || (content && triggerOf(content));
+    if (next?.isConnected && next !== active) next.focus({preventScroll: true});
+  }, true);
+}
+
 // True while one of the app's menus is open: board handlers that run before the SDK's (window capture) check it.
 export function menuOpen() { return !!document.querySelector('ui-menu-content[data-open]'); }
 if (typeof document !== 'undefined') document.addEventListener('pointerdown', event => { if (consumed.has(event)) event.stopImmediatePropagation(); }, true);
@@ -235,14 +278,33 @@ function triggerOf(content) {
   // A popup whose trigger the page can't point at (the comment card's pin is rebuilt as pins regroup) names it itself.
   const named = content.tabTrigger?.();
   if (named instanceof HTMLElement && !content.contains(named)) return named;
-  const root = content.closest('ui-popover,ui-dialog') || content.parentElement;
+  const root = content.closest('ui-popover,ui-dialog,ui-menu') || content.parentElement;
   const found = (content.id && document.querySelector(`[aria-controls="${CSS.escape(content.id)}"]`))
-    || (root?.id && document.querySelector(`ui-popover-trigger[for="${CSS.escape(root.id)}"] button, ui-dialog-trigger[for="${CSS.escape(root.id)}"] button`));
+    || (root?.id && document.querySelector(['ui-popover-trigger', 'ui-dialog-trigger', 'ui-menu-trigger'].map(tag => `${tag}[for="${CSS.escape(root.id)}"] button`).join(', ')));
   return found instanceof HTMLElement && !content.contains(found) ? found : null;
 }
+// A panel that stays open beside the board (the item Inspector, the Comments panel) sits in the page right after the
+// board and its drawn-object bar, the way the bar does, not at the end of <body>: so Tab reaches it after the board's
+// items and goes on to what follows the board (kind legend, zoom pill, tools rail) and off the page, and Shift+Tab
+// comes back the same way. At the end of <body>, it had to hand Tab back to its opener (the popovers' rule below),
+// and Tab past the tools rail then came round into it again: a loop only Shift+Tab left. Still outside every card and
+// toolbar, so its events reach no board handler. Off a board, it goes at the end of <body>.
+export function placeInBoardOrder(panel) {
+  panel.setAttribute('data-in-order', '');
+  const after = document.querySelector('body > .whiteboard-toolbar') || document.getElementById('viewport');
+  if (after?.parentElement === document.body) { if (after.nextElementSibling !== panel) after.after(panel); }
+  else if (panel.parentElement !== document.body || panel.nextElementSibling) document.body.append(panel);
+}
+
 // The same rule for a panel the app places itself (the drawing bar's format panels in whiteboard.js, which hold the
 // text-format and colour controls): forward from its last control `close()` runs and focus goes to `trigger`, so the
 // browser's Tab continues after it; backward from the first, focus goes to `trigger`. True when the Tab was steered.
+// A panel the app places itself reports its open and close as an SDK popup does: `openchange` on the panel, bubbling.
+// So the shared tooltip closes as the panel opens and keeps quiet over its button (tips.js), and focus returning to the
+// button as it closes reopens no hint (popupJustClosed).
+export function reportPanel(panel, open) {
+  panel?.dispatchEvent(new CustomEvent('openchange', {bubbles: true, composed: true, detail: {value: !!open, reason: open ? 'trigger-press' : 'imperative'}}));
+}
 export function tabOutOfPanel(event, content, trigger, close) {
   if (event.key !== 'Tab' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return false;
   const target = event.target instanceof Element ? event.target : null;
@@ -264,6 +326,8 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   const host = content?.closest('ui-popover,ui-dialog');
   // At the end of <body>, or at the end of the modal reader dialog that hosts it (its % popover).
   if (!content || !host || (host.parentElement !== document.body && !host.parentElement?.closest('dialog'))) return;
+  // A panel placed in the page's order (placeInBoardOrder) is already where Tab should find it.
+  if (host.hasAttribute('data-in-order')) return;
   if (content.getAttribute('aria-modal') === 'true' || host.getAttribute('modal') === 'true' || host.getAttribute('modal') === 'trap-focus') return;
   const trigger = triggerOf(content);
   if (!trigger) return;

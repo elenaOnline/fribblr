@@ -176,7 +176,15 @@ function dialogHost() {
   if (open) return open;
   return [...document.querySelectorAll('dialog[open]')].filter(d => d.matches(':modal')).pop() || document.body;
 }
-const FIRST_FIELD = 'input:not([type=hidden],[type=checkbox],[type=radio],[readonly],[disabled]),textarea:not([readonly],[disabled]),select:not([disabled])';
+const FIRST_FIELD = 'input:not([type=hidden],[readonly],[disabled]),textarea:not([readonly],[disabled]),select:not([disabled])';
+// The first field or choice a dialog shows: a field inside a hidden part (the Move dialog's New board name, until New
+// board… is chosen) is skipped, and a radio group is entered on its checked radio, else its first (radio.md).
+function firstField(root) {
+  // (The dialog content itself is still hidden while it is built: only a hidden part inside it counts.)
+  const field = [...root.querySelectorAll(FIRST_FIELD)].find(el => { const part = el.closest('[hidden]'); return !part || !root.contains(part) || part === root; });
+  if (field?.type !== 'radio' || !field.name) return field;
+  return [...root.querySelectorAll('input[type=radio]')].find(el => el.name === field.name && el.checked && !el.disabled) || field;
+}
 // Fields whose value is typed text (a discard question guards them in makeDialog).
 const TEXT_TYPES = new Set(['text', 'search', 'url', 'email', 'tel', 'password', 'number']);
 export function makeDialog(title, body, onSubmit, {
@@ -187,8 +195,9 @@ export function makeDialog(title, body, onSubmit, {
   const d = root.querySelector('ui-dialog-content');
   d.classList.toggle('workspace-dialog-compact', compact);
   const form = d.querySelector('form'), status = d.querySelector('.workspace-form-status');
-  // Focus opens on [autofocus], else the first field of a form; with no field, UI SDK's first focusable (the close key).
-  if (!d.querySelector('[autofocus]')) d.querySelector(FIRST_FIELD)?.setAttribute('autofocus', '');
+  // Focus opens on [autofocus], else the first field or choice of the form; with none, UI SDK's first focusable (the
+  // close key).
+  if (!d.querySelector('[autofocus]')) firstField(d)?.setAttribute('autofocus', '');
   const submit = onSubmit && form.querySelector('[type="submit"]');
   if (submit) {
     const hint = document.createElement('small');

@@ -1195,7 +1195,9 @@ function renderReaderInfo() {
       if (parent) actions.push(act('feature', `Feature on ${esc(parent.title)}…`));
     }
   }
-  const organize = actions.length ? `<section class="inspector-sec" aria-labelledby="reader-organize-heading"><h3 id="reader-organize-heading">Organize</h3><div class="reader-organize">${actions.join('')}</div></section>` : '';
+  // The Organize rows are drawn as the Feedback rows are, so they are one vertical toolbar too (↑/↓ with wrap, Home/End),
+  // as the item Inspector's actions, which hold the same Move, are.
+  const organize = actions.length ? `<section class="inspector-sec" aria-labelledby="reader-organize-heading"><h3 id="reader-organize-heading">Organize</h3><ui-toolbar orientation="vertical" class="reader-organize" aria-labelledby="reader-organize-heading">${actions.map(action => `<ui-toolbar-button>${action}</ui-toolbar-button>`).join('')}</ui-toolbar></section>` : '';
   const help = `<section class="inspector-sec" aria-labelledby="reader-help-heading"><h3 id="reader-help-heading">Help</h3><div class="reader-organize">${where.standalone ? act('reload', 'Reload content') : ''}${act('shortcuts', 'Keyboard shortcuts <kbd class="tk-kbd">?</kbd>')}</div></section>`;
 
   $('reader-info-body').innerHTML = `<div class="inspector-title"><h2 id="reader-info-name">${esc(descriptor(active, variant).name)}</h2><p>${esc(kind)} · on ${esc(readerBoardTitle())}${index >= 0 ? ` · ${index + 1} of ${sequence.length}` : ''}</p></div>
@@ -2079,8 +2081,15 @@ function boardStep(direction) {
   const order = stepOrder();
   const steppable = entry => isSteppable(entry.concept.graphItem);
   const sequence = order.filter(steppable);
-  const cursor = readStepCursor();
+  let cursor = readStepCursor();
   const selected = cursor?.viewedAt >= selectionChangedAt ? new Set() : graph.selection;
+  // With nothing selected, a focused card is where stepping goes on from, as the other commands act on the focused
+  // item (ui-sdk.md § Board canvas): J from the tenth card goes to the eleventh, not back to where the cursor was.
+  const focusedCard = document.activeElement?.closest?.('#world .workspace-card[data-placement]');
+  if (!selected.size && focusedCard) {
+    const index = order.findIndex(entry => entry.id === focusedCard.dataset.placement);
+    if (index >= 0) cursor = { id: focusedCard.dataset.placement, index };
+  }
   const target = boardStepTarget(order, { selected, direction, steppable, cursor });
   if (!target) {
     if (!sequence.length) { announceView('No Tinkas to step through on this board'); return; }

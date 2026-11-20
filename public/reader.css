@@ -166,7 +166,7 @@ button.reader-file-version-detail > span { display: flex; flex-wrap: wrap; align
 #reader-info .reader-where-path { margin-top: 4px; font: 11px/1.4 var(--type-mono); color: var(--ink-2); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
 #reader-info .reader-where-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 #reader-info .reader-where-acts a.tk-btn { text-decoration: none; }
-#reader-info .reader-where-acts .tk-btn:not(.tk-primary), #reader-info .reader-organize > .tk-btn { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+#reader-info .reader-where-acts .tk-btn:not(.tk-primary), #reader-info .reader-organize > .tk-btn, #reader-info .reader-organize > ui-toolbar-button > .tk-btn { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 #reader-info .reader-where-acts .tk-btn:not(.tk-primary):hover, #reader-info .reader-organize .tk-btn:hover { background: var(--line-hair); }
 #reader-info .reader-where-boards { display: grid; gap: 1px; margin: 6px 0 0; padding: 0; list-style: none; }
 #reader-info .reader-where-boards button { display: flex; align-items: baseline; gap: 8px; width: calc(100% + 12px); margin: 0 -6px; padding: 5px 6px; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink); font: 12px/1.3 var(--type-sans); text-align: left; cursor: pointer; }

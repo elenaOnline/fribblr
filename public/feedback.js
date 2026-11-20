@@ -2,7 +2,7 @@ import {escape as esc,toast} from './workspace.js';
 import {pointAnchorAt,resolveCommentPoint} from './feedback-geometry.js';
 import {bindForm,restoreFocus,commitShortcutLabel,commitShortcutCap} from './interaction.js';
 import {setTip} from './tips.js';
-import {sharedMenu,sharedPopover,openMenu,menuItem,menuCheckbox,menuSeparator,inPopup,menuOpen,tabOutOfPanel} from './popups.js';
+import {sharedMenu,sharedPopover,openMenu,menuItem,menuCheckbox,menuSeparator,inPopup,menuOpen,tabOutOfPanel,placeInBoardOrder} from './popups.js';
 import {choiceHTML,setChoice,onChoose} from './ui-toolbar.js';
 export function voteTotals(votes={}){const result={yes:0,no:0,abstain:0};for(const vote of Object.values(votes||{}))if(Object.hasOwn(result,vote.value))result[vote.value]++;return result;}
 // Vote appears on a tile's hover bar (and in an opened Tinka's Inspector) only once
@@ -61,10 +61,10 @@ export class FeedbackController {
       if(menuOpen())return;
       if(this.visible&&this.mode==='board'&&!this.pointMode&&!this.panel.contains(e.target)&&!e.target.closest('[data-item-feedback],[data-feedback-toggle],.feedback-pin,.feedback-options-menu,.feedback-name,.feedback-ballot'))this.close({restoreFocus:false});
     };
-    // A non-modal panel at the end of <body>: Tab past its last control continues from what opened it (the card's
-    // Comments, the top bar's toggle), and Shift+Tab from its first goes back there, as the SDK's non-modal dialogs
-    // do (popups.js), instead of falling off the page.
-    this.panel.addEventListener('keydown',e=>{if(e.key==='Tab'&&this.visible)tabOutOfPanel(e,this.panel,this.tabAnchor(),null);});
+    // On a board the panel sits right after the board (placeInBoardOrder), so Tab goes on through the page and off it.
+    // Inside the reader, at the end of its area: Tab past its last control continues from what opened it, and
+    // Shift+Tab from its first goes back there, as the SDK's non-modal dialogs do (popups.js).
+    this.panel.addEventListener('keydown',e=>{if(e.key==='Tab'&&this.visible&&this.mode==='reader')tabOutOfPanel(e,this.panel,this.tabAnchor(),null);});
     this.keyHandler=e=>{if(e.key==='Escape')this.consumeEscape(e);};this.repositionHandler=()=>this.sizePanel();
     window.addEventListener('click',this.clickHandler,true);window.addEventListener('pointerdown',this.pointHandler,true);window.addEventListener('pointerdown',this.outsideHandler,true);window.addEventListener('keydown',this.keyHandler,true);window.addEventListener('resize',this.repositionHandler);window.visualViewport?.addEventListener('resize',this.repositionHandler);this.sync();
   }
@@ -163,7 +163,7 @@ export class FeedbackController {
   async open({itemId=null,threadId=null,anchor,host,mode='board',returnFocus,selectionRect,selectionId}={}){
     this.saveDraft();this.closeVote({restoreFocus:false});this.endPoint();const changedScope=this.itemId!==itemId||this.loadedScope!==this.scopeKey(itemId);
     this.mode=mode;this.itemId=itemId;this.returnFocus=returnFocus||(!this.panel.contains(document.activeElement)?document.activeElement:this.returnFocus);
-    (host||document.body).append(this.panel);this.panel.dataset.mode=mode;this.selectionRect=selectionRect;this.selectionId=selectionId;this.panel.hidden=false;this.visible=true;this.toggle.setAttribute('aria-expanded','true');this.showSettings(false);this.sizePanel();this.selectDraft({itemId,anchor});this.renderScope();
+    if(host)host.append(this.panel);else placeInBoardOrder(this.panel);this.panel.dataset.mode=mode;this.selectionRect=selectionRect;this.selectionId=selectionId;this.panel.hidden=false;this.visible=true;this.toggle.setAttribute('aria-expanded','true');this.showSettings(false);this.sizePanel();this.selectDraft({itemId,anchor});this.renderScope();
     if(changedScope){this.threads=[];this.nextCursor=null;this.renderList();this.syncPins();}this.status('Loading comments…');if(!threadId)this.textarea.focus({preventScroll:true});
     try{await this.reload();if(threadId)this.focusThread(threadId);}catch(error){this.failure(error);}
   }

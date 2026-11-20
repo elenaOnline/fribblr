@@ -173,10 +173,24 @@ function finish(board, session, result) {
   if (editing.get(board) !== session) return;
   editing.delete(board); board.documentEditing = null;
   const card = currentCard(session);
+  // Focus that was in the page being edited (Escape, ⌘Enter) comes back to its card, which held it under the editor
+  // (ui-sdk.md § Board canvas): the frame goes inert below, which would drop focus to <body>, and the refresh after a
+  // save may rebuild the card. Focus that went elsewhere (a press outside ended the edit) stays there.
+  const active = document.activeElement;
+  const ours = active === session.frame || !active || active === document.body || !!card?.contains(active);
   card?.classList.remove("doc-editing"); card?.querySelector(".doc-edit-state")?.remove();
   session.frame.setAttribute("inert", ""); session.frame.tabIndex = -1;
+  const refocus = () => {
+    const now = document.activeElement;
+    if (!ours || (now && now !== document.body && now !== session.frame)) return;
+    const target = currentCard(session);
+    if (!target) return;
+    board.boardFocus?.setStop(`placement:${session.placementId}`);
+    target.focus({preventScroll: true});
+  };
+  refocus();
   session.done?.();
-  afterEdit(board, session.itemId, result, session.frame);
+  Promise.resolve(afterEdit(board, session.itemId, result, session.frame)).finally(refocus);
 }
 // After a save: title from the first heading while it is still the default, then the board and
 // any other card or open reader of the same document catch up.

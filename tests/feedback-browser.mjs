@@ -165,12 +165,14 @@ try{
  assert.equal(await settings.getAttribute('aria-expanded'),'true');
  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-settings]'));
  assert.equal(await page.locator('.feedback-panel').isVisible(),true,'Escape closes only the menu');
- // A click away only closes the menu (menu.md: modal="pointer"): the panel stays and focus goes back to ⋯.
+ // A click away only closes the menu (menu.md: modal="pointer"): the panel stays. A click on empty canvas leaves focus
+ // on the canvas, where the press would have put it (popups.md § Focus; popups.js focusAfterOutsidePress).
  await page.keyboard.press('Enter');await page.waitForFunction(()=>document.activeElement?.getAttribute('role')==='menuitemcheckbox');
  {const v=await page.locator('#viewport').boundingBox();await page.mouse.click(v.x+40,v.y+v.height-120);}
  await page.waitForFunction(()=>!document.querySelector('#feedback-options-menu ui-menu-content[data-open]'));
- await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-settings]'));
+ await page.waitForFunction(()=>document.activeElement?.id==='viewport');
  assert.equal(await page.locator('.feedback-panel').isVisible(),true,'a click away closes only the menu, not the panel');
+ await settings.focus();
  await page.keyboard.press('ArrowDown');await page.waitForFunction(()=>document.activeElement?.getAttribute('role')==='menuitemcheckbox');
  await page.keyboard.press('y');assert.match(await page.evaluate(()=>document.activeElement.textContent),/Your name/,'typeahead');
  await page.keyboard.press('Enter');await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-name]'));
@@ -180,15 +182,16 @@ try{
  await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-name]'));assert.equal(await identity.getAttribute('aria-expanded'),'true');
  await page.locator('[data-feedback-name]').fill('Reviewer');await page.keyboard.press('Enter');
  await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-identity]'));assert.equal(await identity.textContent(),'As Reviewer');
- // Tab past the panel's last control continues from what opened it (the card's Comments), never off the page; the
- // panel stays open. Shift+Tab from its first control goes back there too.
+ // On a board the panel sits right after the board (placeInBoardOrder): Tab past its last control goes on to what
+ // follows the board, never back into the board it came from (that made a loop), and the panel stays open. Shift+Tab
+ // from its first control goes back the same way, to the board's last stop before it.
  await page.evaluate(()=>{const stops=[...document.querySelectorAll('.feedback-panel button,.feedback-panel textarea,.feedback-panel [tabindex]')].filter(e=>e.tabIndex>=0&&!e.disabled&&e.getClientRects().length);stops.at(-1).focus();});
  await page.keyboard.press('Tab');
- assert.equal(await page.evaluate(()=>document.activeElement!==document.body&&!document.activeElement.closest('.feedback-panel')&&!!document.activeElement.closest('#world')),true,'Tab past the panel goes on into the board, not to <body>');
+ assert.equal(await page.evaluate(()=>{const a=document.activeElement;return a!==document.body&&!a.closest('.feedback-panel,#world,#viewport')&&!!(document.getElementById('viewport').compareDocumentPosition(a)&Node.DOCUMENT_POSITION_FOLLOWING);}),true,'Tab past the panel goes on to what follows the board');
  assert.equal(await page.locator('.feedback-panel').isVisible(),true,'the panel stays open (a non-modal dialog)');
  await page.evaluate(()=>[...document.querySelectorAll('.feedback-panel button,.feedback-panel textarea,.feedback-panel [tabindex]')].find(e=>e.tabIndex>=0&&!e.disabled&&e.getClientRects().length).focus());
  await page.keyboard.press('Shift+Tab');
- assert.equal(await page.evaluate(id=>document.activeElement?.dataset.itemFeedback===id,item.itemId),true,'Shift+Tab from its first control goes back to the card\'s Comments');
+ assert.equal(await page.evaluate(()=>{const a=document.activeElement;return a!==document.body&&!a.closest('.feedback-panel')&&!!(a.compareDocumentPosition(document.querySelector('.feedback-panel'))&Node.DOCUMENT_POSITION_FOLLOWING);}),true,'Shift+Tab from its first control goes back to the stop before it');
  await identity.focus();
  await page.keyboard.press('Escape');await page.locator('.feedback-panel').waitFor({state:'hidden'});
  const voteButton=page.locator(`[data-item-vote="${item.itemId}"]`);await voteButton.evaluate(el=>el.focus());await page.waitForTimeout(150);await page.keyboard.press('Enter');

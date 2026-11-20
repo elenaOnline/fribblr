@@ -94,7 +94,7 @@ function showPrompt(title, description, text, copyLabel) {
 }
 
 export function openRemovalPrompt(config, board, concept = null) {
-  showPrompt(`Remove “${concept?.name || board.title}”?`, concept
+  showPrompt(`Remove “${concept?.name || board.title}”`, concept
     ? `Ask your agent to remove this experiment from “${board.title}”. Its files and notes stay recoverable.`
     : 'Ask your agent to remove this board from the list and keep a recoverable archive of its contents.',
   removalPrompt(config, board, concept), 'Copy removal prompt');

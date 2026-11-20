@@ -75,7 +75,13 @@ function setSort(value,{save=true}={}){
 }
 onSegmented(sortGroup,value=>{if(value===homeView.sort)return;setSort(value);rerender();});
 find.addEventListener('input',()=>{homeView.query=find.value;rerender();});
-find.addEventListener('keydown',e=>{if(e.key!=='Escape')return;e.preventDefault();if(find.value){find.value='';homeView.query='';rerender();}else find.blur();});
+// Escape clears the text, then leaves the field: focus goes back to where it was before Find (a click or Tab there),
+// else to the boards (their one Tab stop), never to <body>, so the next keys still act on the page.
+let beforeFind=null;
+find.addEventListener('focusin',e=>{beforeFind=e.relatedTarget instanceof HTMLElement&&e.relatedTarget!==document.body?e.relatedTarget:null;});
+find.addEventListener('keydown',e=>{if(e.key!=='Escape')return;e.preventDefault();if(find.value){find.value='';homeView.query='';rerender();return;}
+ const back=beforeFind?.isConnected&&beforeFind.getClientRects().length?beforeFind:document.querySelector('main .board-link[tabindex="0"]')||document.querySelector('main .board-link');
+ if(back)back.focus({preventScroll:true});else find.blur();});
 const typing=el=>el?.closest?.('input,textarea,select,[contenteditable=""],[contenteditable="true"]');
 document.addEventListener('keydown',e=>{if(e.key!=='/'||e.metaKey||e.ctrlKey||e.altKey||e.defaultPrevented||typing(e.target)||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]'))return;e.preventDefault();find.focus();find.select();});
 try{const r=await fetch('/api/config');if(r.ok){config=await r.json();$('workspace-name').textContent=`Tinka / ${config.projectLabel}`;document.title=`Tinka / ${config.projectLabel}`;$('project-label').textContent=config.projectLabel;}}catch{}
