@@ -349,7 +349,8 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
 - **`confirmDialog({title, description, confirmLabel, cancelLabel, onConfirm, className})`** builds a
   `ui-alert-dialog` and resolves `true` for the confirming answer. Focus opens on Cancel, Escape means no, a backdrop
   press does nothing. An async `onConfirm` keeps the dialog open with the confirm key pending and shows a failure
-  inside it.
+  inside it. Its title is a statement, never a question (her copy rule): "Archive these boards everywhere", "Remove
+  from this board", "Update to Tinka 2.0". The same holds for every dialog title and for the lines beside its buttons.
 - **Nesting.** Both append to the topmost open modal (`ui-dialog-content[data-open][aria-modal=true]`,
   `ui-alert-dialog-content[data-open]`, or a modal `<dialog>` such as the reader), otherwise that parent's inert page
   would include the new dialog.

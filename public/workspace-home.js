@@ -454,8 +454,8 @@ export class WorkspaceHome {
       }
       confirmDialog({
         title: this.archive
-          ? "Restore these boards everywhere?"
-          : "Archive these boards everywhere?",
+          ? "Restore these boards everywhere"
+          : "Archive these boards everywhere",
         description: this.archive ? "Restore these canonical board items on home and every board where they are referenced." : "Archive these canonical board items on home and every board where they are referenced. Their content and resource files remain intact.",
         confirmLabel: this.archive ? "Restore everywhere" : "Archive everywhere",
         onConfirm: async () => {

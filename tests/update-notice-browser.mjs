@@ -127,7 +127,7 @@ try {
   eq(await chip(page).evaluate(b => [b.dataset.kind, b.textContent.trim(), getComputedStyle(b, '::before').width]), ['major', `Tinka ${display(MAJOR)} available`, '6px'], 'A major update has the accent and a dot');
   await chip(page).click();
   const dialog = page.locator('.update-dialog[data-open]'); await dialog.waitFor();
-  eq(await dialog.locator('h2').textContent(), `Update to Tinka ${display(MAJOR)}?`, 'The consent question');
+  eq(await dialog.locator('h2').textContent(), `Update to Tinka ${display(MAJOR)}`, 'The consent title, plain (no question-style titles)');
   eq(await dialog.locator('.update-facts li').count(), 4, 'Four facts');
   ok(await dialog.getByRole('link', {name: `What's new in ${display(MAJOR)}`}).isVisible(), "What's new");
   eq(await page.evaluate(() => document.activeElement?.dataset.update), 'later', 'Focus starts on Later');
