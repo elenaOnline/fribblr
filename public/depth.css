@@ -175,7 +175,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 [data-height="raised"], .ct-avatar, .comment-pin, .tk-kbd, #world .workspace-select-dot,
 .whiteboard-toolbar .whiteboard-bar-button[aria-pressed="true"]:not([data-whiteboard-action="color"]), .edit-tools .tk-btn[aria-pressed="true"],
 #reader-file-versions .tk-btn,
-:where(.workspace-toolbar button:not(.tk-seg > button, .workspace-segments > button), .workspace-dialog button:not(.workspace-close, .workspace-item-sections > button), .workspace-button, .item-content button,
+:where(.workspace-toolbar button:not(.tk-seg > button, .tk-seg > [data-slot=segmented-control-item], .workspace-segments > button), .workspace-dialog button:not(.workspace-close, .workspace-item-sections > button), .workspace-button, .item-content button,
   .workspace-preview-launch span, .workspace-appearance-buttons button, .board-info #workspace-add),
 .masthead .tk-btn, body > main .tk-btn, .shelf .workspace-home-toolbar button,
 .empty-card .plus, #new-dialog .primary, .document-tools :is(button, select), .document-annotations button,
@@ -202,8 +202,9 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
   }
 }
 
-/* the chosen segment of a segmented choice: a raised cell standing in its sunken track, not an "on" key */
-.tk-seg > button[aria-pressed="true"], .workspace-segments button[aria-pressed="true"], .workspace-item-sections > button[aria-pressed="true"],
+/* the chosen segment of a segmented choice: a raised cell standing in its sunken track, not an "on" key.
+   A segment is a .tk-seg > button (aria-pressed) or a UI SDK item, .tk-seg > [data-slot=segmented-control-item] ([data-checked]). */
+.tk-seg > button[aria-pressed="true"], .tk-seg > [data-slot=segmented-control-item][data-checked], .workspace-segments button[aria-pressed="true"], .workspace-item-sections > button[aria-pressed="true"],
 .text-format-controls .text-format-roles > button[aria-pressed="true"],
 :is(.whiteboard-menu, .text-format-controls, body) .preset-scrub-row > button:is([aria-pressed="true"], [data-active="true"]) {
   background-color: var(--surface-paper);
