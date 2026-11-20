@@ -4,7 +4,7 @@
 // you") and "Send to agent", which marks open threads sent and copies a prompt.
 // Thread cards (reading, replying, new threads) live in comment-thread.js.
 import {pointAnchorAt, resolveCommentPoint, alongAnchorAt} from './feedback-geometry.js';
-import {toast, escape as esc} from './workspace.js';
+import {toast, makeDialog, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 
 // ---- API adapter (comment API, Tinka 1.1). Field and operation names live only here.
@@ -402,10 +402,9 @@ export function commentPrompt(config, board, threads) {
 }
 
 function showPromptFallback(prompt, marked) {
-  const dialog = document.createElement('dialog');dialog.className = 'workspace-dialog comment-prompt';
-  dialog.innerHTML = `<form method="dialog"><h2>Send to your agent</h2><p>Marked ${marked} comment${marked === 1 ? '' : 's'} sent. Copy this prompt into your agent.</p><textarea readonly rows="10">${esc(prompt)}</textarea><button class="workspace-primary">Done</button></form>`;
-  document.body.append(dialog);dialog.addEventListener('close', () => dialog.remove());dialog.showModal();
-  const area = dialog.querySelector('textarea');area.focus();area.select();
+  const dialog = makeDialog('Send to your agent', `<p>Marked ${marked} comment${marked === 1 ? '' : 's'} sent. Copy this prompt into your agent.</p><textarea readonly rows="10" autofocus>${esc(prompt)}</textarea><button type="button" class="workspace-primary" data-done>Done</button>`, null, {className: 'comment-prompt'});
+  dialog.querySelector('[data-done]').onclick = () => dialog.close();
+    requestAnimationFrame(() => dialog.querySelector('textarea')?.select());
 }
 
 /** Where a ref sits on this board, in board units, or null. */

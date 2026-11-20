@@ -140,8 +140,9 @@ Each surface lists its files and the SDK components it uses. Added as surfaces l
 
 ### Toasts, dialogs, confirmations, notes popover, Quick jot (overlays stream)
 
-Files: `toasts.js` (new), `workspace.js` (`makeDialog`, `confirmDialog`, re-exports `toast`), `agent-prompt.js`,
-`update-notice.js`, `home.html`, `tile-ui.js` (`TileNotes`), `quick-jot.js`, `comment-pins.js` (send-prompt dialog);
+Files: `toasts.js`, `workspace.js` (`makeDialog`, `confirmDialog`, re-exports `toast`), `agent-prompt.js`,
+`update-notice.js`, `home.html` + `home.js` (the new-board dialog), `tile-ui.js` (`TileNotes`), `quick-jot.js`, `comment-pins.js` (send-prompt dialog),
+`workspace-board.js` / `workspace-home.js` (confirmations);
 CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop, `.workspace-alert`), `home.css`,
 `update-notice.css`, `whiteboard.css`.
 
@@ -150,8 +151,11 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
   region per page on first use (bottom centre, where the old status node sat) with a close button and an action slot;
   duration is kept at 6 s. Live status regions that are not toasts (connection, form status) are untouched. Tests find
   toasts by `.workspace-toast`; several can be on screen at once, so use `.first()`/`.last()`/`filter`.
-- **Dialog** (`ui-dialog`, modal). `makeDialog(title, body, onSubmit, {className})` keeps its shape: it returns the
+- **Dialog** (`ui-dialog`, modal). `makeDialog(title, body, onSubmit, {opener, compact, shortcutHint, onDismiss, className})`
+  keeps upstream's 1.3 signature and footer (the submit key and its hint go in `footer.workspace-dialog-actions`): it returns the
   `ui-dialog-content` element (class `workspace-dialog`), which has `close()` and fires a `close` event once closed.
+  `onDismiss(form)` runs when the dialog closes without saving. A dialog that has it keeps its draft (the new-board dialog),
+  so it never asks "Discard your changes?". `opener` is where focus goes back on close (default: the focused element).
   Focus opens on the first field (`autofocus` is set on it), else the close key; Tab wraps; Escape and a press on the
   backdrop close; focus returns to what had it. A form with typed-in changes asks "Discard your changes?" (an alert
   dialog) before Escape or the backdrop throw them away; the × key never asks. ⌘↩ still saves (`bindForm`). A dialog
@@ -160,9 +164,12 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
 - **Alert dialog** (`ui-alert-dialog`). `confirmDialog({title, description, confirmLabel, cancelLabel, onConfirm})`
   resolves true for the confirming answer. Focus opens on Cancel, Escape means no, a backdrop press does nothing.
   `onConfirm` (async) keeps the dialog open with the confirm key pending and shows a failure inside it. Used for
-  Remove placements, Remove from home, Archive/Restore everywhere, Enable flexible boards.
-- **Agent prompt, update consent, Home new-board dialogs** are `ui-dialog` with their own classes
-  (`agent-dialog`, `update-dialog`, `home-dialog`); the update dialog starts on Later (`autofocus`).
+  Remove placements (its toast has an Undo action that runs the same undo as the shortcut), Remove from home,
+  Archive/Restore everywhere, Enable flexible boards, and the discard question above.
+- **Agent prompt, update consent, Home's legacy new-board dialog, the comments send-prompt dialog**: the first three are
+  `ui-dialog` built by hand with their own classes (`agent-dialog`, `update-dialog`, `#new-dialog`); the update dialog
+  starts on Later (`autofocus`), the agent prompt in its text. The send-prompt dialog is `makeDialog` with no submit.
+  Home's graph "New board" dialog is `newBoardDialog` (`makeDialog`, compact).
 - **Tile notes** (`TileNotes`): `ui-popover` (non-modal) in the body, anchored by a temporary
   `data-note-anchor` attribute on the opener, so card handlers never hear it. Saving holds it open; Escape, a press
   outside, Tab out and × keep the draft; Cancel drops it. Focus returns to the opener control.
@@ -173,7 +180,8 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
   (`canvas.js` click handler, `board-document.js`); a bare `closest('[data-open]')` treats any click inside a popup as
   "open that experiment".
 - **Gotcha: open-dialog checks.** Code that asked `document.querySelector('dialog[open]')` now also asks
-  `ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]`. The `aria-modal` part matters:
+  `ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]`; code that asked
+  `dialog.workspace-dialog[open]` asks `.workspace-dialog:is([open],[data-open])`. The `aria-modal` part matters:
   the Navigator and Quick jot are non-modal `ui-dialog-content`, and must not pause the board (the SDK writes
   `aria-modal="true"` only on modal dialogs).
 

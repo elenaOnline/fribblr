@@ -50,7 +50,7 @@ try{
     assert.match(await page.locator('.comment-target-tag').textContent(),/On Pricing hero/);
     await page.mouse.click(tile.x+120,tile.y+100);
     const composer=page.locator('.ct-card .ct-composer').first();await composer.waitFor();
-    assert.ok(!(await page.locator('#workspace-toast').isVisible())||!/Click the board/.test(await page.locator('#workspace-toast').textContent()),'the arming hint is gone once the composer opens');
+    assert.ok(!(await page.locator('.workspace-toast').first().isVisible())||!/Click the board/.test(await page.locator('.workspace-toast').first().textContent()),'the arming hint is gone once the composer opens');
     assert.ok(await until(async()=>/Live · 1 item$/.test(await page.locator('#live-status').textContent())),`one item, singular (${await page.locator('#live-status').textContent()})`);
     await composer.click();await page.keyboard.type('Headline feels generic');
     await page.locator('.ct-card [data-act="post"]').click();
@@ -106,7 +106,7 @@ try{
     assert.match(clip,/node tinka\/app\/cli\.mjs inbox --config tinka\/local\/config\.json/);
     assert.match(clip,/mark (each|it) addressed/);assert.match(clip,/Never resolve/);
     assert.ok(clip.includes(`#comments/${a}`)&&clip.includes(`#comments/${b}`),'thread links');
-    assert.match(await page.locator('#workspace-toast').textContent(),/Copied: paste into your agent/);
+    assert.match(await page.locator('.workspace-toast').first().textContent(),/Copied: paste into your agent/);
     assert.ok(await until(async()=>await send.getAttribute('aria-disabled')==='true'),'nothing left to send');
     assert.equal(await page.locator(`[data-comment-pin="${a}"]`).getAttribute('data-status'),'sent');
   });
