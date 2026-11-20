@@ -74,6 +74,14 @@ try{
  const pressOn=async sel=>{const p=await pointOn(sel);ok(p,`${sel} has a point to press`);await page.mouse.click(p.x,p.y);await page.waitForTimeout(200);};
  const clear=async()=>{for(let i=0;i<3;i++){await page.keyboard.press('Escape');await page.waitForTimeout(60);}};
 
+ // ---- 0. Undo and Redo with nothing to undo are aria-disabled toolbar items and look it: flat in the frame, as a
+ // disabled key is drawn (calm.css, until depth.css has an [aria-disabled] rule). ----
+ {const look=sel=>page.evaluate(sel=>{const e=document.querySelector(sel),c=getComputedStyle(e);return {disabled:e.getAttribute('aria-disabled'),bg:c.backgroundColor,shadow:c.boxShadow};},sel);
+  const undo=await look('#chrome-undo'),redo=await look('#chrome-redo'),key=await look('#board-info-toggle');
+  eq([undo.disabled,redo.disabled],['true','true'],'Undo and Redo start aria-disabled');
+  ok(undo.bg!==key.bg&&undo.shadow!==key.shadow&&/^\S+\(.*?\) 0px 0px/.test(undo.shadow),`Disabled Undo lies flat, unlike an enabled key: ${undo.shadow} vs ${key.shadow}`);
+  eq(redo.shadow,undo.shadow,'Redo looks the same');}
+
  // ---- 1. Focus follows a press, for every kind of board item. ----
  const where=async ref=>{const v=ref.startsWith('placement')?await placement(ref):await decoration(ref);return v.type==='line'?v.from.x:v.x;};
  for(const [label,sel,ref] of [

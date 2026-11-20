@@ -746,7 +746,10 @@ Files: `header-toolbar.js` (new: `headerToolbar`, `setItemDisabled`), `board.htm
 - **Disabled stays reachable.** Undo and Redo with nothing to undo, and the opened Tinka's Favorite while notes load, are
   `aria-disabled` and stay in the arrow order
   (toolbar.md § Disabled: the SDK's default), instead of natively disabled and skipped. Set it with
-  `setItemDisabled(button, on)`; writing `button.disabled` on a toolbar item would take it out of focus entirely.
+  `setItemDisabled(button, on)`; writing `button.disabled` on a toolbar item would take it out of focus entirely. They
+  look disabled too: a local rule at the end of `calm.css` lays an `aria-disabled` top-bar key flat in the frame with a
+  hairline, as `depth.css` draws `:disabled` (flagged: the depth model has no `[aria-disabled]` rule yet; asked of the
+  theme team).
 - In the reader, ←/→ on the actions toolbar now move along it (`readerTinkaFocus` excludes `ui-toolbar`); `[` / `]`
   and ⌥←/→ still step from there, and plain ←/→ still step from the stepper and the canvas.
 
