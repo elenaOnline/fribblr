@@ -360,7 +360,7 @@ export class ProjectNavigator {
     };
     const rows=roots.map(item).join('');
     const current=this.boardId&&this.graph.boards.has(this.boardId)?`b:${this.boardId}`:'';
-    const location=this.boardId?`<p class="navigator-location" data-tip="${esc(this.path(this.boardId))}" data-tip-truncated="bdi"><span class="sr-only">You are here: </span><bdi>${esc(this.path(this.boardId))}</bdi></p>`:'';
+    const location=this.boardId?`<p class="navigator-location" data-tip="${esc(this.path(this.boardId))}" data-tip-truncated><span class="sr-only">You are here: </span><bdi>${esc(this.path(this.boardId))}</bdi></p>`:'';
     // The location line sits under the band, outside the rows (it is not a tree item), and folds away with the section.
     const tree=`<ui-tree class="navigator-tree navigator-group is-boards" aria-label="Project boards" mode="none" expand-on-press="false"${current?` current="${esc(current)}"`:''} default-expanded="${esc(expanded.join(','))}"><ui-tree-item value="sec:boards" class="navigator-section" label="Boards">${this.sectionLabel('boards','Boards','tree',this.graph.boards.size)}${location}<ui-tree-group>${rows}</ui-tree-group></ui-tree-item></ui-tree>`;
     return `${tree}${truncated?'<p class="navigator-empty">More boards are available. Search by name to find them.</p>':''}${!count?'<p class="navigator-empty">No boards yet.</p>':''}`;
