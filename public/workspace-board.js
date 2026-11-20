@@ -1,3 +1,5 @@
+import {closePanel, sidePanel} from "./side-panel.js";
+import {inPopup} from "./popups.js";
 import {positionTilePopover,bindTileMenu} from './tile-ui.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
@@ -376,8 +378,7 @@ export class WorkspaceBoard {
     }, true);
     add.onclick = () => {
       if (this.addPopup) { this.closeAddMenu(); return; }
-      $("board-info").hidden = true;
-      $("board-info-toggle").setAttribute("aria-expanded", "false");
+      closePanel($("board-info"));
       this.closeContext();
       this.addMenu(add);
       add.setAttribute("aria-expanded", String(!!this.addPopup));
@@ -952,8 +953,7 @@ export class WorkspaceBoard {
   keyboardShortcuts() {
     const previousFocus = document.activeElement;
     const returnFocus = $("board-info").contains(previousFocus) ? $("board-info-toggle") : previousFocus;
-    $("board-info").hidden = true;
-    $("board-info-toggle").setAttribute("aria-expanded","false");
+    closePanel($("board-info"));
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
       <dt>⌘/Ctrl-D</dt><dd>Duplicate selection</dd>
@@ -1061,8 +1061,7 @@ export class WorkspaceBoard {
       if (!copied) toast("Use ⌘/Ctrl-C to copy the selected objects.");
     };
     $("workspace-paste").onclick = () => {
-      $("board-info").hidden = true;
-      $("board-info-toggle").setAttribute("aria-expanded","false");
+      closePanel($("board-info"));
       $("viewport").focus({preventScroll:true});
       toast("Press ⌘/Ctrl-V here to paste board objects, a link, or text.");
     };
@@ -1923,17 +1922,19 @@ export class WorkspaceBoard {
     const item = this.snapshot.items[p?.itemId];
     if (!item) return;
     this.closeAddMenu();
-    $("board-info").hidden = true;
-    $("board-info-toggle").setAttribute("aria-expanded", "false");
+    closePanel($("board-info"));
     this.contextPlacement = id;
     // The Inspector: the right side is "what". It replaces the old attached
     // popup with labelled sections; notes stay canonical, appearance stays local.
-    const popover = document.createElement("section");
+    // A UI SDK non-modal Dialog (side-panel.js): the board stays usable beside it.
+    const panelRoot = document.createElement("ui-dialog");
+    const popover = document.createElement("ui-dialog-content");
     popover.id = "workspace-item-controls";
     popover.className = "workspace-item-controls calm-side calm-side-right";
-    popover.setAttribute("role", "dialog");
-    popover.setAttribute("aria-modal", "false");
+    popover.setAttribute("inline", "");
+    popover.hidden = true;
     popover.setAttribute("aria-label", `Details of ${item.title}`);
+    panelRoot.append(popover);
     const note = this.pendingReview.get(item.id)?.note ?? item.review?.note ?? "";
     const kinds = {html:"Prototype",image:"Image",markdown:"Document",pdf:"PDF",video:"Video",audio:"Audio",note:"Note",text:"Text",url:"Link",file:"File"};
     const placeOnly = !!item.childBoardId && !item.content;
@@ -1955,9 +1956,19 @@ export class WorkspaceBoard {
         <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
         <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
       </div>`;
-    document.body.append(popover);
+    // Focus goes back to what had it when the Inspector opened (a card, Details… on the selection bar); opened from a
+    // menu, whose item is gone, to the card's ⋯.
+    const before = document.activeElement;
+    const fromMenu = !before || before === document.body || !!before.closest?.('[role=menu],ui-menu-content,.workspace-tile-menu');
+    document.body.append(panelRoot);
     this.context = popover;
     const invoker = () => document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`);
+    this.contextPanel = sidePanel(panelRoot, {
+      openers: () => [...document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`)],
+      keepOpen: target => !!target.closest?.('.workspace-dialog,dialog[open],[aria-modal="true"],.feedback-panel,.feedback-ballot,.workspace-popover,.workspace-tile-menu,[data-slot$="-content"]:not([data-slot="dialog-content"])'),
+      body: content => content.querySelector('.calm-side-body') || content,
+      onClosed: () => { if (this.context === popover) this.closeContext(); },
+    });
     const only = () => { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.selection = new Set([id]); this.syncSelection(); this.selectionMenu(); };
     popover.querySelector("[data-context-close]").onclick = () => this.closeContext(true);
     popover.querySelector("[data-context-edit]").onclick = () => {
@@ -2008,9 +2019,8 @@ export class WorkspaceBoard {
     this.positionContext();
     document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`).forEach(b => b.setAttribute("aria-expanded", "false"));
     document.querySelector(`[data-placement="${CSS.escape(id)}"]`)?.classList.add("inspected");
-    if (focus === "notes") noteField.focus({ preventScroll: true });
-    else if(focus==="actions") actions.querySelector("button").focus({preventScroll:true});
-    else popover.querySelector("[data-presentation]").focus({ preventScroll: true });
+    const start = focus === "notes" ? noteField : focus === "actions" ? actions.querySelector("button") : popover.querySelector("[data-presentation]");
+    this.contextPanel.open({ opener: fromMenu && invoker() ? `[data-item-controls="${CSS.escape(id)}"]` : null, focus: start });
   }
   // Right-click gives a short native-feeling menu; Details… opens the Inspector.
   tileMenu(id, point, anchor = null) {
@@ -2057,18 +2067,32 @@ export class WorkspaceBoard {
     if (!card) { this.closeContext(); return; }
     // The Inspector stays docked at the right edge; the inspected tile keeps a quiet mark.
     card.classList.add("inspected");
-    this.context.hidden = false;
   }
+  // Closing sends focus back to what opened the Inspector when focus was inside it (the SDK's rule); `focus` asks for
+  // that, and is kept for callers: focus outside the Inspector stays where it is.
   closeContext(focus = false) {
     if (!this.context) return;
-    const id = this.contextPlacement;
+    const id = this.contextPlacement, panel = this.contextPanel, content = this.context;
     this.contextCommit?.destroy(); this.contextCommit=null; this.contextPaperSync=null;
-    this.context.remove(); this.context = null; this.contextPlacement = null;
+    this.context = null; this.contextPanel = null; this.contextPlacement = null;
+    const root = content.closest("ui-dialog") || content;
+    content.removeAttribute("id");
+    if (panel?.isOpen) panel.close();
+    const hadFocus = !!panel?.hadFocus || content.contains(document.activeElement);
     cancelAnimationFrame(this.contextFrame);
     document.querySelectorAll(".workspace-card.inspected").forEach(card => card.classList.remove("inspected"));
     const buttons = document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`);
     buttons.forEach(b => b.setAttribute("aria-expanded", "false"));
-    if (focus) buttons[0]?.focus({ preventScroll: true });
+    // The SDK has sent focus back as it closed. When the control it went back to can't take focus (the card's ⋯
+    // shows only on hover), the card itself takes it. The element goes once that is done.
+    requestAnimationFrame(() => {
+      const lost = !document.activeElement || document.activeElement === document.body || root.contains(document.activeElement);
+      if ((hadFocus || focus) && lost) for (const el of [buttons[0], document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`)]) {
+        el?.focus({ preventScroll: true });
+        if (el && document.activeElement === el) break;
+      }
+      root.remove();
+    });
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
@@ -3716,7 +3740,6 @@ export class WorkspaceBoard {
     });
     document.addEventListener("pointerdown", e => {
       if (this.tilePopup && !e.target.closest(".workspace-tile-menu,[data-item-controls]")) this.closeTileMenu();
-      if (this.context && !e.target.closest("#workspace-item-controls,[data-item-controls],.workspace-dialog,dialog[open],.feedback-panel,.workspace-popover,.workspace-tile-menu")) this.closeContext();
       if (this.addPopup && !e.target.closest(".workspace-add-menu,#workspace-add")) this.closeAddMenu();
     }, true);
     viewport.addEventListener("contextmenu", e => {
@@ -3732,6 +3755,8 @@ export class WorkspaceBoard {
       if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
       // The focused board map owns its arrows, Escape and +/−.
       if (e.target.closest?.(".board-map-stage")) return;
+      // An open UI SDK menu, popover or panel with focus inside owns every key, Escape included.
+      if (inPopup(e)) return;
       if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
       if (this.feedback?.consumeEscape(e)) return;
       if (this.whiteboard?.handleEscape(e)) return;

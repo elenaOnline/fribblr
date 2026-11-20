@@ -20,7 +20,7 @@
       <button id="chrome-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" title="Find boards and items (⌘K)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
       <button id="board-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="board-info" aria-label="Inspector" title="Inspector: board view, filters, details and help (⌘I)"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
     </div>
-    <section id="board-info" class="board-info calm-side calm-side-right" role="dialog" aria-modal="false" aria-labelledby="board-info-heading" hidden>
+    <ui-dialog id="board-info-dialog"><ui-dialog-content id="board-info" class="board-info calm-side calm-side-right" inline aria-labelledby="board-info-heading" hidden>
       <header class="calm-side-head"><span class="tk-eyebrow" id="board-info-title">Board</span><button id="board-info-close" class="tk-btn tk-sm tk-icon" type="button" aria-label="Close inspector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header>
       <p class="eyebrow" id="board-info-heading">ABOUT THIS BOARD</p>
       <p id="board-description"></p>
@@ -29,7 +29,7 @@
         <div id="help-panel"><strong>Make yourself at home.</strong> Drag or scroll to move anywhere on the canvas, past the edges of the board too. Pinch, or hold Control or ⌘ while scrolling, to zoom; the zoom controls and Fit float at the lower right. With items selected, Fit (or F) frames the selection, then the whole board; ⌥-click fits the board. Back returns to where you were before a fit. The map button (M) shows the whole board: click or drag in it to move there. With the canvas focused, the arrow keys and Page Up / Page Down pan, Home and End go to the first and last exploration, and + / − zoom. Open an experiment to try it: it keeps this header pattern and the same zoom controls. Step through the others with ‹ › beside its title, ⌥← / ⌥→ (Ctrl+← / Ctrl+→ on Windows and Linux) or [ and ]; hover or click its title for where you are and what sits beside it. Escape returns here, as does ⌥↑ (Ctrl+↑ on Windows and Linux). Stars and notes are saved on this Mac.</div>
       </details>
       <div class="info-actions"><button id="export" type="button">Export notes</button></div>
-    </section>
+    </ui-dialog-content></ui-dialog>
   </header>
   <div id="board-error" class="board-error" role="alert" hidden></div>
   <main id="viewport" data-canvas-pattern="plain" aria-label="Experiments canvas: drag or scroll to pan, pinch or Control-scroll to zoom" tabindex="0"><div id="plane"><div id="world"></div></div></main>
@@ -73,7 +73,7 @@
         <span class="reader-title-row">
           <button id="reader-path" class="reader-path" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop" title="Where you are: hover or click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button>
           <button id="reader-down" class="tk-btn reader-down" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5"/></svg><span id="reader-down-label">Board</span></button>
-          <span id="reader-stepper" class="reader-stepper" role="group" aria-label="Step through this board" hidden><button id="reader-previous" class="tk-btn tk-icon" type="button" aria-label="Previous Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button><button id="reader-count" class="tk-btn reader-count" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop">1 / 1</button><button id="reader-next" class="tk-btn tk-icon" type="button" aria-label="Next Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></span>
+          <ui-pagination id="reader-stepper" class="reader-stepper" aria-label="Step through this board" page="1" page-count="1" hidden><ui-pagination-list class="reader-stepper-list"><ui-pagination-item><ui-pagination-previous><button id="reader-previous" class="tk-btn tk-icon" type="button" aria-label="Previous Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button></ui-pagination-previous></ui-pagination-item><ui-pagination-item><button id="reader-count" class="tk-btn reader-count" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="reader-path-pop">1 / 1</button></ui-pagination-item><ui-pagination-item><ui-pagination-next><button id="reader-next" class="tk-btn tk-icon" type="button" aria-label="Next Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></ui-pagination-next></ui-pagination-item></ui-pagination-list></ui-pagination>
         </span>
       </nav>
       <div class="chrome-actions">
@@ -88,7 +88,7 @@
       <button id="reader-newer-file" class="tk-btn tk-icon" type="button" aria-label="Next version"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
     </div>
     <div id="reader-path-pop" class="reader-path-pop" role="dialog" aria-modal="false" aria-label="Where you are" hidden></div>
-    <section id="reader-info" class="reader-info calm-side calm-side-right" role="dialog" aria-modal="false" aria-labelledby="reader-info-name" hidden></section>
+    <ui-dialog id="reader-info-dialog"><ui-dialog-content id="reader-info" class="reader-info calm-side calm-side-right" inline aria-labelledby="reader-info-name" hidden></ui-dialog-content></ui-dialog>
     <div class="reader-area">
       <div class="reader-main">
         <div id="reader-stage" class="reader-stage" tabindex="-1" aria-label="Tinka canvas: pinch or Control-scroll to zoom, drag the background to pan"><div id="reader-plane" class="reader-plane"><div id="reader-window" title="Drag the lower-right corner to resize"><iframe id="active-reader" title="Experiment viewer"></iframe></div></div></div>

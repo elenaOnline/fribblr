@@ -21,7 +21,8 @@
    so a longer or shorter title (which truncates) or the ↓ chip never moves it. */
 #reader-header .reader-stepper { display: inline-flex; align-items: center; flex: none; margin: 0 4px 0 auto; padding-left: 8px; }
 #reader-header .reader-stepper svg, #reader-header .reader-down svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-#reader-header .reader-stepper .tk-btn:disabled { opacity: .35; }
+#reader-header .reader-stepper .tk-btn:is(:disabled, [aria-disabled="true"]) { opacity: .35; cursor: default; }
+#reader-header .reader-stepper-list { display: contents; }
 #reader-header .reader-count { min-width: 64px; padding: 0 6px; color: var(--ink-2); font: 400 12px/1 var(--type-mono); font-variant-numeric: tabular-nums; }
 #reader-header .reader-count[aria-expanded="true"] { background-color: color-mix(in srgb, var(--ink) 5%, transparent); }
 #reader-header .reader-down { flex: none; gap: 4px; padding: 0 8px; background-color: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink-2); font: 400 var(--type-meta)/1 var(--type-sans); white-space: nowrap; }
