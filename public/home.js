@@ -5,7 +5,7 @@ mountAppearance(document.querySelector('.masthead-tools'), { control: 'menu' });
 import {watchChanges} from './live.js';
 import { openRemovalPrompt, openCoverPrompt } from './agent-prompt.js';
 import { WorkspaceHome, homeView, sortHomeBoards, matchesHome, boardInfo, legacyCounts, FALLBACK_ART } from './workspace-home.js';
-import { startLiveDates, installDateTooltip } from './relative-dates.js';
+import { startLiveDates } from './relative-dates.js';
 import './vendor/ui-sdk/web/dialog.js';
 const $=id=>document.getElementById(id);
 let graphHome=null;
@@ -26,7 +26,7 @@ function renderBoards(boards){
  const shown=sortHomeBoards(boards.filter(b=>matchesHome([b.title,b.description])));
  homeView.count(shown.length,boards.length);
  const query=homeView.query.trim();
- $('board-grid').innerHTML=shown.map(b=>{const cover=fileURL(b.id,b.cover);return `<article class="board-card" data-kind="board" data-family="board"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${cover?`<img src="${escape(cover)}" alt="" loading="lazy">`:fallbackArtwork}</div>${boardInfo(b,{description:b.description||'A place to try things and see what happens.',counts:[...legacyCounts(b),...(b.roundCount?[`${Number(b.roundCount)} ${Number(b.roundCount)===1?'exploration':'explorations'}`]:[])]})}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-cover-board="${escape(b.id)}" aria-label="Change cover for ${escape(b.title)}">Change cover…</button><button class="remove-action remove-board tk-btn tk-sm" type="button" data-remove-board="${escape(b.id)}" aria-label="Remove ${escape(b.title)} board" title="Get a removal prompt">Remove…</button></div></article>`;}).join('')+(query&&!shown.length?`<p class="board-none">No boards match “${escape(query)}”.</p>`:'')+(query?'':'<button class="new-board empty-card" type="button"><span class="plus" aria-hidden="true">+</span><strong>New board</strong><small>Make a place for the next idea.<br>Your agent can take it from here.</small></button>');
+ $('board-grid').innerHTML=shown.map(b=>{const cover=fileURL(b.id,b.cover);return `<article class="board-card" data-kind="board" data-family="board"><a class="board-link" href="/boards/${encodeURIComponent(b.id)}/"><div class="board-art" aria-hidden="true">${cover?`<img src="${escape(cover)}" alt="" loading="lazy">`:fallbackArtwork}</div>${boardInfo(b,{description:b.description||'A place to try things and see what happens.',counts:[...legacyCounts(b),...(b.roundCount?[`${Number(b.roundCount)} ${Number(b.roundCount)===1?'exploration':'explorations'}`]:[])]})}</a><div class="board-actions"><button type="button" class="tk-btn tk-sm" data-cover-board="${escape(b.id)}" aria-label="Change cover for ${escape(b.title)}">Change cover…</button><button class="remove-action remove-board tk-btn tk-sm" type="button" data-remove-board="${escape(b.id)}" aria-label="Remove ${escape(b.title)} board" data-tip="Get a removal prompt">Remove…</button></div></article>`;}).join('')+(query&&!shown.length?`<p class="board-none">No boards match “${escape(query)}”.</p>`:'')+(query?'':'<button class="new-board empty-card" type="button"><span class="plus" aria-hidden="true">+</span><strong>New board</strong><small>Make a place for the next idea.<br>Your agent can take it from here.</small></button>');
  $('shelf-status').textContent=`${boards.length} ${boards.length===1?'board':'boards'} · Updates appear automatically`;
 }
 function rerender(){if(graphHome?.active)graphHome.render();else if(lastRevision!==null)renderBoards(lastBoards);}
@@ -81,7 +81,7 @@ document.addEventListener('keydown',e=>{if(e.key!=='/'||e.metaKey||e.ctrlKey||e.
 try{const r=await fetch('/api/config');if(r.ok){config=await r.json();$('workspace-name').textContent=`Tinka / ${config.projectLabel}`;document.title=`Tinka / ${config.projectLabel}`;$('project-label').textContent=config.projectLabel;}}catch{}
 try{setSort(sortKey()&&localStorage.getItem(sortKey())||'created',{save:false});}catch{setSort('created',{save:false});}
 if(config.workspaceId)new ProjectNavigator(config).mount(document.querySelector('.masthead .brand'));
-installDateTooltip();startLiveDates(document);
+startLiveDates(document);
 try{graphHome=new WorkspaceHome(config);if(!await graphHome.init())await refresh();}catch{await refresh();}finally{finishHomeSetup();}
 
 if(!graphHome?.active)watchChanges(config,{onChange:()=>{homeDirty=true;return drainHome();},onConnection:connected=>{$('connection').textContent=connected?'Live on this Mac':'Reconnecting';document.querySelector('.live').classList.toggle('offline',!connected);}});

@@ -76,7 +76,7 @@ test('12/24-hour preference and other locales', () => {
 test('timeHTML markup, escaping and invalid input', () => {
   const created = new Date(NOW - 2 * H);
   const html = timeHTML(created, {prefix: 'Created ', verb: 'Created', now: NOW, ...en});
-  assert.equal(html, `<time data-rel datetime="${created.toISOString()}" data-prefix="Created " data-verb="Created" title="Created Tuesday, November 3, 2026 at 2:02 PM">Created 2 hours ago</time>`);
+  assert.equal(html, `<time data-rel datetime="${created.toISOString()}" data-prefix="Created " data-verb="Created" data-tip="Created Tuesday, November 3, 2026 at 2:02 PM">Created 2 hours ago</time>`);
   assert.match(timeHTML(at(2026, 10, 2, 15, 40), {prefix: 'Created ', now: NOW, ...en}), />Created yesterday, 3:40 PM<\/time>$/);
   assert.match(timeHTML(created, {now: NOW, focusable: true, ...en}), / tabindex="0">2 hours ago</);
   assert.match(timeHTML(created, {prefix: '<b>"', now: NOW, ...en}), /data-prefix="&lt;b&gt;&quot;"/);
