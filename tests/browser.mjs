@@ -182,7 +182,7 @@ try{
   await a.page.screenshot({path:path.join(evidence,'removal-prompt-narrow.png')});
   assert.equal(await a.page.locator('#agent-prompt-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await a.page.locator('.agent-dialog-close').click();
-  assert.deepEqual(await a.page.locator('#canvas-header').evaluate(el=>{const title=el.querySelector('#board-title'),tools=el.querySelector('#board-info-toggle');const t=title.getBoundingClientRect(),b=tools.getBoundingClientRect();return {overflow:el.scrollWidth>el.clientWidth,oneLine:t.height<=parseFloat(getComputedStyle(title).lineHeight)*1.5,named:title.title===title.textContent,overlap:t.left<b.right&&t.right>b.left&&t.top<b.bottom&&t.bottom>b.top};}),{overflow:false,oneLine:true,named:true,overlap:false});  // a narrow bar keeps the name on one line, its full text in the title
+  assert.deepEqual(await a.page.locator('#canvas-header').evaluate(el=>{const title=el.querySelector('#board-title'),tools=el.querySelector('#board-info-toggle');const t=title.getBoundingClientRect(),b=tools.getBoundingClientRect();return {overflow:el.scrollWidth>el.clientWidth,oneLine:t.height<=parseFloat(getComputedStyle(title).lineHeight)*1.5,named:title.dataset.tip===title.textContent&&title.hasAttribute('data-tip-truncated'),overlap:t.left<b.right&&t.right>b.left&&t.top<b.bottom&&t.bottom>b.top};}),{overflow:false,oneLine:true,named:true,overlap:false});  // a narrow bar keeps the name on one line, its full text in its SDK tooltip (shown while cut off)
   assert.equal(await a.page.locator('#project-label').textContent(),'Home');
   assert.equal(await a.page.locator('.canvas-footer').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await a.page.locator('#fit').click();
@@ -982,7 +982,7 @@ try{
   assert.equal(otherNotes['first/one-step'].note,'Runway only');
   await stalePage.close();
   await a.page.goto(`${a.url}boards/first-steps/`);
-  await a.page.waitForFunction(()=>document.querySelector('.canvas-header .brand').title.includes('Runway'));
+  await a.page.waitForFunction(()=>document.querySelector('.canvas-header .brand').dataset.tip?.includes('Runway'));
   await a.page.waitForFunction(()=>document.querySelector('#save-status').textContent==='Notes saved on this Mac');
   assert.equal(await (await legacyNote(a.page,'first/one-step')).inputValue(),'Runway only');
   assert.equal(errors.length,0,errors.join('\n'));
