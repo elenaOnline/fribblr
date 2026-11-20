@@ -1153,7 +1153,8 @@ A pointer drags a row (3 px threshold). Focus opens on the list.
 Layout and Pattern rows are segmented controls. Board color opens a swatch radio group (`bindInspectorColor` in
 `workspace-board.js`); while the board has a colour, "Remove color" follows the custom colour (one more Tab stop), as the
 background image has "Remove image": it clears the colour, so the board stands on the Background chosen in Appearance,
-closes the palette and returns focus to Board color. Board color and Background image… are drawn as the Filter row is,
+closes the palette and returns focus to Board color. Pressed while a chosen colour is still saving, it waits for that
+save and then clears (it used to do nothing). Board color and Background image… are drawn as the Filter row is,
 so they are one `ui-toolbar` too ("Board background", `.inspector-background-row`): one Tab stop, ←/→ with wrap,
 Home/End. The palette opens under the row, outside the toolbar, so its own arrows stay its own; Escape there comes back
 to Board color, and closing the Background image dialog comes back to Background image…. The filter row
