@@ -6,15 +6,16 @@
 <section class="shelf" aria-labelledby="boards-heading"><div class="shelf-heading"><div class="shelf-title"><h1 id="boards-heading">Boards</h1><p class="shelf-sub"><span id="project-label">Project</span> · <span id="board-count"></span> · <span id="sort-label">newest first</span></p></div><div class="home-tools"><label class="home-find"><span class="sr-only">Find boards</span><svg class="tk-glyph" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><input id="home-find" class="tk-field" type="search" placeholder="Find boards" autocomplete="off" spellcheck="false" maxlength="200"><kbd class="tk-kbd" aria-hidden="true">/</kbd></label><div class="tk-seg home-sort" role="group" aria-label="Sort boards"><button type="button" data-sort="created" aria-pressed="true">Newest</button><button type="button" data-sort="updated" aria-pressed="false">Recently edited</button><button type="button" data-sort="az" aria-pressed="false">A–Z</button></div></div></div><p id="error" role="alert" hidden></p><div id="board-grid" class="board-grid"><p class="loading">Finding your boards…</p></div></section>
 <footer><span>Made to explore. Built to take with you.</span><span id="shelf-status" role="status"></span></footer>
 </main>
-<dialog id="new-dialog" class="workspace-dialog workspace-dialog-compact" aria-labelledby="dialog-title">
+<ui-dialog id="new-root"><ui-dialog-backdrop hidden></ui-dialog-backdrop>
+<ui-dialog-content id="new-dialog" class="workspace-dialog workspace-dialog-compact" hidden>
   <form>
-    <button class="workspace-close" type="button" aria-label="Close new board prompt">×</button>
-    <h2 id="dialog-title">New board</h2>
+    <ui-dialog-close><button class="workspace-close" type="button" aria-label="Close new board prompt">×</button></ui-dialog-close>
+    <ui-dialog-title as-child><h2>New board</h2></ui-dialog-title>
     <label>Board name<input id="board-name" maxlength="160" autocomplete="off" autofocus></label>
     <label>Idea <span class="new-board-optional">(optional)</span><textarea id="board-brief" rows="2" placeholder="What should your agent explore?"></textarea></label>
     <label id="new-board-prompt" hidden>Prompt for your agent<textarea id="agent-prompt" readonly rows="5" spellcheck="false"></textarea></label>
     <p id="copy-status" role="status"></p>
     <div class="workspace-dialog-actions"><button id="show-board-prompt" class="tk-btn tk-sm" type="button" aria-expanded="false" aria-controls="new-board-prompt">Preview prompt</button><button id="copy-prompt" class="workspace-primary" type="submit">Copy prompt</button></div>
   </form>
-</dialog>
+</ui-dialog-content></ui-dialog>
 <script type="module" src="/app/home.js"></script><script type="module" src="/app/update-notice.js"></script></body></html>
