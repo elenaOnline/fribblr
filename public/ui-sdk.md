@@ -340,7 +340,10 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
   key. "The first field" skips a field inside a hidden part (the Move dialog's New board name until New board… is
   chosen: autofocus there left focus on ×) and counts a choice: a radio group is entered on its checked radio, else
   its first (`firstField` in `workspace.js`), so Move to a board opens on its destinations. Tab wraps; Escape and a backdrop press close; focus returns to `opener` (default: the focused element). A
-  save in flight holds the dialog open.
+  save in flight holds the dialog open. The return runs a frame after the SDK's own (so a caller's `close` listener has
+  the last word); if another dialog has opened and taken focus in that frame (Enter on the opener again, at once), it
+  keeps it, unless that dialog holds the opener (a dialog opened from another). Before, the late return pulled focus
+  out of the new dialog onto the opener behind it, and the next Space opened a second copy.
 - **Discard question.** Only typed text asks. Once a text field or text area of a form with `onSubmit` holds text that
   differs from what it held before her first edit (noted on `beforeinput`), the dialog becomes `dismissible=false`;
   Escape or a backdrop press then asks, in an alert dialog titled "Discard the text you typed" ("Nothing in “Edit item”
