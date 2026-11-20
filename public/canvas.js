@@ -1657,7 +1657,8 @@ let pendingDocumentOpen = 0;
 document.addEventListener('click', event => {
   const fileStep = event.target.closest('#world [data-file-version-step]');
   if (fileStep && graph) { graph.stepFileVersion(fileStep); return; }
-  const open = event.target.closest('[data-open]');
+  // data-open is also UI SDK's open-state attribute on popup triggers (they carry data-slot); only ours open a card.
+  const open = event.target.closest('[data-open]:not([data-slot])');
   const star = event.target.closest('[data-star]');
   const remove = event.target.closest('[data-remove-experiment]');
   if (remove && appConfig) {
@@ -1730,7 +1731,7 @@ $('fit').onclick = event => runFit(event.altKey ? 'board' : smartFitTarget());
 $('view-back').onclick = goBack;
 $('board-info-toggle').onclick = () => setInfoOpen($('board-info').hidden, { focus: true });
 $('board-info-close').onclick = () => setInfoOpen(false, { focus: true });
-$('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open'));
+$('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('chrome-search') } }));
 // ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
 document.addEventListener('keydown', event => {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'i' || event.repeat) return;
@@ -2032,8 +2033,8 @@ $('reader-down').onclick = () => goDown();
 $('notes-toggle').onclick = () => setNotesOpen(!notesOpen);
 $('notes-close').onclick = () => setNotesOpen(false);
 $('reader-type').addEventListener('input', () => setType($('reader-type').value));
-$('reader-navigator').onclick = () => { if (!projectNavigator) return; if (projectNavigator.isOpen) projectNavigator.hide(); else projectNavigator.open(); };
-$('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open'));
+$('reader-navigator').onclick = () => { if (!projectNavigator) return; if (projectNavigator.isOpen) projectNavigator.hide(); else projectNavigator.open({ opener: $('reader-navigator') }); };
+$('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('reader-search') } }));
 $('reader-info-toggle').onclick = () => setReaderInfoOpen(readerInfo.hidden, { focus: true });
 // The pill: − · % menu (zoom, window and version, light, type size, standalone) · + · Back · Fit.
 $('reader-zoom-toggle').onclick = () => setReaderMenuOpen($('reader-zoom-menu').hidden);
