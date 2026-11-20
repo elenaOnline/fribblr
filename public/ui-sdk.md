@@ -850,9 +850,15 @@ Draw is a `ui-toolbar-group` of buttons. The rail and map toggles are `ui-toggle
 **Zoom pills and popovers.** `board.html` (`#zoom-popover`, `#reader-zoom-popover`), `canvas.js` (`setZoomMenuOpen`,
 `setReaderMenuOpen`), `comment-pins.js` (the comment bar in the pill). The pills are `ui-toolbar`s; % is a
 `ui-popover-trigger for=`. The popovers (sliders, the Pattern / Window / Light segmented controls, the version list)
-sit outside their pills; the reader's inside the reader dialog. ↓ on % opens them (`openOnArrowDown`). Focus goes to
-the first control; arrows belong to the focused control (the slider's change the zoom), Tab walks through and out to
-the next pill control; Escape and a choice return to %; an outside press closes them and reaches its target. A click
+sit outside their pills; the reader's inside the reader dialog. ↓ on % opens them (`openOnArrowDown`). The preset rows
+(Zoom to 50 / 100 / 125 % or 200 %, Fit board and Fit selection, or Fit this Tinka) look like menu rows, so they are one
+vertical `ui-toolbar.zoom-presets` ("Zoom presets"), as the item Inspector's actions are: one Tab stop, ↑/↓ with wrap,
+Home/End, Enter or a click chooses. The slider follows the rows as its own Tab stop (on the board after Fit board, in
+the reader after Fit this Tinka), so ↓ never walks onto it; its arrows change the zoom. Fit selection is hidden and out
+of the toolbar's order with nothing selected (`disabled` + `focusable-when-disabled="false"` on its part, written as the
+popover opens: `followVisibility` can't serve a toolbar inside a closed popover, whose items aren't rendered when the SDK
+picks the first focus). Focus opens on the rows' stop; the other controls keep their own arrows, Tab walks through and
+out to the next pill control; Escape and a choice return to %; an outside press closes them and reaches its target. A click
 into the experiment frame closes the reader's; switching windows leaves it open. The pill's 44 px rows and slider theme
 reach them by naming `.board-zoom-popover` / `.reader-zoom-popover` / `.zoom-menu` in the theme's own selectors
 (`calm.css`, `canvas.css`, `ui-sdk.css`) at the same specificity. Placement matches the old `right: -40px` (`align="end"

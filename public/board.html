@@ -56,13 +56,17 @@
        the pill, which is a toolbar: popup events bubble to their DOM ancestors (popups.js). -->
   <ui-popover id="zoom-popover" class="board-zoom-popover">
     <ui-popover-content id="zoom-menu" class="tk-menu zoom-menu" aria-label="Zoom and pattern" side="top" align="end" align-offset="-40" side-offset="10" collision-padding="8">
-      <button class="tk-mi" type="button" data-zoom-to="0.5">Zoom to 50%</button>
-      <button class="tk-mi" type="button" data-zoom-to="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
-      <button class="tk-mi" type="button" data-zoom-to="1.25">Zoom to 125%</button>
+      <!-- The rows look like menu rows, so they are one vertical toolbar: one Tab stop, ↑/↓ with wrap, Home/End. The
+           slider follows as its own stop, so ↓ never walks onto it. -->
+      <ui-toolbar orientation="vertical" class="zoom-presets" aria-label="Zoom presets">
+        <ui-toolbar-button><button class="tk-mi" type="button" data-zoom-to="0.5">Zoom to 50%</button></ui-toolbar-button>
+        <ui-toolbar-button><button class="tk-mi" type="button" data-zoom-to="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button></ui-toolbar-button>
+        <ui-toolbar-button><button class="tk-mi" type="button" data-zoom-to="1.25">Zoom to 125%</button></ui-toolbar-button>
+        <ui-toolbar-separator class="tk-msep"></ui-toolbar-separator>
+        <ui-toolbar-button><button class="tk-mi" type="button" data-zoom-to="fit" aria-keyshortcuts="Shift+1">Fit board</button></ui-toolbar-button>
+        <ui-toolbar-button disabled focusable-when-disabled="false"><button class="tk-mi" type="button" data-zoom-to="selection" aria-keyshortcuts="Shift+2" hidden>Fit selection</button></ui-toolbar-button>
+      </ui-toolbar>
       <label class="zoom-slider-row"><span>Zoom</span><input id="zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Board zoom" aria-valuetext="50 percent"></label>
-      <div class="tk-msep"></div>
-      <button class="tk-mi" type="button" data-zoom-to="fit" aria-keyshortcuts="Shift+1">Fit board</button>
-      <button class="tk-mi" type="button" data-zoom-to="selection" aria-keyshortcuts="Shift+2" hidden>Fit selection</button>
       <div class="tk-msep"></div>
       <div class="tk-mlabel" id="canvas-pattern-label">Pattern · this board</div>
       <ui-segmented-control class="tk-seg canvas-pattern" aria-labelledby="canvas-pattern-label" default-value="plain"><ui-segmented-control-item value="dots" data-canvas-pattern="dots">Dots</ui-segmented-control-item><ui-segmented-control-item value="grid" data-canvas-pattern="grid">Grid</ui-segmented-control-item><ui-segmented-control-item value="plain" data-canvas-pattern="plain">Plain</ui-segmented-control-item></ui-segmented-control>
@@ -114,11 +118,13 @@
              controls, so a Popover (popups.js), outside the pill toolbar and inside the modal reader dialog. -->
         <ui-popover id="reader-zoom-popover" class="reader-zoom-popover">
           <ui-popover-content id="reader-zoom-menu" class="tk-menu zoom-menu reader-zoom-menu" aria-label="Zoom and view" side="top" align="end" align-offset="-40" side-offset="10" collision-padding="8">
-            <button class="tk-mi" type="button" data-reader-zoom="0.5">Zoom to 50%</button>
-            <button class="tk-mi" type="button" data-reader-zoom="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button>
-            <button class="tk-mi" type="button" data-reader-zoom="2">Zoom to 200%</button>
+            <ui-toolbar orientation="vertical" class="zoom-presets" aria-label="Zoom presets">
+              <ui-toolbar-button><button class="tk-mi" type="button" data-reader-zoom="0.5">Zoom to 50%</button></ui-toolbar-button>
+              <ui-toolbar-button><button class="tk-mi" type="button" data-reader-zoom="1" aria-keyshortcuts="Shift+0">Zoom to 100%</button></ui-toolbar-button>
+              <ui-toolbar-button><button class="tk-mi" type="button" data-reader-zoom="2">Zoom to 200%</button></ui-toolbar-button>
+              <ui-toolbar-button><button class="tk-mi" type="button" data-reader-zoom="fit" aria-keyshortcuts="F">Fit this Tinka</button></ui-toolbar-button>
+            </ui-toolbar>
             <label class="zoom-slider-row"><span>Zoom</span><input id="reader-zoom-slider" type="range" min="0" max="1000" step="1" value="518" aria-label="Tinka zoom"></label>
-            <button class="tk-mi" type="button" data-reader-zoom="fit" aria-keyshortcuts="F">Fit this Tinka</button>
             <div class="tk-msep"></div>
             <div id="size-menu" class="reader-menu-group" role="group" aria-labelledby="reader-window-label">
               <div class="tk-mlabel" id="reader-window-label">Window</div>

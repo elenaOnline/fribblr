@@ -26,6 +26,7 @@ ui-segmented-control { display: inline-flex; }
 ui-toolbar-button, ui-toolbar-link, ui-toggle { display: contents; }
 :is(ui-toolbar-button, ui-toolbar-link, ui-toggle)[hidden] { display: none; }
 ui-toolbar, ui-toggle-group, ui-toolbar-group { display: flex; }
+ui-toolbar[data-orientation=vertical] { flex-direction: column; }
 ui-toolbar[hidden], ui-toggle-group[hidden], ui-toolbar-group[hidden] { display: none; }
 
 

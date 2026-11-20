@@ -1937,7 +1937,14 @@ const zoomPopover = $('zoom-popover');
 zoomPopover.addEventListener('openchange', event => {
   if (!event.detail.value) return;
   readSelection();
-  $('zoom-menu').querySelector('[data-zoom-to="selection"]').hidden = !graph || graph.mode !== 'canvas' || !selectionInfo.count;
+  // The preset rows are a vertical toolbar (board.html). Fit selection comes and goes with the selection: hidden, and
+  // out of the toolbar's arrow order (followVisibility can't serve a toolbar inside a closed popover: nothing in it is
+  // rendered until it opens, after the SDK has chosen where focus starts).
+  const fitSelection = $('zoom-menu').querySelector('[data-zoom-to="selection"]'), off = !graph || graph.mode !== 'canvas' || !selectionInfo.count;
+  fitSelection.hidden = off;
+  const part = fitSelection.closest('ui-toolbar-button');
+  part.disabled = off;
+  if (off) part.setAttribute('focusable-when-disabled', 'false'); else part.removeAttribute('focusable-when-disabled');
 });
 function setZoomMenuOpen(open) {
   if (open) { if (!zoomPopover.open) zoomPopover.api?.open(); }
@@ -1960,8 +1967,9 @@ $('zoom-menu').addEventListener('click', event => {
   else changeZoom(Number(to));
 });
 // The % popover is a Popover, not a menu: Tab moves through its controls (popover.md), and arrows belong to the control
-// that has focus (the slider's change the zoom, the Pattern's choose). Arrows don't walk between its rows, so ↓ never
-// steps from a button onto the slider and the next ↓ never changes the zoom by surprise.
+// that has focus. The preset rows (Zoom to …, Fit) look like menu rows, so they are one vertical toolbar (↑/↓ with
+// wrap, Home/End); the slider after them is its own stop and its arrows change the zoom; the Pattern's choose. ↓ never
+// steps from a row onto the slider, so it never changes the zoom by surprise.
 // Segmented controls (ui-segmented.js): valuechange does not bubble, but it does pass through the capture phase, so one
 // listener on the document hears every copy (the zoom menu's, the Inspector's) and the others are kept in step.
 document.addEventListener('valuechange', event => {
