@@ -133,6 +133,32 @@ try{
   ok((await page.locator('[aria-live]').allTextContents()).join(' ').includes('Nothing is selected. Press Space to select Card B, then Delete.'),'It says how to remove it');}
  await clear();
 
+ // ---- 3. C arms Comment; Enter on the focused item (or the focused canvas) places the pin there. ----
+ const threadCard=()=>page.locator('.ct-card[data-open]');
+ const armed=()=>page.evaluate(()=>document.getElementById('viewport').classList.contains('comment-armed'));
+ for(const [label,sel,target] of [['a card',`#world .workspace-card[data-placement="${c.b}"]`,'Card B'],['an arrow','#world [data-decoration="arrow"]','Arrow'],['a Text block','#world [data-decoration="words"]','Text · Some words']]){
+   await page.locator(sel).focus();await page.keyboard.press('c');ok(await until(armed),`C arms the Comment tool (${label})`);
+   ok(await until(async()=>(await page.locator('.comment-target-tag').textContent().catch(()=>''))===`On ${target}`),`The focused ${label} is marked as the target`);
+   await page.keyboard.press('Enter');
+   ok(await until(async()=>await threadCard().count()===1),`Enter on ${label} opens a new comment on it`);
+   ok((await threadCard().textContent()).includes(`On ${target}`),`The new comment is on ${label}`);
+   eq(await page.locator('#reader-dialog[open]').count(),0,'Enter does not open the item while Comment is armed');
+   ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.ct-card'))),'Focus is in the comment');
+   ok(!(await armed()),'Placing disarms the tool');
+   await page.keyboard.press('Escape');ok(await until(async()=>await threadCard().count()===0),'Escape closes the new comment');
+   ok(await until(async()=>(await focused())===(sel.includes('placement')?`card:${target}`:`drawn:${sel.match(/"(.+)"/)[1]}`)),`Focus returns to ${label}: ${await focused()}`);
+ }
+ // On the focused canvas, Enter places it on the board.
+ await page.locator('#viewport').focus();await page.keyboard.press('c');await until(armed);await page.keyboard.press('Enter');
+ ok(await until(async()=>await threadCard().count()===1),'Enter on the focused canvas opens a new comment on the board');
+ await page.keyboard.press('Escape');ok(await until(async()=>await threadCard().count()===0),'Escape closes it');
+ // Escape disarms without placing anything.
+ await page.locator(`#world .workspace-card[data-placement="${c.a}"]`).focus();await page.keyboard.press('c');await until(armed);
+ await page.keyboard.press('Escape');ok(await until(async()=>!(await armed())),'Escape disarms the Comment tool');
+ eq(await focused(),'card:Card A','Focus stays on the card');
+ await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();ok(true,'Disarmed, Enter opens the card again');
+ await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});await clear();
+
  assert.deepEqual(errors,[]);checks++;
  console.log(`Board fixes browser checks passed: ${checks} assertions. Evidence: ${evidence}`);
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

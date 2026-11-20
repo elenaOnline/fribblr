@@ -1057,7 +1057,7 @@ export class WorkspaceBoard {
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
       <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
-      <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment · Show or hide comments</dd>
+      <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment, or press Enter on the focused one · Show or hide comments</dd>
       <dt>N</dt><dd>Quick jot: type a line, Enter adds it as a sticky; Escape closes</dd>
       <dt>?</dt><dd>Show keyboard shortcuts</dd>
       <dt>⌘/Ctrl-C · X · V</dt><dd>Copy · Cut · Paste</dd>

@@ -513,6 +513,12 @@ Files: `comment-thread.js`, `comment-thread.css`, `comment-refs.js` (`attachPick
   the SDK; empty groups are hidden in CSS. `itemselect` is cancelled and the existing chip insertion runs. Focus stays in the
   composer; the composer carries `aria-controls`, `aria-activedescendant`. The menu is nested in the card's popover, so a press
   in the list is not an outside press.
+- **Placing a pin by keyboard** (`comment-pins.js` `dropOn`, `place`). With the tool armed (C), Enter or Space on the
+  focused board item drops the pin on it, near its top-right corner (an arrow: at its middle, on the line), and Enter on
+  the focused canvas drops it on the board at the middle of the view (Space there still pans). The new thread card
+  opens as for a click, focus in the composer, and closing it returns focus to the item. While armed, the focused item
+  is marked as the target ("On Card B"), as the pointer's hover marks it. Escape disarms. Checked in
+  `tests/board-fixes-browser.mjs`.
 - Key handling: the card still stops keydown (except Escape) from reaching the board; board handlers also step aside through
   `role=dialog` and `inPopup`. ⌘↩ still posts/saves.
 
