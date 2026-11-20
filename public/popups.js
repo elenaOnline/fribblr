@@ -31,9 +31,12 @@ export function sharedMenu({id, label = '', className = '', host = document.body
   // Escape and a chosen item send focus back to that opener too (popups.md § Focus: a controller-opened popup
   // returns to what had focus before; a right-click the menu consumed never moved focus, so the opener is better).
   // The board may re-render the opener while the menu is open (a card, a selection bar): when the SDK's fallback
-  // leaves focus on <body>, the opener's selector finds its new copy.
+  // leaves focus on <body>, the opener's selector finds its new copy. An outside press the menu swallowed moves focus
+  // nowhere, so focus is still on the closed menu's row (it drops to <body> a moment later, as the row hides): that
+  // goes back to the opener too.
   root.addEventListener('openchangecomplete', event => {
-    if (!event.detail.value && root.returnTo && (document.activeElement === document.body || !document.activeElement)) document.querySelector(root.returnTo)?.focus({preventScroll: true});
+    const active = document.activeElement;
+    if (!event.detail.value && root.returnTo && (active === document.body || !active || root.contains(active))) document.querySelector(root.returnTo)?.focus({preventScroll: true});
   });
   const content = root.querySelector('ui-menu-content');
   return {root, content};

@@ -235,6 +235,10 @@ export class Whiteboard {
     this.menu.setAttribute('role','menu'); this.menu.setAttribute('aria-label','Object actions');
     this.hint=document.createElement('div'); this.hint.className='whiteboard-connect-hint'; this.hint.hidden=true;
     this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.menu,this.hint);
+    // The bar floats (fixed), but its place in the page is right after the board: Tab goes from the object's own
+    // controls (label, resize corner, ports) to the bar, then on to what follows the board (the kind legend, the zoom
+    // pill, the tools rail), and Shift+Tab back the same way, as from a card to its toolbar and on.
+    document.getElementById('viewport')?.after(this.toolbar);
     this.mountPopups();
     followVisibility(this.toolbar);
     // The bar draws what is pressed from the object itself: cancel a toggle's own flip (the SDK reports it in the capture
@@ -1136,6 +1140,7 @@ export class Whiteboard {
     await this.host.writeArrangement('createDecoration',{boardId:this.host.snapshot.id,decoration:d},endpointsUnchanged(d,this.host.snapshot));
     this.host.activeDecoration=d.id;this.connectMode=false;this.pendingFrom=null;this.hint.hidden=true;
     await this.host.refresh({saveReview:false});this.sync();
+    this.host.focusCreated?.({decorationIds:[d.id]});
   }
   async remove() {
     const many=this.selectedDecorations();
@@ -1507,6 +1512,12 @@ export class Whiteboard {
     // Discarding stays an explicit choice (the toolbar's cancel-edit action).
     if(this.editor){if(e.isComposing||e.keyCode===229||this.editor.composing)return false;this.commitEdit({focus:true});return true;}
     if(!this.menu.hidden){this.closeMenu({focus:true,commit:false});return true;}
+    // Escape on the bar goes back to the object it edits, selection kept, as Escape from an editor's toolbar returns
+    // to the text; the next Escape there clears the selection.
+    if(this.toolbar.contains(e.target)&&!this.toolbar.hidden&&!e.target.closest('[data-slot$="-content"][data-open]')){
+      const d=this.selectedDecorations()[0],el=d&&document.querySelector(`#world ${selector(d.id)}`);
+      if(el){el.focus({preventScroll:true});return true;}
+    }
     if(this.host.decorationSelection?.size>1){this.clearSelection();return true;}
     return false;
   }
@@ -1568,8 +1579,11 @@ export class Whiteboard {
     return true;
   }
   keydown(e) {
-    // Tab past the bar goes back to the object it edits. The container options popover's Tab-out (popups.js, which runs
-    // first) has already sent focus to its button on the bar, so the same rule then carries it on.
+    // The bar sits in the Tab order right after the board (mount): after the object's own controls, before what follows
+    // the board. Tab past the bar goes on to what follows the board. The container options
+    // popover's Tab-out (popups.js, which runs first) has already sent focus to its button on the bar, so the same rule
+    // then carries it on. Option-F10 reaches the bar from anywhere (focusBar).
+    if(this.focusBarKey(e))return;
     if(this.tabPastBar(e))return;
     // A key pressed inside an open SDK menu or popover (this bar's More, Arrange, the board's menus) is the popup's,
     // Escape included. (A showing tooltip's Escape is left to the bar's own ladder here, as the controls stream has it.)
@@ -1610,12 +1624,26 @@ export class Whiteboard {
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);
     }
   }
-  // The bar is its object's toolbar, floating at the end of the page: the browser's next stop after it is nothing (focus
-  // falls to <body>, in a window to the browser's own toolbar). So Tab past the bar (forward from its one Tab stop, or
-  // out of one of its panels, which sends focus to its button first) goes back to what the bar edits: the editor while
-  // a text is being edited (Shift+Tab from the bar already goes there), else the selected object (which then holds the
-  // board's Tab stop), else the board's focused item. From there Tab goes on through the object's own controls and the
-  // page, and Shift+Tab from the bar still goes back along the page. True when the Tab was taken.
+  // The first Tab stop after the board and its bar (the kind legend, else the zoom pill …).
+  afterBoard() {
+    const viewport=document.getElementById('viewport');if(!viewport)return null;
+    return [...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].find(el=>el.tabIndex>=0&&!el.disabled&&
+      !viewport.contains(el)&&!this.toolbar.contains(el)&&!this.menu.contains(el)&&(viewport.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING)&&
+      !el.closest('[inert],[hidden]')&&el.getClientRects().length)||null;
+  }
+  focusBar() {
+    if(this.toolbar.api?.focus)this.toolbar.api.focus();else restoreFocus(this.toolbar.querySelector('button'));
+  }
+  // Option-F10 (Alt+F10) moves focus to the bar, the key editors give their floating toolbars (TinyMCE, CKEditor; WAI-ARIA
+  // Authoring Practices' toolbar example). Not from a field, where the key is the field's.
+  focusBarKey(e) {
+    if(e.code!=='F10'||!e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||!this.toolbar||this.toolbar.hidden)return false;
+    if(e.target.closest?.('input,textarea,select,[contenteditable]')&&!this.editor)return false;
+    e.preventDefault();e.stopImmediatePropagation();this.focusBar();return true;
+  }
+  // Tab past the bar (forward from its one Tab stop, or out of one of its panels, which sends focus to its button
+  // first) goes on to what follows the board. While a text is being edited it goes back to the editor (Shift+Tab from
+  // the bar goes there too); with nothing after the board, to the selected object. True when the Tab was taken.
   tabPastBar(e) {
     if(e.key!=='Tab'||e.shiftKey||e.altKey||e.ctrlKey||e.metaKey||e.isComposing||!this.toolbar||this.toolbar.hidden)return false;
     const active=document.activeElement;
@@ -1629,7 +1657,7 @@ export class Whiteboard {
     const selected=host.activeDecoration?document.querySelector(`#world ${selector(host.activeDecoration)}`)
       :host.selection?.size===1?document.querySelector(`#world .workspace-card[data-placement="${CSS.escape([...host.selection][0])}"]`):null;
     const back=(this.editor?(this.editor.previewing?this.editor.preview:this.editor.textarea):null)
-      ||selected||focus?.element(focus.stop)||document.getElementById('viewport');
+      ||this.afterBoard()||selected||focus?.element(focus.stop)||document.getElementById('viewport');
     if(!back?.isConnected)return false;
     e.preventDefault();e.stopImmediatePropagation();
     back.focus({preventScroll:true});

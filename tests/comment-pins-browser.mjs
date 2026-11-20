@@ -90,6 +90,29 @@ try{
     assert.equal(await page.evaluate(()=>document.activeElement?.dataset.commentPin),t,'focus stays on the pin through the rebuild');
   });
 
+  await run('The pins are one Tab stop: arrows move between them, Enter opens one, Escape comes back',async(page,id,card,open)=>{
+    const a=await comment(id,{kind:'point',x:20,y:300},'Left pin');
+    const b=await comment(id,{kind:'point',x:700,y:300},'Right pin');
+    const c=await comment(id,{kind:'point',x:20,y:700},'Lower pin');
+    await open();
+    for(const t of [a,b,c])await page.locator(`[data-comment-pin="${t}"]`).waitFor();
+    const stops=()=>page.evaluate(()=>[...document.querySelectorAll('.comment-pin')].filter(e=>e.tabIndex>=0).map(e=>e.dataset.commentPin));
+    assert.deepEqual(await stops(),[a],'one Tab stop, the first pin in reading order');
+    const at=()=>page.evaluate(()=>document.activeElement?.dataset.commentPin);
+    await page.locator(`[data-comment-pin="${a}"]`).focus();
+    await page.keyboard.press('ArrowRight');assert.equal(await until(async()=>(await at())===b&&b),b,'→ goes to the pin on the right');
+    await page.keyboard.press('ArrowLeft');assert.equal(await until(async()=>(await at())===a&&a),a,'← comes back');
+    await page.keyboard.press('ArrowDown');assert.equal(await until(async()=>(await at())===c&&c),c,'↓ goes to the pin below');
+    await page.keyboard.press('Home');assert.equal(await at(),a,'Home: the first pin');
+    await page.keyboard.press('End');assert.equal(await at(),c,'End: the last pin');
+    assert.deepEqual(await stops(),[c],'the stop follows focus');
+    await page.keyboard.press('Tab');assert.ok(!(await at()),'Tab leaves the pins after one stop');
+    await page.keyboard.press('Shift+Tab');assert.equal(await at(),c,'Shift+Tab comes back to the pin focused last');
+    await page.keyboard.press('Enter');await page.locator('.ct-card').first().waitFor();
+    assert.match(await page.locator('.ct-card').first().textContent(),/Lower pin/,'Enter opens the focused pin');
+    await page.keyboard.press('Escape');assert.equal(await until(async()=>(await at())===c&&c),c,'Escape returns to the pin');
+  });
+
   await run('Send to agent marks open threads sent and copies a prompt',async(page,id,card,open)=>{
     const a=await comment(id,{kind:'point',x:60,y:60,placementId:card,relative:{x:.25,y:.33}},'Borrow the tone of B');
     const b=await comment(id,{kind:'point',x:20,y:300},'Add an FAQ link');
