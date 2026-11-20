@@ -250,7 +250,12 @@ export function makeDialog(title, body, onSubmit, {
     // A dismissed draft is kept at once, so the dialog reopened straight away (Enter on its opener) still has it.
     if (!saved) onDismiss?.(form);
     // After the SDK has put focus back (it runs after this event), so a caller's "close" listener has the last word.
-    requestAnimationFrame(() => { restoreFocus(opener); finish(); });
+    // A dialog opened in that frame (Enter on the opener again, at once) keeps its focus: the opener is behind it.
+    requestAnimationFrame(() => {
+      const other = document.activeElement?.closest?.('ui-dialog-content[data-open],ui-alert-dialog-content[data-open]');
+      if (!other || other === d) restoreFocus(opener);
+      finish();
+    });
   });
   controller = bindForm(form, {
     submit: async data => { await onSubmit?.(data, d); },
