@@ -54,7 +54,7 @@ try{
     assert.equal(await page.locator('html').getAttribute('data-appearance'),appearance);
     // A sticky added from + Add uses the same default fill as the report.
     if(appearance==='dark'){
-      await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('[data-add=sticky]').click();
+      await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('#workspace-add-menu [data-add=sticky]').click();
       await page.waitForFunction(()=>document.querySelectorAll('[data-decoration]').length>14);
       // A new sticky opens straight into editing, as when Matt typed into it.
       await page.locator('.whiteboard-editor textarea').waitFor();await page.keyboard.press('Escape');await page.locator('.whiteboard-editor').waitFor({state:'detached'});

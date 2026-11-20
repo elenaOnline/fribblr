@@ -121,18 +121,18 @@ try{
  await page.keyboard.press('Shift+Digit0');eq((await plane()).zoom,1,'Shift-0 is 100%');
  await page.keyboard.press('=');ok((await plane()).zoom>1.2,'+ zooms in');await page.keyboard.press('Shift+Digit1');eq((await plane()).zoom,1,'Shift-1 fits');
 
- // (3) The path: hover (after a delay) shows where you are and the neighbours; leaving closes it; click pins.
- await page.locator('#reader-path').hover();
+ // (3) The path (a UI SDK menu): a press shows where you are and the neighbours; Escape closes it; it stays open while the pointer leaves.
+ await page.locator('#reader-path').click();
  await page.locator('#reader-path-pop').waitFor({state:'visible',timeout:2000});
  const rows=await page.locator('#reader-path-pop .reader-path-ladder .reader-path-title').allTextContents();
  eq(rows,['Home','Product','Design Lab','01 · Quiet opening'],'The ladder runs Home → Product → Design Lab → this Tinka');
  eq(await page.locator('#reader-path-pop .reader-path-sibs .tk-eyebrow').textContent(),'On Design Lab · 4');
  eq(await page.locator('#reader-path-pop .reader-path-sibs .reader-path-title').allTextContents(),['01 · Quiet opening','02 · Bold opening','A plain idea','Starter kit'],'Numbered neighbours in board order');
- ok(await page.locator('#reader-path-pop [aria-label="Also on"]').getByText('Product').isVisible(),'A Tinka placed on several boards lists where else it appears');
- await page.mouse.move(700,500);await page.locator('#reader-path-pop').waitFor({state:'hidden',timeout:2000});checks++;
- await page.locator('#reader-path').click();await page.locator('#reader-path-pop').waitFor({state:'visible'});
+ ok(await page.locator('#reader-path-pop').getByRole('group',{name:'Also on'}).getByText('Product').isVisible(),'A Tinka placed on several boards lists where else it appears');
+ await page.keyboard.press('Escape');await page.locator('#reader-path-pop').waitFor({state:'hidden',timeout:2000});checks++;
+ await page.waitForTimeout(100);await page.locator('#reader-path').click();await page.locator('#reader-path-pop').waitFor({state:'visible'});
  await page.mouse.move(700,500);await page.waitForTimeout(500);
- ok(await visible('#reader-path-pop'),'Click pins the path open');
+ ok(await visible('#reader-path-pop'),'The path stays open while the pointer leaves');
  const h0=await historyLength();
  await page.locator('#reader-path-pop .reader-path-sibs [data-path-go]').nth(1).click();await waitName('Bold opening');checks++;
  ok(await page.locator('#reader-path-pop').isHidden(),'Choosing a neighbour closes the path');
@@ -249,9 +249,9 @@ try{
  // (10) Dark, and a phone: the title row wraps, the stepper and path still work, no sideways scroll.
  await page.emulateMedia({colorScheme:'dark'});
  await openLab();await openItem(kit.placementIds[0]);
- await page.locator('#reader-path').hover();await page.locator('#reader-path-pop').waitFor({state:'visible'});
+ await page.locator('#reader-path').click();await page.locator('#reader-path-pop').waitFor({state:'visible'});
  await page.screenshot({path:path.join(evidence,'tinka-view-1440-dark-path.png')});
- await page.mouse.move(700,600);await page.locator('#reader-path-pop').waitFor({state:'hidden'});
+ await page.keyboard.press('Escape');await page.locator('#reader-path-pop').waitFor({state:'hidden'});
  await page.emulateMedia({colorScheme:'light'});
  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
  const phone=await page.evaluate(()=>{const h=document.getElementById('reader-header').getBoundingClientRect(),t=document.querySelector('.reader-title-row').getBoundingClientRect(),n=document.getElementById('reader-navigator').getBoundingClientRect();return {scroll:document.documentElement.scrollWidth,dialog:document.getElementById('reader-dialog').scrollWidth,header:document.getElementById('reader-header').scrollWidth,width:innerWidth,wrapped:t.top>=n.bottom-1,titleWidth:t.width};});
@@ -320,8 +320,8 @@ try{
  ok(!(await ring('#reader-count')),'…without lighting a ring on the clicked trigger');
  await page.keyboard.press(`${chord}+ArrowRight`);at++;await settle();
  ok(await page.locator('#reader-path-pop').isHidden(),'Stepping with the path closed keeps it closed');
- await page.locator('#reader-path').click();await page.keyboard.press(`${chord}+ArrowLeft`);at--;await settle();
- ok(await popOpen(),'Stepping while the path is open (and the new content grabs focus) keeps it open');
+ {const count=await page.locator('#reader-count').textContent();await page.locator('#reader-path').click();await page.keyboard.press(`${chord}+ArrowLeft`);await page.waitForTimeout(200);
+ ok(await popOpen()&&await page.locator('#reader-count').textContent()===count,'While the path (a menu) is open its keys stay with it: the step chord does not step');}
  await page.keyboard.press('Escape');
  ok(!(await ring('#reader-stage'))&&!(await ring('#reader-path')),'No ring on the canvas or title after the path closes');
  // A board given Dots shows the same quiet dots in its opened Tinka.

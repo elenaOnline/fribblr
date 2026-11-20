@@ -116,7 +116,7 @@ try{
  await page.mouse.move(region.x+50,region.y+70);await page.mouse.down();await page.mouse.move(region.x+180,region.y+140,{steps:4});await page.locator('#workspace-marquee').waitFor();await page.keyboard.press('Escape');await page.mouse.up();assert.equal((await snapshot()).revision,regionRevision);
  await page.screenshot({path:path.join(evidence,'whiteboard-wide.png')});
  // Human Add menu creates the compact flowchart preset, using scoped metadata.
- await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('[data-add=ellipse]').click();
+ await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('#workspace-add-menu [data-add=ellipse]').click();
  await page.locator('.whiteboard-editor textarea').waitFor();await page.keyboard.press('Escape');assert.ok(await eventually(async()=>(await snapshot()).decorations.some(d=>d.shape==='ellipse'&&d.type==='region'),Boolean));
  // Keyboard-reachable actions fit at a narrow width and ordinary objects resize at their outline.
  await page.setViewportSize({width:390,height:844});await page.locator('[data-decoration=sticky]').scrollIntoViewIfNeeded();
