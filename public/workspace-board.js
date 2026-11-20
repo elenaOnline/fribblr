@@ -1549,8 +1549,16 @@ export class WorkspaceBoard {
       this.updateHistoryControls();
     }
   }
+  // A drawn object's save runs until its refresh has landed. The board's command keys already wait for it (commandBusy);
+  // Undo, Redo and Paste show it too, so they read busy until the board they would act on is the saved one.
+  get decorationCommitting() { return !!this._decorationCommitting; }
+  set decorationCommitting(value) {
+    if (this._decorationCommitting === !!value) return;
+    this._decorationCommitting = !!value;
+    this.updateHistoryControls();
+  }
   updateHistoryControls() {
-    const busy = this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy || this.client.pendingWrites || this.saving || this.history?.busy;
+    const busy = this.pointerGesture || this.decorationGesture || this.decorationCommitting || this.movePending || this.historyBusy || this.pasteBusy || this.client?.pendingWrites || this.saving || this.history?.busy;
     for (const direction of ["undo","redo"]) {
       const button = $("workspace-" + direction);
       if (!button) continue;

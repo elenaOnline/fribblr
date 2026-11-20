@@ -598,8 +598,11 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   size; a sticker keeps its proportions; an auto-height Text block becomes fixed, as a drag makes it. Announced with
   `resizeMessage`. Arrow ends, an arrow's bend and a sticker's rotation have keys and are announced ("Arrow end moved
   to 420, 310.", "Sticker rotated to 15°.").
-- **Writes queue instead of racing.** A keyboard move, reorder or resize holds the board busy until its write and
-  refresh land (`keyMoveRunning`); meanwhile the key queue (`installKeyQueue`, window capture) holds Option-arrows and
+- **Writes queue instead of racing.** A drawn object's save holds Undo, Redo and Paste busy until its refresh has
+  landed (`decorationCommitting`, a setter that updates them), as the board's command keys already wait for it
+  (`keysBusy`): before, they read idle while the saved board was still being fetched, so a gesture begun then (a card
+  resize after moving an arrow's end) drew from the board before the save, and the arrow jumped to its old side. A
+  keyboard move, reorder or resize holds the board busy until its write and refresh land (`keyMoveRunning`); meanwhile the key queue (`installKeyQueue`, window capture) holds Option-arrows and
   arrows on a resize corner and replays them in order. Plain arrows, and Space / Enter on a focused item or on a
   button or link, are never queued (`queueableKey`): a replay would land on whatever has focus by then, or swallow a
   button's native press. Escape clears the queue.
