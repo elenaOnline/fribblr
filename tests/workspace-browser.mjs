@@ -152,6 +152,8 @@ try {
   });
   const page = await context.newPage();
   const boardTool = async selector => {
+    // Right after a navigation the page's script may not have wired the Inspector toggle yet; the board title is set by it.
+    await page.waitForFunction(() => { const title = document.getElementById("board-title"); return title && title.textContent && title.textContent !== "Loading board…"; });
     const control = page.locator(selector);
     if (!(await control.isVisible())) await page.locator("#board-info-toggle").click();
     await control.click();
