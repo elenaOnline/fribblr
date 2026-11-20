@@ -52,10 +52,8 @@ try{
  const open=async p=>{await page.goto(`${base}/boards/surfaces/#items/${p}`,{waitUntil:'load'});await page.locator('#reader-dialog[open]').waitFor();};
  await open(chart.placementIds[0]);await inner().locator('h1').filter({hasText:'Current chart'}).waitFor();
  eq(await size(),[2360,1822],'Saved authored viewport is the complete resource surface');
- // fribblr: the resource is the reader's slab; the stage keeps a strip under it for the slab's side.
- const below=await page.locator('#reader-window').evaluate(e=>{const s=getComputedStyle(e);return Math.ceil(parseFloat(s.getPropertyValue('--depth-slab'))+parseFloat(s.getPropertyValue('--depth-edge-low'))+1);});
  const stage=await page.locator('#reader-stage').boundingBox(),fit=await plane();
- ok(Math.abs(fit.zoom-Math.min(1,stage.width/2360,(stage.height-below)/1822))<.001,'Fit frames the complete chart');
+ ok(Math.abs(fit.zoom-Math.min(1,stage.width/2360,stage.height/1822))<.001,'Fit frames the complete chart');
  for(const id of ['reader-header','reader-path','reader-stepper','reader-file-versions','reader-fit'])ok(await page.locator('#'+id).isVisible(),id+' remains native');
  eq(await page.locator('#reader-window').evaluate(e=>{const s=getComputedStyle(e);return [s.borderTopWidth,s.paddingBottom,s.resize];}),['0px','0px','none'],'No outer card padding or resize control in resource Fit');
  ok(await page.locator('#reader-window').evaluate(e=>getComputedStyle(e).boxShadow!=='none'),'fribblr: the resource itself is the slab');
@@ -87,7 +85,7 @@ try{
  await page.route('**/resources/assets/sheet.png',async route=>{requested();await held;await route.continue().catch(()=>{});});
  await page.goto(`${base}/boards/surfaces/#items/${image.placementIds[0]}`,{waitUntil:'domcontentloaded'});await page.locator('#reader-dialog[open]').waitFor();await request;await page.locator('#reader-next').click();await inner().locator('main').waitFor();release();await page.waitForTimeout(150);eq(await size(),[1000,720],'Old image callbacks are disconnected on navigation');await page.unroute('**/resources/assets/sheet.png');
  await page.setViewportSize({width:390,height:844});await open(chart.placementIds[0]);await inner().locator('h1').waitFor();await page.screenshot({path:path.join(evidence,'resource-chart-390.png')});
- const smallStage=await page.locator('#reader-stage').boundingBox(),small=await plane();ok(small.zoom<.2&&Math.abs(small.zoom-Math.min(smallStage.width/2360,(smallStage.height-below)/1822))<.001,'Narrow Fit retains complete authored chart');
+ const smallStage=await page.locator('#reader-stage').boundingBox(),small=await plane();ok(small.zoom<.2&&Math.abs(small.zoom-Math.min(smallStage.width/2360,smallStage.height/1822))<.001,'Narrow Fit retains complete authored chart');
  eq(await getBoardSnapshot(config,'surfaces'),before,'View changes never write board/item metadata');eq(errors,[],'No page errors');
  await writeFile(path.join(evidence,'resource-surface.json'),JSON.stringify({checks,fit,small,evidence},null,2));console.log(`Resource surface browser checks passed: ${checks}; evidence ${evidence}`);
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

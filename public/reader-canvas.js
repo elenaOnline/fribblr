@@ -67,12 +67,20 @@ export class ReaderCanvas {
     stage.append(this.shield);
     this.bind();
   }
-  // Native controls float over the resource; the surface owns the complete stage, less the strip under it
-  // where its lower side stands: the resource is the reader's slab, so its side is drawn below its box (depth.css).
+  // Native controls float over the resource; the surface owns the complete stage. fribblr: the resource is the
+  // reader's slab, its side drawn below its box (depth.css), so the stage keeps a strip under it for the side, but
+  // only when the strip costs no scale: content that fits at a zoom in the whole stage fits at that zoom here, and a
+  // document fitted to the stage owns all of it, as upstream. Otherwise the side runs off the stage's bottom edge.
   insets() {
+    const none = { top: 0, right: 0, left: 0, bottom: 0 };
+    const fit = (this.sheet.dataset?.size || 'fit') === 'fit';
+    if (fit && !this.resourceSize) return none;
     const css = getComputedStyle(this.sheet);
-    const side = (parseFloat(css.getPropertyValue('--depth-slab')) || 0) + (parseFloat(css.getPropertyValue('--depth-edge-low')) || 0);
-    return { top: 0, right: 0, left: 0, bottom: Math.ceil(side + 1) };   /* and its hairline contour */
+    const strip = Math.ceil((parseFloat(css.getPropertyValue('--depth-slab')) || 0) + (parseFloat(css.getPropertyValue('--depth-edge-low')) || 0) + 1);   // and its hairline contour
+    const { width, height } = this.area();
+    const w = Math.max(1, fit ? this.resourceSize.width : this.sheet.offsetWidth), h = Math.max(1, fit ? this.resourceSize.height : this.sheet.offsetHeight);
+    const zoom = room => Math.min(READER_FIT_MAX_ZOOM, width / w, room / h);
+    return zoom(height - strip) < zoom(height) ? none : { ...none, bottom: strip };
   }
   setResourceSize(width, height) {
     const size = resourceSize(width, height);

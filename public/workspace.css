@@ -716,6 +716,8 @@
   margin: auto;
   overflow-wrap: anywhere;
 }
+/* fribblr: no kind eyebrow over a panel's title (the slab's side says the kind); kept on a remote item, where it also says "independent experience" */
+.item-representation:not(:has(.item-url)) > .workspace-eyebrow { display: none; }
 .item-representation h1 {
   font:
     400 calc(39px * var(--item-scale, 1)) / 1.15 var(--type-serif);
