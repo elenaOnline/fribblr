@@ -408,6 +408,11 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   in a field, an editor or a modal dialog stays. Quick jot is the exception by design: a jot is not selected and focus
   stays in its field for the next line. `focusCreated()` in `workspace-board.js`; checked in
   `tests/board-fixes-browser.mjs`.
+- **Comment pins are one Tab stop** (`comment-pins.js`), after the board's items, like them: the pin focused last holds
+  it (else the first in reading order), arrows move to the nearest pin that way (`nearestInDirection` on screen boxes),
+  Home / End reach the first and last, Enter or Space opens the focused pin (a cluster opens its list), and Escape from
+  its card comes back to it. The layer is a `role=group` named "Comments: N open". Checked in
+  `tests/comment-pins-browser.mjs`.
 - **Focus comes back.** Closing the reader returns focus to the card last viewed when it was opened from the board's
   items. Escape in the selection bar sends focus to the board's roving item (or the first card, or the canvas).
 - **The board's key handlers step aside** for SDK widgets: `inPopup()` first (an open menu or popover owns every key,
