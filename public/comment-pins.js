@@ -236,7 +236,17 @@ export class CommentPins {
     const view = this.viewport?.getBoundingClientRect(), world = this.world.getBoundingClientRect(), margin = 22 / zoom;
     if (view?.width) {
       const left = (view.left - world.left) / zoom - origin.x, top = (view.top - world.top) / zoom - origin.y, right = left + view.width / zoom, bottom = top + view.height / zoom;
-      if (x >= left && x <= right && y >= top && y <= bottom) { x = Math.min(Math.max(x, left + margin), right - margin);y = Math.min(Math.max(y, top + margin), bottom - margin); }
+      if (x >= left && x <= right && y >= top && y <= bottom) {
+        x = Math.min(Math.max(x, left + margin), right - margin);y = Math.min(Math.max(y, top + margin), bottom - margin);
+        // The floating footer's bars and the edit tools rail sit over the canvas's bottom edge (across all of it at phone
+        // width): a cluster under one of them moves up, clear of it, as revealBox keeps revealed items clear (canvas.js).
+        const sx = world.left + (x + origin.x) * zoom;
+        for (const bar of document.querySelectorAll('.canvas-footer .zoom-pill, #edit-tools')) {
+          const r = bar.hidden || !bar.getClientRects().length ? null : bar.getBoundingClientRect();
+          if (!r || sx < r.left - 22 || sx > r.right + 22) continue;
+          y = Math.min(y, (r.top - world.top) / zoom - origin.y - margin);
+        }
+      }
     }
     return `<button type="button" class="comment-pin comment-cluster" data-comment-cluster="${esc(group.map(g => g.t.id).join(' '))}" data-status="${status}" style="left:${x + origin.x}px;top:${y + origin.y}px" aria-haspopup="menu" aria-label="${group.length} comments here · ${STATUS_LABEL[status] || status}">${group.length}<span class="comment-pin-badge" aria-hidden="true"></span></button>`;
   }
