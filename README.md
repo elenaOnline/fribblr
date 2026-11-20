@@ -372,8 +372,9 @@ leave the order alone. A backdrop you drag stays beneath the things resting on i
 (more than half inside it and no more than half its size). Press **]** to bring the
 selection to the front or **[** to send it to the back, or choose Bring to front /
 Send to back from a Tinka's ⋯ menu or a shape's, region's or arrow's options. Undo
-restores the order with the move that changed it. Existing boards keep their
-appearance: drawings without a saved place keep the levels they always had.
+restores the order with the move that changed it. On boards saved before this
+order, drawings without a saved place keep their kind's level: regions, shapes and
+text beneath every Tinka, arrows and stickers above.
 
 Hold **Option** (**Alt** on Windows or Linux) as you start dragging a card or
 drawn element to place a copy on the same canvas. Drag a selected member to copy

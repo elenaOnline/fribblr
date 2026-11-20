@@ -379,11 +379,15 @@ Everything on a Canvas shares one stacking order: Tinka placements and drawn
 elements alike (text, stickies, shapes, stickers, regions, containers and arrows).
 A placement's `z` is its place in that order. A drawn element may store an optional
 `z` in the same numeric space (finite, within ±10000000; `decoration.create` and
-`decoration.update` accept it). A drawn element without `z` keeps the level it has
-always had: plain regions and containers 0, text and shapes (stickies included) 1,
-stickers and arrows 2. Higher values paint above lower ones; at equal values drawn
-elements paint beneath placements, then in array order. Saved boards therefore look
-exactly as before until something is restacked, and no migration is involved. A
+`decoration.update` accept it). Higher values paint above lower ones; at equal
+values drawn elements paint beneath placements, then in array order. A drawn element
+without `z` (every drawing saved before this order existed) keeps its kind's level
+relative to everything that has a stored `z`: plain regions and containers, then
+text and shapes (stickies included), beneath all of it, and stickers and arrows
+above all of it. No migration is involved, and the first restack that moves such an
+element gives it a `z`. (Those levels, 0, 1 and 2, used to be compared with
+placement `z`, a creation count, so shapes and text covered a board's first Tinka
+and later Tinkas covered the arrows and stickers on them.) A
 container is always drawn directly beneath its lowest member. Pins, comment
 markers, ports, drop markers, guides and dragged objects stay above all content; a
 selected arrow or sticker is lifted while selected so its handles stay usable.
