@@ -1371,6 +1371,7 @@ export class WorkspaceBoard {
       this.selection = new Set(result.placementIds || []);
       await this.refresh({saveReview:false});
       this.hooks.revealPlacements?.(this.snapshot.placements.filter(p=>this.selection.has(p.id)));
+      this.focusCreated({placementIds:result.placementIds || []});
       toast(`Imported ${files.length} ${files.length === 1 ? "file" : "files"}.`);
     } catch (error) {
       this.moveCommitting = false;
@@ -1485,6 +1486,7 @@ export class WorkspaceBoard {
         const ids = new Set(drawingIds);
         positions.push(...this.snapshot.decorations.filter(d => ids.has(d.id)).map(d => decorationBounds(d,this.snapshot)));
         this.hooks.revealPlacements?.(positions);
+        this.focusCreated({placementIds:result.placementIds,decorationIds:drawingIds});
       }});
       const count = result.placementIds.length + drawingIds.length;
       const noun = drawingIds.length ? (count === 1 ? "object" : "objects") : (count === 1 ? "Tinka" : "Tinkas");
@@ -2680,6 +2682,7 @@ export class WorkspaceBoard {
             this.syncSelection();
             this.selectionMenu();
           } else this.whiteboard?.selectDecorations(result.decorationIds);
+          this.focusCreated(result);
         }});
         const count = result.placementIds.length + result.decorationIds.length;
         toast(count > 1 ? `Placed ${count} copies.` : "Placed a copy.");
@@ -4011,6 +4014,21 @@ export class WorkspaceBoard {
   // by the item's key, because the press's own selection may re-render the element. A press on the empty canvas (or a
   // plain region's open middle, which works as empty canvas) takes focus off the items. One check per press; nothing
   // on pointer moves.
+  // What the app just created and selected takes keyboard focus (the first of it), so Option-arrow, Space and the
+  // board's commands act on what was made, never on the item focused before: ⌘D, then ⌥→ moves the copy, as in Figma,
+  // tldraw and Excalidraw (ui-sdk.md § Board canvas, "Focus follows what the app creates"). Focus in a field, an editor
+  // or a modal dialog stays where it is.
+  focusCreated({placementIds = [], decorationIds = []} = {}) {
+    const key = placementIds[0] ? `placement:${placementIds[0]}` : decorationIds[0] ? `decoration:${decorationIds[0]}` : null;
+    const el = key && this.boardFocus?.element(key);
+    if (!el) return;
+    const active = document.activeElement;
+    if (active?.matches?.("input,textarea,select,[contenteditable],iframe") ||
+        active?.closest?.(".whiteboard-editor,dialog:modal,ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]")) return;
+    this.boardFocus.setStop(key);
+    if (active !== el) el.focus({preventScroll:true});
+    this.boardFocus.keepOn(key);
+  }
   pressFocus() {
     window.addEventListener("pointerdown", e => {
       if (this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool || !e.target.closest?.("#viewport")) return;

@@ -3,6 +3,7 @@
 // - focus follows a press: a press on any board item (card, Text block, shape, arrow, sticker, container member) makes
 //   it the focused item, so Option-arrow moves what was pressed, never an item focused earlier;
 // - with nothing selected, board commands (⌘I, ⌘D, E) act on the focused item, as its menu advertises;
+// - what the app creates and selects (⌘D, ⌘C ⌘V, an Option-drag copy) takes focus, so Option-arrow moves the copy;
 // - C, then Enter on the focused item, places a comment there; Escape disarms;
 // - Tab past the drawn-object bar or any of its panels goes on to the board's focused item, never to <body>;
 // - the bar's panels start on their checked option, or on their first control (never on ×);
@@ -114,7 +115,37 @@ try{
  await page.keyboard.press('Escape');
  ok(await until(async()=>(await focused())==='card:Card B'),`Escape from those Details returns focus to the card: ${await focused()}`);
  {const n=await cardCount();await focusCard(c.b);await page.keyboard.press(`${mod}+d`);
-  ok(await until(async()=>(await cardCount())===n+1),'⌘D duplicates the focused card');}
+  ok(await until(async()=>(await cardCount())===n+1),'⌘D duplicates the focused card');
+  // 9. What the app creates and selects takes focus: Option-arrow then moves the copy, never the original.
+  const copy=await until(()=>page.evaluate(b=>{const a=document.activeElement;return a?.dataset?.placement&&a.dataset.placement!==b&&a.classList.contains('selected')?a.dataset.placement:null;},c.b));
+  ok(copy,`After ⌘D the selected copy has focus: ${await focused()}`);
+  const b0=await placement(c.b),k0=await placement(copy);await idle();
+  await page.keyboard.press('Alt+ArrowRight');
+  ok(await until(async()=>(await placement(copy)).x===k0.x+1),'Option-→ after ⌘D moves the copy');
+  eq((await placement(c.b)).x,b0.x,'and not the original');}
+ await clear();await idle();
+ // Copy and paste, and an Option-drag copy, of drawn elements: the new one is selected and focused.
+ const fresh=async(before)=>until(()=>page.evaluate(before=>{const a=document.activeElement,id=a?.dataset?.decoration;return id&&!before.includes(id)&&a.classList.contains('selected')?id:null;},before));
+ {const before=(await snapshot()).decorations.map(d=>d.id);await pressOn('#world [data-decoration="words"]');
+  await page.keyboard.press(`${mod}+c`);await page.waitForTimeout(150);await page.keyboard.press(`${mod}+v`);
+  const pasted=await fresh(before);ok(pasted,`After ⌘C ⌘V the pasted Text block has focus: ${await focused()}`);
+  const w0=await decoration('words'),p0=await decoration(pasted);await idle();
+  await page.keyboard.press('Alt+ArrowRight');
+  ok(await until(async()=>(await decoration(pasted)).x===p0.x+1),'Option-→ after a paste moves the pasted block');
+  eq((await decoration('words')).x,w0.x,'and not the one copied');}
+ await clear();await idle();
+ {const before=(await snapshot()).decorations.map(d=>d.id),start=await pointOn('#world [data-decoration="shape"]');
+  await page.mouse.move(start.x,start.y);await page.keyboard.down('Alt');await page.mouse.down();
+  for(let i=1;i<=8;i++){await page.mouse.move(start.x+i*12,start.y+i*10);await page.waitForTimeout(25);}
+  await page.mouse.up();await page.keyboard.up('Alt');
+  const dropped=await fresh(before);ok(dropped,`After an Option-drag copy the copy has focus: ${await focused()}`);
+  const s0=await decoration('shape'),d0=await decoration(dropped);await idle();
+  await page.keyboard.press('Alt+ArrowRight');
+  ok(await until(async()=>(await decoration(dropped)).x===d0.x+1),'Option-→ after an Option-drag copy moves the copy');
+  eq((await decoration('shape')).x,s0.x,'and not the original');}
+ // Put the board back for the checks below: two undos per copy (its move, then the copy).
+ for(let i=0;i<6;i++){await idle();await page.keyboard.press(`${mod}+z`);await page.waitForTimeout(250);}
+ await idle();
  await clear();await idle();
  {await focusCard(c.a);
   const sent=page.waitForRequest(r=>r.url().endsWith('/api/operations')&&r.postDataJSON()?.type==='restackOccurrences',{timeout:3000});

@@ -1136,6 +1136,7 @@ export class Whiteboard {
     await this.host.writeArrangement('createDecoration',{boardId:this.host.snapshot.id,decoration:d},endpointsUnchanged(d,this.host.snapshot));
     this.host.activeDecoration=d.id;this.connectMode=false;this.pendingFrom=null;this.hint.hidden=true;
     await this.host.refresh({saveReview:false});this.sync();
+    this.host.focusCreated?.({decorationIds:[d.id]});
   }
   async remove() {
     const many=this.selectedDecorations();

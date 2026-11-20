@@ -401,6 +401,13 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   went: only focus still where it was (the same element or the same board item re-rendered), or dropped to `<body>`,
   is moved. Pointer focus draws no ring (`pointer-focus.js`). Checked in `tests/board-fixes-browser.mjs` and
   `tests/canvas-keyboard-browser.mjs`.
+- **Focus follows what the app creates.** What the app creates and selects takes focus (the first of it): Duplicate
+  (⌘D, the card menu, the Inspector), Paste, imported files, an Option-drag copy, an arrow drawn from a port, a new
+  document's card (under its editor, so closing the editor comes back to it). So ⌥+arrow moves the copy, never the
+  original, as in Figma, tldraw and Excalidraw. Add's Text, shape, arrow and sticker already focus what they make. Focus
+  in a field, an editor or a modal dialog stays. Quick jot is the exception by design: a jot is not selected and focus
+  stays in its field for the next line. `focusCreated()` in `workspace-board.js`; checked in
+  `tests/board-fixes-browser.mjs`.
 - **Focus comes back.** Closing the reader returns focus to the card last viewed when it was opened from the board's
   items. Escape in the selection bar sends focus to the board's roving item (or the first card, or the canvas).
 - **The board's key handlers step aside** for SDK widgets: `inPopup()` first (an open menu or popover owns every key,
