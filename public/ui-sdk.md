@@ -1251,6 +1251,40 @@ Card toolbars as roving markup, against the board before (medians):
 All within run-to-run spread (warm render ranged 55–62 ms on both). Element count is unchanged; the markup adds one
 attribute per toolbar and `tabindex` on controls inside every non-stop card.
 
+### Measuring input latency: use Chrome's EventLatency, not ack-gated CDP input
+
+A probe that awaits each `Input.dispatchMouseEvent` / `dispatchTouchEvent` and then sleeps 16 ms, and scores
+"2nd rAF after the event − `event.timeStamp`", showed wheel and touch pan on `showcase-dense` one frame slower than
+`main` (46.5 against 30.4 ms) although the handler is a hundred times cheaper (0.2 against 20.6 ms). This is an artifact
+of the probe. Two DevTools effects combine:
+
+- DevTools holds each injected mouse or touch event in the browser until the renderer answers a
+  `WidgetCompositor.VisualStateRequest`, that is, until its next compositor frame (the trace's
+  `GenerationToBrowserMain` stage: 14 ms here against 5 ms on `main`). A real trackpad goes straight to the renderer.
+- Awaiting the ack makes the input rate depend on the page: the "60 Hz" loop ran at 20 Hz on this branch and 30 Hz on
+  `main`, so the two builds got different input streams, each phase-locked to its own frames.
+- The 2nd rAF's timestamp is when that frame began, not when it reached the screen, so it leaves out `main`'s 20 ms
+  of style work inside the frame.
+
+Score latency with the trace's `EventLatency` events (category `input.scrolling`): Chrome's own time from event
+generation to presentation feedback, per event, for presented frames. Drive the input the way a device does: a fixed
+60 Hz clock that doesn't wait for acks, or `Input.synthesizeScrollGesture` (vsync-aligned, no DevTools hold). Medians of
+five interleaved rounds against `main` (ms, ui-sdk at 29a978f / main):
+
+| | dense: synth wheel | fixed wheel | fixed touch | fixed card drag | fixed marquee | keys |
+|---|---|---|---|---|---|---|
+| EventLatency | 20.9 / 50.4 | 31.6 / 65.8 | 34.5 / 62.2 | 24.1 / 29.2 | 24.5 / 14.8 | 13.4 / 24.9 |
+| events presented | 64 / 50 | 90 / 69 | 89 / 63 | 89 / 86 | 89 / 88 | 41 / 41 |
+
+Marquee is equal: `main`'s fixed-clock runs ranged 3.8–28.1 ms (ui-sdk 17.1–25.4), a traced rerun gave 25.6 / 28.7,
+the gated driver 11.8 / 11.7, and the main thread's total work during the marquee is the same (392 / 424 ms).
+
+On `showcase-containers` both builds sit within a frame of each other and the sign flips with the driver (synth wheel
+34.5 / 31.4, fixed wheel 23.2 / 30.8, fixed touch 26.0 / 30.9). The main thread is busy 9–10% of the pan on this
+branch against 22–29% on `main`, and no SDK observer, listener or timer runs on that path. Fixed-clock medians move by up
+to a frame between runs (the clock's phase against vsync), so compare medians of several interleaved rounds. Probes:
+`team/ux/r2/panperf/lat.mjs` (both methods, all scenarios), `trace.mjs` and `el.py` (stage breakdown).
+
 ### Long lists are virtualized
 
 The sticker picker (`createVirtualizer`, about 60 cells in view plus overscan): open 14–16 ms warm on both upstream and
