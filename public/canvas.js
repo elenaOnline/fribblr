@@ -726,7 +726,8 @@ function setReaderSize(size) {
     viewer.style.removeProperty('height');
     viewer.dataset.size = readerView.size;
   }
-  viewer.title = readerView.size === 'fit' ? 'Resource surface' : 'Drag the lower-right corner to resize';
+  // A chosen Window size can be dragged from its corner, and says so; Fit (1.4's resource surface, no corner) has no hint.
+  if (readerView.size === 'fit') viewer.removeAttribute('title'); else viewer.title = 'Drag the lower-right corner to resize';
   renderSizeControls();
   // A new window size shows whole again; canvas zoom never reflows it.
   if (dialog.open) readerCanvas.rest();
@@ -1238,7 +1239,7 @@ function readerShortcuts() {
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
     <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
-    <dt>Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out</dd>
+    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out</dd>
     <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
@@ -1256,14 +1257,24 @@ function readerTinkaFocus(target) {
   return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
 function readerBlocked() { return !dialog.open || !!document.querySelector('.workspace-dialog:is([open],[data-open])'); }
+let readerAnnounceTimer = 0;
+function announceReaderView(text = `Zoom ${Math.round(readerCanvas.view.zoom * 100)}%`) {
+  const live = $('reader-view-announce');
+  if (!live) return;
+  live.textContent = text;
+  clearTimeout(readerAnnounceTimer);
+  readerAnnounceTimer = setTimeout(() => { live.textContent = ''; }, 2500);
+}
 function runReaderCommand(command, { fromFrame = false } = {}) {
   if (command === 'previous' || command === 'next') { stepReader(command === 'next' ? 1 : -1, { focus: fromFrame ? 'tinka' : 'keep' }); return true; }
   if (command === 'up') { closeReader(); return true; }
   if (command === 'down') return goDown();
-  if (command === 'fit') { readerCanvas.fit(); return true; }
-  if (command === 'actual-size') { readerCanvas.zoomTo(1); return true; }
-  if (command === 'zoom-in') { readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25); return true; }
-  if (command === 'zoom-out') { readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25); return true; }
+  // The view keys are announced inside the reader (a modal dialog: the board's announcer is inert behind it), as the
+  // board announces its own (UI SDK viewport: "Zoom 150%").
+  if (command === 'fit') { readerCanvas.fit(); announceReaderView('Fitted this Tinka'); return true; }
+  if (command === 'actual-size') { readerCanvas.zoomTo(1); announceReaderView(); return true; }
+  if (command === 'zoom-in') { readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25); announceReaderView(); return true; }
+  if (command === 'zoom-out') { readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25); announceReaderView(); return true; }
   if (command === 'shortcuts') { readerShortcuts(); return true; }
   return false;
 }

@@ -36,6 +36,8 @@ export function readerCommand(event, { mac = false, editable = false, tinkaFocus
   const shifted = digit => event.shiftKey && (event.code ? event.code === `Digit${digit}` : key === '!@)'[digit === 0 ? 2 : digit - 1]);
   if ((!event.shiftKey && (key === 'f' || key === 'F')) || shifted(1)) return 'fit';
   if (shifted(0)) return 'actual-size';
+  // 0 shows 100% too, as on the board (UI SDK viewport keys: + / − / 0).
+  if (!event.shiftKey && key === '0') return 'actual-size';
   if (key === '+' || key === '=') return 'zoom-in';
   if (key === '-' || key === '_') return 'zoom-out';
   if (key === '?') return 'shortcuts';

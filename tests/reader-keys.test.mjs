@@ -56,6 +56,9 @@ test('view keys', () => {
   assert.equal(readerCommand(key('f')), 'fit');
   assert.equal(readerCommand(key('!', {shiftKey: true, code: 'Digit1'})), 'fit');
   assert.equal(readerCommand(key(')', {shiftKey: true, code: 'Digit0'})), 'actual-size');
+  assert.equal(readerCommand(key('0')), 'actual-size', '0 shows 100%, as on the board (UI SDK viewport keys)');
+  assert.equal(readerCommand(key('0'), {editable: true}), null);
+  assert.equal(readerCommand(key('0'), {fromFrame: true}), null);
   assert.equal(readerCommand(key('=', {shiftKey: false})), 'zoom-in');
   assert.equal(readerCommand(key('-')), 'zoom-out');
   assert.equal(readerCommand(key('?', {shiftKey: true, code: 'Slash'})), 'shortcuts');

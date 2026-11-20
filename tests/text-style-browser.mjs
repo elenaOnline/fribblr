@@ -158,12 +158,13 @@ try {
   await page.locator('[data-decoration="section"]').click({position:{x:36,y:3}});
   await toolbar.getByRole("button",{name:"Region options"}).click();
   await page.getByRole("button",{name:"Select section contents"}).click();
-  await page.keyboard.press("ArrowRight");
+  // fribblr: Option/Alt+arrow moves the selection (UI SDK canvas norm); plain arrows move focus between items.
+  await page.keyboard.press("Alt+ArrowRight");
   await waitFor(async()=>(await saved("section")).x===1);
   assert.equal((await saved("copy")).x,37);
   assert.equal((await state()).placements.find(p=>p.id===placementId).x,371);
   assert.equal((await saved("outside")).x,730);
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await waitFor(async()=>(await saved("section")).x===0);
   assert.equal((await saved("copy")).x,36);
   assert.deepEqual(errors,[]);

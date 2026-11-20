@@ -140,10 +140,11 @@ try{
  // A panel opened with the mouse and closed with Escape hands focus back without a ring.
  await page.locator('#board-info-toggle').click();await page.keyboard.press('Escape');
  const back=await ring('#board-info-toggle');ok(back.focused&&back.outline==='none',`Escape back to a clicked toggle shows no ring: ${JSON.stringify(back)}`);
+ // The pill is a UI SDK toolbar (one Tab stop, arrows along it): a key that moves focus inside it brings the ring back.
  await page.locator('#zoom-plus').click();
- await page.keyboard.press('Shift+Tab');
+ await page.keyboard.press('ArrowLeft');
  const tabbed=await page.evaluate(()=>({id:document.activeElement.id,outline:getComputedStyle(document.activeElement).outlineStyle}));
- ok(tabbed.id==='zoom-menu-toggle'&&tabbed.outline==='solid',`Tab focus keeps its ring: ${JSON.stringify(tabbed)}`);
+ ok(tabbed.id==='zoom-menu-toggle'&&tabbed.outline==='solid',`Keyboard focus keeps its ring: ${JSON.stringify(tabbed)}`);
  // The board remembers the current Tinka: open 4, step inside to 6, go back; J is 7, K is 5 (inside the Tinka ⌥→, ] and J step).
  await open('cursor');
  const pick=async n=>{await page.locator(`.workspace-card[data-placement="${row[n-1]}"] [data-placement-select]`).evaluate(b=>b.click());await page.waitForTimeout(60);};

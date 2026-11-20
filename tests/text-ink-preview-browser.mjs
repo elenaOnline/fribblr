@@ -46,7 +46,7 @@ try {
     return page.evaluate(id=>{
       const button=document.querySelector(".whiteboard-toolbar [data-whiteboard-action=text-ink]");
       return {id,theme:document.documentElement.dataset.appearance,ink:getComputedStyle(document.querySelector(`[data-decoration="${id}"]`)).color,
-        dot:getComputedStyle(button.querySelector("[data-text-ink-preview]")).backgroundColor,description:button.getAttribute("aria-description"),title:button.title};
+        dot:getComputedStyle(button.querySelector("[data-text-ink-preview]")).backgroundColor,description:button.getAttribute("aria-description"),tip:button.dataset.tip,title:button.getAttribute("title")};
     },id);
   };
   await text("strong").click();
@@ -55,9 +55,13 @@ try {
     const check=await waitDot("strong");
     assert.match(check.description,/Chosen Blue/);
     assert.match(check.description,/Adjusted for contrast/);
+    // fribblr: the hint is the bar's UI SDK tooltip (data-tip), never a native title beside it
+    assert.equal(check.tip,`Ink color · ${check.description}`);
+    assert.equal(check.title,null);
     checks.push(check);
     await ink().click();
-    assert.equal(await page.locator('.whiteboard-menu [data-swatch="palette:blue"]').getAttribute("aria-pressed"),"true");
+    // fribblr: swatches are UI SDK radios (color-control.js), so the chosen one is aria-checked
+    assert.equal(await page.locator('.whiteboard-menu [data-swatch="palette:blue"]').getAttribute("aria-checked"),"true");
     await page.screenshot({path:path.join(evidence,`strong-${theme}.png`)});
     await ink().click();
   }

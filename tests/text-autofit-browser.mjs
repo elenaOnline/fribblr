@@ -117,8 +117,12 @@ try {
   await boxPanel.getByRole("button",{name:"Fit height once",exact:true}).click();
   const fittedOnce=await waitSaved(id,d=>d.height<fixed.height);
   assert.equal(fittedOnce.textSizing,"fixed");
-  await boxPanel.getByRole("button",{name:"Enable auto height"}).click();
+  // fribblr: Auto height is a toggle with one name in both states (UI SDK toggle); its pressed state says which.
+  const autoHeight=boxPanel.getByRole("button",{name:"Auto height",exact:true});
+  assert.equal(await autoHeight.getAttribute("aria-pressed"),"false");
+  await autoHeight.click();
   const restored=await waitSaved(id,d=>d.textSizing==="auto");
+  await page.waitForFunction(()=>document.querySelector(".whiteboard-menu [data-auto-height]")?.getAttribute("aria-pressed")==="true");
   assert.ok(restored.height<fixed.height);
   assert.equal(restored.width,fixed.width);
   await page.keyboard.press("Escape");
