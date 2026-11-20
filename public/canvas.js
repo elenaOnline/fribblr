@@ -360,6 +360,10 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
 // behind fast or repeated arrows.
 function revealBox(box, { padding = 24 } = {}) {
   if (!graph || graph.mode === 'grid' || !box) return;
+  // Focus that arrived without preventScroll (a Tab) may already have scrolled the cushion: take that pan first, so the
+  // reveal measures from where the view really is (the scroll event that would carry it over comes a frame later).
+  const sx = viewport.scrollLeft - CUSHION, sy = viewport.scrollTop - CUSHION;
+  if (sx || sy) { settleCushion(); moveView(view.x - sx, view.y - sy); }
   const area = fitArea();
   // The floating footer and the edit tools rail sit over the canvas's bottom edge: the revealed item stays clear of both.
   const bottom = viewport.getBoundingClientRect().bottom;

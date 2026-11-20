@@ -286,6 +286,13 @@ export class BoardFocus {
     if (this.board.mode === 'canvas') this.board.hooks.revealBox?.(item.box);
     else item.el.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
   }
+  // Bring an item into view without moving focus (Tab arrived on it).
+  revealElement(el) {
+    const item = this.items().find(item => item.el === el);
+    if (!item) return;
+    if (this.board.mode === 'canvas') this.board.hooks.revealBox?.(item.box);
+    else el.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+  }
   focusKey(key, options) {
     const item = this.items().find(item => item.key === key);
     if (item) this.focusItem(item, options);

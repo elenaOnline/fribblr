@@ -54,7 +54,23 @@ export function openMenu(root, {anchor, payload, event, focus, returnTo} = {}) {
   root.returnTo = returnTo;
   const opener = returnTo ? document.querySelector(returnTo) : null;
   if (opener && document.activeElement !== opener) opener.focus({preventScroll: true});
-  return root.api.open({anchor, payload, focus: focus ?? openFocus(event), event});
+  return root.api.open({anchor: inWindow(anchor, root), payload, focus: focus ?? openFocus(event), event});
+}
+
+// A menu stays inside the window, its collision padding clear of the edges. The SDK shifts a popup back into view only
+// as far as it still touches its anchor, so an anchor past the window's edge (the ⋯ of a card the board shows half,
+// Shift+F10 on it) would take the menu past the edge with it. Such an anchor is read clamped into the window. An
+// anchor already inside, and a point, are passed as they are.
+function inWindow(anchor, root) {
+  if (!anchor || typeof anchor.getBoundingClientRect !== 'function') return anchor;
+  const pad = Number(root.querySelector('ui-menu-content')?.getAttribute('collision-padding')) || 0;
+  const clamp = () => {
+    const r = anchor.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    const width = Math.min(r.width, Math.max(0, vw - pad * 2)), height = Math.min(r.height, Math.max(0, vh - pad * 2));
+    const x = Math.min(Math.max(r.left, pad), vw - pad - width), y = Math.min(Math.max(r.top, pad), vh - pad - height);
+    return {inside: x === r.left && y === r.top && width === r.width && height === r.height, rect: new DOMRect(x, y, width, height)};
+  };
+  return clamp().inside ? anchor : {getBoundingClientRect: () => clamp().rect};
 }
 
 // A popover root with its content, appended to `host`; triggers reach it with `for=`.

@@ -3998,11 +3998,17 @@ export class WorkspaceBoard {
     }, true);
     // The focused card or drawn element keeps the board's Tab stop (UI SDK roving focus: the item focused last).
     // Focus bookkeeping runs on focus events only, never on pointer moves.
+    // Tab onto an item brings it into view, as an arrow does (UI SDK viewport: focus-in): the board is panned by a
+    // transform, so the browser's own focus scrolling can't. Only a Tab: a press is already where she pointed, and
+    // focus coming back (after the reader, a menu) leaves the board where it was.
+    let tabbedAt = -1;
+    document.addEventListener("keydown", e => { if (e.key === "Tab") tabbedAt = e.timeStamp; }, true);
     $("world").addEventListener("focusin", e => {
       const item = this.boardFocus.item(e.target);
       if (!item) return;
       this.boardFocus.setStop(this.boardFocus.key(item));
       if (e.target === item) this.boardFocus.roveReach(item); else this.boardFocus.rove(e.target);
+      if (tabbedAt >= 0 && e.timeStamp - tabbedAt < 100) { tabbedAt = -1; this.boardFocus.revealElement(item); }
     });
   }
   // Focus follows a press: a press on any board item (card, drawn element, sticker, container member) makes it the

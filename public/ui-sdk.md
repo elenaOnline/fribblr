@@ -134,6 +134,10 @@ function open(button, event, placementId) {
   element, the pressed control or the focused element is marked `data-menu-return` and found by that. `focus`
   defaults to `openFocus(event)`: a keyboard open focuses the first item (↑: the last), a pointer open focuses the
   menu itself.
+- **A menu stays inside the window.** The SDK shifts a popup back into view only as far as it still touches its anchor,
+  so an anchor past the window's edge (the ⋯ of a card the board shows half, then Shift+F10) took the menu past the
+  edge. `openMenu` passes such an anchor (element or rect) clamped into the window less the content's
+  `collision-padding` (`inWindow`); an anchor already inside, and a point, go as they are.
 - One menu element serves every card. Fill its content just before opening.
 - A popover opened from code: `root.api.open({anchor})`.
 
@@ -497,6 +501,10 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   the floating footer (`revealBox`). Home / End go to the first card / the last item (cards first in reading order,
   then drawn elements). A held arrow keeps moving. Arrows pressed on a control inside an item stay with it (they pan,
   or scroll an overflowing Text block).
+- **Tab onto an item brings it into view** the same way (`revealElement`, from the `focusin` bookkeeping, only when a
+  Tab moved focus): the browser's own focus scrolling (carried over from the cushion as a pan) skips an item it shows in
+  part. A press, and focus coming back after the reader or a menu, never move the board. `revealBox` first takes any
+  cushion scroll the browser already made, so the two never add up.
 - **Containers are composite items.** Outside, a container is one item and the arrows pass over its members (they
   move among items with the same container, `scope()`). **Enter** goes in, to the member focused last there (the
   SDK's `remember: true`), else its first, and announces "Stack: 3 items. One. Escape returns to the container."

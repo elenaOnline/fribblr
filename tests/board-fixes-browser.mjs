@@ -7,7 +7,8 @@
 // - Tab past the drawn-object bar or any of its panels goes on to the board's focused item, never to <body>;
 // - the bar's panels start on their checked option, or on their first control (never on ×);
 // - the % popovers' preset rows are one vertical toolbar; the slider after them is its own stop and owns its arrows;
-// - the reader's path menu marks the current place with aria-current, not with the highlight's look.
+// - the reader's path menu marks the current place with aria-current, not with the highlight's look;
+// - at 390 px a menu stays inside the window, and Tab onto an item brings it into view.
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -238,6 +239,20 @@ try{
    if(step==='open')for(let i=0;i<8&&!(await pathRows()).some(r=>r.current&&r.highlighted);i++)await page.keyboard.press('ArrowDown');
  }
  await page.keyboard.press('Escape');await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});
+
+ // ---- 8. At 390 px, a menu stays inside the window, and Tab onto an item brings it into view. ----
+ await page.setViewportSize({width:390,height:844});await page.waitForTimeout(300);
+ await page.locator('#viewport').focus();await page.keyboard.press('0');await page.waitForTimeout(300);
+ const offRight=await page.evaluate(()=>[...document.querySelectorAll('#world .workspace-card')].find(card=>{const b=card.querySelector('[data-item-controls]')?.getBoundingClientRect();return b&&b.right>innerWidth-8;})?.dataset.placement);
+ ok(offRight,'a card whose ⋯ is past the window edge at 390 px');
+ await page.evaluate(id=>document.querySelector(`#world .workspace-card[data-placement="${id}"]`).focus({preventScroll:true}),offRight);
+ await page.keyboard.press('Shift+F10');await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor();await page.waitForTimeout(250);
+ {const r=await page.locator('#workspace-tile-menu ui-menu-content').evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth};});
+  ok(r.left>=8&&r.right<=r.width-8,`Shift+F10 on a card whose ⋯ is past the edge keeps the menu inside the window: ${JSON.stringify(r)}`);}
+ await page.keyboard.press('Escape');await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor({state:'detached'}).catch(()=>{});
+ await page.keyboard.press('Shift+Tab');await page.keyboard.press('Tab');
+ ok(await until(()=>page.evaluate(id=>{const a=document.activeElement,r=a.getBoundingClientRect();return a.dataset.placement===id&&r.left>=0&&r.right<=innerWidth;},offRight)),'Tab back onto the card brings it into view');
+ await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(200);
 
  // The starts, by name: the chosen swatch, the pressed arrowhead, the chosen shape.
  eq(panelStarts['arrow:Stroke color'],'Blue','The stroke palette starts on the chosen swatch');
