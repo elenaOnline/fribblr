@@ -40,9 +40,14 @@ try{
   assert.equal(await media.locator('.markdown').textContent(),parseMarkdown(original).rawText,'DOM text and backend parser agree exactly');
   assert.equal(await media.locator('.markdown script').count(),0);assert.equal(await media.locator('.document-source').textContent(),'documents / design.md');
   assert.equal(await media.locator('.markdown a').getAttribute('target'),'_blank');assert.equal(await media.locator('.markdown img').getAttribute('src'),`${base}/resources/documents/diagram.svg`);
-  await media.locator('select[aria-label="Document contents"]').selectOption('decisions-2');
-  assert.equal(await media.locator('select').inputValue(),'decisions-2');
-  await media.locator('select').selectOption('');await media.locator('#media-content').evaluate(node=>node.scrollTop=0);
+  // Contents is a menu of the headings (UI SDK Menu): choosing one scrolls it to the top of the reading area.
+  await media.locator('[data-document-contents]').click();await media.locator('#document-contents-menu ui-menu-content[data-open]').waitFor();
+  assert.equal(await media.locator('#document-contents-menu ui-menu-content').getAttribute('role'),'menu');
+  await media.locator('#document-contents-menu [value="decisions-2"]').click();
+  await media.locator('#document-contents-menu ui-menu-content[data-open]').waitFor({state:'detached'}).catch(()=>{});
+  assert.ok(await media.locator('#media-content').evaluate(node=>{const h=node.querySelector('[id="decisions-2"]').getBoundingClientRect(),v=node.getBoundingClientRect();return h.top>=v.top-2&&h.bottom<=v.bottom+2&&(node.scrollTop>0||h.top-v.top<40);}),'the chosen heading is scrolled into view');
+  assert.equal(await media.locator(':focus').getAttribute('data-document-contents'),'','a choice returns focus to Contents');
+  await media.locator('#media-content').evaluate(node=>node.scrollTop=0);
   // Article-only selections preserve whitespace/inline/UTF-16 positions across elements.
   const selectionModel=await media.locator('.markdown').evaluate(async article=>{
     const {selectionTextAnchor}=await import('/app/markdown-document.js'),paragraph=article.querySelector('p'),range=document.createRange();range.selectNodeContents(paragraph);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
@@ -85,6 +90,20 @@ try{
   assert.equal(await page.locator('.feedback-panel').isVisible(),false);assert.equal(await page.locator('#reader-dialog').evaluate(node=>node.open),true);
   await media.locator('[data-document-annotations]').click();const removedHighlight=page.waitForResponse(response=>response.url().endsWith('/api/operations')&&response.request().postDataJSON()?.type==='removeHighlight');await media.locator('.document-annotations button').filter({hasText:'Remove highlight'}).click();assert.equal((await removedHighlight).ok(),true);
   marks=JSON.parse(await main(['tools','call','highlight.list','--config',configFile,'--json',JSON.stringify({itemId:item.itemId})]));assert.equal(marks.highlights.length,0);await media.locator('.document-annotations header button').click();
+  // The bar is one toolbar (one Tab stop, arrows along it); Annotations is a popover whose Escape closes only it.
+  const tool=()=>media.locator(':focus').evaluate(el=>el.dataset.documentAnnotations!==undefined?'annotations':el.dataset.documentContents!==undefined?'contents':el.dataset.documentEdit!==undefined?'edit':el.dataset.documentReload!==undefined?'reload':el.matches('.document-source')?'source':el.tagName);
+  assert.equal(await media.locator('.document-tools').getAttribute('role'),'toolbar');
+  assert.equal(await tool(),'annotations','Close returns focus to Annotations');
+  assert.equal(await media.locator('.document-tools :is(a,button)[tabindex="0"]').count(),1,'one Tab stop');
+  await page.keyboard.press('ArrowLeft');assert.equal(await tool(),'contents');await page.keyboard.press('Home');assert.equal(await tool(),'source');await page.keyboard.press('End');assert.equal(await tool(),'reload');
+  await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');assert.equal(await tool(),'annotations');
+  await page.keyboard.press('ArrowDown');await media.locator('.document-annotations[data-open]').waitFor();
+  assert.equal(await media.locator('.document-annotations').getAttribute('role'),'dialog');
+  assert.equal(await media.locator('.document-annotations').evaluate(node=>node.contains(document.activeElement)),true,'focus moves into the popover');
+  await page.keyboard.press('Escape');await media.locator('.document-annotations[data-open]').waitFor({state:'detached'}).catch(()=>{});
+  await page.waitForFunction(()=>!document.querySelector('#active-reader')?.contentDocument?.querySelector('.item-full-frame')?.contentDocument?.querySelector('.document-annotations[data-open]'));
+  assert.equal(await page.locator('#reader-dialog').evaluate(node=>node.open),true,'Escape closed only the popover, not the reader');
+  assert.equal(await tool(),'annotations','Escape returns focus to Annotations');
   await page.setViewportSize({width:390,height:844});
   await media.locator('.markdown').evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await media.locator('.markdown p').first().evaluate(paragraph=>{const range=document.createRange();range.selectNodeContents(paragraph);getSelection().removeAllRanges();getSelection().addRange(range);});await media.locator('[data-document-comment]').click();await composer.fill('A draft remains beside its source.');
@@ -97,7 +116,7 @@ try{
   // Changing raw bytes alone changes revision; the unchanged quote and context relocate once, so
   // the listing reports matched with a computed currentAnchor and never rewrites the stored anchor.
   const savedAnchor=(await listFeedback(config,{itemId:item.itemId})).threads[0].anchor;
-  await writeFile(sourceFile,original+'\n');await media.locator('[data-document-reload]').click();await media.locator('[data-document-reload]:not([disabled])').waitFor();await page.waitForTimeout(300);
+  await writeFile(sourceFile,original+'\n');await media.locator('[data-document-reload]').click();await media.locator('[data-document-reload]:not([aria-disabled="true"])').waitFor();await page.waitForTimeout(300);
   assert.equal(/source review/.test(await media.locator('.document-status').textContent()),false,'a relocatable quote needs no review');
   assert.equal(await media.locator('.markdown').evaluate(async()=>{for(let i=0;i<40&&!(CSS.highlights.get('tinka-document-comments')?.size);i++)await new Promise(r=>setTimeout(r,100));return CSS.highlights.get('tinka-document-comments')?.size||0;}),1,'the unique, unchanged quote stays painted');
   feedback=await listFeedback(config,{itemId:item.itemId});assert.equal(feedback.threads[0].anchorStatus,'matched');assert.deepEqual(feedback.threads[0].anchor,savedAnchor);assert.notEqual(feedback.threads[0].currentAnchor.sourceRevision,savedAnchor.sourceRevision);
