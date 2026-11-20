@@ -596,6 +596,12 @@ panel.close(); panel.toggle(options); panel.isOpen; panel.hadFocus;
 - **Outside press** closes it, except a press on one of its `openers` (they toggle), a press that began inside the
   panel (even if its target re-rendered away), a press on a detached node, and whatever `keepOpen(target)` accepts
   (modal dialogs, menus, the feedback panel, the vote ballot). A press into an iframe is not seen by the page.
+- **A dialog opened from an Inspector opens over it**, and the Inspector stays open behind (the dialog's press and
+  focus never count as leaving it): Keyboard shortcuts… (board and reader Inspectors), Edit item… (item Inspector),
+  Edit details… (reader Inspector), Comparison order…. Closing the dialog returns focus to the button that opened it,
+  so the next Escape closes the Inspector and returns to its toggle. After Edit item… saves, the item Inspector is
+  rebuilt in place at once (`itemControls(id, "edit", {again})`: no slide-in, the same return target), focus on Edit
+  item…; the reader Inspector re-renders, and its Edit details… is found again by an `opener` function.
 - Code that only knows the panel element closes it with `closePanel(content)`. Never write `hidden` on a panel the SDK
   owns (its state would not follow); reading `.hidden` is fine.
 - The item Inspector starts where its opener asks (Notes, the actions, Appearance). Opened from a menu item that has

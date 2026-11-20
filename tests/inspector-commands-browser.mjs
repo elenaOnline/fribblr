@@ -45,7 +45,11 @@ try{
  await page.getByRole('button',{name:'Keyboard shortcuts',exact:true}).click();
  await page.getByRole('dialog',{name:'Keyboard shortcuts'}).waitFor();
  assert.match(await page.getByRole('dialog',{name:'Keyboard shortcuts'}).textContent(),/Duplicate selection/);
+ assert.equal(await page.locator('#board-info').isVisible(),true,'the Inspector stays open behind the sheet');
  await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Keyboard shortcuts'}).waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.activeElement?.id==='workspace-keyboard-shortcuts');
+ assert.equal(await page.locator('#board-info').isVisible(),true,'Escape closes only the sheet; focus is back on Keyboard shortcuts');
+ await page.keyboard.press('Escape');await page.locator('#board-info').waitFor({state:'hidden'});
  // 2. Inspector → Copy selection puts the selection on the clipboard without a graph write.
  await card.locator('[data-placement-select]').click();assert.equal(await selected(),1);
  await openInspector();assert.equal(await page.locator('#workspace-copy').isEnabled(),true);
@@ -129,11 +133,24 @@ try{
  await page.keyboard.press('End');assert.equal(await label(),'Vote');await page.keyboard.press('ArrowRight');assert.match(await label(),/^(Un)?favorite$/i,'Feedback wraps');
  const times=await page.evaluate(()=>[...document.querySelectorAll('#workspace-item-controls .inspector-props time')].map(t=>({tab:t.tabIndex,tip:t.hasAttribute('data-tip'),text:t.textContent})));
  assert.ok(times.length>=2&&times.every(t=>t.tab<0&&!t.tip&&/\d{4}/.test(t.text)),'Created and Edited show the exact date and take no Tab stop: '+JSON.stringify(times));
- await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowDown');
+ // Edit item… opens over the Inspector, which stays open; Escape comes back to Edit item…; a save rebuilds the Inspector
+ // with the new title, focus still on Edit item….
+ const editButton=page.locator('#workspace-item-controls [data-context-edit]');
+ await editButton.focus();await page.keyboard.press('Enter');await page.getByRole('dialog',{name:'Edit item'}).waitFor();
+ assert.equal(await page.locator('#workspace-item-controls').isVisible(),true,'the item Inspector stays open behind Edit item');
+ await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Edit item'}).waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.activeElement?.matches('#workspace-item-controls [data-context-edit]'));
+ const title0=await page.locator('#workspace-item-controls h2').textContent();
+ await page.keyboard.press('Enter');await page.getByRole('dialog',{name:'Edit item'}).waitFor();
+ await page.keyboard.press('End');await page.keyboard.type(' edited');await page.keyboard.press('ControlOrMeta+Enter');
+ await page.getByRole('dialog',{name:'Edit item'}).waitFor({state:'detached'});
+ await page.waitForFunction(t=>document.querySelector('#workspace-item-controls h2')?.textContent===t+' edited'&&document.activeElement?.matches('#workspace-item-controls [data-context-edit]'),title0);
+ await page.locator('#workspace-item-controls .inspector-feedback [data-context-vote]').focus();
+ await page.keyboard.press('ArrowDown');
  await page.locator('.feedback-ballot[data-open]').waitFor();
  await page.keyboard.press('Escape');await page.locator('.feedback-ballot[data-open]').waitFor({state:'detached'}).catch(()=>{});
  if(await page.locator('#workspace-item-controls').count()){await page.locator('#workspace-item-controls [data-context-close]').click();}
  await page.locator('#workspace-item-controls').waitFor({state:'detached'});
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:8,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar','Item Feedback is one toolbar; dates are text']}));
+ console.log(JSON.stringify({passed:8,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar','Item Feedback is one toolbar; dates are text','Edit item and Keyboard shortcuts open over their Inspector']}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

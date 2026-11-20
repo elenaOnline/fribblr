@@ -1049,9 +1049,8 @@ export class WorkspaceBoard {
     }, true);
   }
   keyboardShortcuts() {
-    const previousFocus = document.activeElement;
-    const returnFocus = $("board-info").contains(previousFocus) ? $("board-info-toggle") : previousFocus;
-    closePanel($("board-info"));
+    // An Inspector that opened it stays open behind it (as with Comparison order…), and focus comes back to its button.
+    const returnFocus = document.activeElement;
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
       <dt>⌘/Ctrl-D</dt><dd>Duplicate selection (with nothing selected, the focused item)</dd>
@@ -2033,9 +2032,9 @@ export class WorkspaceBoard {
     return destinationDialog(this.client, { sourceBoardId: this.snapshot.id, placementIds, kind: type,
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
-  editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes", {returnToCard = false} = {}) {
-    if (this.contextPlacement === id) { this.closeContext(); return; }
+  editItem(item, opener) { if (item) itemForm(this.client, { item, refresh: () => this.refresh(), ...(opener ? { opener } : {}) }); }
+  itemControls(id, focus = "notes", {returnToCard = false, again = null} = {}) {
+    if (this.contextPlacement === id && !again) { this.closeContext(); return; }
     this.closeContext();
     const p = this.snapshot.placements.find(p => p.id === id);
     const item = this.snapshot.items[p?.itemId];
@@ -2080,6 +2079,11 @@ export class WorkspaceBoard {
     // menu, whose item is gone, to the card's ⋯.
     const before = document.activeElement;
     const fromMenu = !before || before === document.body || !!before.closest?.('[role=menu],ui-menu-content,.workspace-tile-menu');
+    // Where focus goes when it closes: the card's ⋯ when a menu opened it (its item is gone), else what had focus, kept
+    // as a selector so the Inspector rebuilt after Edit item… (`again`) still finds it.
+    const cardSelector = `#world .workspace-card[data-placement="${CSS.escape(id)}"]`;
+    const returnTo = again ? again.returnTo : fromMenu ? (document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`) ? `[data-item-controls="${CSS.escape(id)}"]` : null)
+      : before?.id ? `#${CSS.escape(before.id)}` : before?.matches?.(cardSelector) ? cardSelector : null;
     document.body.append(panelRoot);
     tips(popover);
     this.context = popover;
@@ -2092,9 +2096,18 @@ export class WorkspaceBoard {
     });
     const only = () => { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.selection = new Set([id]); this.syncSelection(); this.selectionMenu(); };
     popover.querySelector("[data-context-close]").onclick = () => this.closeContext(true);
-    popover.querySelector("[data-context-edit]").onclick = () => {
-      this.closeContext();
-      itemForm(this.client, {item, opener:invoker, refresh:() => this.refresh()});
+    // Edit item… opens over the Inspector, which stays open behind it; closing the dialog returns focus to Edit item….
+    // After a save the Inspector is rebuilt in place, at once, to show the new details, with focus on Edit item… again.
+    popover.querySelector("[data-context-edit]").onclick = event => {
+      const button = event.currentTarget;
+      let saved = false;
+      const dialog = itemForm(this.client, {item, opener:button, refresh:async () => { saved = true; await this.refresh(); }});
+      dialog.addEventListener("close", () => {
+        if (!saved || this.context !== popover) return;
+        const fresh = this.snapshot.placements.find(p => p.id === id);
+        if (fresh && this.snapshot.items[fresh.itemId]) this.itemControls(id, "edit", {returnToCard:this.contextReturnToCard, again:{returnTo}});
+        else this.closeContext();
+      });
     };
     popover.querySelector("[data-context-open]").onclick = () => { const open = document.querySelector(`[data-placement="${CSS.escape(id)}"] [data-open]:not(:disabled)`); this.closeContext(); open?.click(); };
     popover.querySelector("[data-context-board]")?.addEventListener("click", () => { this.closeContext(); this.navigate(item.childBoardId); });
@@ -2143,8 +2156,10 @@ export class WorkspaceBoard {
     this.positionContext();
     document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`).forEach(b => b.setAttribute("aria-expanded", "false"));
     document.querySelector(`[data-placement="${CSS.escape(id)}"]`)?.classList.add("inspected");
-    const start = focus === "notes" ? noteField : focus === "actions" ? actions.querySelector("button") : null;
-    this.contextPanel.open({ opener: fromMenu && invoker() ? `[data-item-controls="${CSS.escape(id)}"]` : null, focus: start || false });
+    const start = focus === "notes" ? noteField : focus === "actions" ? actions.querySelector("button") : focus === "edit" ? popover.querySelector("[data-context-edit]") : null;
+    this.contextPanel.open({ opener: returnTo, focus: start || false });
+    // Rebuilt in place (again): no slide-in, it was already there.
+    if (again) for (const animation of popover.getAnimations?.({subtree: true}) || []) animation.finish();
     // Appearance: a segmented control gets its roles a moment after it renders; focus its checked option then.
     if (!start) focusSegmented(popover.querySelector(".workspace-appearance-buttons"));
   }

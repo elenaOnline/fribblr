@@ -1243,7 +1243,8 @@ readerInfo.addEventListener('click', event => {
   else if (name === 'copy-agent') { const { file } = readerWhere(); if (file) void readerCopy(`${descriptor(active, currentVariant()).name}: ${file}`, 'Copied its name and file path for an agent.'); }
   else if (name === 'comments') { setReaderInfoOpen(false); graph?.feedback.open({ itemId: item.id, mode: 'reader', host: dialog.querySelector('.reader-area'), returnFocus: $('reader-info-toggle') }); }
   else if (name === 'vote') graph?.feedback.openVote({ itemId: item.id, anchor: button, returnFocus: $('reader-info-toggle') });
-  else if (name === 'edit') graph?.editItem(item);
+  // Over the Inspector, which stays open; focus comes back to Edit details… (found again: a save re-renders the panel).
+  else if (name === 'edit') graph?.editItem(item, () => readerInfo.querySelector('[data-reader-act="edit"]') || $('reader-info-toggle'));
   else if (['move', 'reference', 'feature'].includes(name) && active.placement) void graph?.organize(name, active.placement.id).catch(error => setSaveStatus(error.message, 'error'));
   else if (name === 'shortcuts') readerShortcuts();
 });
