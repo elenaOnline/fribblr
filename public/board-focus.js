@@ -76,7 +76,11 @@ export class BoardFocus {
     this.board = board;
     this.stop = null;          // the roving key of the item that holds the board's Tab stop
     this.inside = new Map();   // container id → the member focused last in it (the SDK's remember: true)
+    this.roved = new Map();    // toolbar class → the control focused last in that toolbar of the stop item
     if (typeof window !== 'undefined') sdkCore().catch(() => {});
+    // The toolbars inside cards (the hover strip, a stack's version ticker): one delegated listener for the page, on
+    // key presses only (registered before the board's own key handlers, which step aside for a toolbar's keys).
+    if (typeof document !== 'undefined') document.addEventListener('keydown', e => this.roveKey(e), true);
   }
   world() { return document.getElementById('world'); }
   key(el) {
@@ -119,15 +123,17 @@ export class BoardFocus {
     if (!key || key === this.stop) return;
     const old = this.element(this.stop), next = this.element(key);
     this.stop = key;
+    this.roved.clear();
     if (old) {
       old.tabIndex = -1;
       for (const el of old.querySelectorAll('button:not([tabindex]),a[href]:not([tabindex]),[tabindex="0"],.decoration-text > [data-decoration-label]:not([tabindex])')) el.tabIndex = -1;
     }
     if (next) {
       next.tabIndex = 0;
-      for (const el of next.querySelectorAll('button[tabindex="-1"]:not(.workspace-preview-launch),a[href][tabindex="-1"]')) el.removeAttribute('tabindex');
+      for (const el of next.querySelectorAll('button[tabindex="-1"]:not(.workspace-preview-launch,[data-roving] *),a[href][tabindex="-1"]:not([data-roving] *)')) el.removeAttribute('tabindex');
       for (const el of next.querySelectorAll('[role=button][tabindex="-1"]')) el.tabIndex = 0;
       next.querySelector(':scope.decoration-text > [data-decoration-label][tabindex="-1"]')?.removeAttribute('tabindex');
+      for (const bar of next.querySelectorAll('[data-roving]')) this.roveStop(bar);
     }
     const parent = this.board.snapshot && containerMembers(this.board.snapshot).get(key)?.parent;
     if (parent) this.inside.set(parent.id, key);
@@ -142,7 +148,8 @@ export class BoardFocus {
   // focused item went away (removed, moved into a board, filtered out), focus goes to the item nearest to where it
   // was, as UI SDK's focus recovery does, instead of dropping to the page.
   ensureStop(lost) {
-    if (this.element(this.stop)) return;
+    const kept = this.element(this.stop);
+    if (kept) { this.restoreRoving(kept); return; }
     const world = this.world();
     if (!world) return;
     // The first card on the board itself (not inside a container), else the first drawn element there.
@@ -162,6 +169,86 @@ export class BoardFocus {
     this.setStop(this.key(next));
     if (lost && (!document.activeElement || document.activeElement === document.body)) next.focus({preventScroll: true});
   }
+  // ---- Toolbars inside an item ----
+  // A card's hover strip (Open | Edit | Comments | Vote | Favorite) and a stack's version ticker (‹ name ›) are toolbars
+  // (toolbar.md): one Tab stop, on the control focused last (else the first), ←/→ along it with wrap, Home/End to its
+  // ends; a disabled step (aria-disabled) stays reachable, a control that is not rendered (narrow card, no votes yet) is
+  // skipped. Built without a ui-toolbar per card (that is an element and a binding per card on the board's cheap
+  // paths): the markup marks the toolbar `data-roving` and writes tabindex="-1" on every control but its first; one
+  // capture listener for the page handles the keys, and the focusin bookkeeping moves the stop. Nothing runs on render,
+  // pan, zoom or drag beyond a rebuild re-asserting the stop item's own toolbars.
+  roveControls(bar) {
+    return [...bar.querySelectorAll('button,a[href]')].filter(el => !el.disabled && el.getClientRects().length);
+  }
+  // A stable name for a control across re-renders: its first data-* attribute (data-star="…", data-file-version-step="next").
+  roveName(el) {
+    const attr = [...el.attributes].find(a => a.name.startsWith('data-') && a.name !== 'data-tip' && !a.name.startsWith('data-tip-'));
+    return attr ? `${attr.name}=${attr.value}` : '';
+  }
+  roveGroup(bar) { return bar.className.split(/\s+/)[0] || 'toolbar'; }
+  // Gives `target` (else the control focused last, else the first) the toolbar's Tab stop. Only inside the stop item:
+  // every other item's controls are out of the Tab order altogether.
+  roveStop(bar, target = null) {
+    const all = [...bar.querySelectorAll('button,a[href]')];
+    if (!all.length) return;
+    const item = this.item(bar), stop = !!item && this.key(item) === this.stop;
+    if (!target && stop) {
+      const name = this.roved.get(this.roveGroup(bar));
+      target = name ? all.find(el => this.roveName(el) === name) : null;
+    }
+    if (target && (target.disabled || (!bar.contains(document.activeElement) && !target.getClientRects().length))) target = null;
+    target ||= all.find(el => !el.disabled) || null;
+    for (const el of all) {
+      const index = !stop ? -1 : el === target ? 0 : -1;
+      if (el.tabIndex !== index || !el.hasAttribute('tabindex')) el.tabIndex = index;
+    }
+  }
+  // focusin: a control inside an item's toolbar takes that toolbar's stop.
+  rove(target) {
+    const bar = target?.closest?.('#world [data-roving]');
+    if (!bar || !this.item(bar)) return;
+    this.roved.set(this.roveGroup(bar), this.roveName(target));
+    this.roveStop(bar, target);
+  }
+  // Focus coming to an item checks that each of its toolbars can be reached: a first control that a narrow card hides
+  // passes the stop along (one item, on focus only).
+  roveReach(item) {
+    for (const bar of item?.querySelectorAll?.('[data-roving]') || []) {
+      const holder = [...bar.querySelectorAll('button,a[href]')].find(el => el.tabIndex === 0);
+      if (holder && !holder.disabled && holder.getClientRects().length) continue;
+      const first = this.roveControls(bar)[0];
+      if (first && first !== holder) this.roveStop(bar, first);
+    }
+  }
+  // After a rebuild the markup puts the stop item's toolbars back on their first control: the control focused last (or
+  // focused now) takes it back, so Tab never lands on a second stop inside the same toolbar.
+  restoreRoving(item) {
+    if (!this.roved.size) return;
+    for (const bar of item.querySelectorAll('[data-roving]')) this.roveStop(bar, bar.contains(document.activeElement) ? document.activeElement.closest('button,a[href]') : null);
+  }
+  roveKey(e) {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return false;
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End', 'ArrowDown'].includes(e.key)) return false;
+    const control = e.target?.closest?.('button,a[href]'), bar = control?.closest('#world [data-roving]');
+    if (!bar) return false;
+    // ↓ on a button that opens something (Vote's ballot) opens it, as a toolbar's menu button does; the version name's
+    // menu opens from the board's own key handler (menuKey), which also places it.
+    if (e.key === 'ArrowDown') {
+      if (e.shiftKey || !control.matches('[aria-haspopup]:not([data-file-version-menu])') || control.getAttribute('aria-disabled') === 'true') return false;
+      e.preventDefault(); e.stopImmediatePropagation();
+      control.click();
+      return true;
+    }
+    const controls = this.roveControls(bar);
+    if (!controls.length) return false;
+    const at = controls.indexOf(control), last = controls.length - 1;
+    const index = e.key === 'Home' ? 0 : e.key === 'End' ? last : e.key === 'ArrowRight' ? (at < 0 ? 0 : at === last ? 0 : at + 1) : (at <= 0 ? last : at - 1);
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.repeat && ((e.key === 'ArrowRight' && at === last) || (e.key === 'ArrowLeft' && at === 0))) return true;
+    controls[index].focus({preventScroll: true});
+    return true;
+  }
+
   // The rendered items with their boxes: board units on Canvas (from the board's data, no layout read), screen boxes in
   // Grid. `parent` is the container an item belongs to (null on the board itself).
   items() {
