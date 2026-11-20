@@ -1205,6 +1205,7 @@ try {
     await page.keyboard.press("Enter");
     await page.screenshot({ path: path.join(evidence, `quiet-tools-${width}.png`) });
     await page.keyboard.press("Escape");
+    await page.locator("#board-info").waitFor({ state: "hidden", timeout: 2000 });
     assert.equal(await page.locator("#board-info").isHidden(), true);
     assert.equal(await page.locator("#board-info-toggle").evaluate(el => document.activeElement === el), true, "Escape restores Tools focus");
     await boardTool("#workspace-add");
