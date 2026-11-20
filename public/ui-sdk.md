@@ -1027,7 +1027,10 @@ opens every `[aria-haspopup]` button by clicking it.
   presses the focused point: the first begins a connection and focus stays on that point among the destinations. That
   click stops in `whiteboard.js`: choosing redraws the points, so the pressed one has left the page by the time the
   canvas's click handler reads it, and that handler took it for a click on empty canvas and cleared the selection and
-  the connection just begun.
+  the connection just begun. Escape while connecting cancels it, and the points re-render under focus, so
+  `handleEscape` sends focus back to the point the connection started from (`refocusSource`: it is the Tab stop
+  again), else to its object. Escape on a point with nothing pending goes back to its object, selection kept, as
+  Escape from the bar does (`focusRef`). Neither leaves focus on `<body>`.
 - Where a panel starts (`focusPanelStart`, `text-appearance.js` `focus()`): the first control, unless one is marked
   `[data-autofocus]`; a group of choices is entered on its checked or pressed option. So Typeface starts on the chosen
   face, Text box on Color applies to, Ink and Text size on the chosen swatch / preset (a custom size: the scrub), Line
