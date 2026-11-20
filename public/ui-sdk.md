@@ -883,6 +883,15 @@ control.
   bar's own panel element (they hold the text-format and colour controls; see Menus) but keep a popover's Tab:
   `tabOutOfPanel` closes the panel from its last control and Tab moves on after its button; Shift+Tab from the first
   goes back to the button. Escape and an outside press close it and focus returns to its button, as before.
+- **Tab past the drawn-object bar** (`whiteboard.js` `tabPastBar`, fix round 2). The bar is its object's toolbar but sits
+  at the end of `<body>`, so the browser's stop after its one Tab stop is nothing (`<body>`; in a window, the browser's
+  own toolbar). Tab forward from the bar goes back to what the bar edits: the editor while a text is edited (Shift+Tab
+  from the bar already went there), else the selected object, else the board's focused item. Every panel of the bar
+  follows by composition: its Tab-out sends focus to its button first (`tabOutOfPanel` for Typeface, Text box, Ink, Text
+  size, colour and drawing options; popups.js for the container options popover, `content.tabTrigger`), and the same
+  rule carries it past the bar. From the object, Tab goes on through its own controls (resize corner, ports) and the
+  page; Shift+Tab from the bar still goes back along the page (the tools rail). Escape (deselect) takes the bar away.
+  Checked in `tests/board-fixes-browser.mjs`.
 - **Ink preview** (1.4 `text-ink-preview.js`): the bar's Ink button carries its displayed-ink description as
   `aria-description` and as its SDK tooltip (`data-tip`), never a native title.
 - **Resource surface** (1.4 `reader-resource-surface.js`, `reader-canvas.js`): no new controls; Window and zoom are the

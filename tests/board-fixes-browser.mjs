@@ -159,6 +159,32 @@ try{
  await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();ok(true,'Disarmed, Enter opens the card again');
  await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});await clear();
 
+ // ---- 4. Tab past the drawn-object bar, or out of any of its panels, goes back to the object it edits. ----
+ const select=async id=>{await clear();await idle();await page.locator(`#world [data-decoration="${id}"]`).focus();await page.keyboard.press('Space');await page.locator('.whiteboard-toolbar:not([hidden])').waitFor();await page.waitForTimeout(150);};
+ const barStop=()=>page.evaluate(()=>{const b=document.querySelector('.whiteboard-toolbar:not([hidden])');const stop=[...b.querySelectorAll('button')].find(x=>x.tabIndex===0)||b.querySelector('button');stop.focus();return stop.getAttribute('aria-label');});
+ const inPanel=()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-menu,ui-popover-content'));
+ const panelStarts={};
+ for(const id of ['words','arrow','shape']){
+   await select(id);await barStop();await page.keyboard.press('Tab');
+   eq(await focused(),`drawn:${id}`,`Tab past the bar goes back to the object it edits (${id}), not to <body>`);
+   const triggers=await page.evaluate(()=>[...document.querySelectorAll('.whiteboard-toolbar:not([hidden]) [aria-haspopup="dialog"]')].map(b=>[b.dataset.whiteboardAction,b.getAttribute('aria-label')]));
+   ok(triggers.length,`The bar for ${id} has panels`);
+   for(const [action,label] of triggers){
+     if(!(await page.locator('.whiteboard-toolbar:not([hidden])').count()))await select(id);
+     await page.locator(`.whiteboard-toolbar:not([hidden]) [data-whiteboard-action="${action}"]`).focus();await page.keyboard.press('Enter');
+     ok(await until(inPanel),`${label} opens with focus inside it`);
+     panelStarts[`${id}:${label}`]=await page.evaluate(()=>{const a=document.activeElement;return a.getAttribute('aria-label')||a.textContent.trim();});
+     let n=0;while(n++<40&&await inPanel()){await page.keyboard.press('Tab');await page.waitForTimeout(40);}
+     eq(await focused(),`drawn:${id}`,`Tab out of the last control of ${label} (${id}) goes back to the object`);
+     eq(await page.locator('.whiteboard-menu:not([hidden]),ui-popover-content[data-open]').count(),0,`and ${label} closes`);
+   }
+ }
+ // While a text is being edited, Tab goes to the bar and Tab past the bar goes back to the text.
+ await select('words');await page.keyboard.press('F2');await page.locator('#world [data-decoration="words"] .whiteboard-editor').waitFor();
+ await page.keyboard.press('Tab');ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-toolbar'))),'Tab from the editor goes to the bar');
+ await page.keyboard.press('Tab');ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-editor'))),'Tab past the bar goes back to the editor');
+ await page.keyboard.press('Escape');await clear();
+
  assert.deepEqual(errors,[]);checks++;
  console.log(`Board fixes browser checks passed: ${checks} assertions. Evidence: ${evidence}`);
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

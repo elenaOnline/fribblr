@@ -1548,14 +1548,18 @@ export class Whiteboard {
     return true;
   }
   keydown(e) {
+    // Tab past the bar goes back to the object it edits. The container options popover's Tab-out (popups.js, which runs
+    // first) has already sent focus to its button on the bar, so the same rule then carries it on.
+    if(this.tabPastBar(e))return;
     // A key pressed inside an open SDK menu or popover (this bar's More, Arrange, the board's menus) is the popup's,
     // Escape included. (A showing tooltip's Escape is left to the bar's own ladder here, as the controls stream has it.)
     if(e.target.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])'))return;
-    // The bar's own format panels (Text size, Ink, Typeface, Text box, drawing options) keep a popover's Tab: from the
-    // last control the panel closes and Tab goes on after its button; Shift+Tab from the first goes back to the button.
+    // The bar's own format panels (Text size, Ink, Typeface, Text box, colour, drawing options) keep a popover's Tab:
+    // from the last control the panel closes and Tab goes on after its button, that is past the bar, so back to the
+    // object; Shift+Tab from the first goes back to the button.
     if(e.key==='Tab'&&this.appearance&&!this.menu.hidden){
       const opener=this.toolbar.querySelector(`[data-whiteboard-action="${this.appearance.trigger}"]`);
-      if(tabOutOfPanel(e,this.menu,opener,()=>this.closeMenu())){e.stopImmediatePropagation();return;}
+      if(tabOutOfPanel(e,this.menu,opener,()=>this.closeMenu())){e.stopImmediatePropagation();this.tabPastBar(e);return;}
     }
     const task=e.target.closest('[data-deco-task]');
     if(task&&[' ','Enter'].includes(e.key)) {
@@ -1585,6 +1589,31 @@ export class Whiteboard {
       if(e.key==='Enter'&&!e.shiftKey&&e.target===group&&this.host.boardFocus?.enterContainer(group.dataset.decoration)){e.preventDefault();e.stopImmediatePropagation();return;}
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);
     }
+  }
+  // The bar is its object's toolbar, floating at the end of the page: the browser's next stop after it is nothing (focus
+  // falls to <body>, in a window to the browser's own toolbar). So Tab past the bar (forward from its one Tab stop, or
+  // out of one of its panels, which sends focus to its button first) goes back to what the bar edits: the editor while
+  // a text is being edited (Shift+Tab from the bar already goes there), else the selected object (which then holds the
+  // board's Tab stop), else the board's focused item. From there Tab goes on through the object's own controls and the
+  // page, and Shift+Tab from the bar still goes back along the page. True when the Tab was taken.
+  tabPastBar(e) {
+    if(e.key!=='Tab'||e.shiftKey||e.altKey||e.ctrlKey||e.metaKey||e.isComposing||!this.toolbar||this.toolbar.hidden)return false;
+    const active=document.activeElement;
+    if(!this.toolbar.contains(active))return false;
+    // A control with a Tab stop of its own after the bar's (none today) would keep the Tab inside the bar.
+    if(this.toolbar.contains(e.target)){
+      const stops=[...this.toolbar.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].filter(el=>el.tabIndex>=0&&!el.disabled&&el.getClientRects().length);
+      if(stops.length&&!(stops.at(-1)===active||stops.at(-1).contains(active)))return false;
+    }
+    const focus=this.host.boardFocus,host=this.host;
+    const selected=host.activeDecoration?document.querySelector(`#world ${selector(host.activeDecoration)}`)
+      :host.selection?.size===1?document.querySelector(`#world .workspace-card[data-placement="${CSS.escape([...host.selection][0])}"]`):null;
+    const back=(this.editor?(this.editor.previewing?this.editor.preview:this.editor.textarea):null)
+      ||selected||focus?.element(focus.stop)||document.getElementById('viewport');
+    if(!back?.isConnected)return false;
+    e.preventDefault();e.stopImmediatePropagation();
+    back.focus({preventScroll:true});
+    return true;
   }
   inspect(id) {
     const d=this.find(id);if(!d)return;
