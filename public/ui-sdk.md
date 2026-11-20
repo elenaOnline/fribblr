@@ -1389,6 +1389,9 @@ What 0.1.0-beta.10 lacks or gets wrong, and what fribblr does.
 | 22 | Escape inside a frame's SDK popup is `preventDefault`ed by the SDK. | Relied on: frame pages never post `reader-close` for it. |
 | 23 | A popup opened from code (the ballot, a card's ⋯) has no trigger part, so nothing closes its opener's tooltip as it opens. | `tips.js` closes any open tooltip on every non-tooltip `openchange` (document capture). |
 | 24 | A popup is shifted back into view only as far as it still touches its anchor, so an anchor past the window's edge takes the popup past it. | `openMenu` reads such an anchor clamped into the window (`inWindow`). |
+| 25 | An outside press on something focusable leaves focus alone, expecting the press to focus it; a menu swallows that press, so focus falls to `<body>`. A press on nothing focusable is meant to return focus to the trigger after the press, which doesn't happen for a `for=` trigger. | `popups.js` focuses what the press would have (`focusAfterOutsidePress`; the board names the item or the canvas), else the trigger. |
+| 26 | A toolbar doesn't skip a natively disabled button (the arrows stop on it), and it owns the button's `disabled` attribute, writing it from the part. | `setButtonOff` disables through the part; `followVisibility` reads a toolbar that isn't rendered again when it shows. |
+| 27 | A toolbar's `data-orientation` arrives a microtask after the element, so a vertical toolbar measured at once lays out as a row. | `ui-sdk.css` lays out from the authored `orientation` too. |
 
 ### Upgrade checklist
 
