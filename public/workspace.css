@@ -716,6 +716,8 @@
   margin: auto;
   overflow-wrap: anywhere;
 }
+/* fribblr: no kind eyebrow over a panel's title (the slab's side says the kind); kept on a remote item, where it also says "independent experience" */
+.item-representation:not(:has(.item-url)) > .workspace-eyebrow { display: none; }
 .item-representation h1 {
   font:
     400 calc(39px * var(--item-scale, 1)) / 1.15 var(--type-serif);
@@ -1220,17 +1222,6 @@ html[data-theme="night"] .item-representation p {
 .workspace-board .decoration-text { color: var(--decoration-color); }
 /* dark: an authored text colour is lifted toward the ink, so dark-on-dark stays readable */
 html[data-appearance="dark"] .workspace-board .decoration-text { color: color-mix(in oklab, var(--decoration-color), var(--ink) 65%); }
-.workspace-board .decoration-region { z-index: 0; }
-/* On Canvas the cards are one layer of their own, so a placement's z orders cards
-   among themselves only. Whatever its z, a card sits above regions, containers, shapes
-   and text (z 0-1, rendered before this layer) and below arrows and stickers (2),
-   comment pins (30, 100) and connection ports; groups change no layer. Sharing
-   #world's stacking context, a card's z (its creation count, unbounded) competed with
-   those fixed values: shapes covered cards with z 0, and cards past z 2 or 30 covered
-   arrows, stickers and comment pins. The layer fills #world exactly,
-   so card positions are unchanged, and passes the pointer through to what is under it. */
-.workspace-board[data-board-layout="canvas"] #world > .workspace-cards { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-:where(.workspace-board[data-board-layout="canvas"] #world > .workspace-cards) > * { pointer-events: auto; }
 .workspace-board .decoration-line { background: transparent; min-height: 1px; }
 .workspace-decoration-line { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .decoration-line .workspace-decoration-label { position: absolute; left: 0; bottom: 100%; padding: 3px 0; font-size: 16px; min-height: 0; }
@@ -1556,7 +1547,7 @@ html[data-appearance="dark"] .board-miniature .workspace-cover-tile.mini-tile[st
 @media (pointer:coarse) { .arrange-menu { --arrange-control:42px; } }
 
 /* ---------- Comment tool: pins, the comments layer and Send to agent ---------- */
-.comment-pins { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+.comment-pins { position: absolute; inset: 0; pointer-events: none; z-index: 10005; }
 .comment-pins[hidden] { display: none; }
 .comment-pin { position: absolute; pointer-events: auto; display: grid; place-items: center; width: 30px; height: 30px; min-width: 0; min-height: 0; padding: 0;
   transform: translate(-4px, -100%) scale(var(--chrome-scale, 1)); transform-origin: 4px 100%;

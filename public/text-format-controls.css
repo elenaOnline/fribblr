@@ -27,14 +27,16 @@
   line-height:1.2;
   text-align:center;
 }
-/* faces, fill and border options and auto height are raised keys (depth.css): their face, rim and "on" come from there.
+/* a drawing's action rows (Select section contents, Bring to front, ...) read as menu rows: words at the start, a printed key at the end */
+.text-format-controls .whiteboard-format-actions > button { display:flex; align-items:center; justify-content:space-between; padding:0 10px; }
+/* faces, fill and border options, auto height and fit height are raised keys (depth.css): their face, rim and "on" come from there.
    The rest are flat and take a wash on hover. */
 .text-format-controls :is([data-format-close], [data-border-auto], [data-style-retry], .text-format-roles button) { background:transparent; }
 .text-format-controls :is([data-format-close], [data-border-auto], [data-style-retry], .text-format-roles button):hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
 .whiteboard-menu .text-format-controls :is(.text-format-faces, .text-format-options) button:not(:disabled):hover,
-.whiteboard-menu .text-format-controls .text-size-controls [data-auto-height]:not(:disabled):hover { background-color:var(--surface-paper); }
+.whiteboard-menu .text-format-controls .text-format-box-height button:not(:disabled):hover { background-color:var(--surface-paper); }
 .whiteboard-menu .text-format-controls :is(.text-format-faces, .text-format-options) button[aria-pressed=true]:hover,
-.whiteboard-menu .text-format-controls .text-size-controls [data-auto-height][aria-pressed=true]:hover { background-color:var(--surface-chosen); }
+.whiteboard-menu .text-format-controls .text-format-box-height button[aria-pressed=true]:hover { background-color:var(--surface-chosen); }
 /* the chosen role is a raised cell in its sunken track (depth.css), like any segmented choice */
 .text-format-controls button:focus-visible,
 .text-format-custom:has(input:focus-visible) {
@@ -121,22 +123,12 @@ html[data-appearance=dark] .drawing-color-dot:not(.drawing-color-dot-mixed) { ba
   border-radius:var(--shape-key);
 }
 .text-format-roles button { min-height:26px; font-size:12px; }
-.text-size-controls {
-  --auto-height-control:34px;
-  display:grid;
-  grid-template-columns:minmax(0,1fr) var(--auto-height-control);
-  align-items:start;
-  gap:7px;
-}
-.text-size-controls [data-auto-height] {
-  min-height:var(--auto-height-control);
-  margin-top:4px;
-  color:var(--ink-2);
-}
-.text-size-controls [data-auto-height][aria-pressed=true] { color:var(--ink); }
-@media (pointer:coarse) {
-  .text-size-controls { --auto-height-control:44px; }
-}
+.text-format-controls[data-text-format-mode=box] .text-format-colors { border-top:0; padding-top:0; }
+.text-format-box-height { display:flex; justify-content:space-between; gap:7px; border-top:1px solid var(--line-hair); padding-top:7px; }
+/* Auto height (a toggle) and Fit height once (an action) are raised keys (depth.css) */
+.text-format-box-height [data-auto-height] { display:flex; justify-content:center; align-items:center; gap:5px; width:auto; padding:0 7px; color:var(--ink-2); }
+.text-format-box-height [data-auto-height][aria-pressed=true] { color:var(--ink); }
+.text-format-box-height [data-fit-height] { width:auto; padding:0 7px; font-size:12px; }
 .text-format-options button {
   display:flex;
   justify-content:center;

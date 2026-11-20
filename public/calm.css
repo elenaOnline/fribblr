@@ -235,6 +235,8 @@ body .workspace-add-menu button > span { width: 18px; color: var(--ink-2); text-
 /* ---------- Tiles are calm objects ---------- */
 /* A tile's height, rim, side, selection line and lift are the slab in depth.css. */
 :where(#world .workspace-card-preview) { background-color: var(--surface-paper); }  /* zero weight: a board cover sinks (depth.css) */
+/* A card in flight rides above all content; the drop decides its place in the order. */
+#world .workspace-card.workspace-dragging { z-index: 100002 !important; }
 #world .workspace-compact .workspace-card-preview { border-top: 0; }
 #world .workspace-panel { border-radius: var(--shape-slab); }
 

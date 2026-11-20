@@ -101,7 +101,9 @@ try {
   await menuOn(docPlacement);
   const edit=page.locator('.workspace-tile-menu [data-tile-menu="edit-document"]'),details=page.locator('.workspace-tile-menu [data-tile-menu="details"]'),dup=page.locator('.workspace-tile-menu [data-tile-menu="duplicate"]');
   assert.deepEqual([await cap(edit),await cap(details),await cap(dup)],['E',cmd('I'),cmd('D')]);
-  assert.equal(await page.locator('.workspace-tile-menu kbd').count(),4,'three printed caps and the Open row\'s own ↵');
+  // 1.4: Bring to front ] and Send to back [ print theirs too
+  assert.deepEqual([await cap(page.locator('.workspace-tile-menu [data-tile-menu="front"]')),await cap(page.locator('.workspace-tile-menu [data-tile-menu="back"]'))],[']','[']);
+  assert.equal(await page.locator('.workspace-tile-menu kbd').count(),6,'five printed caps and the Open row\'s own ↵');
   await page.screenshot({path:path.join(evidence,'card-menu.png')});
   await page.keyboard.press('Escape');await settle();
   let total=await cardCount();
