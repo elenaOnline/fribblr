@@ -7,6 +7,7 @@
 // - groups drawn like a converted twin are one Tab stop with arrows: the action rows in Shape and Line options, the
 //   connection points of a selected object, the board Inspector's Edit and Feedback rows, the reader Inspector's
 //   Organize rows;
+// - with the item Inspector or the Comments panel open, Tab goes on through the page and off it, never round again;
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -160,6 +161,30 @@ try{
   ok((await walk(['ArrowDown','ArrowUp'])).every(Boolean)&&await page.evaluate(()=>document.activeElement?.dataset.readerAct==='edit'),'↓ and ↑ move along the Organize rows');
   await page.keyboard.press('Escape');await page.waitForTimeout(200);await page.keyboard.press('Escape');await page.waitForTimeout(500);
   await page.keyboard.press('Escape');await page.waitForTimeout(300);
+ }
+
+ // ---- 5. Tab leaves the item Inspector and the Comments panel and goes on through the page and off it. ----
+ {const mod=process.platform==='darwin'?'Meta':'Control';
+  const tabWalk=async(inside,key='Tab')=>{const seen=[];let left=false,back=false,rail=false;
+   for(let i=0;i<60;i++){await page.keyboard.press(key);await page.waitForTimeout(40);
+    const at=await page.evaluate(sel=>({body:document.activeElement===document.body,inside:!!document.activeElement?.closest(sel),rail:!!document.activeElement?.closest('#edit-tools'),name:document.activeElement?.getAttribute('aria-label')||document.activeElement?.textContent?.trim().slice(0,30)}),inside);
+    if(at.rail)rail=true;seen.push(at.body?'<page end>':at.name);if(!at.inside&&!at.body)left=true;if(left&&at.inside)back=true;if(at.body)return {seen,left,back,rail,end:true};}
+   return {seen,left,back,rail,end:false};};
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await page.locator(`#world [data-placement="${c.b}"]`).focus();await page.keyboard.press(`${mod}+i`);
+  await page.locator('#workspace-item-controls').waitFor();await page.waitForTimeout(300);
+  ok(await page.evaluate(()=>document.activeElement?.closest('#workspace-item-controls')),'⌘I opens the item Inspector with focus inside');
+  {const r=await tabWalk('#workspace-item-controls');
+   ok(r.left&&!r.back&&r.end&&r.rail,`From the item Inspector, Tab goes on past the tools rail and off the page, never back into it: ${r.seen.join(' → ')}`);}
+  {const r=await tabWalk('#workspace-item-controls','Shift+Tab');
+   ok(r.rail&&r.seen.some(n=>n==='Select'),`Shift+Tab from the page end comes back through the rail into the Inspector: ${r.seen.slice(0,12).join(' ← ')}`);}
+  await page.locator('#workspace-item-controls [data-context-comments]').focus();await page.keyboard.press('Enter');
+  await page.locator('.feedback-panel:not([hidden])').waitFor();await page.waitForTimeout(400);
+  await page.locator('#feedback-message').focus();
+  {const r=await tabWalk('.feedback-panel');
+   ok(r.left&&!r.back&&r.end&&r.rail,`From the Comments panel, Tab goes on past the tools rail and off the page, never back into it: ${r.seen.join(' → ')}`);}
+  await page.locator('#feedback-message').focus();await page.keyboard.press('Escape');await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
  }
 
  assert.deepEqual(errors,[]);checks++;

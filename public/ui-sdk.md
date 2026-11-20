@@ -653,13 +653,16 @@ panel.close(); panel.toggle(options); panel.isOpen; panel.hadFocus;
 - **Escape** closes it while focus is inside; focus goes to `final-focus` (the opener's id or the selector), or, when
   a shortcut opened it (⌘I), to whatever had focus. With focus elsewhere, the board's and the reader's Escape ladders
   close an open Inspector in their turn (focus stays put). Escape on an open Inspector's toggle closes it.
-- **Tab** leaves the panel and it stays open (popups.md § Focus: "A non-modal dialog stays open"). Order: toggle (in
-  the top bar's toolbar) → panel → the board. The item Inspector and the Comments panel sit at the end of `<body>`,
-  where the browser has nothing after their last control, so they take the popovers' Tab-out rule (`popups.js`) and
-  continue from what opened them: the item Inspector names it with `content.tabTrigger` (the control that opened it
-  while on screen, else the card's ⋯, else the card); the Comments panel (an `aside`) calls `tabOutOfPanel` with its
-  opener (else the item's Comments button or card, else the canvas). Shift+Tab from their first control goes back to
-  that opener.
+- **Tab** leaves the panel and it stays open (popups.md § Focus: "A non-modal dialog stays open"), and goes on through
+  the page and off it. The board Inspector sits in the header right after its toggle: toggle (in the top bar's
+  toolbar) → panel → the board. The item Inspector and the Comments panel sit right after the board and its
+  drawn-object bar (`placeInBoardOrder` in `popups.js`, as the bar does): the board's items and pins → panel → kind
+  legend, zoom pill, tools rail → off the page, and Shift+Tab back the same way. At the end of `<body>` they had to hand
+  Tab back to their opener, and Tab past the tools rail then came round into them again, a loop only Shift+Tab left; a
+  panel placed in order carries `data-in-order`, and the popovers' Tab-out rule leaves it alone. Inside the reader, the
+  Comments panel sits at the end of the reader's area and keeps that rule (`tabOutOfPanel` with its opener). The item
+  Inspector's `content.tabTrigger` still names its opener (the control that opened it while on screen, else the card's
+  ⋯, else the card), for an outside press on nothing focusable. Checked in `tests/last-fixes-browser.mjs`.
 - **Outside press** closes it, except a press on one of its `openers` (they toggle), a press that began inside the
   panel (even if its target re-rendered away), a press on a detached node, and whatever `keepOpen(target)` accepts
   (modal dialogs, menus, the feedback panel, the vote ballot). A press into an iframe is not seen by the page.

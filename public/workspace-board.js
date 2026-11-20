@@ -2,7 +2,7 @@ import {closePanel, sidePanel} from "./side-panel.js";
 import {setItemDisabled} from "./header-toolbar.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
 import {followVisibility,setButtonOff,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked,focusAfterOutsidePress} from './popups.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked,focusAfterOutsidePress,placeInBoardOrder} from './popups.js';
 import {widgetOwnsKey} from './ui-sdk.js';
 import {tips,tip,setTip,tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
@@ -2122,12 +2122,13 @@ export class WorkspaceBoard {
     const cardSelector = `#world .workspace-card[data-placement="${CSS.escape(id)}"]`;
     const returnTo = again ? again.returnTo : fromMenu ? (document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`) ? `[data-item-controls="${CSS.escape(id)}"]` : null)
       : before?.id ? `#${CSS.escape(before.id)}` : before?.matches?.(cardSelector) ? cardSelector : null;
-    document.body.append(panelRoot);
+    placeInBoardOrder(panelRoot);
     tips(popover);
     this.context = popover;
     const invoker = () => document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`);
-    // Tab past the panel's last control continues from what opened it (popups.js, the SDK's non-modal dialog rule): the
-    // control that opened it while it is on screen, else the card's ⋯, else the card.
+    // The control that opened it while it is on screen, else the card's ⋯, else the card: where an outside press on
+    // nothing focusable returns focus (popups.js). (Tab needs no steering: the panel sits right after the board,
+    // placeInBoardOrder.)
     popover.tabTrigger = () => {
       const shown = el => el?.isConnected && el.getClientRects().length ? el : null;
       const card = document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`);

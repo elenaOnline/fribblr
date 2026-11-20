@@ -283,6 +283,19 @@ function triggerOf(content) {
     || (root?.id && document.querySelector(['ui-popover-trigger', 'ui-dialog-trigger', 'ui-menu-trigger'].map(tag => `${tag}[for="${CSS.escape(root.id)}"] button`).join(', ')));
   return found instanceof HTMLElement && !content.contains(found) ? found : null;
 }
+// A panel that stays open beside the board (the item Inspector, the Comments panel) sits in the page right after the
+// board and its drawn-object bar, the way the bar does, not at the end of <body>: so Tab reaches it after the board's
+// items and goes on to what follows the board (kind legend, zoom pill, tools rail) and off the page, and Shift+Tab
+// comes back the same way. At the end of <body>, it had to hand Tab back to its opener (the popovers' rule below),
+// and Tab past the tools rail then came round into it again: a loop only Shift+Tab left. Still outside every card and
+// toolbar, so its events reach no board handler. Off a board, it goes at the end of <body>.
+export function placeInBoardOrder(panel) {
+  panel.setAttribute('data-in-order', '');
+  const after = document.querySelector('body > .whiteboard-toolbar') || document.getElementById('viewport');
+  if (after?.parentElement === document.body) { if (after.nextElementSibling !== panel) after.after(panel); }
+  else if (panel.parentElement !== document.body || panel.nextElementSibling) document.body.append(panel);
+}
+
 // The same rule for a panel the app places itself (the drawing bar's format panels in whiteboard.js, which hold the
 // text-format and colour controls): forward from its last control `close()` runs and focus goes to `trigger`, so the
 // browser's Tab continues after it; backward from the first, focus goes to `trigger`. True when the Tab was steered.
@@ -313,6 +326,8 @@ if (typeof document !== 'undefined') document.addEventListener('keydown', event 
   const host = content?.closest('ui-popover,ui-dialog');
   // At the end of <body>, or at the end of the modal reader dialog that hosts it (its % popover).
   if (!content || !host || (host.parentElement !== document.body && !host.parentElement?.closest('dialog'))) return;
+  // A panel placed in the page's order (placeInBoardOrder) is already where Tab should find it.
+  if (host.hasAttribute('data-in-order')) return;
   if (content.getAttribute('aria-modal') === 'true' || host.getAttribute('modal') === 'true' || host.getAttribute('modal') === 'trap-focus') return;
   const trigger = triggerOf(content);
   if (!trigger) return;
