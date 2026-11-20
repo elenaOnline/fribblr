@@ -1376,6 +1376,8 @@ function legacyMenuElement(){
   legacyMenuUI.content.setAttribute('align','end');legacyMenuUI.content.setAttribute('side-offset','6');legacyMenuUI.content.setAttribute('collision-padding','8');
   legacyMenuUI.root.addEventListener('openchange',event=>{if(event.detail.value)return;const key=legacyMenuKey;legacyMenuKey=null;document.querySelector(`[data-legacy-menu="${CSS.escape(key||'')}"]`)?.setAttribute('aria-expanded','false');});
   legacyMenuUI.root.addEventListener('action',event=>runLegacyMenu(event.detail.value,legacyMenuUI.root.api.getPayload()));
+  // Its items carry the card's data-* names, so a closed menu holds none (a card's own Notes stays the one match).
+  legacyMenuUI.root.addEventListener('openchangecomplete',event=>{if(!event.detail.value)legacyMenuUI.content.replaceChildren();});
   // A turn of the wheel or a resized window leaves the card behind: the menu closes, as before.
   const away=event=>{if(legacyMenuUI.root.open&&!(event.target instanceof Node&&legacyMenuUI.content.contains(event.target)))closeLegacyMenu();};
   document.addEventListener('wheel',away,{capture:true,passive:true});
@@ -1390,10 +1392,12 @@ function openLegacyMenu(key,anchor,event){
   const handoff=safeBoardPath(concept.handoff),unavailable=['reserved','building'].includes(liveSnapshot?.concepts?.[key]?.state);
   const {root,content}=legacyMenuElement();
   content.setAttribute('aria-label',`Actions for ${concept.name}`);
-  content.innerHTML=menuItem('open','Open experiment',{disabled:unavailable})
-    +(revisions[key]||[]).map(variant=>menuItem(`revision:${variant.id}`,`Try ${variant.name}`,{disabled:unavailable})).join('')
+  // The items keep the board's data-* names (tests and markers read them); the board's own click handlers skip SDK parts
+  // ([data-slot]), so each runs once, through the action event.
+  content.innerHTML=menuItem('open','Open experiment',{disabled:unavailable,attrs:`data-open="${esc(key)}"`})
+    +(revisions[key]||[]).map(variant=>menuItem(`revision:${variant.id}`,`Try ${variant.name}`,{disabled:unavailable,attrs:`data-open="${esc(key)}" data-revision="${esc(variant.id)}"`})).join('')
     +(handoff?menuLink(handoff,'Handoff'):'')
-    +menuItem('notes','Notes')+menuSeparator+menuItem('remove','Remove from board…',{destructive:true,className:'tk-danger'});
+    +menuItem('notes','Notes',{attrs:`data-tile-notes="${esc(key)}"`})+menuSeparator+menuItem('remove','Remove from board…',{destructive:true,className:'tk-danger',attrs:`data-remove-experiment="${esc(key)}"`});
   if(legacyMenuKey&&legacyMenuKey!==key)document.querySelector(`[data-legacy-menu="${CSS.escape(legacyMenuKey)}"]`)?.setAttribute('aria-expanded','false');
   legacyMenuKey=key;anchor.setAttribute('aria-expanded','true');
   const selector=`[data-legacy-menu="${CSS.escape(key)}"]`;
@@ -1403,10 +1407,10 @@ function runLegacyMenu(action,key){
   const concept=all.find(c=>c.key===key);if(!concept||!action)return;
   if(action==='open'||action.startsWith('revision:')){tileNotes.close();openReader(key,action==='open'?undefined:action.slice(9));}
   else if(action==='notes')openTileNote(key,document.querySelector(`[data-legacy-menu="${CSS.escape(key)}"]`));
-  else if(action==='remove'&&appConfig)openRemovalPrompt(appConfig,board,concept);
+  else if(action==='remove'&&appConfig){document.querySelector(`[data-legacy-menu="${CSS.escape(key)}"]`)?.focus({preventScroll:true});openRemovalPrompt(appConfig,board,concept);}
 }
 // The ⋯ opens and closes its menu (a press on an open menu's ⋯ closes it: the menu consumes that press).
-document.addEventListener('click',event=>{const menu=event.target.closest('[data-legacy-menu]');if(menu)openLegacyMenu(menu.dataset.legacyMenu,menu,event);const note=event.target.closest('[data-tile-notes]');if(note)openTileNote(note.dataset.tileNotes,note);});
+document.addEventListener('click',event=>{const menu=event.target.closest('[data-legacy-menu]');if(menu)openLegacyMenu(menu.dataset.legacyMenu,menu,event);const note=event.target.closest('[data-tile-notes]:not([data-slot])');if(note)openTileNote(note.dataset.tileNotes,note);});
 // ArrowDown / ArrowUp on a focused ⋯ open its menu at the first / last item, as on any menu button.
 document.addEventListener('keydown',event=>{
   if(!['ArrowDown','ArrowUp'].includes(event.key)||event.altKey||event.metaKey||event.ctrlKey||event.shiftKey)return;
@@ -1688,7 +1692,7 @@ function setInfoOpen(open, { focus = false } = {}) {
 
 // Controls are bound once; board content is replaced only after a manifest update.
 document.addEventListener('pointerdown', event => {
-  const remove = event.target.closest('[data-remove-experiment]');
+  const remove = event.target.closest('[data-remove-experiment]:not([data-slot])');
   if (remove && event.button === 0) { event.preventDefault(); remove.focus({ preventScroll: true }); }
   if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
 });
@@ -1703,7 +1707,7 @@ document.addEventListener('click', event => {
   // data-slot), so an open menu trigger is not an item to open.
   const open = event.target.closest('[data-open]:not([data-slot])');
   const star = event.target.closest('[data-star]');
-  const remove = event.target.closest('[data-remove-experiment]');
+  const remove = event.target.closest('[data-remove-experiment]:not([data-slot])');
   if (remove && appConfig) {
     const concept = all.find(item => item.key === remove.dataset.removeExperiment);
     if (concept) {closeLegacyMenu();document.querySelector(`[data-legacy-menu="${CSS.escape(concept.key)}"]`)?.focus({preventScroll:true});openRemovalPrompt(appConfig, board, concept);}
