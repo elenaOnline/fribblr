@@ -286,6 +286,12 @@ function triggerOf(content) {
 // The same rule for a panel the app places itself (the drawing bar's format panels in whiteboard.js, which hold the
 // text-format and colour controls): forward from its last control `close()` runs and focus goes to `trigger`, so the
 // browser's Tab continues after it; backward from the first, focus goes to `trigger`. True when the Tab was steered.
+// A panel the app places itself reports its open and close as an SDK popup does: `openchange` on the panel, bubbling.
+// So the shared tooltip closes as the panel opens and keeps quiet over its button (tips.js), and focus returning to the
+// button as it closes reopens no hint (popupJustClosed).
+export function reportPanel(panel, open) {
+  panel?.dispatchEvent(new CustomEvent('openchange', {bubbles: true, composed: true, detail: {value: !!open, reason: open ? 'trigger-press' : 'imperative'}}));
+}
 export function tabOutOfPanel(event, content, trigger, close) {
   if (event.key !== 'Tab' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return false;
   const target = event.target instanceof Element ? event.target : null;

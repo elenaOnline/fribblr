@@ -19,7 +19,7 @@ import {mountPresetScrub} from './preset-scrub.js';
 import {announce, decorationLabel, sdkCore} from './board-focus.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tips} from './tips.js';
-import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown, tabOutOfPanel} from './popups.js';
+import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown, tabOutOfPanel, reportPanel} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -762,7 +762,7 @@ export class Whiteboard {
     this.menu.classList.add('whiteboard-text-appearance');
     this.menu.setAttribute('role','dialog');
     this.menu.setAttribute('aria-label',label);
-    this.menu.hidden=false;
+    this.menu.hidden=false;reportPanel(this.menu,true);
     this.toolbar.querySelector(`[data-whiteboard-action="${trigger}"]`)?.setAttribute('aria-expanded','true');
     this.renderObjectFormat(session);
     this.focusPanelStart();
@@ -803,7 +803,7 @@ export class Whiteboard {
     this.menu.classList.add('whiteboard-text-appearance');
     this.menu.setAttribute('role','dialog');
     this.menu.setAttribute('aria-label',({size:'Text size',ink:'Ink',face:'Typeface',box:'Text box'})[mode]);
-    this.menu.hidden=false;
+    this.menu.hidden=false;reportPanel(this.menu,true);
     this.appearance=mountTextAppearance(this.menu,text,{
       mode,
       save:patch=>{
@@ -840,7 +840,9 @@ export class Whiteboard {
       this.menu.setAttribute('aria-label','Object actions');
       this.menu.replaceChildren();
     }
+    const wasOpen=!this.menu.hidden;
     this.menu.hidden=true;this.toolbar?.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','false');
+    if(wasOpen)reportPanel(this.menu,false);
     const opener=this.toolbar?.querySelector(`[data-whiteboard-action=${trigger}]`);
     opener?.setAttribute('aria-expanded','false');
     if(focus)opener?.focus({preventScroll:true});

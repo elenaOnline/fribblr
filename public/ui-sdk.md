@@ -425,10 +425,18 @@ A control reaches the tooltip in one of two ways:
   a bar button opening its panel). Nobody walked there, and a hint on it would take the first Escape meant for the
   panel. Tab and arrows inside a group still open hints at once, and there the SDK's rule stands: Escape closes only
   the tooltip. This applies to the delegate's focus opens and, through `openchange`, to wrapped triggers.
-- A press (pointer down, Enter, Space) closes it; after a press it stays closed until the pointer leaves.
-- A popup opening closes it, whatever opened the popup (a press, a key, code), and the delegated control under the
-  pointer counts as pressed (tooltip.md: pressing the trigger closes the tooltip, "pressing opens the popover
-  instead"). `tips.js` watches every non-tooltip `openchange` on `document` (capture) for this (§ 7, gap 23).
+- A press (pointer down, Enter, Space) closes it; after a press it stays closed until the pointer leaves. The board
+  and the drawn-object bar stop `pointerdown` on document capture, before the delegate's listener and a wrapped
+  trigger's own hear it, so the press is also read on **window** capture: a press on the control whose tooltip shows
+  closes it, delegated or wrapped (the bar's buttons, the tools rail). A wrapped trigger pressed that way is held quiet
+  (`holdQuiet`): the tooltip cancels its `trigger-hover` opens until the pointer moves off it, and a trigger rebuilt
+  under the resting pointer (the rail redraws its pressed tool) hands the hold to its replacement.
+- A popup opening closes it, whatever opened the popup (a press, a key, code), and the control under the pointer,
+  delegated or wrapped, counts as pressed (tooltip.md: pressing the trigger closes the tooltip, "pressing opens the
+  popover instead"). `tips.js` watches every non-tooltip `openchange` on `document` (capture) for this (§ 7, gap 23).
+  A panel the app places itself reports its open and close the same way: `reportPanel(panel, open)` in `popups.js`
+  dispatches a bubbling `openchange` from it (the drawn-object bar's format panels in `whiteboard.js`), so the panel
+  opening closes its button's tooltip and the focus that returns to the button as it closes reopens none.
 - Escape closes only the tooltip. A controller open sits in no SDK layer, so the delegate takes the press (document
   capture) and stops it; the board's handlers have already stepped aside (`widgetOwnsKey`, `inPopup`).
 - Touch never opens one. Only the control that opened it is described by it (`aria-describedby` set while open,
