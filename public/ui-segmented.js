@@ -13,9 +13,9 @@ export function segmentedHTML({ label, labelledby, className = '', id, attrs = {
   const name = labelledby ? ` aria-labelledby="${esc(labelledby)}"` : label ? ` aria-label="${esc(label)}"` : '';
   const cells = items.map(it => {
     const extra = Object.entries(it.attrs || {}).map(([k, v]) => ` ${k}="${esc(v)}"`).join('');
-    const cell = `<ui-segmented-control-item value="${esc(it.value)}"${it.id ? ` id="${esc(it.id)}"` : ''}${it.title ? ` title="${esc(it.title)}"` : ''}${it.tip ? ` data-tip="${esc(it.tip)}"` : ''}${it.ariaLabel ? ` aria-label="${esc(it.ariaLabel)}"` : ''}${it.disabled ? ' disabled' : ''}${extra}>${it.html ?? esc(it.label)}</ui-segmented-control-item>`;
-    // A hint on a UI SDK tooltip (tips.js): the item sits in its trigger; tips() connects it after rendering.
-    return it.tip ? `<ui-tooltip-trigger for="tk-tip">${cell}</ui-tooltip-trigger>` : cell;
+    // A hint (tip) is a data-tip the shared tooltip's delegate serves (tips.js): no trigger wrapper, so the item stays
+    // the control's direct child and the theme's segmented rules reach it.
+    return `<ui-segmented-control-item value="${esc(it.value)}"${it.id ? ` id="${esc(it.id)}"` : ''}${it.title ? ` title="${esc(it.title)}"` : ''}${it.tip ? ` data-tip="${esc(it.tip)}"` : ''}${it.ariaLabel ? ` aria-label="${esc(it.ariaLabel)}"` : ''}${it.disabled ? ' disabled' : ''}${extra}>${it.html ?? esc(it.label)}</ui-segmented-control-item>`;
   }).join('');
   return `<ui-segmented-control class="tk-seg${className ? ` ${className}` : ''}"${id ? ` id="${esc(id)}"` : ''}${name}${value != null ? ` default-value="${esc(value)}"` : ''}${root}>${cells}</ui-segmented-control>`;
 }

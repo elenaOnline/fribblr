@@ -33,7 +33,7 @@
 /* The presets are a segmented control (a radio group) with no track of its own: its items are cells of this row, and the
    chosen one is the raised cell the theme draws for any chosen segment. Items with a hint sit in their tooltip trigger. */
 .preset-scrub-row > .preset-scrub-presets { display:contents; }   /* beats .tk-seg's display, which tokens.css sets later */
-:is(.preset-scrub-row > .preset-scrub-presets, .preset-scrub-row > .preset-scrub-presets > ui-tooltip-trigger) > [data-slot=segmented-control-item] {
+.preset-scrub-row > .preset-scrub-presets > [data-slot=segmented-control-item] {
   box-sizing:border-box; width:100%; min-width:0; height:auto; min-height:34px; padding:0; margin:0; border:0;
   font:600 12px/1 var(--type-sans); display:grid; place-items:center;
 }
@@ -56,5 +56,5 @@
 @media (pointer:coarse) {
   .whiteboard-menu .preset-scrub-row > button,
   .preset-scrub-row > button,
-  :is(.preset-scrub-row > .preset-scrub-presets, .preset-scrub-row > .preset-scrub-presets > ui-tooltip-trigger) > [data-slot=segmented-control-item] { min-height:44px; }
+  .preset-scrub-row > .preset-scrub-presets > [data-slot=segmented-control-item] { min-height:44px; }
 }
