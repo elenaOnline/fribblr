@@ -738,7 +738,7 @@ export class Whiteboard {
     const task=e.target.closest('[data-deco-task]');
     if(task) {
       e.preventDefault();e.stopPropagation();
-      if(this.host.hooks.viewOnly||this.host.mode!=='canvas'||this.editor||this.host.pointerGesture||document.querySelector('dialog[open]'))return;
+      if(this.host.hooks.viewOnly||this.host.mode!=='canvas'||this.editor||this.host.pointerGesture||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]'))return;
       await this.toggleTask(task);return;
     }
     const port=e.target.closest('[data-port]');
@@ -1250,7 +1250,7 @@ export class Whiteboard {
       if(e.target.closest('#viewport')&&!e.target.closest('.whiteboard-ports'))this.clearSelection({finishEdit:true,focus:false});
       return;
     }
-    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open]')||this.host.pointerGesture||this.host.movePending)return;
+    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')||this.host.pointerGesture||this.host.movePending)return;
     const task=e.target.closest('[data-deco-task]');
     if(task){this.captureTask(task);return;}
     if(e.target.closest('input,textarea,[contenteditable]'))return;
@@ -1456,7 +1456,7 @@ export class Whiteboard {
       if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}
     }
     const group=e.target.closest('[data-decoration]');
-    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button,.whiteboard-editor')&&!document.querySelector('dialog[open]')&&['Enter','F2'].includes(e.key)){
+    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button,.whiteboard-editor')&&!document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)){
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);
     }
   }

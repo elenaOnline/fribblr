@@ -1144,7 +1144,7 @@ function readerTinkaFocus(target) {
   if (!target?.closest || !dialog.contains(target) || target === $('active-reader')) return false;
   return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg');
 }
-function readerBlocked() { return !dialog.open || !!document.querySelector('dialog.workspace-dialog[open]'); }
+function readerBlocked() { return !dialog.open || !!document.querySelector('.workspace-dialog:is([open],[data-open])'); }
 function runReaderCommand(command, { fromFrame = false } = {}) {
   if (command === 'previous' || command === 'next') { stepReader(command === 'next' ? 1 : -1, { focus: fromFrame ? 'tinka' : 'keep' }); return true; }
   if (command === 'up') { closeReader(); return true; }
@@ -1567,7 +1567,7 @@ function liveBlocked(){
   // keyed manifest reconciliation. Other editors retain deferred refresh.
   const legacyNote=!graph&&focused?.matches('textarea[data-note]')&&world.contains(focused);
   const editing=focused?.closest?.('textarea,input,select,[contenteditable]')&&!legacyNote&&!focused?.closest('.tile-notes');
-  return !!(pointers.size||graph?.liveBlocked?.()||graph?.pointerGesture||graph?.decorationGesture||graph?.moveCommitting||graph?.client.pendingWrites||graph?.saving||editing||document.querySelector('dialog.workspace-dialog[open]'));
+  return !!(pointers.size||graph?.liveBlocked?.()||graph?.pointerGesture||graph?.decorationGesture||graph?.moveCommitting||graph?.client.pendingWrites||graph?.saving||editing||document.querySelector('.workspace-dialog:is([open],[data-open])'));
 }
 async function drainLiveUpdates(){
   if(liveDraining||liveBlocked())return;liveDraining=true;
@@ -1650,7 +1650,7 @@ document.addEventListener('pointerdown', event => {
   if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
 });
 document.addEventListener('pointerdown', event => {
-  if (!$('board-info').hidden && !event.target.closest('#board-info, #board-info-toggle, .workspace-dialog, dialog[open], .workspace-add-menu, .workspace-popover, .feedback-panel')) setInfoOpen(false);
+  if (!$('board-info').hidden && !event.target.closest('#board-info, #board-info-toggle, .workspace-dialog, dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open], .workspace-add-menu, .workspace-popover, .feedback-panel')) setInfoOpen(false);
   if (!$('zoom-menu').hidden && !event.target.closest('.zoom-menu-wrap')) setZoomMenuOpen(false);
 }, true);
 let pendingDocumentOpen = 0;
@@ -1707,7 +1707,7 @@ $('reader-note').setAttribute('aria-keyshortcuts','Meta+Enter Control+Enter');
 const readerNoteHint=document.createElement('small');readerNoteHint.className='workspace-submit-hint';setCommitHint(readerNoteHint, 'save'); $('reader-note').after(readerNoteHint);
 document.addEventListener('keydown', event => {
   // The document editor (board-document.js) handles its own Escape: save and close it, keep the reader open.
-  if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode===229 || event.repeat || document.querySelector('dialog.workspace-dialog[open],dialog.tinka-doc-editor[open]')) return;
+  if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode===229 || event.repeat || document.querySelector('.workspace-dialog:is([open],[data-open]),dialog.tinka-doc-editor[open]')) return;
   if (tileNotes.element) {event.preventDefault();event.stopImmediatePropagation();tileNotes.close({focus:true});return;}
   if (legacyMenu) {event.preventDefault();event.stopImmediatePropagation();closeLegacyMenu(true);return;}
   if (dialog.open) { if (projectNavigator?.panel?.contains(event.target)) return; handleEscape(event); event.preventDefault(); return; }
@@ -1734,7 +1734,7 @@ $('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka
 // ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
 document.addEventListener('keydown', event => {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'i' || event.repeat) return;
-  if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]')) return;
+  if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')) return;
   event.preventDefault();
   const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : null;
   if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes'); return; }
@@ -1870,7 +1870,7 @@ function boardStep(direction) {
   announceView(`${target.concept.name}, ${sequence.indexOf(target) + 1} of ${sequence.length}`);
 }
 document.addEventListener('keydown', event => {
-  if (!graph || overview || dialog.open || event.defaultPrevented || document.querySelector('dialog[open]')) return;
+  if (!graph || overview || dialog.open || event.defaultPrevented || document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')) return;
   const editable = !!event.target.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role=textbox]');
   const command = boardStepCommand(event, { mac: readerKeysMac, editable });
   if (!command || graph.boardCommandBlocked(event) || document.activeElement?.tagName === 'IFRAME') return;
@@ -2240,7 +2240,7 @@ viewport.addEventListener('gestureend', event => event.preventDefault());
 // keep the browser's own zoom.
 function boardOwnsPinch(event) {
   if (graph?.mode === 'grid' || viewport.contains(event.target)) return false;
-  return !document.querySelector('dialog[open]');
+  return !document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]');
 }
 function viewportPinchPoint(event) {
   const r = viewport.getBoundingClientRect();
@@ -2248,14 +2248,14 @@ function viewportPinchPoint(event) {
 }
 document.addEventListener('wheel', event => {
   // Over an opened Tinka's header, panels or pill, ⌘/Ctrl-scroll zooms its canvas, never the page.
-  if ((event.ctrlKey || event.metaKey) && dialog.open && !readerStage.contains(event.target) && !document.querySelector('dialog.workspace-dialog[open]')) {
+  if ((event.ctrlKey || event.metaKey) && dialog.open && !readerStage.contains(event.target) && !document.querySelector('.workspace-dialog:is([open],[data-open])')) {
     event.preventDefault(); readerCanvas.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY); return;
   }
   if (!(event.ctrlKey || event.metaKey) || !boardOwnsPinch(event)) return;
   event.preventDefault();
   changeZoom(zoom * wheelZoomFactor(event), ...viewportPinchPoint(event));
 }, { passive: false });
-const readerOwnsPinch = event => dialog.open && !readerStage.contains(event.target) && !document.querySelector('dialog.workspace-dialog[open]');
+const readerOwnsPinch = event => dialog.open && !readerStage.contains(event.target) && !document.querySelector('.workspace-dialog:is([open],[data-open])');
 document.addEventListener('gesturestart', event => { if (boardOwnsPinch(event) || readerOwnsPinch(event)) { event.preventDefault(); gestureScale = 1; } });
 document.addEventListener('gesturechange', event => {
   if (readerOwnsPinch(event)) { event.preventDefault(); const scale = event.scale > 0 ? event.scale : 1; readerCanvas.zoomAtClient(scale / gestureScale, event.clientX, event.clientY); gestureScale = scale; return; }

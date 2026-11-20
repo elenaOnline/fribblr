@@ -134,7 +134,7 @@ export class ProjectNavigator {
   }
   // An open Tinka is a modal page of its own; the Navigator then lives inside it
   // (see host) and counts only other modal dialogs as blocking.
-  modalOpen(){try{return [...document.querySelectorAll('dialog:modal')].some(dialog=>!dialog.contains(this.panel));}catch{return false;}}
+  modalOpen(){try{return [...document.querySelectorAll('dialog:modal,ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')].some(dialog=>!dialog.contains(this.panel));}catch{return false;}}
   toggles(){return [this.button,this.hostButton].filter(Boolean);}
   // Move the panel into an open Tinka (container) with its own toggle, or back to the page (null).
   // While hosted it floats rather than docks; a docked Navigator returns when the Tinka closes.

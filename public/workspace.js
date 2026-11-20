@@ -1,5 +1,8 @@
 import {writesReady} from './update-hold.js';
 import {bindForm,restoreFocus,commitShortcutLabel,setCommitHint} from './interaction.js';
+import {toast, dismissToast} from './toasts.js';
+import './vendor/ui-sdk/web/dialog.js';
+import './vendor/ui-sdk/web/alert-dialog.js';
 // Small shared primitives for graph workspaces; the legacy board stays independent.
 export const escape = (value) =>
   String(value ?? "").replace(
@@ -130,22 +133,7 @@ export class WorkspaceClient {
     }
   }
 }
-export function toast(message) {
-  let node = document.getElementById("workspace-toast");
-  if (!node) {
-    node = document.createElement("div");
-    node.id = "workspace-toast";
-    node.className = "workspace-toast";
-    node.setAttribute("role", "status");
-    document.body.append(node);
-  }
-  node.textContent = message;
-  node.hidden = false;
-  clearTimeout(node.timer);
-  node.timer = setTimeout(() => {
-    node.hidden = true;
-  }, 6000);
-}
+export { toast, dismissToast };
 export function showFailure(error) {
   const d = makeDialog(
     "Change not saved",
@@ -178,27 +166,36 @@ export function bindBackdropDismiss(dialog, dismiss = () => dialog.close()) {
     backdropClick = false;
   });
 }
+// Dialogs and confirmations are UI SDK ui-dialog / ui-alert-dialog (modal: page inert, Tab wraps, Escape and a press
+// on the backdrop close, focus returns to what had it). makeDialog keeps its shape: it returns the content element,
+// which has the old dialog's close() and a "close" event.
+// A dialog opened while another dialog is open goes inside it, so the first one's inert page doesn't include it.
+function dialogHost() {
+  const open = [...document.querySelectorAll('ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')].pop();
+  if (open) return open;
+  return [...document.querySelectorAll('dialog[open]')].filter(d => d.matches(':modal')).pop() || document.body;
+}
+const FIRST_FIELD = 'input:not([type=hidden],[type=checkbox],[type=radio],[readonly],[disabled]),textarea:not([readonly],[disabled]),select:not([disabled])';
 export function makeDialog(title, body, onSubmit, {
-  opener = document.activeElement, compact = false, shortcutHint, onDismiss,
+  opener = document.activeElement, compact = false, shortcutHint, onDismiss, className = '',
 } = {}) {
-  const d = document.createElement("dialog");
-  const titleId = "workspace-dialog-" + crypto.randomUUID();
-  d.className = "workspace-dialog";
-  d.classList.toggle("workspace-dialog-compact", compact);
-  d.setAttribute("aria-labelledby", titleId);
-  d.innerHTML = `<form><button class="workspace-close" type="button" aria-label="Close dialog">×</button><h2 id="${titleId}">${escape(title)}</h2>${body}<p class="workspace-form-status" role="status"></p></form>`;
-  document.body.append(d);
-  const form = d.querySelector("form"), status = d.querySelector(".workspace-form-status");
+  const root = document.createElement('ui-dialog');
+  root.innerHTML = `<ui-dialog-backdrop hidden></ui-dialog-backdrop><ui-dialog-content class="workspace-dialog ${className}" hidden><form><ui-dialog-close><button class="workspace-close" type="button" aria-label="Close dialog">×</button></ui-dialog-close><ui-dialog-title as-child><h2>${escape(title)}</h2></ui-dialog-title>${body}<p class="workspace-form-status" role="status"></p></form></ui-dialog-content>`;
+  const d = root.querySelector('ui-dialog-content');
+  d.classList.toggle('workspace-dialog-compact', compact);
+  const form = d.querySelector('form'), status = d.querySelector('.workspace-form-status');
+  // Focus opens on [autofocus], else the first field of a form; with no field, UI SDK's first focusable (the close key).
+  if (!d.querySelector('[autofocus]')) d.querySelector(FIRST_FIELD)?.setAttribute('autofocus', '');
   const submit = onSubmit && form.querySelector('[type="submit"]');
   if (submit) {
-    const hint = document.createElement("small");
-    hint.className = "workspace-submit-hint";
+    const hint = document.createElement('small');
+    hint.className = 'workspace-submit-hint';
     // The commit shortcut prints as a keycap (fribblr); a dialog's own hint ("Enter to create") stays words.
-    if (shortcutHint) hint.textContent = shortcutHint; else setCommitHint(hint, "confirm");
-    submit.setAttribute("aria-keyshortcuts", "Meta+Enter Control+Enter");
+    if (shortcutHint) hint.textContent = shortcutHint; else setCommitHint(hint, 'confirm');
+    submit.setAttribute('aria-keyshortcuts', 'Meta+Enter Control+Enter');
     if (submit.parentElement === form) {
-      const footer = document.createElement("footer");
-      footer.className = "workspace-dialog-actions";
+      const footer = document.createElement('footer');
+      footer.className = 'workspace-dialog-actions';
       status.after(footer);
       footer.append(hint, submit);
     } else {
@@ -206,26 +203,34 @@ export function makeDialog(title, body, onSubmit, {
       status.before(hint);
     }
   }
-  let closed = false, controller;
-  const finish = (saved = false) => {
-    if (closed) return;
-    closed = true;
+  let controller, dirty = false, done = false, saved = false;
+  const finish = () => {
+    if (done) return; done = true;
     if (!saved) onDismiss?.(form);
-    controller?.destroy();
-    d.close();
-    d.remove();
-    restoreFocus(opener);
+    controller?.destroy(); d.dispatchEvent(new Event('close'));
   };
-  const dismiss = () => { if (!controller?.pending) finish(); };
-  d.querySelector(".workspace-close").onclick = dismiss;
-  d.addEventListener("cancel", event => { event.preventDefault(); dismiss(); });
-  d.addEventListener("close", () => finish());
-  // The backdrop's events target the dialog itself. Check both ends of the
-  // pointer gesture so releasing a click or text selection outside stays safe.
-  bindBackdropDismiss(d, dismiss);
+  d.close = () => { if (!controller?.pending || saved) root.api.close(); };
+  // A form with typed-in changes asks before a stray Escape or backdrop press throws them away; the close key doesn't
+  // ask. A dialog that keeps its draft (onDismiss) has nothing to lose, so it never asks.
+  const touch = () => { if (onSubmit && !onDismiss && !dirty) { dirty = true; root.dismissible = false; } };
+  form.addEventListener('input', touch);
+  form.addEventListener('change', touch);
+  root.addEventListener('dismissattempt', async () => {
+    if (controller?.pending || !dirty) return;
+    if (await confirmDialog({title: 'Discard your changes?', description: 'What you typed in this dialog has not been saved.', confirmLabel: 'Discard', cancelLabel: 'Keep editing'})) { root.dismissible = true; root.api.close(); }
+  });
+  root.addEventListener('openchange', event => {
+    if (event.detail.value) return;
+    // A save in flight holds the dialog open; a finished save is no longer pending from the dialog's side.
+    if (controller?.pending && !saved) event.preventDefault();
+  });
+  root.addEventListener('openchangecomplete', event => {
+    if (event.detail.value) return;
+    finish(); root.remove(); restoreFocus(opener);
+  });
   controller = bindForm(form, {
     submit: async data => { await onSubmit?.(data, d); },
-    onSuccess: () => finish(true),
+    onSuccess: () => { saved = true; if (!done) root.api.close(); },
     onError: error => {
       status.textContent = error.message; status.setAttribute("role", "alert");
       if (error.conflict && !d.querySelector("[data-reload]")) {
@@ -234,8 +239,32 @@ export function makeDialog(title, body, onSubmit, {
       }
     },
   });
-  d.showModal();
+  dialogHost().append(root);
+  // pending is the form's: the dialog can't be dismissed mid-save, so the close key is held too.
+  root.api.open();
   return d;
+}
+// A question that needs an answer: ui-alert-dialog. Focus opens on Cancel (the least destructive answer), Escape means
+// no, a press outside does nothing. confirmDialog resolves true for the confirming answer. With onConfirm (async), the
+// confirming button stays pending while it runs and a failure shows in the dialog and keeps it open to retry.
+export function confirmDialog({title, description = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, className = ''}) {
+  const root = document.createElement('ui-alert-dialog');
+  root.innerHTML = `<ui-alert-dialog-backdrop hidden></ui-alert-dialog-backdrop><ui-alert-dialog-content class="workspace-dialog workspace-alert ${className}" hidden><ui-alert-dialog-title as-child><h2></h2></ui-alert-dialog-title><ui-alert-dialog-description as-child><p></p></ui-alert-dialog-description><p class="workspace-form-status" role="status"></p><div class="workspace-alert-actions"><ui-alert-dialog-close><button type="button" class="workspace-alert-cancel"></button></ui-alert-dialog-close><ui-alert-dialog-close value="confirm"><button type="button" class="workspace-primary workspace-alert-confirm"></button></ui-alert-dialog-close></div></ui-alert-dialog-content>`;
+  const d = root.querySelector('ui-alert-dialog-content');
+  d.querySelector('h2').textContent = title;
+  d.querySelector('p').textContent = description;
+  d.querySelector('.workspace-alert-cancel').textContent = cancelLabel;
+  d.querySelector('.workspace-alert-confirm').textContent = confirmLabel;
+  const status = d.querySelector('.workspace-form-status');
+  if (!description) d.querySelector('p').remove();
+  if (onConfirm) d.querySelector('ui-alert-dialog-close[value=confirm]').action = async () => {
+    status.textContent = ''; status.setAttribute('role', 'status');
+    try { await onConfirm(); }
+    catch (error) { status.textContent = error.message || 'Change not saved. Try again.'; status.setAttribute('role', 'alert'); throw error; }
+  };
+  root.addEventListener('openchangecomplete', event => { if (!event.detail.value) { d.dispatchEvent(new Event('close')); root.remove(); } });
+  dialogHost().append(root);
+  return root.api.open().then(result => result.returnValue === 'confirm');
 }
 // Keep the draft on this page if creation is dismissed before it succeeds.
 const boardDrafts = new WeakMap();
@@ -262,10 +291,11 @@ export function newBoardDialog(client, {parentBoardId, opener, refresh}) {
     });
 }
 export async function enableOrganization(config) {
-  makeDialog(
-    "Enable flexible boards?",
-    '<p>Convert the existing board metadata to stable items and placements. Existing board files, prior rounds, revisions, stars and notes remain in place. New organization changes live beside your project data.</p><p>This is an explicit workspace conversion. Resource files are not moved or deleted.</p><button type="submit" class="workspace-primary">Enable organization</button>',
-    async () => {
+  confirmDialog({
+    title: "Enable flexible boards?",
+    description: "Convert the existing board metadata to stable items and placements. Existing board files, prior rounds, revisions, stars and notes remain in place. New organization changes live beside your project data. This is an explicit workspace conversion. Resource files are not moved or deleted.",
+    confirmLabel: "Enable organization",
+    onConfirm: async () => {
       const r = await fetch("/api/workspace/migrate", {
         method: "POST",
         headers: {
@@ -279,7 +309,7 @@ export async function enableOrganization(config) {
         throw new Error(data.error || "Could not enable organization.");
       location.reload();
     },
-  );
+  });
 }
 function boardChoices(choices, current) {
   return `<fieldset class="workspace-board-choices"><legend class="sr-only">Destination</legend>${choices.map(({id,title}) =>
