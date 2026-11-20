@@ -85,9 +85,11 @@ export function menuLink(href, label, {target = '_blank', className = ''} = {}) 
 export function menuCheckbox(value, label, {checked = false, shortcut, disabled, title} = {}) {
   return `<ui-menu-checkbox-item class="tk-mi" value="${esc(value)}" checked="${checked}"${keys(shortcut)}${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(label)}</span>${shortcut ? keycap(shortcut) : ''}</ui-menu-checkbox-item>`;
 }
-// A radio group: [[value, label, {disabled, title}]…]; `value` is the chosen one.
-export function menuRadioGroup(name, label, options, value, {disabled = false, title = ''} = {}) {
-  return `<ui-menu-radio-group name="${esc(name)}" value="${esc(value)}"${title ? ` title="${esc(title)}"` : ''}>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${options.map(([v, text]) => `<ui-menu-radio-item class="tk-mi" value="${esc(v)}"${disabled ? ' disabled' : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(text)}</span></ui-menu-radio-item>`).join('')}</ui-menu-radio-group>`;
+// A radio group: [[value, label, {detail}]…]; `value` is the chosen one. `detail` is a quiet second line (a modified
+// time). Radio items stay open as they change (menu.md); `closeOnSelect` makes a choice close the menu, for a group
+// that picks what to show rather than a setting.
+export function menuRadioGroup(name, label, options, value, {disabled = false, title = '', closeOnSelect = false} = {}) {
+  return `<ui-menu-radio-group name="${esc(name)}" value="${esc(value)}"${title ? ` title="${esc(title)}"` : ''}>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${options.map(([v, text, {detail = ''} = {}]) => `<ui-menu-radio-item class="tk-mi${detail ? ' tk-mi2' : ''}" value="${esc(v)}"${disabled ? ' disabled' : ''}${closeOnSelect ? ' close-on-select' : ''}${detail ? ` label="${esc(text)}"` : ''}><ui-menu-item-indicator class="tk-mi-check" keep-mounted>${CHECK}</ui-menu-item-indicator><span class="tk-mi-label">${esc(text)}${detail ? `<small>${esc(detail)}</small>` : ''}</span></ui-menu-radio-item>`).join('')}</ui-menu-radio-group>`;
 }
 export function menuGroup(label, items) {
   return `<ui-menu-group>${label ? `<ui-menu-group-label class="tk-mlabel">${esc(label)}</ui-menu-group-label>` : ''}${items}</ui-menu-group>`;

@@ -32,6 +32,10 @@ ui-popover-content:focus { outline: none; }
 .tk-menu .tk-mi-check[data-checked] svg { visibility: visible; }
 .tk-menu ui-menu-group-label.tk-mlabel { display: block; }
 .tk-menu ui-menu-separator.tk-msep { display: block; }
+/* An item with a quiet second line (a version's modified time). */
+.tk-menu .tk-mi.tk-mi2 { height: auto; min-height: 40px; padding-top: 5px; padding-bottom: 5px; }
+.tk-menu .tk-mi2 .tk-mi-label { display: grid; gap: 1px; white-space: normal; }
+.tk-menu .tk-mi2 .tk-mi-label small { color: var(--ink-2); font: 400 11px/1.2 var(--type-sans); }
 
 /* (3) Surfaces. Old classes stay on the content (tests and the depth list know them); where an old rule set a display
    or a fixed size for the hand-rolled popup, the SDK's own display comes back (revert-layer) so a closed popup stays
@@ -53,3 +57,8 @@ ui-menu-content.reader-path-pop { position: revert-layer; animation: none; width
 .reader-path-pop .reader-path-row { cursor: default; user-select: none; }
 .reader-path-pop .reader-path-row:hover:not([data-highlighted], .is-current) { background: transparent; }
 .reader-path-pop .reader-path-row[data-highlighted] { background: var(--surface-chosen); }
+/* The comment layer and cluster menus keep their own width limit (workspace.css .comment-menu). */
+ui-menu-content.comment-menu { max-width: min(340px, calc(100vw - 16px)); }
+ui-menu-content.appearance-menu-content { min-width: 200px; }
+/* A version stack's list of versions (workspace-board.js versionMenu, canvas.js reader strip). */
+ui-menu-content.file-version-menu { min-width: 200px; max-width: min(320px, calc(100vw - 16px)); }

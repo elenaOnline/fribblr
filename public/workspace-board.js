@@ -1,4 +1,4 @@
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
 import {drawingPalette,drawingColor} from './drawing-palette.js';
@@ -422,6 +422,8 @@ export class WorkspaceBoard {
         const id = select.dataset.placementSelect;
         this.toggleOccurrence({placementId:id});
       }
+      const versions = e.target.closest("#world [data-file-version-menu]");
+      if (versions) { e.preventDefault(); this.versionMenu(versions, e); return; }
       const editDocument = e.target.closest("[data-edit-document-item]");
       if (editDocument) { e.preventDefault(); this.editDocument(editDocument.dataset.editDocumentItem); return; }
       const feedback = e.target.closest("[data-item-feedback]");
@@ -565,12 +567,45 @@ export class WorkspaceBoard {
     this.selectedFileVersions.set(concept.placement.id, target.id);
     this.build([concept], card);
   }
-  fileVersionTicker(item, version) {
+  // A version stack's versions as a menu of radio items, one shared menu at the end of <body> for every card (popups.js):
+  // choosing one shows it on this card, as the arrows do, and closes the menu. A Menu rather than a Select: one list
+  // serves every card's trigger, which are rebuilt with their cards (ui-sdk.md § Version stacks).
+  versionMenuElement() {
+    if (this.versionMenuUI) return this.versionMenuUI;
+    const ui = this.versionMenuUI = sharedMenu({id:"file-version-menu", label:"Versions", className:"file-version-menu"});
+    ui.content.setAttribute("align", "center");
+    ui.content.setAttribute("side-offset", "6");
+    ui.content.setAttribute("collision-padding", "8");
+    ui.content.addEventListener("valuechange", e => {
+      const id = ui.root.api.getPayload(), concept = this.hooks.concepts().find(c => c.placement?.id === id);
+      const card = document.querySelector(`[data-placement="${CSS.escape(id || "")}"]`);
+      if (!concept || !fileVersion(concept.graphItem, e.detail.value)) return;
+      this.selectedFileVersions.set(id, e.detail.value);
+      this.build([concept], card);
+    }, true);
+    ui.root.addEventListener("openchange", e => { if (!e.detail.value) { const id = this.versionMenuPlacement; this.versionMenuPlacement = null; document.querySelector(`[data-file-version-menu="${CSS.escape(id || "")}"]`)?.setAttribute("aria-expanded", "false"); } });
+    return ui;
+  }
+  versionMenu(button, event) {
+    const id = button.dataset.fileVersionMenu, concept = this.hooks.concepts().find(c => c.placement?.id === id);
+    if (!concept) return;
+    const {root, content} = this.versionMenuElement();
+    const current = this.displayedFileVersion(concept);
+    content.innerHTML = menuRadioGroup("file-version", "Versions", fileVersions(concept.graphItem).map(v => [v.id, v.name, {detail: modifiedTime(v.modifiedAt) ? `Modified ${modifiedTime(v.modifiedAt).short}` : ""}]), current?.id || "", {closeOnSelect:true});
+    this.versionMenuPlacement = id;
+    button.setAttribute("aria-expanded", "true");
+    const selector = `[data-file-version-menu="${CSS.escape(id)}"]`;
+    openMenu(root, {anchor:{getBoundingClientRect:() => (document.querySelector(selector) || button).getBoundingClientRect()}, event, payload:id, returnTo:selector});
+  }
+  fileVersionTicker(item, version, placementId = "") {
     const { previous, next } = nearbyFileVersions(item, version.id);
     const time = modifiedTime(version.modifiedAt);
     const title = `File version ${version.name}${time ? ` · Modified ${time.exact}` : ""}`;
     const arrow = (direction, candidate, path) => `<button type="button" data-file-version-step="${direction}" aria-label="${direction === "previous" ? "Previous" : "Next"} version" aria-disabled="${!candidate}" title="${candidate ? `Show ${esc(candidate.name)}` : direction === "previous" ? "Oldest version" : "Newest version"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg></button>`;
-    return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${previous || next ? arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5") : ""}<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" title="${esc(title)}">${esc(version.name)}</span>${previous || next ? arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5") : ""}</span>`;
+    // The name is a menu button listing every version (versionMenu); the arrows step to the neighbours.
+    const choose = previous || next ? `<button type="button" class="workspace-file-version-name" data-file-version-menu="${esc(placementId)}" aria-haspopup="menu" aria-expanded="${this.versionMenuPlacement === placementId}" aria-label="${esc(title)}: choose a version" title="${esc(title)}"><span role="status">${esc(version.name)}</span></button>`
+      : `<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" title="${esc(title)}">${esc(version.name)}</span>`;
+    return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${previous || next ? arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5") : ""}${choose}${previous || next ? arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5") : ""}</span>`;
   }
   aliasConcept(key) {
     const p = this.snapshot.placements.find(
@@ -796,7 +831,7 @@ export class WorkspaceBoard {
   boardCommandBlocked(event) {
     return this.clipboardBlocked() || this.history?.busy ||
       event?.target.closest?.("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]") ||
-      document.activeElement?.closest("[role=textbox]");
+      document.activeElement?.closest("[role=textbox]") || inPopup(event);
   }
   installBoardCommands(bar) {
     const guide = document.createElement("button");
@@ -1525,7 +1560,7 @@ export class WorkspaceBoard {
       const tileNumber = String(c.shownNumber ?? "").trim().slice(0, 8);
       const titleButton = `${tileNumber ? `<span class="workspace-concept-number workspace-caption-number">${esc(tileNumber)}</span>` : ""}<button type="button" class="workspace-panel-title" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" title="${esc(item.title)}">${esc(item.title)}</button>`;
       const select = `<button type="button" class="workspace-select-dot" data-placement-select="${esc(p.id)}" aria-pressed="${selected}" aria-label="${selected ? "Deselect" : "Select"} ${esc(item.title)}" title="${selected ? "Deselect" : "Select"} (or Shift-click the item)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10.2 3 3 6-6.4"/></svg></button>`;
-      const ticker = version && !unavailable && !this.hooks.viewOnly ? this.fileVersionTicker(item, version) : "";
+      const ticker = version && !unavailable && !this.hooks.viewOnly ? this.fileVersionTicker(item, version, p.id) : "";
       const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${ticker}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize ${esc(item.title)}" title="Drag to resize, or focus and use arrow keys" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown">◢</button>` : ""}</footer>`;
       const more = `<button type="button" class="workspace-tile-more" data-item-controls="${esc(p.id)}" data-controls-focus="menu" aria-label="Actions for ${esc(item.title)}" aria-haspopup="menu" aria-expanded="${this.tileMenuPlacement === p.id}" title="Item actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>${review.note ? '<span class="workspace-note-dot" aria-hidden="true"></span>' : ""}</button>`;
       const toolbar = `<div class="workspace-tile-toolbar" role="toolbar" aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" title="Edit document (E)">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" title="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" title="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" title="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`;
@@ -2100,10 +2135,11 @@ export class WorkspaceBoard {
     // A menu button in a toolbar (Arrange in the selection bar) opens on ArrowDown through the toolbar's own listener
     // (popups.js openOnArrowDown), which runs after this capture-phase handler: the board steps aside.
     if (e.key === "ArrowDown" && !e.shiftKey && e.target.closest?.("[role=toolbar] [aria-haspopup], ui-toolbar [aria-haspopup]")) return true;
-    const more = ["ArrowDown","ArrowUp"].includes(e.key) && !e.shiftKey && e.target.closest?.('[data-item-controls][data-controls-focus="menu"]');
+    const more = ["ArrowDown","ArrowUp"].includes(e.key) && !e.shiftKey && e.target.closest?.('[data-item-controls][data-controls-focus="menu"], #world [data-file-version-menu]');
     if (!more) return false;
     e.preventDefault(); e.stopImmediatePropagation();
-    this.tileMenu(more.dataset.itemControls, null, more, e);
+    if (more.dataset.fileVersionMenu) this.versionMenu(more, e);
+    else this.tileMenu(more.dataset.itemControls, null, more, e);
     return true;
   }
 

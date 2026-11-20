@@ -1,5 +1,5 @@
 import {writesReady} from './update-hold.js';
-import {TileNotes, positionTilePopover, bindTileMenu} from './tile-ui.js';
+import {TileNotes} from './tile-ui.js';
 import {ProjectNavigator} from './navigator.js';
 import {mountAppearance} from './appearance.js';
 import { watchBoard } from './live.js';
@@ -20,7 +20,7 @@ import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
-import {inPopup, openOnArrowDown} from './popups.js';
+import {inPopup, openOnArrowDown, guardMenu, menuRadioGroup, sharedMenu, openMenu, menuItem, menuLink, menuSeparator} from './popups.js';
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './version-stack.js';
 
 const $ = id => document.getElementById(id);
@@ -704,6 +704,18 @@ function renderRevisionOptions() {
   $('revision-options').innerHTML = versions.map(variant => `<button type="button" class="tk-mi" data-revision-choice="${esc(variant.id)}" aria-pressed="${variant.id === activeVariantId}"><span>${esc(variant.name)}</span></button>`).join('');
 }
 
+// The version strip's name opens every version as a menu of radio items (board.html #reader-version-menu, inside the
+// reader dialog); choosing one opens it, as the arrows do.
+const readerVersionMenu = guardMenu($('reader-version-menu'));
+readerVersionMenu.addEventListener('openchange', event => {
+  if (!event.detail.value) return;
+  const item = active?.graphItem;
+  $('reader-version-list').innerHTML = menuRadioGroup('reader-file-version', 'Versions', fileVersions(item).map(v => [v.id, v.name, { detail: modifiedTime(v.modifiedAt) ? `Modified ${modifiedTime(v.modifiedAt).short}` : '' }]), fileVersion(item, activeVariantId)?.id || '', { closeOnSelect: true });
+});
+$('reader-version-list').addEventListener('valuechange', event => {
+  if (active && event.detail.value && event.detail.value !== activeVariantId) openReader(active.key, event.detail.value, { focus: 'keep' });
+  if (!readerInfo.hidden) renderReaderInfo();
+}, true);
 function renderFileVersionControls() {
   const item = active?.graphItem;
   const group = $('reader-file-versions');
@@ -713,6 +725,7 @@ function renderFileVersionControls() {
   const { previous, next } = nearbyFileVersions(item, activeVariantId);
   const name = version ? `File version ${version.name}` : currentVariant()?.name || 'Original';
   if ($('reader-file-version-name').textContent !== name) $('reader-file-version-name').textContent = name;
+  $('reader-file-version-choose').setAttribute('aria-label', `${name}${version?.modifiedAt && modifiedTime(version.modifiedAt) ? `, modified ${modifiedTime(version.modifiedAt).short}` : ''}: choose a version`);
   const time = $('reader-file-version-modified'), modified = modifiedTime(version?.modifiedAt);
   const timeLabel = version ? modified ? `Modified ${modified.short}` : 'Modified time unavailable' : '';
   if (time.textContent !== timeLabel) time.textContent = timeLabel;
@@ -757,7 +770,7 @@ function renderReaderHeader() {
   $('reader-name').textContent = name;
   // The opened item carries its kind, as its card on the board does.
   markKind(document.querySelector('.reader-title-row'), active.graphItem || null);
-  $('reader-path').title = `${name}${hint ? ` · ${hint}` : ''} · hover or click for where you are`;
+  $('reader-path').title = `${name}${hint ? ` · ${hint}` : ''} · click for where you are`;
   const number = shownNumber(active);
   $('reader-number').textContent = number;
   $('reader-number').hidden = !number;
@@ -934,10 +947,11 @@ function closeReader({ history: mode = 'push' } = {}) {
   if (returnKey) requestAnimationFrame(() => returnToTile(returnKey));
 }
 
-// ---- The path: hover or click the title for where you are and what sits beside it ----
+// ---- The path: click the title (or the count) for where you are and what sits beside it ----
 let readerPathExpanded = false;
+// Rows are UI SDK menu items (reader-path.js); "… n more" unfolds the path in place, so it keeps the menu open.
 function readerPathRow({ go, title, kind = '', n = null, current = false, depth = 0 }) {
-  return `<button type="button" class="reader-path-row${current ? ' is-current' : ''}" data-path-go="${esc(go)}"${current ? ' aria-current="true"' : ''} style="--depth:${Math.min(depth, 6)}">${n != null ? `<span class="reader-path-n">${n}</span>` : ''}<span class="reader-path-title">${esc(title)}</span><span class="reader-path-kind">${esc(current ? 'here' : kind)}</span></button>`;
+  return `<ui-menu-item class="reader-path-row${current ? ' is-current' : ''}" value="${esc(go)}" data-path-go="${esc(go)}" label="${esc(title)}"${current ? ' aria-current="true"' : ''}${go === 'expand' ? ' close-on-select="false"' : ''} style="--depth:${Math.min(depth, 6)}">${n != null ? `<span class="reader-path-n">${n}</span>` : ''}<span class="reader-path-title">${esc(title)}</span><span class="reader-path-kind">${esc(current ? 'here' : kind)}</span></ui-menu-item>`;
 }
 function renderReaderPath() {
   if (!active) return '';
@@ -952,11 +966,11 @@ function renderReaderPath() {
   rows.push({ go: 'here', title: `${shownNumber(active) ? `${shownNumber(active)} · ` : ''}${descriptor(active, currentVariant()).name}`, current: true });
   const child = graph?.childInfo(active.graphItem);
   if (child) rows.push({ go: 'down', title: child.title, kind: child.count == null ? 'Its board' : `Its board · ${child.count}` });
-  let html = `<section class="reader-path-section" aria-label="Where you are"><span class="tk-eyebrow">Where you are</span><ol class="reader-path-ladder">${rows.map((row, depth) => `<li>${readerPathRow({ ...row, depth })}</li>`).join('')}</ol></section>`;
+  let html = `<ui-menu-group class="reader-path-section"><ui-menu-group-label class="tk-eyebrow">Where you are</ui-menu-group-label><div class="reader-path-list reader-path-ladder">${rows.map((row, depth) => readerPathRow({ ...row, depth })).join('')}</div></ui-menu-group>`;
   const sequence = readerSequence();
-  if (sequence.length) html += `<section class="reader-path-section reader-path-sibs" aria-label="On ${esc(current)}"><span class="tk-eyebrow">On ${esc(current)} · ${sequence.length}</span><ol>${sequence.map((concept, i) => `<li>${readerPathRow({ go: `item:${concept.key}`, title: `${shownNumber(concept) ? `${shownNumber(concept)} · ` : ''}${concept.name}`, kind: readerKind(concept), n: i + 1, current: concept.key === active.key })}</li>`).join('')}</ol></section>`;
+  if (sequence.length) html += `<ui-menu-group class="reader-path-section reader-path-sibs"><ui-menu-group-label class="tk-eyebrow">On ${esc(current)} · ${sequence.length}</ui-menu-group-label><div class="reader-path-list">${sequence.map((concept, i) => readerPathRow({ go: `item:${concept.key}`, title: `${shownNumber(concept) ? `${shownNumber(concept)} · ` : ''}${concept.name}`, kind: readerKind(concept), n: i + 1, current: concept.key === active.key })).join('')}</div></ui-menu-group>`;
   const also = active.graphItem ? graph.alsoOn(active.graphItem.id) : [];
-  if (also.length) html += `<section class="reader-path-section" aria-label="Also on"><span class="tk-eyebrow">Also on</span><ol>${also.map(b => `<li>${readerPathRow({ go: `reveal:${b.id}:${b.placementId}`, title: b.title, kind: 'Board' })}</li>`).join('')}</ol></section>`;
+  if (also.length) html += `<ui-menu-group class="reader-path-section"><ui-menu-group-label class="tk-eyebrow">Also on</ui-menu-group-label><div class="reader-path-list">${also.map(b => readerPathRow({ go: `reveal:${b.id}:${b.placementId}`, title: b.title, kind: 'Board' })).join('')}</div></ui-menu-group>`;
   return html;
 }
 function readerPathGo(target) {
@@ -965,14 +979,12 @@ function readerPathGo(target) {
   else if (kind === 'up') closeReader();
   else if (kind === 'down') goDown();
   else if (kind === 'here') focusTinka();
-  else if (kind === 'expand') { readerPathExpanded = true; readerPath.open($('reader-path'), { pinned: true, focus: true }); }
+  else if (kind === 'expand') { readerPathExpanded = true; readerPath.refresh(); }
   else if (kind === 'item') { const key = target.slice(5); if (key !== active?.key) openReader(key, null, { history: 'replace' }); else focusTinka(); }
   else if (kind === 'board') void leaveReaderTo(`/boards/${encodeURIComponent(a)}/${b ? `?from=${encodeURIComponent(b)}` : ''}`);
   else if (kind === 'reveal') void leaveReaderTo(`/boards/${encodeURIComponent(a)}/?reveal=${encodeURIComponent(b)}`);
 }
-$('reader-count').dataset.pathHover = 'false';
-$('reader-count').dataset.pathFocus = '.reader-path-sibs [aria-current="true"]';
-const readerPath = new ReaderPath($('reader-path-pop'), { anchors: [$('reader-path'), $('reader-count')], render: renderReaderPath, go: readerPathGo });
+const readerPath = new ReaderPath($('reader-path-menu'), { render: renderReaderPath, go: readerPathGo });
 
 // ---- The opened Tinka's Inspector: where it lives first, then feedback, version and one More menu ----
 readerInfo.innerHTML = `<header class="calm-side-head"><span class="tk-eyebrow" id="reader-info-kind">Tinka</span><button type="button" class="tk-btn tk-sm tk-icon" data-reader-act="close" aria-label="Close inspector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header><div class="calm-side-body"><div id="reader-info-body" class="reader-info-body"></div><section class="inspector-sec reader-info-view" aria-labelledby="reader-appearance-heading"><h3 id="reader-appearance-heading">Appearance <span>this browser</span></h3><div class="inspector-row" id="reader-info-view-row"></div></section><p id="reader-info-status" class="reader-info-status" role="status" hidden></p></div>`;
@@ -1302,7 +1314,6 @@ addEventListener('pageshow', event => { if (event.persisted) landFromChild(); })
 function handleEscape(event) {
   const keyEvent=event||{key:'Escape',defaultPrevented:false,isComposing:false,preventDefault(){},stopImmediatePropagation(){}};
   if(graph?.feedback?.consumeEscape(keyEvent))return true;
-  if (readerPath.isOpen) { readerPath.close({ focus: true }); return true; }
   if (!readerInfo.hidden) { setReaderInfoOpen(false, { focus: true }); return true; }
   if (projectNavigator?.isOpen && projectNavigator.hostEl) { projectNavigator.hide(); return true; }
   if (notesOpen && $('notes-panel').contains(document.activeElement)) { setNotesOpen(false); return true; }
@@ -1355,21 +1366,53 @@ async function openTileNote(key,anchor){
   if(!anchor?.isConnected||!tile?.contains(anchor))anchor=tile?.querySelector(graph?'[data-item-controls]':'[data-legacy-menu]')||anchor;
   closeLegacyMenu();graph?.closeContext();tileNotes.open({key,title:concept.name,anchor});
 }
-let legacyMenu=null,legacyMenuKey=null,legacyMenuBinding=null;
-function closeLegacyMenu(focus=false){legacyMenuBinding?.destroy();legacyMenuBinding=null;const key=legacyMenuKey;legacyMenu?.remove();legacyMenu=null;legacyMenuKey=null;const button=document.querySelector(`[data-legacy-menu="${CSS.escape(key||'')}"]`);button?.setAttribute('aria-expanded','false');if(focus)button?.focus({preventScroll:true});}
-function openLegacyMenu(key,anchor){
-  if(legacyMenuKey===key){closeLegacyMenu(true);return;}
-  closeLegacyMenu();tileNotes.close();
+// A legacy board's card menu (its ⋯): the same UI SDK menu pattern as a graph board's card menu (popups.js), one shared
+// menu at the end of <body> opened from code against the pressed ⋯, which the board re-renders. Items run through the
+// menu's action event; focus returns to the ⋯.
+let legacyMenuUI=null,legacyMenuKey=null;
+function legacyMenuElement(){
+  if(legacyMenuUI)return legacyMenuUI;
+  legacyMenuUI=sharedMenu({id:'legacy-tile-menu',className:'workspace-tile-menu legacy-tile-menu'});
+  legacyMenuUI.content.setAttribute('align','end');legacyMenuUI.content.setAttribute('side-offset','6');legacyMenuUI.content.setAttribute('collision-padding','8');
+  legacyMenuUI.root.addEventListener('openchange',event=>{if(event.detail.value)return;const key=legacyMenuKey;legacyMenuKey=null;document.querySelector(`[data-legacy-menu="${CSS.escape(key||'')}"]`)?.setAttribute('aria-expanded','false');});
+  legacyMenuUI.root.addEventListener('action',event=>runLegacyMenu(event.detail.value,legacyMenuUI.root.api.getPayload()));
+  // A turn of the wheel or a resized window leaves the card behind: the menu closes, as before.
+  const away=event=>{if(legacyMenuUI.root.open&&!(event.target instanceof Node&&legacyMenuUI.content.contains(event.target)))closeLegacyMenu();};
+  document.addEventListener('wheel',away,{capture:true,passive:true});
+  window.addEventListener('resize',away);
+  return legacyMenuUI;
+}
+const legacyMenuOpen=()=>!!legacyMenuUI?.root.open;
+function closeLegacyMenu(){if(legacyMenuOpen())legacyMenuUI.root.api.close({reason:'imperative'});}
+function openLegacyMenu(key,anchor,event){
+  tileNotes.close();
   const concept=all.find(c=>c.key===key);if(!concept)return;
   const handoff=safeBoardPath(concept.handoff),unavailable=['reserved','building'].includes(liveSnapshot?.concepts?.[key]?.state);
-  const menu=document.createElement('div');menu.className='tk-menu workspace-tile-menu legacy-tile-menu';menu.setAttribute('role','menu');menu.setAttribute('aria-label',`Actions for ${concept.name}`);
-  menu.innerHTML=`<button role="menuitem" class="tk-mi" data-open="${esc(key)}" ${unavailable?'disabled':''}>Open experiment</button>${(revisions[key]||[]).map(variant=>`<button role="menuitem" class="tk-mi" data-open="${esc(key)}" data-revision="${esc(variant.id)}" ${unavailable?'disabled':''}>Try ${esc(variant.name)}</button>`).join('')}${handoff?`<a role="menuitem" class="tk-mi" href="${esc(handoff)}" target="_blank" rel="noopener">Handoff</a>`:''}<button role="menuitem" class="tk-mi" data-tile-notes="${esc(key)}">Notes</button><div class="tk-msep" role="separator"></div><button role="menuitem" class="tk-mi tk-danger" data-remove-experiment="${esc(key)}">Remove from board…</button>`;
-  legacyMenu=menu;legacyMenuKey=key;document.body.append(menu);anchor.setAttribute('aria-expanded','true');positionTilePopover(menu,anchor);legacyMenuBinding=bindTileMenu(menu,{close:()=>closeLegacyMenu(),returnFocus:anchor,anchor});
-  menu.addEventListener('click',event=>{if(event.target.closest('[role="menuitem"]'))closeLegacyMenu();});
+  const {root,content}=legacyMenuElement();
+  content.setAttribute('aria-label',`Actions for ${concept.name}`);
+  content.innerHTML=menuItem('open','Open experiment',{disabled:unavailable})
+    +(revisions[key]||[]).map(variant=>menuItem(`revision:${variant.id}`,`Try ${variant.name}`,{disabled:unavailable})).join('')
+    +(handoff?menuLink(handoff,'Handoff'):'')
+    +menuItem('notes','Notes')+menuSeparator+menuItem('remove','Remove from board…',{destructive:true,className:'tk-danger'});
+  if(legacyMenuKey&&legacyMenuKey!==key)document.querySelector(`[data-legacy-menu="${CSS.escape(legacyMenuKey)}"]`)?.setAttribute('aria-expanded','false');
+  legacyMenuKey=key;anchor.setAttribute('aria-expanded','true');
+  const selector=`[data-legacy-menu="${CSS.escape(key)}"]`;
+  openMenu(root,{anchor:{getBoundingClientRect:()=>(document.querySelector(selector)||anchor).getBoundingClientRect()},event,payload:key,returnTo:selector});
 }
-document.addEventListener('click',event=>{const menu=event.target.closest('[data-legacy-menu]');if(menu)openLegacyMenu(menu.dataset.legacyMenu,menu);const note=event.target.closest('[data-tile-notes]');if(note)openTileNote(note.dataset.tileNotes,note);});
-document.addEventListener('pointerdown',event=>{if(legacyMenu&&!event.target.closest('.legacy-tile-menu,[data-legacy-menu]'))closeLegacyMenu();},true);
-window.addEventListener('resize',()=>closeLegacyMenu());
+function runLegacyMenu(action,key){
+  const concept=all.find(c=>c.key===key);if(!concept||!action)return;
+  if(action==='open'||action.startsWith('revision:')){tileNotes.close();openReader(key,action==='open'?undefined:action.slice(9));}
+  else if(action==='notes')openTileNote(key,document.querySelector(`[data-legacy-menu="${CSS.escape(key)}"]`));
+  else if(action==='remove'&&appConfig)openRemovalPrompt(appConfig,board,concept);
+}
+// The ⋯ opens and closes its menu (a press on an open menu's ⋯ closes it: the menu consumes that press).
+document.addEventListener('click',event=>{const menu=event.target.closest('[data-legacy-menu]');if(menu)openLegacyMenu(menu.dataset.legacyMenu,menu,event);const note=event.target.closest('[data-tile-notes]');if(note)openTileNote(note.dataset.tileNotes,note);});
+// ArrowDown / ArrowUp on a focused ⋯ open its menu at the first / last item, as on any menu button.
+document.addEventListener('keydown',event=>{
+  if(!['ArrowDown','ArrowUp'].includes(event.key)||event.altKey||event.metaKey||event.ctrlKey||event.shiftKey)return;
+  const button=event.target.closest?.('[data-legacy-menu]');if(!button)return;
+  event.preventDefault();event.stopImmediatePropagation();openLegacyMenu(button.dataset.legacyMenu,button,event);
+},true);
 
 // ---- Notes ----
 function applyNotes() {
@@ -1647,7 +1690,6 @@ function setInfoOpen(open, { focus = false } = {}) {
 document.addEventListener('pointerdown', event => {
   const remove = event.target.closest('[data-remove-experiment]');
   if (remove && event.button === 0) { event.preventDefault(); remove.focus({ preventScroll: true }); }
-  if (readerPath.isOpen && !event.target.closest('#reader-path-pop, #reader-path, #reader-count')) readerPath.close({ focus: false });
   if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
 });
 document.addEventListener('pointerdown', event => {
@@ -1713,7 +1755,6 @@ document.addEventListener('keydown', event => {
   // An open UI SDK menu or popover takes its own Escape (it closes one layer and returns focus).
   if (inPopup(event)) return;
   if (tileNotes.element) {event.preventDefault();event.stopImmediatePropagation();tileNotes.close({focus:true});return;}
-  if (legacyMenu) {event.preventDefault();event.stopImmediatePropagation();closeLegacyMenu(true);return;}
   if (dialog.open) { if (projectNavigator?.panel?.contains(event.target)) return; handleEscape(event); event.preventDefault(); return; }
   if (!$('board-info').hidden) { event.preventDefault(); setInfoOpen(false, { focus: true }); }
 }, true);
