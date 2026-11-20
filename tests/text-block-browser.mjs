@@ -91,7 +91,7 @@ try {
   await toolbar.getByRole('button',{name:'Done'}).click();
   await block.getByText('Text not saved',{exact:true}).waitFor();
   assert.equal((await read()).text,revised);
-  await block.getByRole('button',{name:'Retry'}).click();
+  await block.getByRole('button',{name:'Retry',exact:true}).click();
   await until(async()=>(await read()).text==='# Kept for retry');
   await label.getByRole('heading',{name:'Kept for retry'}).waitFor();
 

@@ -5,17 +5,24 @@ import {boardStepCommand, boardStepTarget, isSteppable} from '../public/board-st
 const key = (k, extra = {}) => ({key: k, code: '', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...extra});
 
 test('board steps take the opened Tinka chord only: ⌥←/→ on a Mac, Ctrl+←/→ elsewhere', () => {
-  assert.equal(boardStepCommand(key('ArrowRight', {altKey: true}), {mac: true}), 'next');
-  assert.equal(boardStepCommand(key('ArrowLeft', {altKey: true}), {mac: true}), 'previous');
+  // On a Mac ⌥←/→ moves the focused item (UI SDK canvas norm), so the board steps with [ and ] (the opened Tinka's own
+  // fallback keys); off a Mac Ctrl+←/→ steps too.
+  assert.equal(boardStepCommand(key(']'), {mac: true}), 'next');
+  assert.equal(boardStepCommand(key('['), {mac: true}), 'previous');
+  assert.equal(boardStepCommand(key(']'), {mac: false}), 'next');
+  assert.equal(boardStepCommand(key('ArrowRight', {altKey: true}), {mac: true}), null, '⌥→ moves the focused item on a Mac');
+  assert.equal(boardStepCommand(key('ArrowLeft', {altKey: true}), {mac: true}), null);
   assert.equal(boardStepCommand(key('ArrowRight', {ctrlKey: true}), {mac: false}), 'next');
+  assert.equal(boardStepCommand(key('ArrowLeft', {ctrlKey: true}), {mac: false}), 'previous');
   assert.equal(boardStepCommand(key('ArrowRight', {ctrlKey: true}), {mac: true}), null, 'Ctrl+→ stays macOS Spaces');
-  assert.equal(boardStepCommand(key('ArrowLeft', {altKey: true}), {mac: false}), null, 'Alt+← stays browser Back');
-  assert.equal(boardStepCommand(key('ArrowRight'), {mac: true}), null, 'plain arrows keep nudging the selection');
+  assert.equal(boardStepCommand(key('ArrowLeft', {altKey: true}), {mac: false}), null, 'Alt+← moves the focused item (or stays browser Back)');
+  assert.equal(boardStepCommand(key('ArrowRight'), {mac: true}), null, 'plain arrows move focus between items');
   assert.equal(boardStepCommand(key('ArrowUp', {altKey: true}), {mac: true}), null, 'up and down are the opened Tinka’s');
-  assert.equal(boardStepCommand(key(']'), {mac: true}), null);
+  assert.equal(boardStepCommand(key(']', {altKey: true}), {mac: true}), null, 'a modified bracket is not a step');
+  assert.equal(boardStepCommand(key(']', {metaKey: true}), {mac: true}), null);
   assert.equal(boardStepCommand(key('f'), {mac: true}), null);
-  assert.equal(boardStepCommand(key('ArrowRight', {altKey: true, shiftKey: true}), {mac: true}), null);
-  assert.equal(boardStepCommand(key('ArrowRight', {altKey: true}), {mac: true, editable: true}), null, 'text fields keep the chord');
+  assert.equal(boardStepCommand(key(']'), {mac: true, editable: true}), null, 'text fields keep their brackets');
+  assert.equal(boardStepCommand(key('ArrowRight', {ctrlKey: true}), {mac: false, editable: true}), null, 'text fields keep the chord');
 });
 
 test('the board skips what the stepper skips', () => {
