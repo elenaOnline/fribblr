@@ -62,8 +62,9 @@ The glue, all in `public/`:
    (closed popups hidden, default display). Popup content floats: `data-height="float"` or an existing float class
    (`depth.css` lists them). Keys stay raised. State styles key off the SDK's attributes (`data-open`,
    `data-highlighted`, `data-checked`, `data-pressed`, `data-disabled`, `data-pending`, `data-side`), never generated
-   ids. A theme rule in `tokens.css` or `depth.css` that must reach an SDK part names it by `[data-slot=…]`
-   (`.tk-seg > [data-slot=segmented-control-item]`). Focus rings use native `:focus-visible` on the element that
+   ids. `tokens.css` and `depth.css` belong to the theme: interface work never edits their values or rules, and
+   never copies their look into `ui-sdk.css` or a surface's stylesheet. When an SDK part needs a theme rule, ask for
+   the theme rule to name it by `[data-slot=…]` (as `.tk-seg > [data-slot=segmented-control-item]` does). Focus rings use native `:focus-visible` on the element that
    receives the behaviour.
 4. **Change events don't bubble, do pass the capture phase, and are cancelable** (`openchange`, `valuechange`,
    `pressedchange`, `checkedchange`, `pagechange`). `detail` is `{value, reason, event, source}`. Listen on the element,
