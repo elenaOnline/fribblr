@@ -26,7 +26,7 @@ import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
 import {followVisibility, setPressed, onPress} from './ui-toolbar.js';
-import {inPopup, openOnArrowDown, guardMenu, menuRadioGroup, sharedMenu, openMenu, menuItem, menuLink, menuSeparator} from './popups.js';
+import {inPopup, openOnArrowDown, guardMenu, menuRadioGroup, sharedMenu, openMenu, menuItem, menuLink, menuSeparator, openOnChecked} from './popups.js';
 import {segmentedHTML, setSegmented, focusSegmented} from './ui-segmented.js';
 import {tips, setTip} from './tips.js';
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './version-stack.js';
@@ -360,6 +360,10 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
 // behind fast or repeated arrows.
 function revealBox(box, { padding = 24 } = {}) {
   if (!graph || graph.mode === 'grid' || !box) return;
+  // Focus that arrived without preventScroll (a Tab) may already have scrolled the cushion: take that pan first, so the
+  // reveal measures from where the view really is (the scroll event that would carry it over comes a frame later).
+  const sx = viewport.scrollLeft - CUSHION, sy = viewport.scrollTop - CUSHION;
+  if (sx || sy) { settleCushion(); moveView(view.x - sx, view.y - sy); }
   const area = fitArea();
   // The floating footer and the edit tools rail sit over the canvas's bottom edge: the revealed item stays clear of both.
   const bottom = viewport.getBoundingClientRect().bottom;
@@ -776,7 +780,7 @@ function renderRevisionOptions() {
 
 // The version strip's name opens every version as a menu of radio items (board.html #reader-version-menu, inside the
 // reader dialog); choosing one opens it, as the arrows do.
-const readerVersionMenu = guardMenu($('reader-version-menu'));
+const readerVersionMenu = openOnChecked(guardMenu($('reader-version-menu')));
 readerVersionMenu.addEventListener('openchange', event => {
   if (!event.detail.value) return;
   const item = active?.graphItem;
@@ -1173,9 +1177,11 @@ function renderReaderInfo() {
     const count = threads?.length ? `${threads.length}${comments.value.nextCursor ? '+' : ''}` : '';
     const open = threads ? threads.filter(thread => !thread.resolved).length : 0;
     const totals = voteTotals(item.review?.votes), voted = totals.yes + totals.no + totals.abstain > 0;
+    // One vertical toolbar, as the same actions are one toolbar on the card's strip: ↑/↓ between the rows.
     feedback = `<section class="inspector-sec reader-feedback" aria-labelledby="reader-feedback-heading"><h3 id="reader-feedback-heading">Feedback</h3>
-      <button type="button" class="tk-btn reader-feedback-row" data-reader-act="comments"><span>Comments</span>${count ? `<span class="reader-count">${count}</span>` : ''}<small>${threads ? (threads.length ? `${open} open` : 'Start a conversation') : ''}</small></button>
-      <button type="button" class="tk-btn reader-feedback-row" data-reader-act="vote" aria-haspopup="dialog"><span>${voted ? 'Votes' : 'Vote…'}</span>${voted ? `<small>Yes ${totals.yes} · No ${totals.no} · Abstain ${totals.abstain}</small>` : ''}</button></section>`;
+      <ui-toolbar orientation="vertical" class="reader-feedback-rows" aria-labelledby="reader-feedback-heading">
+      <ui-toolbar-button><button type="button" class="tk-btn reader-feedback-row" data-reader-act="comments"><span>Comments</span>${count ? `<span class="reader-count">${count}</span>` : ''}<small>${threads ? (threads.length ? `${open} open` : 'Start a conversation') : ''}</small></button></ui-toolbar-button>
+      <ui-toolbar-button><button type="button" class="tk-btn reader-feedback-row" data-reader-act="vote" aria-haspopup="dialog"><span>${voted ? 'Votes' : 'Vote…'}</span>${voted ? `<small>Yes ${totals.yes} · No ${totals.no} · Abstain ${totals.abstain}</small>` : ''}</button></ui-toolbar-button></ui-toolbar></section>`;
   }
   const versionSection = versions.length ? `<section class="inspector-sec" aria-labelledby="reader-version-heading"><h3 id="reader-version-heading">Version</h3>${segmentedHTML({ label: 'Version', className: 'reader-version-seg', value: activeVariantId, items: versions.map(v => ({ value: v.id, label: v.name, attrs: { 'data-revision-choice': v.id } })) })}</section>` : '';
 
@@ -1237,7 +1243,8 @@ readerInfo.addEventListener('click', event => {
   else if (name === 'copy-agent') { const { file } = readerWhere(); if (file) void readerCopy(`${descriptor(active, currentVariant()).name}: ${file}`, 'Copied its name and file path for an agent.'); }
   else if (name === 'comments') { setReaderInfoOpen(false); graph?.feedback.open({ itemId: item.id, mode: 'reader', host: dialog.querySelector('.reader-area'), returnFocus: $('reader-info-toggle') }); }
   else if (name === 'vote') graph?.feedback.openVote({ itemId: item.id, anchor: button, returnFocus: $('reader-info-toggle') });
-  else if (name === 'edit') graph?.editItem(item);
+  // Over the Inspector, which stays open; focus comes back to Edit details… (found again: a save re-renders the panel).
+  else if (name === 'edit') graph?.editItem(item, () => readerInfo.querySelector('[data-reader-act="edit"]') || $('reader-info-toggle'));
   else if (['move', 'reference', 'feature'].includes(name) && active.placement) void graph?.organize(name, active.placement.id).catch(error => setSaveStatus(error.message, 'error'));
   else if (name === 'shortcuts') readerShortcuts();
 });
@@ -1246,7 +1253,8 @@ function readerShortcuts() {
   return makeDialog('Keyboard shortcuts', `<p>Use these keys on an opened Tinka. Text fields keep their own keys, and so does content you are working in.</p>
     <dl><dt>${MOD}← · ${MOD}→</dt><dd>Previous · next Tinka on this board (also while local content has focus)</dd>
     <dt>[ · ] or K · J</dt><dd>Previous · next Tinka</dd>
-    <dt>← · →</dt><dd>Previous · next, while Tinka (not the content) has focus</dd>
+    <dt>← · →</dt><dd>Previous · next, while Tinka (not the content) has focus and all of it is in view</dd>
+    <dt>Arrows · Shift-arrows</dt><dd>Pan, while zoomed in past fit (a screenful with Shift)</dd>
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
     <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
@@ -1267,6 +1275,8 @@ function readerTinkaFocus(target) {
   if (!target?.closest || !dialog.contains(target) || target === $('active-reader')) return false;
   return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
+// Which way an arrow pans a zoomed Tinka: towards the part it points at.
+const READER_PAN = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 function readerBlocked() { return !dialog.open || !!document.querySelector('.workspace-dialog:is([open],[data-open])'); }
 let readerAnnounceTimer = 0;
 function announceReaderView(text = `Zoom ${Math.round(readerCanvas.view.zoom * 100)}%`) {
@@ -1302,6 +1312,18 @@ document.addEventListener('keydown', event => {
   if (inPopup(event)) return;
   // The Navigator keeps its own arrows and typing.
   if (event.target?.closest?.('.project-navigator') && !event.altKey && !event.ctrlKey) return;
+  // Zoomed in past what fits, the arrows pan the view instead of stepping, as in Preview and Photos: 80 px a press (as on
+  // the board), a screenful with Shift; a held arrow keeps panning. They never step while zoomed, so a pan run to the
+  // edge never turns into a jump to another Tinka; F (or zooming out until it fits) gives ←/→ back their step, and
+  // [ ] J K and the step chord step at any zoom.
+  const pan = READER_PAN[event.key];
+  if (pan && !event.altKey && !event.ctrlKey && !event.metaKey && !event.isComposing && readerTinkaFocus(event.target) && !readerEditable(event.target) && readerCanvas.overflows()) {
+    event.preventDefault(); event.stopImmediatePropagation();
+    const { width, height } = readerCanvas.area();
+    const step = event.shiftKey ? [width * .875, height * .875] : [80, 80];
+    readerCanvas.panBy(-pan[0] * step[0], -pan[1] * step[1]);
+    return;
+  }
   const command = readerCommand(event, { mac: readerKeysMac, editable: readerEditable(event.target), tinkaFocus: readerTinkaFocus(event.target) });
   if (!command) return;
   event.preventDefault(); event.stopImmediatePropagation();
@@ -1937,7 +1959,14 @@ const zoomPopover = $('zoom-popover');
 zoomPopover.addEventListener('openchange', event => {
   if (!event.detail.value) return;
   readSelection();
-  $('zoom-menu').querySelector('[data-zoom-to="selection"]').hidden = !graph || graph.mode !== 'canvas' || !selectionInfo.count;
+  // The preset rows are a vertical toolbar (board.html). Fit selection comes and goes with the selection: hidden, and
+  // out of the toolbar's arrow order (followVisibility can't serve a toolbar inside a closed popover: nothing in it is
+  // rendered until it opens, after the SDK has chosen where focus starts).
+  const fitSelection = $('zoom-menu').querySelector('[data-zoom-to="selection"]'), off = !graph || graph.mode !== 'canvas' || !selectionInfo.count;
+  fitSelection.hidden = off;
+  const part = fitSelection.closest('ui-toolbar-button');
+  part.disabled = off;
+  if (off) part.setAttribute('focusable-when-disabled', 'false'); else part.removeAttribute('focusable-when-disabled');
 });
 function setZoomMenuOpen(open) {
   if (open) { if (!zoomPopover.open) zoomPopover.api?.open(); }
@@ -1960,8 +1989,9 @@ $('zoom-menu').addEventListener('click', event => {
   else changeZoom(Number(to));
 });
 // The % popover is a Popover, not a menu: Tab moves through its controls (popover.md), and arrows belong to the control
-// that has focus (the slider's change the zoom, the Pattern's choose). Arrows don't walk between its rows, so ↓ never
-// steps from a button onto the slider and the next ↓ never changes the zoom by surprise.
+// that has focus. The preset rows (Zoom to …, Fit) look like menu rows, so they are one vertical toolbar (↑/↓ with
+// wrap, Home/End); the slider after them is its own stop and its arrows change the zoom; the Pattern's choose. ↓ never
+// steps from a row onto the slider, so it never changes the zoom by surprise.
 // Segmented controls (ui-segmented.js): valuechange does not bubble, but it does pass through the capture phase, so one
 // listener on the document hears every copy (the zoom menu's, the Inspector's) and the others are kept in step.
 document.addEventListener('valuechange', event => {

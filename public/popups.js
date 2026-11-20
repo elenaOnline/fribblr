@@ -57,7 +57,47 @@ export function openMenu(root, {anchor, payload, event, focus, returnTo} = {}) {
   root.returnTo = returnTo;
   const opener = returnTo ? document.querySelector(returnTo) : null;
   if (opener && document.activeElement !== opener) opener.focus({preventScroll: true});
-  return root.api.open({anchor, payload, focus: focus ?? openFocus(event), event});
+  return root.api.open({anchor: inWindow(anchor, root), payload, focus: focus ?? openFocus(event), event});
+}
+
+// A menu stays inside the window, its collision padding clear of the edges. The SDK shifts a popup back into view only
+// as far as it still touches its anchor, so an anchor past the window's edge (the ⋯ of a card the board shows half,
+// Shift+F10 on it) would take the menu past the edge with it. Such an anchor is read clamped into the window, less the
+// padding, along the axis it runs past. An anchor inside the window (even inside a large padding that only keeps the
+// menu clear of a bar, as the comment cluster's does), and a point, are passed as they are.
+function inWindow(anchor, root) {
+  if (!anchor || typeof anchor.getBoundingClientRect !== 'function') return anchor;
+  const pad = Number(root.querySelector('ui-menu-content')?.getAttribute('collision-padding')) || 0;
+  const axis = (start, size, room) => {
+    if (start >= 0 && start + size <= room) return [start, size];
+    const fitted = Math.min(size, Math.max(0, room - pad * 2));
+    return [Math.min(Math.max(start, pad), room - pad - fitted), fitted];
+  };
+  const clamp = () => {
+    const r = anchor.getBoundingClientRect(), [x, width] = axis(r.left, r.width, document.documentElement.clientWidth), [y, height] = axis(r.top, r.height, document.documentElement.clientHeight);
+    return {inside: x === r.left && y === r.top && width === r.width && height === r.height, rect: new DOMRect(x, y, width, height)};
+  };
+  return clamp().inside ? anchor : {getBoundingClientRect: () => clamp().rect};
+}
+
+// A menu that picks one of several (a version list) opens on the checked item, as a select or a native pop-up menu does:
+// it is highlighted, and the arrows and typeahead go on from there. Opened by keys (first item) or by a pointer (the menu
+// itself), focus moves to the checked radio item once the SDK has placed its own first focus.
+export function openOnChecked(root) {
+  root.addEventListener('openchange', event => {
+    if (!event.detail.value) return;
+    const content = root.querySelector('ui-menu-content');
+    const move = () => {
+      const checked = content?.querySelector('[role=menuitemradio][aria-checked=true]');
+      if (!root.open || !checked || document.activeElement === checked) return true;
+      if (!content.contains(document.activeElement)) return false;
+      checked.focus();
+      return true;
+    };
+    // A pointer open focuses the menu itself a little later than a keyboard open focuses its first item.
+    requestAnimationFrame(() => { if (!move()) content.addEventListener('focusin', () => queueMicrotask(move), {once: true}); });
+  });
+  return root;
 }
 
 // A popover root with its content, appended to `host`; triggers reach it with `for=`.

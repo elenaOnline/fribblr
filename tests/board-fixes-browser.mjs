@@ -9,8 +9,9 @@
 //   Tab out of it or its panels goes on after the board, Option-F10 reaches it and Escape on it returns to the object;
 // - the bar's panels start on their checked option, or on their first control (never on ×), with no tooltip there, so
 //   one Escape closes them;
-// - in a popover, arrows don't walk between controls (Tab does), and a slider's arrows stay the slider's;
-// - the reader's path menu marks the current place with aria-current, not with the highlight's look.
+// - the % popovers' preset rows are one vertical toolbar; the slider after them is its own stop and owns its arrows;
+// - the reader's path menu marks the current place with aria-current, not with the highlight's look;
+// - at 390 px a menu stays inside the window, and Tab onto an item brings it into view.
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -278,17 +279,24 @@ try{
  await page.keyboard.press('Tab');ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-editor'))),'Tab past the bar goes back to the editor');
  await page.keyboard.press('Escape');await clear();
 
- // ---- 6. A popover is not a menu: arrows don't walk between its controls (Tab does); a slider's arrows are its own. ----
- for(const [where,toggle,slider,label]of[['board','#zoom-menu-toggle','#zoom-slider','Board zoom'],['reader','#reader-zoom-toggle','#reader-zoom-slider','Tinka zoom']]){
+ // ---- 6. The % popover's preset rows (Zoom to …, Fit) are one vertical toolbar: ↓ walks them and wraps, Home/End
+ // reach the ends, nothing zooms until Enter. The slider after them is its own Tab stop and owns its arrows. ----
+ for(const [where,toggle,slider,label,last]of[['board','#zoom-menu-toggle','#zoom-slider','Board zoom','Fit board'],['reader','#reader-zoom-toggle','#reader-zoom-slider','Tinka zoom','Fit this Tinka']]){
    if(where==='reader'){await clear();await page.locator(`#world .workspace-card[data-placement="${c.a}"]`).focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(500);}
    const zoomText=()=>page.locator(toggle).textContent().then(t=>t.trim());
+   const row=()=>page.evaluate(()=>document.activeElement.childNodes[0]?.textContent.trim());
    await page.locator(toggle).focus();await page.keyboard.press('ArrowDown');
-   ok(await until(()=>page.evaluate(sel=>!!document.activeElement?.closest('ui-popover-content'),toggle)),`↓ on % opens the ${where} popover, focus inside`);
-   const first=await page.evaluate(()=>document.activeElement.textContent.trim()),z0=await zoomText();
-   for(let i=0;i<4;i++){await page.keyboard.press('ArrowDown');await page.waitForTimeout(40);}
-   eq(await page.evaluate(()=>document.activeElement.textContent.trim()),first,`In the ${where} % popover, ↓ does not walk from its first control`);
-   eq(await zoomText(),z0,`and the ${where} zoom is unchanged`);
-   await page.keyboard.press('Tab');ok((await page.evaluate(()=>document.activeElement.textContent.trim()))!==first,`Tab moves on through the ${where} popover`);
+   ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('ui-popover-content ui-toolbar[aria-orientation=vertical]'))),`↓ on % opens the ${where} popover, focus on its preset rows`);
+   eq(await row(),'Zoom to 50%',`The ${where} popover opens on its first row`);
+   const z0=await zoomText();
+   eq(await page.evaluate(()=>[...document.activeElement.closest('ui-toolbar').querySelectorAll('button')].filter(b=>b.tabIndex===0&&!b.disabled&&!b.hidden).length),1,`The ${where} preset rows are one Tab stop`);
+   await page.keyboard.press('ArrowDown');eq(await row(),'Zoom to 100%',`↓ walks the ${where} preset rows`);
+   await page.keyboard.press('End');eq(await row(),last,`End reaches ${last}`);
+   await page.keyboard.press('ArrowDown');eq(await row(),'Zoom to 50%',`and ↓ wraps to the first row`);
+   await page.keyboard.press('ArrowUp');await page.keyboard.press('Home');eq(await row(),'Zoom to 50%','Home goes to the first row');
+   eq(await zoomText(),z0,`Walking the ${where} rows changes nothing`);
+   await page.keyboard.press('Tab');eq(await page.evaluate(()=>document.activeElement?.id),slider.slice(1),`Tab goes from the ${where} rows to the slider`);
+   await page.keyboard.press('Shift+Tab');eq(await row(),'Zoom to 50%','and Shift+Tab back to the rows');
    await page.locator(slider).focus();await page.keyboard.press('ArrowUp');
    ok(await until(async()=>(await zoomText())!==z0),`On the ${where} slider (${label}), the arrows change the zoom: the slider owns them`);
    eq(await page.evaluate(()=>document.activeElement?.id),slider.slice(1),'and focus stays on the slider');
@@ -310,6 +318,20 @@ try{
    if(step==='open')for(let i=0;i<8&&!(await pathRows()).some(r=>r.current&&r.highlighted);i++)await page.keyboard.press('ArrowDown');
  }
  await page.keyboard.press('Escape');await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});
+
+ // ---- 8. At 390 px, a menu stays inside the window, and Tab onto an item brings it into view. ----
+ await page.setViewportSize({width:390,height:844});await page.waitForTimeout(300);
+ await page.locator('#viewport').focus();await page.keyboard.press('0');await page.waitForTimeout(300);
+ const offRight=await page.evaluate(()=>[...document.querySelectorAll('#world .workspace-card')].find(card=>{const b=card.querySelector('[data-item-controls]')?.getBoundingClientRect();return b&&b.right>innerWidth-8;})?.dataset.placement);
+ ok(offRight,'a card whose ⋯ is past the window edge at 390 px');
+ await page.evaluate(id=>document.querySelector(`#world .workspace-card[data-placement="${id}"]`).focus({preventScroll:true}),offRight);
+ await page.keyboard.press('Shift+F10');await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor();await page.waitForTimeout(250);
+ {const r=await page.locator('#workspace-tile-menu ui-menu-content').evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth};});
+  ok(r.left>=8&&r.right<=r.width-8,`Shift+F10 on a card whose ⋯ is past the edge keeps the menu inside the window: ${JSON.stringify(r)}`);}
+ await page.keyboard.press('Escape');await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor({state:'detached'}).catch(()=>{});
+ await page.keyboard.press('Shift+Tab');await page.keyboard.press('Tab');
+ ok(await until(()=>page.evaluate(id=>{const a=document.activeElement,r=a.getBoundingClientRect();return a.dataset.placement===id&&r.left>=0&&r.right<=innerWidth;},offRight)),'Tab back onto the card brings it into view');
+ await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(200);
 
  // The starts, by name: the chosen swatch, the pressed arrowhead, the chosen shape.
  eq(panelStarts['arrow:Stroke color'],'Blue','The stroke palette starts on the chosen swatch');

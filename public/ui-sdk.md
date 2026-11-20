@@ -134,6 +134,11 @@ function open(button, event, placementId) {
   element, the pressed control or the focused element is marked `data-menu-return` and found by that. `focus`
   defaults to `openFocus(event)`: a keyboard open focuses the first item (↑: the last), a pointer open focuses the
   menu itself.
+- **A menu stays inside the window.** The SDK shifts a popup back into view only as far as it still touches its anchor,
+  so an anchor past the window's edge (the ⋯ of a card the board shows half, then Shift+F10) took the menu past the
+  edge. `openMenu` passes such an anchor (element or rect) clamped into the window less the content's
+  `collision-padding`, along the axis it runs past (`inWindow`). An anchor inside the window goes as it is, even
+  inside a large padding that only keeps the menu clear of a bar (the comment cluster's), and so does a point.
 - One menu element serves every card. Fill its content just before opening.
 - A popover opened from code: `root.api.open({anchor})`.
 
@@ -150,8 +155,9 @@ written back after a toggle, or the SDK puts it back.
 
 - Escape, a chosen item and Tab send focus back to the opener. For a shared menu, `openMenu` focuses the opener just
   before opening (the SDK returns a code-opened menu's focus to "the element focused before"), and if the opener was
-  re-rendered while open, `openchangecomplete` finds the new copy through `returnTo`. Tab in a shared menu focuses
-  the opener first, so the browser's Tab continues from there.
+  re-rendered while open, `openchangecomplete` finds the new copy through `returnTo`. A shared menu that closes with
+  focus still on one of its closed rows (a click away whose press was swallowed) also returns focus to its opener. Tab
+  in a shared menu focuses the opener first, so the browser's Tab continues from there.
 - A non-modal popover or dialog at the end of `<body>` (or of the reader dialog) is steered by a document Tab
   listener in `popups.js`: Tab from its last control closes a popover and focuses its trigger, so the browser's Tab
   continues after the trigger; Shift+Tab from the first control focuses the trigger. The trigger is found through
@@ -179,7 +185,9 @@ before the board's, stops it. Board handlers that run earlier, on `window` captu
 **Looks** (`popups.css`). Menu content gets `.tk-menu` (the menu face and the float height); items keep `.tk-mi`,
 separators `.tk-msep`, group labels `.tk-mlabel`, a second line `.tk-mi2`. `popups.css` removes the UA popover box
 that Menu content keeps, lights the highlighted item from `data-highlighted` only (`:hover` alone does not, so pointer
-and keys never light two rows), draws no focus ring on menu items (the fill is the indicator, as in native menus),
+and keys never light two rows), draws no focus ring on menu items (the fill is the indicator, as in native menus;
+the rule names `:root`, the content's `[data-slot]` and the item's role so it outweighs the theme's ring on
+`[tabindex]:focus-visible` in `tokens.css`, which it otherwise lost to),
 shows checks from `data-checked`, and caps size at `--available-height`. Where an old class set `display` or
 `position` on the hand-rolled popup, `popups.css` puts back `revert-layer`, or a closed popup would show.
 
@@ -232,7 +240,9 @@ setPressed(mapToggle, mapIsOpen);                     // property write, no even
   (the SDK's default for toolbar items): it stays in the arrow order and ignores presses. Writing `button.disabled`
   on a toolbar item takes it out of focus entirely. Outside a `headerToolbar`, `setItemDisabled` writes
   `button.disabled`. Elsewhere, an `aria-disabled` button inside a `ui-toolbar-button` behaves the same way (Fit
-  height once, Reload while busy).
+  height once, Reload while busy). It looks disabled too: a rule at the end of `calm.css` lays an `aria-disabled`
+  top-bar key flat in the frame with a hairline, as `depth.css` draws `:disabled` (Undo and Redo with nothing to undo).
+  The depth model has no `[aria-disabled]` rule of its own yet; the theme is asked for one, which would replace this.
 - **App-owned state.** `onPress(toggle, fn)` cancels the SDK's flip and calls `fn(requested)`; the app writes its answer
   with `setPressed(el, on)`. `onChoose(group, fn)` does the same for a toggle group, `setChoice(group, value)` writes
   it. The answer must be written after the event returns, because the SDK restores a cancelled change when its
@@ -308,8 +318,12 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
   `shortcutHint` as words); ⌘↩ saves (`bindForm`). Focus opens on `[autofocus]`, else the first field, else the close
   key. Tab wraps; Escape and a backdrop press close; focus returns to `opener` (default: the focused element). A
   save in flight holds the dialog open.
-- **Discard question.** Once a form with `onSubmit` has typed-in changes, the dialog becomes `dismissible=false`;
-  Escape or a backdrop press then asks "Discard your changes?" (an alert dialog). The × key never asks. A dialog with
+- **Discard question.** Only typed text asks. Once a text field or text area of a form with `onSubmit` holds text that
+  differs from what it held before her first edit (noted on `beforeinput`), the dialog becomes `dismissible=false`;
+  Escape or a backdrop press then asks, in an alert dialog titled "Discard the text you typed" ("Nothing in “Edit item”
+  is saved yet.", Keep editing / Discard). A choice (radio, checkbox, select, slider) never asks: it costs one press to
+  make again (the Move to a board destination). Text typed back to what it was asks nothing. The title is a statement,
+  not a question (plain, literal copy). The × key never asks. A dialog with
   `onDismiss(form)` keeps its draft instead and never asks; `onDismiss` runs as it closes unsaved, at once, so a
   dialog reopened straight away finds the draft.
 - **`confirmDialog({title, description, confirmLabel, cancelLabel, onConfirm, className})`** builds a
@@ -395,7 +409,16 @@ A control reaches the tooltip in one of two ways:
 - Leaving the control closes it at once, unless the pointer is inside the convex hull of control and tooltip, 4 px out.
 - Keyboard focus opens it at once; a click that focuses does not (the SDK's modality rule: the last input was a key,
   not a lone modifier, or Tab; a window blur mutes it until the next key). Focus leaving closes a tooltip focus opened.
-- A press (pointer down, Enter, Space) closes it; after a pointer press it stays closed until the pointer leaves.
+- Focus the app places opens nothing: focus that a key moved off the control it was pressed on, other than by walking
+  (Tab; arrows, Home, End, Page Up/Down inside a group; a typed letter), such as a panel's starting control after
+  Enter, focus handed back after Escape, or the drawing bar after Option-F10, and an arrow that leaves its group (↓ on
+  a bar button opening its panel). Nobody walked there, and a hint on it would take the first Escape meant for the
+  panel. Tab and arrows inside a group still open hints at once, and there the SDK's rule stands: Escape closes only
+  the tooltip. This applies to the delegate's focus opens and, through `openchange`, to wrapped triggers.
+- A press (pointer down, Enter, Space) closes it; after a press it stays closed until the pointer leaves.
+- A popup opening closes it, whatever opened the popup (a press, a key, code), and the delegated control under the
+  pointer counts as pressed (tooltip.md: pressing the trigger closes the tooltip, "pressing opens the popover
+  instead"). `tips.js` watches every non-tooltip `openchange` on `document` (capture) for this (§ 7, gap 23).
 - Escape closes only the tooltip. A controller open sits in no SDK layer, so the delegate takes the press (document
   capture) and stops it; the board's handlers have already stepped aside (`widgetOwnsKey`, `inPopup`).
 - Touch never opens one. Only the control that opened it is described by it (`aria-describedby` set while open,
@@ -403,7 +426,12 @@ A control reaches the tooltip in one of two ways:
 - Cases the SDK has no rule for: a pointer moving with a button held (drag, marquee) opens nothing; a control that
   leaves the page while its tooltip shows closes it (the anchor is read on every placement check); an iframe inside a
   hinted element is the page it shows, so the reader window's hint shows over its own box only; on `#world` the
-  tooltip carries `data-pass` (`pointer-events: none`) so presses reach what it covers.
+  tooltip carries `data-pass` (`pointer-events: none`) so presses reach what it covers; a control that arrives under a
+  resting pointer (a re-render: the pressed swatch rebuilt, a palette that shifts as a choice saves, a card's buttons
+  moving as its Vote count appears) opens nothing until the pointer moves, as native titles behave. The browser
+  reports such a control as entered (`pointerover`) with no `pointermove`, at the pointer's last position, so one
+  passive `pointermove` listener keeps that position (two numbers per move). A pressed control rebuilt that way hands
+  its press to its replacement.
 - Focus returning to a control after its popup closed doesn't reopen its hint: the tooltip cancels a `trigger-focus`
   open within 400 ms of a popup closing (`popupJustClosed()`; code that returns focus after closing something that is
   not an SDK popup calls `notePopupClosed()`).
@@ -493,6 +521,10 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   the floating footer (`revealBox`). Home / End go to the first card / the last item (cards first in reading order,
   then drawn elements). A held arrow keeps moving. Arrows pressed on a control inside an item stay with it (they pan,
   or scroll an overflowing Text block).
+- **Tab onto an item brings it into view** the same way (`revealElement`, from the `focusin` bookkeeping, only when a
+  Tab moved focus): the browser's own focus scrolling (carried over from the cushion as a pan) skips an item it shows in
+  part. A press, and focus coming back after the reader or a menu, never move the board. `revealBox` first takes any
+  cushion scroll the browser already made, so the two never add up.
 - **Containers are composite items.** Outside, a container is one item and the arrows pass over its members (they
   move among items with the same container, `scope()`). **Enter** goes in, to the member focused last there (the
   SDK's `remember: true`), else its first, and announces "Stack: 3 items. One. Escape returns to the container."
@@ -538,10 +570,24 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   makes it the focused item, so Option-arrow, Space and the board's commands act on what was pressed. A card takes
   focus natively, but Whiteboard's pointerdown prevents that for drawn elements and stops the event on document
   capture (a group drag can stop it on window capture), so `pressFocus` listens on window capture, registered before
-  Whiteboard mounts, and focuses the item by its key a frame later (the press's own selection may re-render it). A
-  press on empty canvas, or on a plain region's open middle, takes focus off the items. A press on a control inside a
-  card keeps native focus there. Pointer focus draws no ring (`pointer-focus.js` marks it `data-pointer-focus`),
-  except that the return pulse still shows. Checked in `tests/board-fixes-browser.mjs`.
+  Whiteboard mounts, and focuses the item by its key a frame later (the press's own selection may re-render it). Focus
+  that moved on within that frame (code acting on the press, a click an assistive technology sends in one go, a key
+  pressed straight after) is left where it went: only focus still where it was (the same element, or the same board
+  item re-rendered), or dropped to `<body>`, is moved. A press on empty canvas, or on a plain region's open middle,
+  takes focus off the items. A press on a control inside a card keeps native focus there. Pointer focus draws no ring
+  (`pointer-focus.js` marks it `data-pointer-focus`), except that the return pulse still shows. Checked in
+  `tests/board-fixes-browser.mjs` and `tests/canvas-keyboard-browser.mjs`.
+- **Focus follows what the app creates** (`focusCreated`). What the app creates and selects takes focus (the first of
+  it): Duplicate (⌘D, the card menu, the Inspector), Paste, imported files, an Option-drag copy, an arrow drawn from a
+  port, a new document's card (under its editor, so closing the editor comes back to it). So Option-arrow moves the
+  copy, never the original, as in Figma, tldraw and Excalidraw. Add's Text, shape, arrow and sticker focus what they
+  make. Focus in a field, an editor or a modal dialog stays. Quick jot is the exception: a jot is not selected, and
+  focus stays in its field for the next line. Checked in `tests/board-fixes-browser.mjs`.
+- **Comment pins are one Tab stop** (`comment-pins.js`), after the board's items and like them: the pin focused last
+  holds it (else the first in reading order), arrows move to the nearest pin that way (`nearestInDirection` on screen
+  boxes), Home / End reach the first and last, Enter or Space opens the focused pin (a cluster opens its list), and
+  Escape from its card comes back to it. The layer is a `role=group` named "Comments: N open". Checked in
+  `tests/comment-pins-browser.mjs`.
 - **Focus comes back.** Closing the reader returns focus to the card last viewed when it was opened from the board's
   items (§ Opened item). Escape in the selection bar clears it and sends focus to the board's roving item, else the
   first card, else the canvas (`afterBar`).
@@ -578,10 +624,21 @@ panel.close(); panel.toggle(options); panel.isOpen; panel.hadFocus;
   a shortcut opened it (⌘I), to whatever had focus. With focus elsewhere, the board's and the reader's Escape ladders
   close an open Inspector in their turn (focus stays put). Escape on an open Inspector's toggle closes it.
 - **Tab** leaves the panel and it stays open (popups.md § Focus: "A non-modal dialog stays open"). Order: toggle (in
-  the top bar's toolbar) → panel → the board.
+  the top bar's toolbar) → panel → the board. The item Inspector and the Comments panel sit at the end of `<body>`,
+  where the browser has nothing after their last control, so they take the popovers' Tab-out rule (`popups.js`) and
+  continue from what opened them: the item Inspector names it with `content.tabTrigger` (the control that opened it
+  while on screen, else the card's ⋯, else the card); the Comments panel (an `aside`) calls `tabOutOfPanel` with its
+  opener (else the item's Comments button or card, else the canvas). Shift+Tab from their first control goes back to
+  that opener.
 - **Outside press** closes it, except a press on one of its `openers` (they toggle), a press that began inside the
   panel (even if its target re-rendered away), a press on a detached node, and whatever `keepOpen(target)` accepts
   (modal dialogs, menus, the feedback panel, the vote ballot). A press into an iframe is not seen by the page.
+- **A dialog opened from an Inspector opens over it**, and the Inspector stays open behind (the dialog's press and
+  focus never count as leaving it): Keyboard shortcuts… (board and reader Inspectors), Edit item… (item Inspector),
+  Edit details… (reader Inspector), Comparison order…. Closing the dialog returns focus to the button that opened it,
+  so the next Escape closes the Inspector and returns to its toggle. After Edit item… saves, the item Inspector is
+  rebuilt in place at once (`itemControls(id, "edit", {again})`: no slide-in, the same return target), focus on Edit
+  item…; the reader Inspector re-renders, and its Edit details… is found again by an `opener` function.
 - Code that only knows the panel element closes it with `closePanel(content)`. Never write `hidden` on a panel the SDK
   owns (its state would not follow); reading `.hidden` is fine.
 - The item Inspector starts where its opener asks (Notes, the actions, Appearance). Opened from a menu item that has
@@ -706,6 +763,7 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | N | Quick jot |
 | ? | Keyboard shortcuts |
 | Shift+F10, context-menu key | Card menu on a focused card; board menu on the focused canvas |
+| ⌥ / Alt + F10 | The drawn-object bar, from anywhere outside a field (`whiteboard.js` `focusBarKey`); Escape on the bar returns to its object |
 | ⌥-drag | Place a copy (a pointer chord; never meets ⌥ + arrow) |
 
 Plain letters fire only on the board, never in a field, and inside a menu they are its typeahead.
@@ -715,12 +773,13 @@ Opened item (`reader-keys.js` `readerCommand`, `canvas.js`):
 | Keys | Action |
 |---|---|
 | ⌥ ← / → (Ctrl elsewhere), [ / ], K / J | Previous / next Tinka |
-| Plain ← / → | Previous / next, while focus is on Tinka's own chrome or canvas (`readerTinkaFocus`; not in a toolbar, toggle group, segmented control, the Navigator, the Inspector or the notes) |
+| Plain ← / → | Previous / next, while focus is on Tinka's own chrome or canvas (`readerTinkaFocus`; not in a toolbar, toggle group, segmented control, the Navigator, the Inspector or the notes) and all of the Tinka is in view |
+| Plain arrows, Shift + arrows | Pan, while zoomed in past fit (part of the Tinka out of view, `ReaderCanvas.overflows`): 80 px a press, a screenful (87.5% of the stage) with Shift; held, they keep panning. They never step while zoomed, not even at an edge |
 | ⌥ ↑ (Ctrl elsewhere), Escape | Up to the board (Escape after the ladder) |
 | ⌥ ↓ (Ctrl elsewhere) | Down into the Tinka's own board |
 | F, ⇧1; 0, ⇧0; + / − | Fit; 100%; zoom (announced in `#reader-view-announce`) |
 | ⌘/Ctrl I | Toggle the Inspector |
-| Space-drag | Pan a magnified resource (the reader has no keyboard pan) |
+| Space-drag | Pan a magnified resource with the pointer |
 | ? | Shortcuts |
 
 Same-origin content forwards the step, up and down chords. Text fields keep every one of these keys. The controls
@@ -850,9 +909,15 @@ Draw is a `ui-toolbar-group` of buttons. The rail and map toggles are `ui-toggle
 **Zoom pills and popovers.** `board.html` (`#zoom-popover`, `#reader-zoom-popover`), `canvas.js` (`setZoomMenuOpen`,
 `setReaderMenuOpen`), `comment-pins.js` (the comment bar in the pill). The pills are `ui-toolbar`s; % is a
 `ui-popover-trigger for=`. The popovers (sliders, the Pattern / Window / Light segmented controls, the version list)
-sit outside their pills; the reader's inside the reader dialog. ↓ on % opens them (`openOnArrowDown`). Focus goes to
-the first control; arrows belong to the focused control (the slider's change the zoom), Tab walks through and out to
-the next pill control; Escape and a choice return to %; an outside press closes them and reaches its target. A click
+sit outside their pills; the reader's inside the reader dialog. ↓ on % opens them (`openOnArrowDown`). The preset rows
+(Zoom to 50 / 100 / 125 % or 200 %, Fit board and Fit selection, or Fit this Tinka) look like menu rows, so they are one
+vertical `ui-toolbar.zoom-presets` ("Zoom presets"), as the item Inspector's actions are: one Tab stop, ↑/↓ with wrap,
+Home/End, Enter or a click chooses. The slider follows the rows as its own Tab stop (on the board after Fit board, in
+the reader after Fit this Tinka), so ↓ never walks onto it; its arrows change the zoom. Fit selection is hidden and out
+of the toolbar's order with nothing selected (`disabled` + `focusable-when-disabled="false"` on its part, written as the
+popover opens: `followVisibility` can't serve a toolbar inside a closed popover, whose items aren't rendered when the SDK
+picks the first focus). Focus opens on the rows' stop; the other controls keep their own arrows, Tab walks through and
+out to the next pill control; Escape and a choice return to %; an outside press closes them and reaches its target. A click
 into the experiment frame closes the reader's; switching windows leaves it open. The pill's 44 px rows and slider theme
 reach them by naming `.board-zoom-popover` / `.reader-zoom-popover` / `.zoom-menu` in the theme's own selectors
 (`calm.css`, `canvas.css`, `ui-sdk.css`) at the same specificity. Placement matches the old `right: -40px` (`align="end"
@@ -886,7 +951,8 @@ opens on the side of its bar away from the selection, and `positionArrangeMenu` 
 **Version stacks.** `workspace-board.js` `versionMenuElement`, `versionMenu`; `canvas.js` `#reader-version-menu` (with
 `guardMenu`). The version name on a stack's card and in the reader's strip is a menu button listing every version as
 radio items (name and modified time, `.tk-mi2`) that close the menu on choice; ‹ › still step. A Menu, not a Select
-(§ 7, gap 4). The name keeps a `role="status"` span, so stepping is announced. On a card the ticker is a roving toolbar
+(§ 7, gap 4). It opens on the checked version, as a select or a native pop-up menu does (`openOnChecked` in
+`popups.js`: once the SDK has placed its first focus, by keys or by a pointer, focus moves to the checked radio item). The name keeps a `role="status"` span, so stepping is announced. On a card the ticker is a roving toolbar
 (§ Board canvas); the reader's version strip is a plain `ui-toolbar` (`board.html`). A focused stack card brings its
 ticker in as one Tab stop.
 
@@ -911,10 +977,17 @@ opens every `[aria-haspopup]` button by clicking it.
   face, Text box on Color applies to, Ink and Text size on the chosen swatch / preset (a custom size: the scrub), Line
   options on the pressed arrowhead, Shape options on the chosen shape. A colour panel marks its palette
   `[data-autofocus]` (its × is not where the work starts).
-- Tab past the bar (`tabPastBar`). The bar sits at the end of `<body>`, so after its Tab stop comes nothing. Tab forward
-  from the bar goes back to what it edits: the editor while a text is edited, else the selected object, else the
-  board's focused item. Panels follow by composition (their Tab-out goes to their button first). Shift+Tab from the bar
-  goes back along the page. Escape (deselect) takes the bar away. Checked in `tests/board-fixes-browser.mjs`.
+- The bar in the Tab order (`mount`, `tabPastBar`, `focusBarKey`). The bar floats (`position: fixed`) but sits in the
+  page right after `#viewport`, so the order is: the object → its own controls (label, resize corner, ports) → the bar
+  (one stop) → what follows the board (kind legend, zoom pill, tools rail), and Shift+Tab back the same way, as a
+  card's toolbar sits after its card. Panels follow by composition: their Tab-out sends focus to their button first
+  (`tabOutOfPanel`; `content.tabTrigger` for the container options popover), and Tab past the bar goes on to the first
+  stop after the board. While a text is edited, Tab from the editor goes to the bar, and Tab past the bar (or Shift+Tab
+  from it) back to the editor. **Option-F10** (Alt+F10) jumps to the bar from anywhere outside a field: the key editors
+  give their floating toolbars (TinyMCE, CKEditor, the WAI-ARIA Authoring Practices' rich-text toolbar), chosen over
+  F6, which browsers and desktop apps use to cycle panes. **Escape** on the bar goes back to the object it edits with
+  the selection kept, as Escape from an editor's toolbar returns to the text; Escape there deselects, which takes the
+  bar away. Checked in `tests/board-fixes-browser.mjs`.
 - Ink: the Ink button carries its displayed-ink description as `aria-description` and as its `data-tip`.
 - Scrub handle (`preset-scrub.js`): § 5.
 
@@ -952,7 +1025,8 @@ Popover, Toggle Group, Segmented Control; Core `createVirtualizer`, `createPrefe
   applied nowhere).
 - Keys: the picker stops keydown from reaching the board, except Escape, which goes on to the popover.
 
-**Comment layer.** `comment-pins.js` `mountMenus`, `renderMenu`, `openCluster`, `dropOn`, `place`.
+**Comment layer.** `comment-pins.js` `mountMenus`, `renderMenu`, `openCluster`, `dropOn`, `place`. The pins are one
+Tab stop with arrows (§ Board canvas).
 `#comment-layer-menu` (a `ui-menu-trigger` on the Comments button in the pill; ↓ opens it) with checkbox items Show
 comments (⇧C) and Show resolved, which stay open as they toggle, then the threads waiting on you; "Nothing right now"
 is a disabled item. `#comment-cluster-menu` opens beside a cluster pin, clear of the bottom bar (its
@@ -984,7 +1058,9 @@ the item. While armed, the focused item is marked as the target ("On Card B"). E
 **Comments panel.** `feedback.js`, `feedback.css`. ⋯ Conversation options is a shared Menu (`#feedback-options-menu`,
 `openMenu`, ↓/↑ too): checkbox items Unresolved only and Show points stay open as they toggle (their `checked` attribute
 is written back), then Add point (canvas only), Board discussion (an item's panel only) and Your name…. An action runs
-once the menu has closed and returned focus, so the focus it moves stays. The name is a field, so it is a Popover
+once the menu has closed and returned focus, so the focus it moves stays. A click away only closes the menu: the
+panel's own outside-press handler (window capture, ahead of the SDK) steps aside while a menu is open (`menuOpen()`),
+and focus goes back to ⋯. The name is a field, so it is a Popover
 (`#feedback-name-popover`) from As You or Your name…: focus in the field, Enter saves and closes, Escape returns to the
 opener, Tab out continues after it (`tabTrigger`); the opener counts as part of it. Roots live in the panel's host
 (`<body>`, or the reader `<dialog>`). Show points talks to the comment layer by events (`tinka:show-points` →
@@ -1008,16 +1084,25 @@ redraws order and numbers, moving the other rows around the held or focused one,
 A pointer drags a row (3 px threshold). Focus opens on the list.
 
 **Board Inspector.** `canvas.js` `boardInspector`, `setInfoOpen`; `board.html` `#board-info-dialog`. A side panel. Its
-Layout and Pattern rows are segmented controls. The filter row (`.inspector-toggles`) is a `ui-toolbar` around the
+Layout and Pattern rows are segmented controls. Board color opens a swatch radio group (`bindInspectorColor` in
+`workspace-board.js`); while the board has a colour, "Remove color" follows the custom colour (one more Tab stop), as the
+background image has "Remove image": it clears the colour, so the board stands on the Background chosen in Appearance,
+closes the palette and returns focus to Board color. The filter row (`.inspector-toggles`) is a `ui-toolbar` around the
 `aria-pressed` buttons. The Edit row (Undo, Redo, Copy, Paste…, Comparison order…) and the Feedback rows stay separate
 buttons: a panel's commands under section headings, Tab-walked as in any dialog.
 
 **Item Inspector.** `workspace-board.js` `itemControls`, `closeContext`. A side panel. Appearance rows are segmented
 controls; Paper colour is a swatch radio group. The actions are a vertical `ui-toolbar` (`orientation="vertical"`, rows
-that look like menu rows: ↑/↓ with wrap, Home/End). The Feedback row (Favorite, Comments, Vote) stays buttons.
+that look like menu rows: ↑/↓ with wrap, Home/End). The Feedback row (Favorite, Comments, Vote) is a horizontal
+`ui-toolbar` named by its heading, because the same actions are one toolbar on the card's strip: ←/→ with wrap,
+Home/End, and ↓ on Vote opens the ballot (`openOnArrowDown`), as on the strip. Details shows Created / Edited as the exact
+date in text (`exactTimeHTML` in `relative-dates.js`: "Nov 3, 2026, 2:02 PM"), as Finder's Get Info does, so nothing
+there needs a tooltip and no date is a Tab stop. Relative dates with an exact-date tooltip stay where a date is a
+passing remark (cards, Home, the Navigator), not focusable.
 
 **Reader Inspector.** `canvas.js` `readerInspector`, `setReaderInfoOpen`, `renderReaderInfo` (keeps the opening focus
-through its re-render); `board.html` `#reader-info-dialog`. A side panel.
+through its re-render); `board.html` `#reader-info-dialog`. A side panel. Its Feedback rows (Comments, Vote) are one
+vertical `ui-toolbar` (↑/↓), for the same reason as the item Inspector's. Organize and Help stay buttons (below).
 
 **Reader path.** `reader-path.js`, `board.html` `#reader-path-menu` (`ui-menu-trigger`, `guardMenu`). A Menu opened on a
 press on the title or count. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`). The
@@ -1029,7 +1114,17 @@ its heading. It behaves as a non-modal Dialog would: Notes opens it with focus i
 focus returns to Notes, Tab moves on and it stays open, × closes it (§ 5).
 
 **Resource surface.** `reader-resource-surface.js`, `reader-canvas.js`. No new controls; Window and zoom are the % popover
-and pill. Keys follow the viewport norms (`+` / `−` / `0` / F, announced in `#reader-view-announce`). Fit's window has no
+and pill. Keys follow the viewport norms (`+` / `−` / `0` / F, announced in `#reader-view-announce`).
+
+**Keyboard pan of a zoomed Tinka** (the rule, `canvas.js` `READER_PAN`, `ReaderCanvas.overflows`). Plain ← / → step to the
+previous / next Tinka (approved), so the arrows have two jobs, and the view decides which, as in macOS Preview and Photos
+and Windows Photos: while all of the Tinka is in view (at fit, or zoomed out, or zoomed in on something small that still
+fits), ← / → step; once part of it is out of view, every arrow pans towards the part it points at, 80 px a press (the
+board's arrow pan) and a screenful with Shift, and a held arrow keeps panning. While zoomed they never step, not even
+at an edge: a pan run to the edge that then jumped to another Tinka would move something she didn't ask to move, and
+a held arrow would race past it. Stepping stays at any zoom on [ ] / J K / ⌥ ← →, and F (or zooming out until it fits)
+gives ← / → their step back. Keys only on Tinka's own canvas and chrome (`readerTinkaFocus`); content, fields and
+toolbars keep their arrows. The canvas's `aria-label` and the Keyboard shortcuts sheet say so. Fit's window has no
 hint; a chosen Window size keeps its resize hint.
 
 **Board map.** `board-map.js` (`mapHeadToolbar`, Escape and `0`), `canvas.js` (`actualSize`, announced zoom),
@@ -1091,7 +1186,7 @@ Archive/Restore; Enable flexible boards). The Keyboard shortcuts sheet is a `mak
 | Toolbars inside cards | `role=toolbar` roving markup, not `ui-toolbar`: no element or binding per card (§ Board canvas, § 6). |
 | Sticker grid focus | `createGridFocus` moves real focus, which the search field could not share; the grid uses `aria-activedescendant` with the same keys. |
 | The legacy Home shelf (`home.js`, organization off) | Unchanged upstream markup. |
-| Board Inspector Edit and Feedback rows, item Inspector Feedback row | A panel's commands under headings, Tab-walked as in any dialog. |
+| Board Inspector Edit and Feedback rows, reader Inspector Organize and Help rows | A panel's commands under headings, Tab-walked as in any dialog. None of them is a set of actions that is a toolbar elsewhere in the app (the item Inspector's Feedback row is: § 4). |
 
 ## 6. Performance rules
 
@@ -1195,6 +1290,8 @@ What 0.1.0-beta.10 lacks or gets wrong, and what fribblr does.
 | 20 | Core context helpers (`createRovingFocus`, `createMove`, `createLasso` …) need a primitive with a part per item; `createLasso` has no `scale`. | Board canvas on its own engine; marquee kept (§ 5). |
 | 21 | `createPreference` insists on an `attribute`. | One is passed and applied nowhere (skin tone). |
 | 22 | Escape inside a frame's SDK popup is `preventDefault`ed by the SDK. | Relied on: frame pages never post `reader-close` for it. |
+| 23 | A popup opened from code (the ballot, a card's ⋯) has no trigger part, so nothing closes its opener's tooltip as it opens. | `tips.js` closes any open tooltip on every non-tooltip `openchange` (document capture). |
+| 24 | A popup is shifted back into view only as far as it still touches its anchor, so an anchor past the window's edge takes the popup past it. | `openMenu` reads such an anchor clamped into the window (`inWindow`). |
 
 ### Upgrade checklist
 

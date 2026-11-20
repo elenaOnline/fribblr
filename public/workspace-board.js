@@ -2,7 +2,7 @@ import {closePanel, sidePanel} from "./side-panel.js";
 import {setItemDisabled} from "./header-toolbar.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
 import {followVisibility,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked} from './popups.js';
 import {widgetOwnsKey} from './ui-sdk.js';
 import {tips,tip,setTip,tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
@@ -25,7 +25,7 @@ import {KindLegend} from "./kind-legend.js";
 import {eventFiles,hasFileDrag,validateImportFiles,importLayout,pdfSupported,pdfPreviewURL} from "./file-import.js";
 import {CutIntent} from "./cut-intent.js";
 import {MovementHistory} from "./movement-history.js";
-import {timeHTML} from "./relative-dates.js";
+import {timeHTML,exactTimeHTML} from "./relative-dates.js";
 import {navigationGraph} from "./navigator-graph.js";
 import {isMacPlatform,stepModifierLabel} from "./reader-keys.js";
 import {snapBox,boundsOf,snapDisabled,GuideLayer} from "./snap-guides.js";
@@ -134,9 +134,14 @@ function inspectorColorMarkup(label,value,role) {
     ${colorDot(value,role)}<span>${esc(label)}</span></button>
     <div id="${panelId}" class="text-format-controls inspector-color-palette" data-inspector-palette hidden></div>`;
 }
-function bindInspectorColor(host,{label,read,save,options,role}) {
+// `clear` (with `canClear`) adds "Remove color" after the palette, as the background image has "Remove image": the board
+// goes back to standing on the Background chosen in Appearance. It shows only while a colour is set.
+function bindInspectorColor(host,{label,read,save,options,role,clear,canClear=()=>false}) {
   const trigger=host.querySelector("[data-inspector-color]"),panel=host.querySelector("[data-inspector-palette]");
-  panel.innerHTML=paletteMarkup(["fill"],{options,resolve:(id,_channel,theme)=>renderDrawingColor(literalFill(id),role,theme)});
+  panel.innerHTML=paletteMarkup(["fill"],{options,resolve:(id,_channel,theme)=>renderDrawingColor(literalFill(id),role,theme)})
+    +(clear?'<button type="button" class="tk-btn tk-sm tk-tonal inspector-color-clear" data-inspector-clear data-tip="Show the Background chosen in Appearance">Remove color</button>':"");
+  const remove=panel.querySelector("[data-inspector-clear]");
+  if(remove)remove.hidden=!canClear();
   const palette=panel.querySelector("[data-color-swatches]");
   tips(panel);
   let writing=false,painted=read();
@@ -150,10 +155,20 @@ function bindInspectorColor(host,{label,read,save,options,role}) {
     },
   });
   const sync=(force=false)=>{
+    if(remove)remove.hidden=!canClear();
     const value=read();
     if(!force&&value===painted)return;
     painted=value;setValue(value);
     trigger.querySelector(".drawing-color-dot").outerHTML=colorDot(value,role);
+  };
+  if(remove)remove.onclick=async()=>{
+    if(writing)return;
+    writing=true;
+    try { await clear(); }
+    catch(error) { showFailure(error); }
+    finally { writing=false;sync(true); }
+    // The button has gone with the colour: the palette closes and focus goes back to its trigger.
+    toggle(false);trigger.focus({preventScroll:true});
   };
   const toggle=open=>{
     panel.hidden=!open;
@@ -535,7 +550,9 @@ export class WorkspaceBoard {
     const storedColor = () => this.snapshot.background?.color || token("--ground").toLowerCase();
     boardBackground.innerHTML = `${inspectorColorMarkup("Board color",storedColor(),"board")}<button type="button" class="tk-btn tk-sm tk-tonal" data-background-image>Background image…</button>`;
     this.boardColorSync=bindInspectorColor(boardBackground,{label:"Board color palette",read:storedColor,role:"board",
-      save:color=>this.saveBackground({...this.snapshot.background,color})});
+      save:color=>this.saveBackground({...this.snapshot.background,color}),
+      canClear:()=>!!this.snapshot.background?.color,
+      clear:()=>{const {color,...background}=this.snapshot.background||{};return this.saveBackground(background);}});
     const image = boardBackground.querySelector("[data-background-image]");
     image.onclick = () => this.backgroundImageDialog(image);
     // "Pattern", not "Background": Background is the ground in Appearance (fribblr).
@@ -605,6 +622,7 @@ export class WorkspaceBoard {
   versionMenuElement() {
     if (this.versionMenuUI) return this.versionMenuUI;
     const ui = this.versionMenuUI = sharedMenu({id:"file-version-menu", label:"Versions", className:"file-version-menu"});
+    openOnChecked(ui.root);
     ui.content.setAttribute("align", "center");
     ui.content.setAttribute("side-offset", "6");
     ui.content.setAttribute("collision-padding", "8");
@@ -1048,9 +1066,8 @@ export class WorkspaceBoard {
     }, true);
   }
   keyboardShortcuts() {
-    const previousFocus = document.activeElement;
-    const returnFocus = $("board-info").contains(previousFocus) ? $("board-info-toggle") : previousFocus;
-    closePanel($("board-info"));
+    // An Inspector that opened it stays open behind it (as with Comparison order…), and focus comes back to its button.
+    const returnFocus = document.activeElement;
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
       <dt>⌘/Ctrl-D</dt><dd>Duplicate selection (with nothing selected, the focused item)</dd>
@@ -2035,9 +2052,9 @@ export class WorkspaceBoard {
     return destinationDialog(this.client, { sourceBoardId: this.snapshot.id, placementIds, kind: type,
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
-  editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes", {returnToCard = false} = {}) {
-    if (this.contextPlacement === id) { this.closeContext(); return; }
+  editItem(item, opener) { if (item) itemForm(this.client, { item, refresh: () => this.refresh(), ...(opener ? { opener } : {}) }); }
+  itemControls(id, focus = "notes", {returnToCard = false, again = null} = {}) {
+    if (this.contextPlacement === id && !again) { this.closeContext(); return; }
     this.closeContext();
     const p = this.snapshot.placements.find(p => p.id === id);
     const item = this.snapshot.items[p?.itemId];
@@ -2073,15 +2090,20 @@ export class WorkspaceBoard {
         ${item.description ? `<p class="inspector-desc">${esc(item.description)}</p>` : ""}
         <div class="inspector-open"><button type="button" class="tk-btn tk-primary" data-context-open ${["reserved","building"].includes(item.build?.state) && !placeOnly ? "disabled" : ""}>${placeOnly ? "Open board" : "Open"}</button>${item.childBoardId && item.content ? `<button type="button" class="tk-btn tk-tonal" data-context-board>Open board</button>` : ""}${resourceURL(item.resources?.find(r=>r.role==="handoff")?.resource)?`<a class="tk-btn" href="${esc(resourceURL(item.resources.find(r=>r.role==="handoff").resource))}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}<button type="button" class="tk-btn tk-tonal" data-context-edit>Edit item…</button></div>
         <section class="inspector-sec"><h3>Notes <span>saved as you type</span></h3><label class="workspace-context-note"><span class="inspector-label">Notes</span><textarea data-note="items/${esc(id)}" aria-label="Notes on ${esc(item.title)}" placeholder="A thought to return to…">${esc(note)}</textarea></label></section>
-        <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
+        <section class="inspector-sec"><h3 id="workspace-item-feedback-heading">Feedback</h3><ui-toolbar class="workspace-context-row workspace-context-actions inspector-feedback" aria-labelledby="workspace-item-feedback-heading"><ui-toolbar-button><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-btn tk-sm" data-context-vote aria-haspopup="dialog">Vote</button></ui-toolbar-button></ui-toolbar></section>
         <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, tip: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div><div class="inspector-paper">${inspectorColorMarkup("Paper color",paper,"paper")}</div></section>
-        <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
+        <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${exactTimeHTML(item.createdAt) || "Unknown"}</dd><dt>Edited</dt><dd>${exactTimeHTML(item.updatedAt) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${exactTimeHTML(child.updatedAt)}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
         <ui-toolbar orientation="vertical" class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><ui-toolbar-button><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button></ui-toolbar-button>${this.mode === "canvas" ? '<ui-toolbar-button><button type="button" class="tk-mi" data-context-connect>Connect</button></ui-toolbar-button>' : ""}<ui-toolbar-button><button type="button" class="tk-mi" data-context-move>Move to board…</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></ui-toolbar-button></ui-toolbar>
       </div>`;
     // Focus goes back to what had it when the Inspector opened (a card, Details… on the selection bar); opened from a
     // menu, whose item is gone, to the card's ⋯.
     const before = document.activeElement;
     const fromMenu = !before || before === document.body || !!before.closest?.('[role=menu],ui-menu-content,.workspace-tile-menu');
+    // Where focus goes when it closes: the card's ⋯ when a menu opened it (its item is gone), else what had focus, kept
+    // as a selector so the Inspector rebuilt after Edit item… (`again`) still finds it.
+    const cardSelector = `#world .workspace-card[data-placement="${CSS.escape(id)}"]`;
+    const returnTo = again ? again.returnTo : fromMenu ? (document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`) ? `[data-item-controls="${CSS.escape(id)}"]` : null)
+      : before?.id ? `#${CSS.escape(before.id)}` : before?.matches?.(cardSelector) ? cardSelector : null;
     document.body.append(panelRoot);
     tips(popover);
     this.context = popover;
@@ -2101,9 +2123,18 @@ export class WorkspaceBoard {
     });
     const only = () => { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.selection = new Set([id]); this.syncSelection(); this.selectionMenu(); };
     popover.querySelector("[data-context-close]").onclick = () => this.closeContext(true);
-    popover.querySelector("[data-context-edit]").onclick = () => {
-      this.closeContext();
-      itemForm(this.client, {item, opener:invoker, refresh:() => this.refresh()});
+    // Edit item… opens over the Inspector, which stays open behind it; closing the dialog returns focus to Edit item….
+    // After a save the Inspector is rebuilt in place, at once, to show the new details, with focus on Edit item… again.
+    popover.querySelector("[data-context-edit]").onclick = event => {
+      const button = event.currentTarget;
+      let saved = false;
+      const dialog = itemForm(this.client, {item, opener:button, refresh:async () => { saved = true; await this.refresh(); }});
+      dialog.addEventListener("close", () => {
+        if (!saved || this.context !== popover) return;
+        const fresh = this.snapshot.placements.find(p => p.id === id);
+        if (fresh && this.snapshot.items[fresh.itemId]) this.itemControls(id, "edit", {returnToCard:this.contextReturnToCard, again:{returnTo}});
+        else this.closeContext();
+      });
     };
     popover.querySelector("[data-context-open]").onclick = () => { const open = document.querySelector(`[data-placement="${CSS.escape(id)}"] [data-open]:not(:disabled)`); this.closeContext(); open?.click(); };
     popover.querySelector("[data-context-board]")?.addEventListener("click", () => { this.closeContext(); this.navigate(item.childBoardId); });
@@ -2139,6 +2170,8 @@ export class WorkspaceBoard {
     actions.querySelector('[data-context-select]').onclick=()=>{this.toggleOccurrence({placementId:id});this.closeContext();};
     popover.querySelector('[data-context-star]').onclick=event=>{const button=document.querySelector(`[data-placement="${CSS.escape(id)}"] [data-star]`);button?.click();const on=button?.getAttribute('aria-pressed')==='true';event.currentTarget.textContent=on?'Unfavorite':'Favorite';event.currentTarget.setAttribute('aria-pressed',String(on));};
     popover.querySelector('[data-context-comments]').onclick=()=>{this.closeContext();this.feedback.open({itemId:item.id,returnFocus:()=>invoker()?.focus({preventScroll:true})});};
+    // Feedback is one toolbar, as the same actions are on the card's strip: ←/→ along it, ↓ on Vote opens the ballot.
+    openOnArrowDown(popover.querySelector('.inspector-feedback'), '[data-context-vote]', (event, button) => button.click());
     popover.querySelector('[data-context-vote]').onclick=event=>{this.closeContext();const trigger=invoker()||event.currentTarget;this.feedback.openVote({itemId:item.id,anchor:trigger,returnFocus:trigger});};
     actions.querySelector('[data-context-connect]')?.addEventListener('click',()=>{const from=invoker();this.closeContext();this.whiteboard?.connectPlacement(id,from);this.selectionMenu();});
     actions.querySelector('[data-context-move]').onclick=()=>{this.closeContext();only();this.bulk("move");};
@@ -2150,8 +2183,10 @@ export class WorkspaceBoard {
     this.positionContext();
     document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`).forEach(b => b.setAttribute("aria-expanded", "false"));
     document.querySelector(`[data-placement="${CSS.escape(id)}"]`)?.classList.add("inspected");
-    const start = focus === "notes" ? noteField : focus === "actions" ? actions.querySelector("button") : null;
-    this.contextPanel.open({ opener: fromMenu && invoker() ? `[data-item-controls="${CSS.escape(id)}"]` : null, focus: start || false });
+    const start = focus === "notes" ? noteField : focus === "actions" ? actions.querySelector("button") : focus === "edit" ? popover.querySelector("[data-context-edit]") : null;
+    this.contextPanel.open({ opener: returnTo, focus: start || false });
+    // Rebuilt in place (again): no slide-in, it was already there.
+    if (again) for (const animation of popover.getAnimations?.({subtree: true}) || []) animation.finish();
     // Appearance: a segmented control gets its roles a moment after it renders; focus its checked option then.
     if (!start) focusSegmented(popover.querySelector(".workspace-appearance-buttons"));
   }
@@ -4007,11 +4042,17 @@ export class WorkspaceBoard {
     }, true);
     // The focused card or drawn element keeps the board's Tab stop (UI SDK roving focus: the item focused last).
     // Focus bookkeeping runs on focus events only, never on pointer moves.
+    // Tab onto an item brings it into view, as an arrow does (UI SDK viewport: focus-in): the browser's own focus
+    // scrolling (carried over from the cushion as a pan) skips an item it already shows in part. Only a Tab: a press is
+    // already where she pointed, and focus coming back (after the reader, a menu) leaves the board where it was.
+    let tabbedAt = -1;
+    document.addEventListener("keydown", e => { if (e.key === "Tab") tabbedAt = e.timeStamp; }, true);
     $("world").addEventListener("focusin", e => {
       const item = this.boardFocus.item(e.target);
       if (!item) return;
       this.boardFocus.setStop(this.boardFocus.key(item));
       if (e.target === item) this.boardFocus.roveReach(item); else this.boardFocus.rove(e.target);
+      if (tabbedAt >= 0 && e.timeStamp - tabbedAt < 100) { tabbedAt = -1; this.boardFocus.revealElement(item); }
     });
   }
   // Focus follows a press: a press on any board item (card, drawn element, sticker, container member) makes it the

@@ -1073,6 +1073,9 @@ try {
     await page
       .getByRole("button", { name: "Close dialog", exact: true })
       .click();
+    // Edit item… opens over the Inspector, which stays open behind it: close it too before using the card itself.
+    await page.locator("#workspace-item-controls [data-context-close]").click();
+    await page.locator("#workspace-item-controls").waitFor({ state: "detached" });
     assert.deepEqual(
       await inputPlacement(),
       beforeControls,
