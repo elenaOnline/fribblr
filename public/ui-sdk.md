@@ -826,3 +826,31 @@ pill), `whiteboard.js` (object and arrow bar, format panel), `container-layout.j
 - Left as native, on purpose: standalone `aria-pressed` buttons that are not in a toolbar (Favorites, Last 6 weeks,
   Archive, auto height, automatic border) — a native toggle button already has the SDK toggle's keys; native radio
   fieldsets (`workspace-choice-pills`) — native radios are already one Tab stop with arrows that check.
+
+### Tinka 1.4 surfaces (`r2/merge14`)
+
+Files: `workspace-board.js` (card menu, `]`/`[` handler), `whiteboard.js` (drawn More, format panels, Tab-out),
+`text-appearance.js`, `text-format-controls.css`, `text-ink-preview.js`, `reader-canvas.js`, `reader-keys.js`,
+`board-step.js`, `canvas.js`, `popups.js` (`tabOutOfPanel`). Components: Menu, Toolbar, Toggle, Toggle group, Segmented
+control.
+
+- **Bring to front / Send to back.** Rows of the card menu (SDK Menu, `menuItem(..., {shortcut: ']'|'['})`, Canvas only,
+  not view-only) and of the drawn-object More (`menuActions`, items carry `data-whiteboard-more`). Typeahead reaches
+  them ("b"); Enter restacks and focus returns to the card. The drawing options panel keeps 1.4's action rows with their
+  printed keys (`keycaps.js`). On a board `]` / `[` run them for the selection (1.4); stepping moved to J / K (Canvas
+  keyboard section).
+- **Typeface and Text box** (1.4 split the old Advanced text). Typeface is a single-choice toggle group of the three
+  faces. Text box: Color applies to (segmented), Fill style / Border style (toggle groups), the palette (radio group),
+  Padding (preset scrub), and a **Box height** `ui-toolbar`: Auto height is a `ui-toggle` (`onPress`/`setPressed`; one
+  name in both states, per toggle.md), Fit height once a `ui-toolbar-button` that is `aria-disabled` (reachable, inert)
+  while a fit saves. Opening focuses the first control (Fill). The four text panels and the drawing options stay in the
+  bar's own panel element (they hold the text-format and colour controls; see Menus) but keep a popover's Tab:
+  `tabOutOfPanel` closes the panel from its last control and Tab moves on after its button; Shift+Tab from the first
+  goes back to the button. Escape and an outside press close it and focus returns to its button, as before.
+- **Ink preview** (1.4 `text-ink-preview.js`): the bar's Ink button carries its displayed-ink description as
+  `aria-description` and as its SDK tooltip (`data-tip`), never a native title.
+- **Resource surface** (1.4 `reader-resource-surface.js`, `reader-canvas.js`): no new controls; Window and zoom are the
+  converted % popover and pill. Keys follow the viewport norms: `+` / `−` / `0` (100%, new in the reader) and F (fit),
+  each announced in `#reader-view-announce` inside the reader dialog (the board's announcer is inert behind the modal).
+  Fit's window has no native title (1.4's "Resource surface" named nothing); a chosen Window size keeps its resize hint.
+  The reader has no keyboard pan: ←/→ step, as approved; a magnified resource pans by drag, wheel or Space-drag.

@@ -19,7 +19,7 @@ import {mountPresetScrub} from './preset-scrub.js';
 import {announce, decorationLabel, sdkCore} from './board-focus.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tips} from './tips.js';
-import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown} from './popups.js';
+import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown, tabOutOfPanel} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -1551,6 +1551,12 @@ export class Whiteboard {
     // A key pressed inside an open SDK menu or popover (this bar's More, Arrange, the board's menus) is the popup's,
     // Escape included. (A showing tooltip's Escape is left to the bar's own ladder here, as the controls stream has it.)
     if(e.target.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])'))return;
+    // The bar's own format panels (Text size, Ink, Typeface, Text box, drawing options) keep a popover's Tab: from the
+    // last control the panel closes and Tab goes on after its button; Shift+Tab from the first goes back to the button.
+    if(e.key==='Tab'&&this.appearance&&!this.menu.hidden){
+      const opener=this.toolbar.querySelector(`[data-whiteboard-action="${this.appearance.trigger}"]`);
+      if(tabOutOfPanel(e,this.menu,opener,()=>this.closeMenu())){e.stopImmediatePropagation();return;}
+    }
     const task=e.target.closest('[data-deco-task]');
     if(task&&[' ','Enter'].includes(e.key)) {
       if(e.repeat)e.preventDefault();

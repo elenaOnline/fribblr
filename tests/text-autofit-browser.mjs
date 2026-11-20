@@ -125,7 +125,9 @@ try {
   await page.waitForFunction(()=>document.querySelector(".whiteboard-menu [data-auto-height]")?.getAttribute("aria-pressed")==="true");
   assert.ok(restored.height<fixed.height);
   assert.equal(restored.width,fixed.width);
-  await page.keyboard.press("Escape");
+  // The panel keeps a popover's Tab (popups.js tabOutOfPanel): Tab from its last control closes it and moves on from Text box.
+  await autoHeight.focus();await page.keyboard.press("Tab");
+  await boxPanel.waitFor({state:"hidden"});
 
   await idle();
   assert.equal(await more.count(),0,"a loose Text block has no empty overflow");
