@@ -1035,7 +1035,10 @@ redraws order and numbers, moving the other rows around the held or focused one,
 A pointer drags a row (3 px threshold). Focus opens on the list.
 
 **Board Inspector.** `canvas.js` `boardInspector`, `setInfoOpen`; `board.html` `#board-info-dialog`. A side panel. Its
-Layout and Pattern rows are segmented controls. The filter row (`.inspector-toggles`) is a `ui-toolbar` around the
+Layout and Pattern rows are segmented controls. Board color opens a swatch radio group (`bindInspectorColor` in
+`workspace-board.js`); while the board has a colour, "Remove color" follows the custom colour (one more Tab stop), as the
+background image has "Remove image": it clears the colour, so the board stands on the Background chosen in Appearance,
+closes the palette and returns focus to Board color. The filter row (`.inspector-toggles`) is a `ui-toolbar` around the
 `aria-pressed` buttons. The Edit row (Undo, Redo, Copy, Paste…, Comparison order…) and the Feedback rows stay separate
 buttons: a panel's commands under section headings, Tab-walked as in any dialog.
 

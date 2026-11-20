@@ -151,6 +151,25 @@ try{
  await page.keyboard.press('Escape');await page.locator('.feedback-ballot[data-open]').waitFor({state:'detached'}).catch(()=>{});
  if(await page.locator('#workspace-item-controls').count()){await page.locator('#workspace-item-controls [data-context-close]').click();}
  await page.locator('#workspace-item-controls').waitFor({state:'detached'});
+ // 9. A board colour can be removed from its palette ("Remove color", shown only while one is set), as the background
+ // image has "Remove image"; the board goes back to the ground, and focus to Board color.
+ await openInspector();
+ const colorTrigger=page.locator('#board-info [data-inspector-color]'),removeColor=page.locator('#board-info [data-inspector-clear]');
+ await colorTrigger.focus();await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.activeElement?.matches('#board-info [data-swatch]'));
+ assert.equal(await removeColor.isHidden(),true,'no Remove color while the board has no colour');
+ await page.keyboard.press('ArrowRight');
+ const colored=async()=>(await getBoardSnapshot(config,board.boardId)).background?.color;
+ for(let i=0;i<50&&!await colored();i++)await page.waitForTimeout(60);
+ assert.ok(await colored(),'an arrow chooses a board colour');
+ await removeColor.waitFor({state:'visible'});
+ await page.keyboard.press('Tab');await page.keyboard.press('Tab');
+ assert.equal(await page.evaluate(()=>document.activeElement?.textContent.trim()),'Remove color','Tab reaches Remove color after the custom colour');
+ await page.keyboard.press('Enter');
+ for(let i=0;i<50&&await colored();i++)await page.waitForTimeout(60);
+ assert.equal(await colored(),undefined,'Remove color clears the board colour');
+ await page.waitForFunction(()=>document.activeElement?.matches('#board-info [data-inspector-color]'));
+ assert.equal(await page.locator('#board-info [data-inspector-palette]').isHidden(),true,'the palette closes and focus is back on Board color');
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:8,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar','Item Feedback is one toolbar; dates are text','Edit item and Keyboard shortcuts open over their Inspector']}));
+ console.log(JSON.stringify({passed:10,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar','Item Feedback is one toolbar; dates are text','Edit item and Keyboard shortcuts open over their Inspector','Remove color clears the board colour']}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

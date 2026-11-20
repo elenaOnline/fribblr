@@ -134,9 +134,14 @@ function inspectorColorMarkup(label,value,role) {
     ${colorDot(value,role)}<span>${esc(label)}</span></button>
     <div id="${panelId}" class="text-format-controls inspector-color-palette" data-inspector-palette hidden></div>`;
 }
-function bindInspectorColor(host,{label,read,save,options,role}) {
+// `clear` (with `canClear`) adds "Remove color" after the palette, as the background image has "Remove image": the board
+// goes back to standing on the Background chosen in Appearance. It shows only while a colour is set.
+function bindInspectorColor(host,{label,read,save,options,role,clear,canClear=()=>false}) {
   const trigger=host.querySelector("[data-inspector-color]"),panel=host.querySelector("[data-inspector-palette]");
-  panel.innerHTML=paletteMarkup(["fill"],{options,resolve:(id,_channel,theme)=>renderDrawingColor(literalFill(id),role,theme)});
+  panel.innerHTML=paletteMarkup(["fill"],{options,resolve:(id,_channel,theme)=>renderDrawingColor(literalFill(id),role,theme)})
+    +(clear?'<button type="button" class="tk-btn tk-sm tk-tonal inspector-color-clear" data-inspector-clear data-tip="Show the Background chosen in Appearance">Remove color</button>':"");
+  const remove=panel.querySelector("[data-inspector-clear]");
+  if(remove)remove.hidden=!canClear();
   const palette=panel.querySelector("[data-color-swatches]");
   tips(panel);
   let writing=false,painted=read();
@@ -150,10 +155,20 @@ function bindInspectorColor(host,{label,read,save,options,role}) {
     },
   });
   const sync=(force=false)=>{
+    if(remove)remove.hidden=!canClear();
     const value=read();
     if(!force&&value===painted)return;
     painted=value;setValue(value);
     trigger.querySelector(".drawing-color-dot").outerHTML=colorDot(value,role);
+  };
+  if(remove)remove.onclick=async()=>{
+    if(writing)return;
+    writing=true;
+    try { await clear(); }
+    catch(error) { showFailure(error); }
+    finally { writing=false;sync(true); }
+    // The button has gone with the colour: the palette closes and focus goes back to its trigger.
+    toggle(false);trigger.focus({preventScroll:true});
   };
   const toggle=open=>{
     panel.hidden=!open;
@@ -535,7 +550,9 @@ export class WorkspaceBoard {
     const storedColor = () => this.snapshot.background?.color || token("--ground").toLowerCase();
     boardBackground.innerHTML = `${inspectorColorMarkup("Board color",storedColor(),"board")}<button type="button" class="tk-btn tk-sm tk-tonal" data-background-image>Background image…</button>`;
     this.boardColorSync=bindInspectorColor(boardBackground,{label:"Board color palette",read:storedColor,role:"board",
-      save:color=>this.saveBackground({...this.snapshot.background,color})});
+      save:color=>this.saveBackground({...this.snapshot.background,color}),
+      canClear:()=>!!this.snapshot.background?.color,
+      clear:()=>{const {color,...background}=this.snapshot.background||{};return this.saveBackground(background);}});
     const image = boardBackground.querySelector("[data-background-image]");
     image.onclick = () => this.backgroundImageDialog(image);
     // "Pattern", not "Background": Background is the ground in Appearance (fribblr).

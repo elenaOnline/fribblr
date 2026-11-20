@@ -643,6 +643,9 @@ ui-dialog-backdrop, ui-alert-dialog-backdrop { position: fixed; inset: 0; backgr
   border-radius:var(--shape-key);
 }
 .inspector-color-palette[hidden] { display:none; }
+/* Remove color, under the swatches (the board's palette): shown only while a colour is set */
+.inspector-color-palette .inspector-color-clear { justify-self:start; align-self:start; width:auto; margin-top:7px; }
+.inspector-color-palette .inspector-color-clear[hidden] { display:none; }
 .workspace-dialog details {
   margin-top: 22px;
   border-top: 1px solid var(--line-hair);
