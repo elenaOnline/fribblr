@@ -154,7 +154,25 @@ export class CommentPins {
       near ? near.push(entry) : groups.push([entry]);
     }
     const html = groups.map(group => group.length === 1 ? this.pinMarkup(group[0].t, group[0].p, origin) : this.clusterMarkup(group, origin, zoom)).join('');
-    if (this.layer.innerHTML !== html) this.layer.innerHTML = html;
+    if (this.layer.innerHTML !== html) {
+      // The pins are rebuilt as a string: a pin that has focus (Escape from its card sends focus here) gets it back on
+      // its new copy in the same turn, so focus never falls to <body> between renders.
+      const token = this.focusToken();
+      this.layer.innerHTML = html;
+      this.restoreFocus(token);
+    }
+  }
+  // Which pin or cluster has focus (a token for restoreFocus), so a re-render of the layer or of the world around it can
+  // hand focus to the new copy in the same turn instead of letting it fall to <body>.
+  focusToken() {
+    const had = this.layer?.contains(document.activeElement) ? document.activeElement.closest('[data-comment-pin],[data-comment-cluster]') : null;
+    return had ? (had.dataset.commentPin ? ['data-comment-pin', had.dataset.commentPin] : ['data-comment-cluster', had.dataset.commentCluster]) : null;
+  }
+  restoreFocus(token) {
+    if (!token || !this.layer) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return; // focus went somewhere on purpose
+    [...this.layer.querySelectorAll(`[${token[0]}]`)].find(el => el.getAttribute(token[0]) === token[1])?.focus({preventScroll:true});
   }
   pinMarkup(t, p, origin) {
     const status = this.status(t), agent = commentApi.isAgent(t);
