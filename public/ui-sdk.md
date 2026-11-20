@@ -779,7 +779,7 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | Escape | Close the newest panel or menu, then cancel a gesture, pending Cut or selection; on a container member, back out |
 | ⌥ / Alt + arrow, + Shift | Move the focused item (and its selection or group) 1 / 10 units; on a container member, one place / to an end |
 | Arrows on a resize corner | Resize 1 unit, 10 with Shift |
-| J / K | Select the next / previous Tinka in the stepper's order and bring it into view (`board-step.js`, `canvas.js`) |
+| J / K | Select the next / previous Tinka in the stepper's order and bring it into view (`board-step.js`, `canvas.js`); with nothing selected, from the focused card |
 | Ctrl + ← / → (not on a Mac) | Same as J / K |
 | ] / [ | Bring the selection (or focused item) to the front / send it to the back |
 | ⌘/Ctrl A, D, G | Select all; duplicate (nothing selected: the focused item); group / ungroup (only when there is something to group) |

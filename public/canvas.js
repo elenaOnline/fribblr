@@ -2081,8 +2081,15 @@ function boardStep(direction) {
   const order = stepOrder();
   const steppable = entry => isSteppable(entry.concept.graphItem);
   const sequence = order.filter(steppable);
-  const cursor = readStepCursor();
+  let cursor = readStepCursor();
   const selected = cursor?.viewedAt >= selectionChangedAt ? new Set() : graph.selection;
+  // With nothing selected, a focused card is where stepping goes on from, as the other commands act on the focused
+  // item (ui-sdk.md § Board canvas): J from the tenth card goes to the eleventh, not back to where the cursor was.
+  const focusedCard = document.activeElement?.closest?.('#world .workspace-card[data-placement]');
+  if (!selected.size && focusedCard) {
+    const index = order.findIndex(entry => entry.id === focusedCard.dataset.placement);
+    if (index >= 0) cursor = { id: focusedCard.dataset.placement, index };
+  }
   const target = boardStepTarget(order, { selected, direction, steppable, cursor });
   if (!target) {
     if (!sequence.length) { announceView('No Tinkas to step through on this board'); return; }

@@ -11,6 +11,7 @@
 // - focus never drops to <body>: Escape from a document's editor comes back to its card, a click on empty canvas from
 //   the Comments panel's field focuses the canvas, and the second Escape in Home's Find goes back to the boards;
 // - Home's confirmations have plain titles, not questions;
+// - J / K with a focused, unselected card step on from that card;
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -191,6 +192,17 @@ try{
    ok(r.left&&!r.back&&r.end&&r.rail,`From the Comments panel, Tab goes on past the tools rail and off the page, never back into it: ${r.seen.join(' → ')}`);}
   await page.locator('#feedback-message').focus();await page.keyboard.press('Escape');await page.waitForTimeout(300);
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+ }
+
+ // ---- 7. J / K step on from the focused card when nothing is selected. ----
+ {for(let i=0;i<3;i++){await page.keyboard.press('Escape');await page.waitForTimeout(60);}
+  await page.locator(`#world [data-placement="${c.b}"]`).focus();
+  eq(await page.evaluate(()=>document.querySelectorAll('#world .workspace-card.selected').length),0,'Nothing is selected');
+  await page.keyboard.press('j');
+  ok(await until(async()=>(await focused())==='card:Card C'),`J from the focused Card B goes to the next card, Card C: ${await focused()}`);
+  await page.keyboard.press('k');await page.keyboard.press('k');
+  ok(await until(async()=>(await focused())==='card:Card A'),`K, K from there goes back to Card A: ${await focused()}`);
+  for(let i=0;i<3;i++){await page.keyboard.press('Escape');await page.waitForTimeout(60);}
  }
 
  // ---- 6. Focus never drops to <body>. ----
