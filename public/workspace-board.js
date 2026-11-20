@@ -1,4 +1,4 @@
-import {positionTilePopover,bindTileMenu} from './tile-ui.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown} from './popups.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
 import {drawingPalette,drawingColor} from './drawing-palette.js';
@@ -339,14 +339,18 @@ export class WorkspaceBoard {
     add.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg><span class="chrome-add-label">Add</span>';
     add.setAttribute("aria-label", "Add");
     add.title = "Add text, shapes, arrows, items and boards";
-    add.setAttribute("aria-haspopup", "menu");
-    add.setAttribute("aria-expanded", "false");
     const actions = $("chrome-actions");
     const quick = document.createElement("span");
     quick.className = "chrome-history";
     quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
     actions.insertBefore(quick, $("board-info-toggle"));
-    actions.append(add);
+    // Add opens the shared Add menu (popups.js); the trigger wrapper is display:contents, so the button lays out as
+    // before and the SDK writes aria-haspopup, aria-expanded, aria-controls and the open/close keys onto it.
+    const addTrigger = document.createElement("ui-menu-trigger");
+    addTrigger.setAttribute("for", "workspace-add-menu");
+    addTrigger.append(add);
+    actions.append(addTrigger);
+    this.addMenuElement();
     this.installEditTools();
     const history = document.createElement("div");
     history.className = "workspace-history-actions";
@@ -374,27 +378,14 @@ export class WorkspaceBoard {
       if (!e.shiftKey && this.cutIntent.active()) { this.cancelCut(); return; }
       this.replayMovement(e.shiftKey ? "redo" : "undo");
     }, true);
-    add.onclick = () => {
-      if (this.addPopup) { this.closeAddMenu(); return; }
-      $("board-info").hidden = true;
-      $("board-info-toggle").setAttribute("aria-expanded", "false");
-      this.closeContext();
-      this.addMenu(add);
-      add.setAttribute("aria-expanded", String(!!this.addPopup));
-    };
-    document.addEventListener("keydown", e => {
-      if (e.key === "Escape" && this.addPopup) {
-        this.closeAddMenu(true);
-        e.preventDefault();
-        e.stopImmediatePropagation();
-      }
-    }, true);
     const selected = document.createElement("section");
     selected.id = "workspace-selection";
     selected.className = "workspace-selection";
     selected.hidden = true;
     selected.setAttribute("aria-label", "Selected placements");
     $("canvas-header").after(selected);
+    // Arrange is a menu button in the selection bar's toolbar: ArrowDown opens its menu at the first item.
+    openOnArrowDown(selected, "[data-arrange-open]", (event, button) => this.arrangeMenu(button, event));
     document
       .querySelectorAll("[data-mode]")
       .forEach((b) => (b.onclick = () => this.setMode(b.dataset.mode)));
@@ -437,7 +428,7 @@ export class WorkspaceBoard {
       if (feedback) this.feedback.open({itemId:feedback.dataset.itemFeedback,returnFocus:feedback});
       const vote = e.target.closest("[data-item-vote]");
       if (vote) this.feedback.openVote({itemId:vote.dataset.itemVote,anchor:vote,returnFocus:vote});
-      if (context) { if(context.dataset.controlsFocus === 'menu'){if(this.tileMenuPlacement===context.dataset.itemControls)this.closeTileMenu();else this.tileMenu(context.dataset.itemControls,null,context);}else this.itemControls(context.dataset.itemControls, context.dataset.controlsFocus); }
+      if (context) { if(context.dataset.controlsFocus === 'menu'){if(this.tileMenuPlacement===context.dataset.itemControls)this.closeTileMenu();else this.tileMenu(context.dataset.itemControls,null,context,e);}else this.itemControls(context.dataset.itemControls, context.dataset.controlsFocus); }
       if (edit)
         itemForm(this.client, {
           item: this.snapshot.items[edit.dataset.editItem],
@@ -856,6 +847,8 @@ export class WorkspaceBoard {
     globalThis.window?.addEventListener("blur", releaseBoxKey);
     document.addEventListener("keydown", event => {
       if (event.isComposing || event.keyCode === 229 || event.altKey) return;
+      // An open menu or popover owns typed letters (typeahead) and its keys; board commands wait until it closes.
+      if (inPopup(event)) return;
       const command = event.metaKey || event.ctrlKey;
       // Shift-1/2 match the physical keys, so they work on any keyboard layout.
       const shifted = digit => event.shiftKey && (event.code ? event.code === `Digit${digit}` : event.key === "!@"[digit - 1] || event.key === String(digit));
@@ -1673,10 +1666,10 @@ export class WorkspaceBoard {
     if (this.mode === "canvas" && this.selectedCount() >= 2 && this.arrangeObjects().length >= 2) {
       const arrange = document.createElement("button");
       arrange.type = "button"; arrange.className = "tk-btn tk-sm tk-icon"; arrange.dataset.arrangeOpen = "";
-      arrange.setAttribute("aria-label", "Arrange"); arrange.setAttribute("aria-haspopup", "dialog");
+      arrange.setAttribute("aria-label", "Arrange"); arrange.setAttribute("aria-haspopup", "menu");
       arrange.setAttribute("aria-expanded", "false");
       arrange.title = "Arrange: align, distribute, tidy into a grid"; arrange.innerHTML = ARRANGE_ICON;
-      arrange.onclick = () => this.arrangeMenu(arrange);
+      arrange.onclick = e => this.arrangeMenu(arrange, e);
       el.querySelector("strong")?.after(arrange);
     }
     el.querySelectorAll("[data-bulk]").forEach(
@@ -1916,7 +1909,7 @@ export class WorkspaceBoard {
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
   editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes") {
+  itemControls(id, focus = "notes", {returnToCard = false} = {}) {
     if (this.contextPlacement === id) { this.closeContext(); return; }
     this.closeContext();
     const p = this.snapshot.placements.find(p => p.id === id);
@@ -1926,6 +1919,7 @@ export class WorkspaceBoard {
     $("board-info").hidden = true;
     $("board-info-toggle").setAttribute("aria-expanded", "false");
     this.contextPlacement = id;
+    this.contextReturnToCard = returnToCard;
     // The Inspector: the right side is "what". It replaces the old attached
     // popup with labelled sections; notes stay canonical, appearance stays local.
     const popover = document.createElement("section");
@@ -2012,42 +2006,105 @@ export class WorkspaceBoard {
     else if(focus==="actions") actions.querySelector("button").focus({preventScroll:true});
     else popover.querySelector("[data-presentation]").focus({ preventScroll: true });
   }
-  // Right-click gives a short native-feeling menu; Details… opens the Inspector.
-  tileMenu(id, point, anchor = null) {
-    this.closeTileMenu();
+  // Right-click (or a card's ⋯) gives a short native-feeling menu; Details… opens the Inspector. One shared UI SDK
+  // menu at the end of <body> serves every card (popups.js): it opens at the pointer for a right-click, under the ⋯
+  // for a press on it, and re-anchors on a second right-click.
+  tileMenuElement() {
+    if (this.tileMenuUI) return this.tileMenuUI;
+    const ui = this.tileMenuUI = sharedMenu({id:"workspace-tile-menu", className:"workspace-tile-menu"});
+    ui.root.addEventListener("action", e => this.runTileMenu(e.detail.value, ui.root.api.getPayload()));
+    ui.root.addEventListener("openchange", e => { if (!e.detail.value) this.tileMenuClosed(); });
+    // A turn of the wheel, a scroll that moves the card or a resized window leaves the card behind: the menu closes
+    // (as before the SDK). A wheel over a card's live preview scrolls the canvas without reaching this page as a
+    // wheel, so a moved ⋯ counts too; a scroll notification that moved nothing (revealing the invoker) does not.
+    const away = e => {
+      if (!ui.root.open || (e.target instanceof Node && ui.content.contains(e.target))) return;
+      if (e.type === "scroll") { const now = this.tileMenuAnchor?.isConnected ? this.tileMenuAnchor.getBoundingClientRect() : null, was = this.tileMenuOrigin; if (now && was && Math.abs(now.x - was.x) <= .5 && Math.abs(now.y - was.y) <= .5) return; }
+      // A close asked for in the menu's first frame can be refused while it is still opening: ask again next frame.
+      if (!ui.root.api.close({reason:"imperative"})) requestAnimationFrame(() => { if (ui.root.open) ui.root.api.close({reason:"imperative"}); });
+    };
+    document.addEventListener("wheel", away, {capture:true, passive:true});
+    document.addEventListener("scroll", away, {capture:true, passive:true});
+    window.addEventListener("resize", away);
+    return ui;
+  }
+  tileMenu(id, point, anchor = null, event = null) {
     const p = this.snapshot.placements.find(p => p.id === id), item = this.snapshot.items[p?.itemId];
     if (!item) return;
     if (!this.selection.has(id)) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.selection = new Set([id]); this.syncSelection(); this.selectionMenu(); }
     const placeOnly = !!item.childBoardId && !item.content, star = !!(this.pendingReview.get(item.id)?.star ?? item.review?.star);
     const handoff=resourceURL(item.resources?.find(r=>r.role==="handoff")?.resource);
     const unavailable=["reserved","building"].includes(item.build?.state) && !placeOnly;
-    const menu = document.createElement("div");
-    menu.className = "tk-menu workspace-tile-menu"; menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", `Actions for ${item.title}`);
-    menu.innerHTML = `<button type="button" class="tk-mi" role="menuitem" data-tile-menu="open" ${unavailable?"disabled":""}>${placeOnly ? "Open board" : "Open experiment"}<kbd class="tk-kbd" aria-hidden="true">↵</kbd></button>${handoff?`<a class="tk-mi" role="menuitem" href="${esc(handoff)}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}${this.editableDocument(item)?'<button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document" aria-keyshortcuts="E">Edit document</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document-source">Edit Markdown source</button>':""}<button type="button" class="tk-mi" role="menuitem" data-tile-menu="notes">Notes</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="details" aria-keyshortcuts="Meta+I Control+I">Details…</button><div class="tk-msep" role="separator"></div><button type="button" class="tk-mi" role="menuitem" data-tile-menu="star">${star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="move">Move to board…</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="duplicate" aria-keyshortcuts="Meta+D Control+D">Duplicate</button><div class="tk-msep" role="separator"></div><button type="button" class="tk-mi tk-danger" role="menuitem" data-tile-menu="remove">Remove from board…</button>`;
+    const {root, content} = this.tileMenuElement();
     this.closeContext();
-    document.body.append(menu); this.tilePopup = menu;this.tileMenuPlacement=id;
-    anchor?.setAttribute("aria-expanded","true");
-    positionTilePopover(menu,anchor,point);
-    const card = () => document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
-    menu.onclick = e => {
-      const action = e.target.closest("[data-tile-menu]")?.dataset.tileMenu; if (!action) {if(e.target.closest("a"))this.closeTileMenu();return;}
-      this.closeTileMenu();
-      if (action === "open") card()?.querySelector("[data-open]:not(:disabled)")?.click();
-      else if (action === "edit-document") this.editDocument(item.id, {placementId:id});
-      else if (action === "edit-document-source") this.editDocument(item.id, {placementId:id, source:true});
-      else if (action === "notes") this.hooks.editNote?.(`items/${id}`,card()?.querySelector("[data-item-controls]"));
-      else if (action === "details") this.itemControls(id, "notes");
-      else if (action === "star") card()?.querySelector("[data-star]")?.click();
-      else if (action === "move") this.bulk("move");
-      else if (action === "duplicate") this.duplicateSelection({explicit:true});
-      else if (action === "remove") this.bulk("remove");
-    };
-    this.tileMenuBinding=bindTileMenu(menu,{close:()=>this.closeTileMenu(),returnFocus:()=>card()?.querySelector('[data-item-controls]'),anchor:anchor||card()});
+    if (this.tileMenuPlacement && this.tileMenuPlacement !== id) this.tileMenuClosed();
+    content.setAttribute("aria-label", `Actions for ${item.title}`);
+    const mi = (value, label, options = {}) => menuItem(value, label, {...options, attrs:`data-tile-menu="${value}"`});
+    content.innerHTML = mi("open", placeOnly ? "Open board" : "Open experiment", {shortcut:"enter", disabled:unavailable})
+      + (handoff ? menuLink(handoff, "Handoff") : "")
+      + (this.editableDocument(item) ? mi("edit-document", "Edit document", {shortcut:"e"}) + mi("edit-document-source", "Edit Markdown source") : "")
+      + mi("notes", "Notes") + mi("details", "Details…", {shortcut:"mod+i"})
+      + menuSeparator
+      + mi("star", star ? "Unfavorite" : "Favorite") + mi("move", "Move to board…") + mi("duplicate", "Duplicate", {shortcut:"mod+d"})
+      + menuSeparator
+      + mi("remove", "Remove from board…", {destructive:true, className:"tk-danger"});
+    // At the pointer: the menu's corner sits on it. Under the ⋯: right edges line up, as before.
+    content.setAttribute("side", "bottom");
+    content.setAttribute("align", point ? "start" : "end");
+    content.setAttribute("side-offset", point ? "2" : "6");
+    content.setAttribute("collision-padding", "8");
+    this.tileMenuPlacement = id;
+    const control = anchor?.matches?.('[data-controls-focus="menu"]') ? anchor : document.querySelector(`[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]`);
+    control?.setAttribute("aria-expanded", "true");
+    this.tileMenuAnchor = anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
+    this.tileMenuOrigin = this.tileMenuAnchor?.getBoundingClientRect() || null;
+    // Focus goes back to what opened the menu: the ⋯ when it was opened from the ⋯, else the card (a right-click or
+    // Shift+F10 on the card), where the arrows keep moving between cards.
+    const fromMore = !!anchor?.matches?.('[data-controls-focus="menu"]') && !point && (!event || !!event.target?.closest?.('[data-controls-focus="menu"]'));
+    this.tileMenuFromCard = !fromMore;
+    openMenu(root, {anchor: point || anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`), payload:id, event,
+      returnTo: fromMore ? `[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]` : `[data-placement="${CSS.escape(id)}"]`});
   }
-  closeTileMenu() {
-    this.tileMenuBinding?.destroy();this.tileMenuBinding=null;
-    if(this.tileMenuPlacement)document.querySelector(`[data-item-controls="${CSS.escape(this.tileMenuPlacement)}"]`)?.setAttribute('aria-expanded','false');
-    this.tilePopup?.remove(); this.tilePopup = null;this.tileMenuPlacement=null;
+  tileMenuClosed() {
+    if(this.tileMenuPlacement)document.querySelectorAll(`[data-item-controls="${CSS.escape(this.tileMenuPlacement)}"][data-controls-focus="menu"]`).forEach(b=>b.setAttribute('aria-expanded','false'));
+    this.tileMenuPlacement=null;
+  }
+  closeTileMenu() { if (this.tileMenuUI?.root.open) this.tileMenuUI.root.api.close({reason:"imperative"}); else this.tileMenuClosed(); }
+  runTileMenu(action, id) {
+    const p = this.snapshot.placements.find(p => p.id === id), item = this.snapshot.items[p?.itemId];
+    if (!item || !action) return;
+    const card = () => document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
+    if (action === "open") card()?.querySelector("[data-open]:not(:disabled)")?.click();
+    else if (action === "edit-document") this.editDocument(item.id, {placementId:id});
+    else if (action === "edit-document-source") this.editDocument(item.id, {placementId:id, source:true});
+    else if (action === "notes") this.hooks.editNote?.(`items/${id}`,card()?.querySelector("[data-item-controls]"));
+    else if (action === "details") this.itemControls(id, "notes", {returnToCard:this.tileMenuFromCard});
+    else if (action === "star") card()?.querySelector("[data-star]")?.click();
+    else if (action === "move") this.bulk("move");
+    else if (action === "duplicate") this.duplicateSelection({explicit:true});
+    else if (action === "remove") this.bulk("remove");
+  }
+  // Keys that open the card and board menus, asked by the board's key handler before its own: Shift+F10 or the
+  // context-menu key opens the context menu of what has focus, a card's (under its ⋯) or the board's (at the canvas
+  // centre; macOS browsers fire no contextmenu event for these keys); ArrowDown / ArrowUp on a card's ⋯ open its menu
+  // at the first / last item, as on any menu button. True when the key was taken.
+  menuKey(e) {
+    if (e.altKey || e.metaKey || e.ctrlKey || this.mode !== "canvas") return false;
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      const card = e.target.closest?.("#world .workspace-card[data-placement]");
+      if (card) { e.preventDefault(); e.stopImmediatePropagation(); const more = card.querySelector('[data-controls-focus="menu"]'); this.tileMenu(card.dataset.placement, null, more?.getClientRects().length ? more : card, e); return true; }
+      const viewport = $("viewport");
+      if (e.target === viewport || e.target === document.body) { e.preventDefault(); e.stopImmediatePropagation(); const r = viewport.getBoundingClientRect(); this.addMenu(null, null, e, {x:r.left + r.width / 2, y:r.top + r.height / 2}); return true; }
+      return false;
+    }
+    // A menu button in a toolbar (Arrange in the selection bar) opens on ArrowDown through the toolbar's own listener
+    // (popups.js openOnArrowDown), which runs after this capture-phase handler: the board steps aside.
+    if (e.key === "ArrowDown" && !e.shiftKey && e.target.closest?.("[role=toolbar] [aria-haspopup], ui-toolbar [aria-haspopup]")) return true;
+    const more = ["ArrowDown","ArrowUp"].includes(e.key) && !e.shiftKey && e.target.closest?.('[data-item-controls][data-controls-focus="menu"]');
+    if (!more) return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    this.tileMenu(more.dataset.itemControls, null, more, e);
+    return true;
   }
 
   positionContext() {
@@ -2068,7 +2125,9 @@ export class WorkspaceBoard {
     document.querySelectorAll(".workspace-card.inspected").forEach(card => card.classList.remove("inspected"));
     const buttons = document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`);
     buttons.forEach(b => b.setAttribute("aria-expanded", "false"));
-    if (focus) buttons[0]?.focus({ preventScroll: true });
+    // Back to what opened it: the card when it came from the card's menu, else the ⋯.
+    const card = this.contextReturnToCard && id ? document.querySelector(`[data-placement="${CSS.escape(id)}"]`) : null;
+    if (focus) (card || buttons[0])?.focus({ preventScroll: true });
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
@@ -2536,9 +2595,8 @@ export class WorkspaceBoard {
     // which would clear only the drawn elements).
     window.addEventListener("keydown", e => {
       if (e.key === "Escape" && drag?.copy) { cancel(); e.preventDefault(); e.stopImmediatePropagation(); return; }
-      if (e.key === "Escape" && this.arrangePopup) {
-        this.closeArrangeMenu({focus:true});e.preventDefault();e.stopImmediatePropagation();return;
-      }
+      // An open UI SDK menu or popover takes its own Escape (it closes one layer and returns focus).
+      if (e.key === "Escape" && inPopup(e)) return;
       if (e.key === "Escape" && this.panTool && !document.querySelector("dialog[open]")) {
         this.setCanvasTool("pointer");e.preventDefault();e.stopImmediatePropagation();return;
       }
@@ -2983,7 +3041,9 @@ export class WorkspaceBoard {
       const card = e.target.closest(".workspace-card[data-placement]");
       if (!card) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      this.tileMenu(card.dataset.placement, { x: e.clientX, y: e.clientY });
+      // Shift+F10 or the context-menu key on a focused card: under its ⋯, focus on the first item.
+      if (keyboardContextMenu(e)) { const more = card.querySelector('[data-controls-focus="menu"]'); this.tileMenu(card.dataset.placement, null, more?.getClientRects().length ? more : card, e); }
+      else this.tileMenu(card.dataset.placement, { x: e.clientX, y: e.clientY }, null, e);
     });
     let marqueeFrame;
     const updateMarquee = () => {
@@ -3008,52 +3068,54 @@ export class WorkspaceBoard {
     const old = document.querySelector(`[data-decoration="${CSS.escape(d.id)}"]`);
     if (old && !old.querySelector("[contenteditable]")) old.outerHTML = this.decorationMarkup(d);
   }
-  closeAddMenu(focus = false) {
-    const anchor = this.addPopupAnchor || $("viewport");
-    this.addPopup?.remove(); this.addPopup = null;
-    this.addPopupAnchor = null;
-    $("workspace-add").setAttribute("aria-expanded", "false");
-    if (focus) anchor.focus({preventScroll:true});
-  }
-  addMenu(anchor, point) {
-    if (this.addPopup) { this.closeAddMenu(); return; }
-    this.closeStickerPicker();
-    this.closeContext();
-    const menu = document.createElement("div");
-    menu.className = "workspace-add-menu"; menu.setAttribute("role", "menu");
-    menu.setAttribute("aria-label", "Add to board");
+  // The Add menu: one under the Add button (its trigger), and the same items as the board's context menu, opened at
+  // the pointer by a right-click on empty canvas (a created object lands there) or at the canvas centre by Shift+F10.
+  // Two menu elements so a right-click never marks Add as expanded; both live at the end of <body> (popups.js).
+  addMenuItems() {
     const options = [
       ["text","T","Text"],["sticky","▣","Sticky note"],["document","≣","Document"],["sticker","☺","Sticker"],
       ["region","▧","Colored region"],["container","▤","Container"],["arrow","↗","Arrow"],
       ["rounded","▢","Process"],["diamond","◇","Decision"],["ellipse","⬭","Start / end"],
     ];
-    const addKeys = {text:"T", sticky:"S", document:"D"};   // the keys that add the same at the pointer
-    const choice = ([id, icon, label]) => `<button type="button" role="menuitem" data-add="${id}"${addKeys[id] ? ` aria-keyshortcuts="${addKeys[id]}"` : ""}><span aria-hidden="true">${icon}</span>${label}</button>`;
-    menu.innerHTML = options.map(choice).join("") + '<hr role="separator">' + [
-      ["idea","◇","Item…"],["board","▱","New board…"],
-    ].map(choice).join("");
-    document.body.append(menu); this.addPopup = menu; this.addPopupAnchor = anchor;
-    const rect = anchor?.getBoundingClientRect();
-    const screen = point || { x: rect.right - menu.offsetWidth, y: rect.bottom + 6 };
-    Object.assign(menu.style, { left: `${Math.max(8, Math.min(innerWidth - menu.offsetWidth - 8, screen.x))}px`, top: `${Math.max(8, Math.min(innerHeight - menu.offsetHeight - 8, screen.y))}px` });
-    $("workspace-add").setAttribute("aria-expanded", "true");
-    menu.querySelectorAll("[data-add]").forEach(button => button.onclick = () => {
-      const type = button.dataset.add;
-      this.closeAddMenu();
-      if (["text", "region", "container", "arrow", "sticky", "rounded", "diamond", "ellipse"].includes(type)) this.createDecoration(type, point);
-      else if (type === "sticker") this.openStickerPicker(anchor || $("workspace-add"),point);
-      else if (type === "document") this.createDocument(point);
-      else if (type === "board") this.newBoard();
-      else if (type === "idea") itemForm(this.client, {boardId:this.snapshot.id, opener:anchor || $("workspace-add"), refresh:() => this.refresh()});
-    });
-    menu.onkeydown = e => {
-      const buttons = [...menu.querySelectorAll("button")], index = buttons.indexOf(document.activeElement);
-      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
-        e.preventDefault();
-        buttons[e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : (index + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus();
-      }
+    const addKeys = {text:"t", sticky:"s", document:"d"};   // the keys that add the same at the pointer
+    const choice = ([type, glyph, label]) => menuItem(type, label, {icon:`<span class="add-glyph">${glyph}</span>`, shortcut:addKeys[type], attrs:`data-add="${type}"`});
+    return options.map(choice).join("") + menuSeparator + [["idea","◇","Item…"],["board","▱","New board…"]].map(choice).join("");
+  }
+  addMenuElement() {
+    if (this.addMenuUI) return this.addMenuUI;
+    const build = (id, label) => {
+      const ui = sharedMenu({id, label, className:"workspace-add-menu"});
+      ui.content.innerHTML = this.addMenuItems();
+      ui.content.setAttribute("collision-padding", "8");
+      ui.root.addEventListener("action", e => this.runAdd(e.detail.value, ui.root.api.getPayload()?.point, ui === this.addMenuUI ? $("workspace-add") : null));
+      ui.root.addEventListener("openchange", e => { if (e.detail.value) { this.closeStickerPicker(); this.closeContext(); } });
+      return ui;
     };
-    menu.querySelector("button").focus({ preventScroll: true });
+    this.addMenuUI = build("workspace-add-menu", "Add to board");
+    this.addMenuUI.content.setAttribute("align", "end");
+    this.addMenuUI.content.setAttribute("side-offset", "6");
+    // Opening Add closes the board Inspector, as before.
+    this.addMenuUI.root.addEventListener("openchange", e => { if (e.detail.value) { $("board-info").hidden = true; $("board-info-toggle").setAttribute("aria-expanded", "false"); } });
+    this.boardMenuUI = build("board-context-menu", "Add to board");
+    this.boardMenuUI.content.setAttribute("side", "bottom");
+    this.boardMenuUI.content.setAttribute("align", "start");
+    this.boardMenuUI.content.setAttribute("side-offset", "2");
+    return this.addMenuUI;
+  }
+  get addPopup() { return !!(this.addMenuUI?.root.open || this.boardMenuUI?.root.open); }
+  closeAddMenu() { for (const ui of [this.addMenuUI, this.boardMenuUI]) if (ui?.root.open) ui.root.api.close({reason:"imperative"}); }
+  // The board's context menu: point is where a right-click landed (a created object lands there); at is where a
+  // keyboard-opened one sits (the canvas centre, where the object lands anyway).
+  addMenu(anchor, point, event, at) {
+    this.addMenuElement();
+    openMenu(this.boardMenuUI.root, {anchor: point || at || anchor, payload: {point}, event, returnTo: anchor || undefined});
+  }
+  runAdd(type, point, opener) {
+    if (["text", "region", "container", "arrow", "sticky", "rounded", "diamond", "ellipse"].includes(type)) this.createDecoration(type, point);
+    else if (type === "sticker") this.openStickerPicker(opener || $("workspace-add"), point);
+    else if (type === "document") this.createDocument(point);
+    else if (type === "board") this.newBoard();
+    else if (type === "idea") itemForm(this.client, {boardId:this.snapshot.id, opener:opener || $("workspace-add"), refresh:() => this.refresh()});
   }
   openStickerPicker(anchor, point) {
     if(this.hooks.viewOnly||this.commandBusy())return;
@@ -3543,70 +3605,48 @@ export class WorkspaceBoard {
     }
     return [...cardMap.values(),...drawnMap.values(),...units];
   }
-  closeArrangeMenu({focus=false}={}) {
-    const popup = this.arrangePopup;
-    if (!popup) return;
-    this.arrangePopup = null;
-    popup.events.abort();
-    popup.menu.remove();
-    popup.anchor.setAttribute("aria-expanded","false");
-    if (focus && popup.anchor.isConnected) popup.anchor.focus({preventScroll:true});
+  // Arrange: align, distribute, tidy. A UI SDK menu (popups.js) opened from the selection bar's Arrange or the
+  // drawn-object bar's, from code against the pressed button. A menu is a vertical list (arrows move up and down,
+  // typeahead finds "Align …" or "Distribute …" by name), so each icon carries its name beside it. It opens on the side
+  // of its bar away from the selection, so the objects stay in view while they move, and follows the bar as the
+  // view pans or zooms.
+  arrangeMenuElement() {
+    if (this.arrangeMenuUI) return this.arrangeMenuUI;
+    const ui = this.arrangeMenuUI = sharedMenu({id:"arrange-menu", label:"Arrange", className:"arrange-menu"});
+    ui.content.setAttribute("align", "center");
+    ui.content.setAttribute("side-offset", "7");
+    ui.content.setAttribute("collision-padding", "8");
+    ui.root.addEventListener("action", e => this.arrange(e.detail.value));
+    ui.root.addEventListener("openchange", e => { if (!e.detail.value) { this.arrangeAnchor?.setAttribute("aria-expanded", "false"); this.arrangeAnchor = null; } });
+    return ui;
   }
+  get arrangePopup() { return !!this.arrangeMenuUI?.root.open; }
+  closeArrangeMenu() { if (this.arrangeMenuUI?.root.open) this.arrangeMenuUI.root.api.close({reason:"imperative"}); }
+  // The side of the bar away from the selection: above a bar that sits above the objects, else below (the SDK flips
+  // it when there is no room). Called again when the view moves (canvas.js), so the menu keeps to its bar.
   positionArrangeMenu() {
-    const popup = this.arrangePopup;
-    if (!popup) return;
-    const {anchor,menu} = popup;
-    if (!anchor.isConnected || anchor.getClientRects().length === 0) { this.closeArrangeMenu(); return; }
-    const objects = this.arrangeObjects();
-    if (objects.length < 2) { this.closeArrangeMenu(); return; }
-    const box = boundsOf(objects.map(object => object.box));
-    const start = this.boardToScreen({x:box.x,y:box.y});
-    const end = this.boardToScreen({x:box.x+box.width,y:box.y+box.height});
-    const object = {left:start.x,top:start.y,right:end.x,bottom:end.y};
-    const toolbar = anchor.closest("[role=toolbar]")?.getBoundingClientRect() || anchor.getBoundingClientRect();
-    const viewport = $("viewport").getBoundingClientRect();
-    const side = toolbar.top+toolbar.bottom < object.top+object.bottom ? "top" : "bottom";
-    const scrollTop = menu.scrollTop;
-    menu.style.maxHeight = "";
-    const position = placeWhiteboardPopover(viewport,object,toolbar,side,menu.offsetWidth,Math.max(menu.offsetHeight,menu.scrollHeight));
-    Object.assign(menu.style,{left:`${position.left}px`,top:`${position.top}px`,maxHeight:`${position.maxHeight}px`});
-    menu.scrollTop = scrollTop;
-    menu.dataset.popupSide = position.side;
+    if (!this.arrangePopup) return;
+    const anchor = this.arrangeAnchor;
+    if (!anchor?.isConnected || !anchor.getClientRects().length || this.arrangeObjects().length < 2) { this.closeArrangeMenu(); return; }
+    const objects = this.arrangeObjects(), box = boundsOf(objects.map(object => object.box));
+    const top = this.boardToScreen({x:box.x,y:box.y}).y, bottom = this.boardToScreen({x:box.x+box.width,y:box.y+box.height}).y;
+    const bar = anchor.closest("[role=toolbar]")?.getBoundingClientRect() || anchor.getBoundingClientRect();
+    this.arrangeMenuUI.content.setAttribute("side", bar.top + bar.bottom < top + bottom ? "top" : "bottom");
   }
-  arrangeMenu(anchor) {
-    const sameAnchor = this.arrangePopup?.anchor === anchor;
-    this.closeArrangeMenu({focus:sameAnchor});
-    if (sameAnchor) return;
+  arrangeMenu(anchor, event) {
     const count = this.arrangeObjects().length;
-    if (count < 2) return;
-    const events = new AbortController();
-    const menu = document.createElement("div");
-    menu.className = "tk-menu arrange-menu"; menu.setAttribute("role","dialog"); menu.setAttribute("aria-label","Arrange");
-    const item = ([kind,label,icon]) => `<button type="button" class="arrange-item" data-arrange="${kind}" aria-label="${label}" title="${label}" ${kind.startsWith("distribute") && count < 3 ? "disabled" : ""}>${svg16(icon)}</button>`;
-    menu.innerHTML = `<div class="arrange-group" role="group" aria-label="Align"><span>Align</span>${ARRANGE.slice(0,6).map(item).join("")}</div>
-      <div class="arrange-group" role="group" aria-label="Distribute"><span>Distribute</span>${ARRANGE.slice(6,8).map(item).join("")}</div>
-      <button type="button" class="arrange-tidy" data-arrange="tidy" title="Tidy the selection into a grid, keeping reading order">${svg16(ARRANGE[8][2])}<span>Tidy into grid</span></button>`;
-    document.body.append(menu);
-    this.arrangePopup = {menu,anchor,events};
-    anchor.setAttribute("aria-expanded","true");
+    if (count < 2 || !anchor) return;
+    const {root, content} = this.arrangeMenuElement();
+    const item = ([kind,label,icon]) => menuItem(kind, label, {icon:svg16(icon), disabled:kind.startsWith("distribute") && count < 3, attrs:`data-arrange="${kind}"`});
+    content.innerHTML = menuGroup("Align", ARRANGE.slice(0,6).map(item).join("")) + menuGroup("Distribute", ARRANGE.slice(6,8).map(item).join(""))
+      + menuSeparator + menuItem("tidy", "Tidy into grid", {icon:svg16(ARRANGE[8][2]), title:"Tidy the selection into a grid, keeping reading order", attrs:'data-arrange="tidy"'});
+    this.arrangeAnchor?.setAttribute("aria-expanded", "false");
+    this.arrangeAnchor = anchor;
+    anchor.setAttribute("aria-haspopup", "menu");
+    anchor.setAttribute("aria-expanded", "true");
     this.positionArrangeMenu();
-    menu.onclick = e => {
-      const button = e.target.closest("[data-arrange]:not(:disabled)");
-      if (!button) return;
-      this.closeArrangeMenu({focus:true});
-      this.arrange(button.dataset.arrange);
-    };
-    menu.onkeydown = e => {
-      const forward = ["ArrowRight","ArrowDown"].includes(e.key), backward = ["ArrowLeft","ArrowUp"].includes(e.key);
-      if (!forward && !backward && e.key !== "Home" && e.key !== "End") return;
-      e.preventDefault();
-      const buttons = [...menu.querySelectorAll("button:not(:disabled)")], index = buttons.indexOf(document.activeElement);
-      buttons[e.key === "Home" ? 0 : e.key === "End" ? buttons.length-1 : (index+(forward?1:-1)+buttons.length)%buttons.length]?.focus();
-    };
-    const away = e => { if (!menu.contains(e.target) && !anchor.contains(e.target)) this.closeArrangeMenu(); };
-    document.addEventListener("pointerdown",away,{capture:true,signal:events.signal});
-    document.addEventListener("focusin",away,{capture:true,signal:events.signal});
-    menu.querySelector("button:not(:disabled)")?.focus({preventScroll:true});
+    const returnTo = anchor.matches("[data-arrange-open]") ? "#workspace-selection [data-arrange-open]" : anchor.matches("[data-whiteboard-action=arrange]") ? '.whiteboard-toolbar [data-whiteboard-action="arrange"]' : undefined;
+    openMenu(root, {anchor, event, returnTo});
   }
   // One arrangePlacements write: one revision and one Undo step.
   async arrange(kind) {
@@ -3715,13 +3755,14 @@ export class WorkspaceBoard {
       }).catch(error=>toast(error.message));
     });
     document.addEventListener("pointerdown", e => {
-      if (this.tilePopup && !e.target.closest(".workspace-tile-menu,[data-item-controls]")) this.closeTileMenu();
       if (this.context && !e.target.closest("#workspace-item-controls,[data-item-controls],.workspace-dialog,dialog[open],.feedback-panel,.workspace-popover,.workspace-tile-menu")) this.closeContext();
-      if (this.addPopup && !e.target.closest(".workspace-add-menu,#workspace-add")) this.closeAddMenu();
     }, true);
     viewport.addEventListener("contextmenu", e => {
       if (e.target.closest(".workspace-card,.workspace-decoration,button,input,textarea")) return;
-      e.preventDefault(); this.addMenu(null, { x: e.clientX, y: e.clientY });
+      e.preventDefault();
+      // Shift+F10 or the context-menu key on the focused canvas: at its centre, where the object would land anyway.
+      if (keyboardContextMenu(e)) { const r = viewport.getBoundingClientRect(); this.addMenu(null, null, e, {x:r.left + r.width / 2, y:r.top + r.height / 2}); }
+      else this.addMenu(null, { x: e.clientX, y: e.clientY }, e);
     });
     viewport.addEventListener("click", e => {
       if (!e.target.closest(".workspace-card,.workspace-decoration,.whiteboard-ports")) {
@@ -3732,12 +3773,14 @@ export class WorkspaceBoard {
       if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
       // The focused board map owns its arrows, Escape and +/−.
       if (e.target.closest?.(".board-map-stage")) return;
+      // An open UI SDK menu or popover owns every key, Escape included.
+      if (inPopup(e)) return;
       if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
+      if (this.menuKey(e)) return;
       if (this.feedback?.consumeEscape(e)) return;
       if (this.whiteboard?.handleEscape(e)) return;
       if (e.key === "Escape") {
         if (this.context) { this.closeContext(true); e.preventDefault(); e.stopImmediatePropagation(); return; }
-        if (this.addPopup) { this.closeAddMenu(true); e.preventDefault(); e.stopImmediatePropagation(); return; }
         if (this.activeDecoration) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); e.preventDefault(); return; }
         if (this.selection.size) { this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault(); return; }
       }

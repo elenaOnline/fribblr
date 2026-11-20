@@ -14,6 +14,7 @@ import {isMacPlatform} from './reader-keys.js';
 import {canContain,containerDropLabel,containerFor,containerPlacementIds,expandContainerSelection,previewContainerMove,previewContainerLayout} from './containers.js';
 import {containerLayouts,mountContainerLayout} from './container-layout.js';
 import {mountPresetScrub} from './preset-scrub.js';
+import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -750,7 +751,7 @@ export class Whiteboard {
       else this.menu.hidden?this.openMenu():this.closeMenu({focus:true});
       return;
     }
-    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control);return;}
+    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control,e);return;}
     if(action==='close-format'){this.closeMenu({focus:true});return;}
     if(action==='drawing-color'||action==='caption-size'){
       const objects=this.selectedDecorations(), open=this.appearance?.trigger===action;
@@ -1426,6 +1427,8 @@ export class Whiteboard {
     return true;
   }
   keydown(e) {
+    // An open UI SDK menu or popover owns its keys (typeahead, arrows, Escape peels one layer).
+    if(inPopup(e))return;
     const task=e.target.closest('[data-deco-task]');
     if(task&&[' ','Enter'].includes(e.key)) {
       if(e.repeat)e.preventDefault();
