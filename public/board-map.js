@@ -179,6 +179,8 @@ export class BoardMap {
       if (step) this.hooks.panScreen(step[0] * .25, step[1] * .25);
       else if (event.key === '+' || event.key === '=') this.hooks.zoomBy(1.25);
       else if (event.key === '-' || event.key === '_') this.hooks.zoomBy(1 / 1.25);
+      // 0 shows the board at 100%, as on the canvas (UI SDK viewport keys).
+      else if (event.key === '0' && !event.shiftKey) this.hooks.zoomTo?.(1);
       else if (event.key === 'Escape' && !event.repeat && !event.defaultPrevented) this.hooks.close();
       else return;
       event.preventDefault(); event.stopPropagation();
