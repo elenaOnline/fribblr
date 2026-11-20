@@ -88,7 +88,7 @@ const stickerCorners = resizeDirections.filter(direction=>direction.length===2).
 // The bottom-right corner is also a keyboard handle (UI SDK createResize: a focusable button named for its corner;
 // arrows move that corner, Shift for 10). The other handles stay pointer-only.
 const keyboardCorner = (handles, label) => handles.replace('data-decoration-resize="se" aria-hidden="true"',
-  `data-decoration-resize="se" role="button" tabindex="0" aria-label="Resize bottom right of ${esc(label||'Untitled')}" title="Drag to resize, or focus and use the arrow keys"`);
+  `data-decoration-resize="se" role="button" tabindex="0" aria-label="Resize bottom right of ${esc(label||'Untitled')}" data-tip="Drag to resize, or focus and use the arrow keys"`);
 const headsOf = d => d.startArrow ? d.endArrow ? 'both' : 'start' : d.endArrow ? 'end' : 'none';
 const sameTarget = (a,b) => !!a && !!b && (a.placementId ? a.placementId === b.placementId : !!a.decorationId && a.decorationId === b.decorationId);
 const isAttachment = endpoint => !!(endpoint?.placementId || endpoint?.decorationId);
@@ -166,7 +166,7 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
   const color = authoredColor(current.color), w = Math.max(1,box.width), h = Math.max(1,box.height);
   if(current.sticker){
     const angle=Number.isFinite(current.rotation)?current.rotation:0;
-    const handles=selected===true?`${keyboardCorner(stickerCorners,`sticker ${current.text}`)}<button type="button" class="whiteboard-sticker-rotation" data-sticker-rotate aria-label="Rotate sticker" title="Drag to rotate, or use the arrow keys">${icon(icons.rotate)}</button>`:'';
+    const handles=selected===true?`${keyboardCorner(stickerCorners,`sticker ${current.text}`)}<button type="button" class="whiteboard-sticker-rotation" data-sticker-rotate aria-label="Rotate sticker" data-tip="Drag to rotate, or use the arrow keys">${icon(icons.rotate)}</button>`:'';
     return `<div tabindex="0" role="group" aria-label="${esc(`Sticker: ${current.text}`)}" class="workspace-decoration whiteboard-sticker${selected?' selected':''}" data-decoration="${esc(d.id)}" data-sticker style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;--sticker-size:${Math.min(w,h)*.82}px;--sticker-angle:${angle}deg"><span class="whiteboard-sticker-glyph" aria-hidden="true">${esc(current.text)}</span>${handles}</div>`;
   }
   const path = line ? linePath(resolved, current.route, current.bend) : null;
@@ -182,8 +182,8 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
       `<svg class="workspace-decoration-line" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="arrow-${esc(d.id)}" markerWidth="${12*k}" markerHeight="${12*k}" refX="${10*k}" refY="${6*k}" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M${2*k} ${2*k}L${10*k} ${6*k}L${2*k} ${10*k}" fill="none" stroke="var(--decoration-color)" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/></marker></defs><g transform="translate(${-box.x} ${-box.y})"><path class="whiteboard-line-hit" d="${path.d}"/><path class="whiteboard-line-stroke" d="${path.d}" fill="none" stroke="var(--decoration-color)" stroke-width="${sw}" stroke-linejoin="round" vector-effect="non-scaling-stroke" ${dash} ${current.startArrow?`marker-start="${head}"`:''} ${current.endArrow?`marker-end="${head}"`:''}/></g></svg>`;
     mark += `<span class="workspace-decoration-label whiteboard-line-label" data-decoration-label style="left:${path.mid.x-box.x}px;top:${path.mid.y-box.y}px">${esc(current.text||'')}</span>${r.detached?'<span class="whiteboard-detached">Detached</span>':''}`;
     if (selected === true) {
-      handles = `<button type="button" class="workspace-endpoint endpoint-tail" data-endpoint="from" aria-label="Arrow start: drag to move or attach" title="Drag to move or attach the start" style="left:${x1}px;top:${y1}px"></button><button type="button" class="workspace-endpoint endpoint-head" data-endpoint="to" aria-label="Arrow end: drag to move or attach" title="Drag to move or attach the end" style="left:${x2}px;top:${y2}px"></button>`;
-      if (path.bendPoint) handles += `<button type="button" class="workspace-bend" data-arrow-bend aria-label="Adjust arrow bend" title="Drag to bend the arrow" style="left:${path.bendPoint.x-box.x}px;top:${path.bendPoint.y-box.y}px"></button>`;
+      handles = `<button type="button" class="workspace-endpoint endpoint-tail" data-endpoint="from" aria-label="Arrow start: drag to move or attach" data-tip="Drag to move or attach the start" style="left:${x1}px;top:${y1}px"></button><button type="button" class="workspace-endpoint endpoint-head" data-endpoint="to" aria-label="Arrow end: drag to move or attach" data-tip="Drag to move or attach the end" style="left:${x2}px;top:${y2}px"></button>`;
+      if (path.bendPoint) handles += `<button type="button" class="workspace-bend" data-arrow-bend aria-label="Adjust arrow bend" data-tip="Drag to bend the arrow" style="left:${path.bendPoint.x-box.x}px;top:${path.bendPoint.y-box.y}px"></button>`;
     }
   } else {
     const shape = current.shape;
@@ -303,7 +303,7 @@ export class Whiteboard {
     const markup=refs.flatMap(ref=>sides.map(side=>{
       const end={...ref,side},p=resolveEndpoint(end,this.host.snapshot,this.overrides);
       const state=sameTarget(snap?.ref,ref)?snap.endpoint.side===side&&(snap.endpoint.offset??.5)===.5?' near snapped':' near':'';
-      return p.detached?'':`<button type="button" class="whiteboard-port${state}" data-port-side="${side}" data-port="${esc(JSON.stringify(end))}" aria-label="Connect ${esc(this.name(ref))} ${side}" title="${esc(this.name(ref))}: ${side}" style="left:${p.x+origin.x}px;top:${p.y+origin.y}px"></button>`;
+      return p.detached?'':`<button type="button" class="whiteboard-port${state}" data-port-side="${side}" data-port="${esc(JSON.stringify(end))}" aria-label="Connect ${esc(this.name(ref))} ${side}" data-tip="${esc(this.name(ref))}: ${side}" style="left:${p.x+origin.x}px;top:${p.y+origin.y}px"></button>`;
     })).join('');
     if(this.ports.innerHTML!==markup)this.ports.innerHTML=markup;
     this.ports.classList.toggle('snapping',!!snap);

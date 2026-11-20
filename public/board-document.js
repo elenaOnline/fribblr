@@ -165,7 +165,7 @@ function apply(session) {
   if (!hint) { hint = document.createElement("span"); hint.className = "doc-edit-state"; hint.setAttribute("role", "status"); hint.setAttribute("aria-live", "polite"); card.querySelector(".workspace-card-preview")?.append(hint); }
   const labels = {editing:"Editing", saving:"Saving…", saved:"Saved", error:"Not saved", conflict:"Changed elsewhere", idle:"Editing"};
   hint.textContent = labels[session.state] || "Editing"; hint.dataset.state = session.state;
-  if (session.message) hint.title = session.message; else hint.removeAttribute("title");
+  if (session.message) hint.dataset.tip = session.message; else delete hint.dataset.tip;
 }
 function finish(board, session, result) {
   if (editing.get(board) !== session) return;
