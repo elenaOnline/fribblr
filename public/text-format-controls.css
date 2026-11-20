@@ -27,6 +27,8 @@
   line-height:1.2;
   text-align:center;
 }
+/* a drawing's action rows (Select section contents, Bring to front, ...) read as menu rows: words at the start, a printed key at the end */
+.text-format-controls .whiteboard-format-actions > button { display:flex; align-items:center; justify-content:space-between; padding:0 10px; }
 /* faces, fill and border options, auto height and fit height are raised keys (depth.css): their face, rim and "on" come from there.
    The rest are flat and take a wash on hover. */
 .text-format-controls :is([data-format-close], [data-border-auto], [data-style-retry], .text-format-roles button) { background:transparent; }

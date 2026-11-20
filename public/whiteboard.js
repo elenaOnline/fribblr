@@ -191,6 +191,8 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
   return `<div tabindex="0" role="group" aria-label="${esc(line?'Arrow':container?'Container':shapeNames[current.shape]||current.type)}: ${esc(label||'Untitled')}" class="workspace-decoration decoration-${esc(d.type)} ${container?'whiteboard-container':current.shape?'whiteboard-shape shape-'+esc(current.shape):''}${line&&current.route==='curved'?' whiteboard-curved-arrow':''}${!line&&['small','large'].includes(current.textSize)?' text-size-'+current.textSize:''}${!line&&['left','center','right'].includes(current.textAlign)?' text-align-'+current.textAlign:''} ${selected?'selected':''}" data-decoration="${esc(d.id)}"${isPaletteColor(color)?' data-named-color':''}${face}${sizedLabel} style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;z-index:${stackRank(board,'decoration',d.id)};${container?`--container-padding:${container.padding??16}px;`:''}${appearance}">${mark}${handles}</div>`;
 }
 
+// The stacking commands' own keys (] and [), declared on their menu rows so keycaps.js prints them.
+const stackKeys={'stack-front':']','stack-back':'['};
 export class Whiteboard {
   constructor(host) {
     this.host=host; this.overrides=undefined; this.drag=null;
@@ -563,7 +565,7 @@ export class Whiteboard {
   openMenu() {
     const actions=this.menuActions(this.selectedDecorations());
     if(!actions.length)return false;
-    this.menu.innerHTML=actions.map(([action,label])=>`<button type="button" role="menuitem" data-whiteboard-action="${action}">${label}</button>`).join('');
+    this.menu.innerHTML=actions.map(([action,label])=>`<button type="button" role="menuitem" data-whiteboard-action="${action}"${stackKeys[action]?` aria-keyshortcuts="${stackKeys[action]}"`:''}>${label}</button>`).join('');
     this.menu.hidden=false;
     this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','true');
     this.positionMenu();
@@ -572,7 +574,7 @@ export class Whiteboard {
   }
   renderObjectFormat(session) {
     const formatActions=actions=>actions.length?`<div class="whiteboard-format-actions">${actions.map(([id,label])=>
-      `<button type="button" data-whiteboard-action="${id}">${label}</button>`).join('')}</div>`:'';
+      `<button type="button" data-whiteboard-action="${id}"${stackKeys[id]?` aria-keyshortcuts="${stackKeys[id]}"`:''}>${label}</button>`).join('')}</div>`:'';
     if(this.appearance!==session)return;
     if(session.weightControl?.editing||session.captionControl?.editing)return;
     const objects=session.ids.map(id=>this.find(id)).filter(Boolean);
