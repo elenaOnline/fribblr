@@ -529,7 +529,12 @@ export class WorkspaceBoard {
     image.onclick = () => this.backgroundImageDialog(image);
     // "Pattern", not "Background": Background is the ground in Appearance (fribblr).
     const view = section("View", "", [choice("Layout", segments), choice("Pattern", pattern), boardBackground], "inspector-view");
-    const filter = section("Filter", "", [pick(".workspace-search"), row("inspector-toggles", toggles)], "inspector-filter");
+    // Favorites / Last 6 weeks / Archive: one toolbar (one Tab stop, arrows along it), as the same row on Home.
+    const filterBar = document.createElement("ui-toolbar");
+    filterBar.className = "inspector-row inspector-toggles";
+    filterBar.setAttribute("aria-label", "Filter items");
+    for (const button of toggles.filter(Boolean)) { const part = document.createElement("ui-toolbar-button"); part.append(button); filterBar.append(part); }
+    const filter = section("Filter", "", [pick(".workspace-search"), filterBar], "inspector-filter");
     const order = document.createElement("button"); order.type = "button"; order.className = "tk-btn tk-sm tk-tonal";
     order.textContent = "Comparison order…"; order.onclick = () => this.orderForm();
     const edit = section("Edit", "", [row("inspector-edit-row", [...edits, order])], "inspector-edit");
