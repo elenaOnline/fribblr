@@ -466,7 +466,9 @@ closes it and moves on from the opener.
   toggle, then the threads waiting on you; `#comment-cluster-menu` beside a cluster pin, clear of the bottom bar (its
   `collision-padding` is the bar's height). "Nothing right now" is a disabled item.
 - **Reader path** (`reader-path.js`, `board.html` `#reader-path-menu`): a **Menu** opened on a press (title or count), not on
-  hover. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`).
+  hover. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`). Where you are is marked with `aria-current="true"` and a quiet look of its own (popups.css: a short mark-blue rule at
+  the row's leading edge, the medium weight and "here"), never the highlight's fill, so the highlighted row is the only
+  filled one (fix round 2; before, the two "here" rows were filled like it).
 - **Drawn-object More** (`whiteboard.js` `mountPopups`, `openMenu`, `runMore`): `#whiteboard-more-menu`, anchored to the bar's
   current More (the bar re-renders as the selection saves), on the bar's side away from the object. Its actions are
   upstream's (Fit height to text, Select section contents, Edit container title, Remove from container). Items carry

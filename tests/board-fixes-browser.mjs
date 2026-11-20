@@ -214,6 +214,20 @@ try{
  }
  await clear();
 
+ // ---- 7. The reader's path menu marks where you are with aria-current, never with the highlight's fill. ----
+ await clear();await page.locator(`#world .workspace-card[data-placement="${c.a}"]`).focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(400);
+ await page.locator('#reader-path').focus();await page.keyboard.press('Enter');await page.locator('#reader-path-pop .reader-path-row').first().waitFor();await page.waitForTimeout(200);
+ const pathRows=()=>page.evaluate(()=>[...document.querySelectorAll('#reader-path-pop .reader-path-row')].map(r=>({current:r.getAttribute('aria-current')==='true',highlighted:r.hasAttribute('data-highlighted'),filled:getComputedStyle(r).backgroundColor!=='rgba(0, 0, 0, 0)',mark:getComputedStyle(r).backgroundImage!=='none'})));
+ for(const step of ['open','on the current row']){
+   const rows=await pathRows();
+   ok(rows.filter(r=>r.current).length>=1,`The current place carries aria-current (${step})`);
+   eq(rows.filter(r=>r.filled).length,1,`Exactly one row is filled: the highlighted one (${step})`);
+   ok(rows.every(r=>r.filled===r.highlighted),`Only the highlight fills a row (${step})`);
+   ok(rows.every(r=>r.mark===r.current),`The current place has its own mark (${step})`);
+   if(step==='open')for(let i=0;i<8&&!(await pathRows()).some(r=>r.current&&r.highlighted);i++)await page.keyboard.press('ArrowDown');
+ }
+ await page.keyboard.press('Escape');await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});
+
  // The starts, by name: the chosen swatch, the pressed arrowhead, the chosen shape.
  eq(panelStarts['arrow:Stroke color'],'Blue','The stroke palette starts on the chosen swatch');
  eq(panelStarts['shape:Fill color'],'Gold','The fill palette starts on the chosen swatch');
