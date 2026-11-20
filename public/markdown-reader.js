@@ -18,19 +18,27 @@ function textRange(index,start,end){
   return null;
 }
 
+// The tooltip's look lives in ui-sdk.css; this page links it only when it needs the tooltip.
+function loadTips(){
+  if(!document.querySelector('link[href="/app/ui-sdk.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/app/ui-sdk.css';document.head.prepend(link);}
+  import('./tips.js').catch(()=>{});
+}
 export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,content,showError}){
   const mode=['panel','card'].includes(query.get('mode'))?query.get('mode'):'reader',reader=mode==='reader';
   const itemId=query.get('item')||'',commentBoard=query.get('commentBoard')||'';
   const canAnnotate=reader&&!query.get('variant')&&query.get('annotate')==='1'&&Boolean(resourceRoot&&itemId)&&parent!==window;
   document.documentElement.dataset.documentMode=mode;
   const tools=document.createElement('nav');tools.className='document-tools';tools.setAttribute('aria-label','Document tools');
-  const source=document.createElement('a');source.className='document-source';source.href=asset;source.target='_blank';source.rel='noopener noreferrer';source.textContent=resourceRoot?`${resourceRoot} / ${path}`:boardId?`${boardId} / ${path}`:'Original document';source.title='Open original source';
+  // Hints on the UI SDK tooltip (tips.js), loaded only for the full reader (card previews stay light). The tools bar is a
+  // tooltip zone: its controls carry data-tip and the page's delegated tooltip serves them.
+  tools.dataset.tipZone='';if(reader)loadTips();
+  const source=document.createElement('a');source.className='document-source';source.href=asset;source.target='_blank';source.rel='noopener noreferrer';source.textContent=resourceRoot?`${resourceRoot} / ${path}`:boardId?`${boardId} / ${path}`:'Original document';source.dataset.tip='Open original source';
   const outline=document.createElement('select');outline.setAttribute('aria-label','Document contents');
-  const reload=document.createElement('button');reload.type='button';reload.textContent='Reload';reload.setAttribute('aria-label','Reload source');reload.title='Reload source';reload.dataset.documentReload='';
+  const reload=document.createElement('button');reload.type='button';reload.textContent='Reload';reload.setAttribute('aria-label','Reload source');reload.dataset.tip='Reload source';reload.dataset.documentReload='';
   const annotations=document.createElement('button');annotations.type='button';annotations.textContent='Annotations';annotations.dataset.documentAnnotations='';annotations.hidden=!canAnnotate;annotations.setAttribute('aria-expanded','false');
   // Edit makes this page editable in place (document-editor.js); only the current local
   // document can be edited, never a historical variant. While editing it reads Done.
-  const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.title='Edit this document in place (E)';edit.setAttribute('aria-label','Edit document');edit.dataset.documentEdit='';edit.hidden=!canAnnotate;
+  const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.dataset.tip='Edit this document in place';edit.setAttribute('aria-keyshortcuts','E');edit.setAttribute('aria-label','Edit document');edit.dataset.documentEdit='';edit.hidden=!canAnnotate;
   edit.onclick=()=>editing?editing.end():startEdit({});
   const status=document.createElement('p');status.className='document-status';status.setAttribute('role','status');
   const selectionTools=document.createElement('div');selectionTools.className='document-selection-tools';selectionTools.hidden=true;selectionTools.setAttribute('role','toolbar');selectionTools.setAttribute('aria-label','Selected passage');
@@ -201,10 +209,10 @@ export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,conte
     if(buffered.cancelled){post('tinka-document-edit-end',{itemId:itemId||request.itemId,saved:false});return;}
     if(editing)return;
     clearPaint();selectionTools.hidden=true;composing=false;
-    edit.textContent='Done';edit.title='Finish editing (Esc)';reload.disabled=true;
+    edit.textContent='Done';edit.dataset.tip='Finish editing';edit.setAttribute('aria-keyshortcuts','Escape');reload.disabled=true;
     editing=startDocumentEditor({content,article,asset,text:fresh.text,revision:fresh.revision,itemId:itemId||request.itemId,point:request.point,source:!!request.source,selectTitle:!!request.selectTitle,pendingKeys:[...buffered.early,...buffered.keys],
       onStatus:({state,message,revision:saved})=>{post('tinka-document-status',{itemId:itemId||request.itemId,state,message,...(saved?{revision:saved}:{})});if(reader)status.textContent=state==='saving'?'Saving…':state==='saved'?'Saved':state==='conflict'?'Changed elsewhere. Reload to continue.':state==='error'?`Not saved. ${message}`:'';},
-      onEnd:result=>{editing=null;edit.textContent='Edit';edit.title='Edit this document in place (E)';post('tinka-document-edit-end',{itemId:itemId||request.itemId,saved:result.saved,unsaved:result.unsaved,title:result.title});load().then(()=>{if(reader&&result.unsaved)status.textContent='Some changes were not saved.';});}});
+      onEnd:result=>{editing=null;edit.textContent='Edit';edit.dataset.tip='Edit this document in place';edit.setAttribute('aria-keyshortcuts','E');post('tinka-document-edit-end',{itemId:itemId||request.itemId,saved:result.saved,unsaved:result.unsaved,title:result.title});load().then(()=>{if(reader&&result.unsaved)status.textContent='Some changes were not saved.';});}});
   }
   window.addEventListener('message',event=>{
     if(event.origin!==location.origin||event.source!==parent)return;
