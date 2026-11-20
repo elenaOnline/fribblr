@@ -158,6 +158,16 @@ written back after a toggle, or the SDK puts it back.
   re-rendered while open, `openchangecomplete` finds the new copy through `returnTo`. A shared menu that closes with
   focus still on one of its closed rows (a click away whose press was swallowed) also returns focus to its opener. Tab
   in a shared menu focuses the opener first, so the browser's Tab continues from there.
+- **A press away puts focus where the press would have put it.** The SDK leaves focus alone when the outside press
+  lands on something focusable (popups.md § Focus: "Closing because focus moved away never moves it back, and neither
+  does pressing something focusable outside"), expecting the press to focus it. But a menu swallows that press, and the
+  board prevents native focus on the canvas, so focus fell to `<body>`. `popups.js` records each popup's outside press
+  and, once the popup has closed with focus on `<body>` or still inside it, focuses what `focusAfterOutsidePress(resolve)`
+  names for the press (the board registers one: the pressed item, else the canvas, `pressedKey` in
+  `workspace-board.js`), else the focusable element pressed, else the popup's trigger (a press on the bare top bar; the
+  SDK's own deferred return doesn't happen for a `for=` trigger in 0.1.0-beta.10). Every menu, popover and side panel
+  follows it, with no per-popup code: a click on empty canvas from Add, the Comments count, the % popover or a card's ⋯
+  leaves the canvas focused. Checked in `tests/last-fixes-browser.mjs`.
 - A non-modal popover or dialog at the end of `<body>` (or of the reader dialog) is steered by a document Tab
   listener in `popups.js`: Tab from its last control closes a popover and focuses its trigger, so the browser's Tab
   continues after the trigger; Shift+Tab from the first control focuses the trigger. The trigger is found through
@@ -574,7 +584,8 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   that moved on within that frame (code acting on the press, a click an assistive technology sends in one go, a key
   pressed straight after) is left where it went: only focus still where it was (the same element, or the same board
   item re-rendered), or dropped to `<body>`, is moved. A press on empty canvas, or on a plain region's open middle,
-  takes focus off the items. A press on a control inside a card keeps native focus there. Pointer focus draws no ring
+  focuses the canvas, from wherever focus was (Add, Find, a panel's comment field): the canvas is a focusable place,
+  and a press on one takes focus. Only a field on the board itself (an editor the press finishes) keeps it. A press on a control inside a card keeps native focus there. Pointer focus draws no ring
   (`pointer-focus.js` marks it `data-pointer-focus`), except that the return pulse still shows. Checked in
   `tests/board-fixes-browser.mjs` and `tests/canvas-keyboard-browser.mjs`.
 - **Focus follows what the app creates** (`focusCreated`). What the app creates and selects takes focus (the first of

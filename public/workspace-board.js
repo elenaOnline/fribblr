@@ -2,7 +2,7 @@ import {closePanel, sidePanel} from "./side-panel.js";
 import {setItemDisabled} from "./header-toolbar.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
 import {followVisibility,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
-import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked} from './popups.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked,focusAfterOutsidePress} from './popups.js';
 import {widgetOwnsKey} from './ui-sdk.js';
 import {tips,tip,setTip,tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
@@ -4078,22 +4078,38 @@ export class WorkspaceBoard {
     if (active !== el) el.focus({preventScroll:true});
     this.boardFocus.keepOn(key);
   }
+  // The board item a press lands on: its roving key, null for the empty canvas (or a plain region's open middle, which
+  // works as empty canvas), undefined for a press that is not the board's (outside the canvas, or on a control).
+  pressedKey(e) {
+    if (this.mode !== "canvas" || !e.target.closest?.("#viewport")) return undefined;
+    if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],[data-deco-task],.whiteboard-editor,[data-port],.board-map,.whiteboard-ports")) return undefined;
+    let item = this.boardFocus.item(e.target);
+    if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) {
+      const r = item.getBoundingClientRect();
+      if (e.clientX > r.left + 6 && e.clientX < r.right - 6 && e.clientY > r.top + 28 && e.clientY < r.bottom - 6) item = null;
+    }
+    return item ? this.boardFocus.key(item) : null;
+  }
   pressFocus() {
+    // A press that closes a popup (a menu swallows it; a popover lets it through) gives focus to what it pressed, as it
+    // would with no popup open: the pressed item, or the canvas (popups.js, focusAfterOutsidePress).
+    focusAfterOutsidePress(e => {
+      const key = this.pressedKey(e);
+      return key === undefined ? undefined : key ? this.boardFocus.element(key) : $("viewport");
+    });
     window.addEventListener("pointerdown", e => {
-      if (this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool || !e.target.closest?.("#viewport")) return;
-      if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],[data-deco-task],.whiteboard-editor,[data-port],.board-map,.whiteboard-ports")) return;
-      let item = this.boardFocus.item(e.target);
-      if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) {
-        const r = item.getBoundingClientRect();
-        if (e.clientX > r.left + 6 && e.clientX < r.right - 6 && e.clientY > r.top + 28 && e.clientY < r.bottom - 6) item = null;
-      }
-      const key = item && this.boardFocus.key(item);
-      if (!key && !document.activeElement?.closest?.("#world")) return;
+      if (e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool) return;
+      const key = this.pressedKey(e);
+      if (key === undefined) return;
       // Where focus was before the press, by element and by board item (a re-render replaces the element).
       const before = document.activeElement, beforeItem = before && this.boardFocus.item(before), beforeKey = beforeItem && this.boardFocus.key(beforeItem);
       requestAnimationFrame(() => {
         const active = document.activeElement;
-        if (active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor")) return;
+        // A field or editor keeps focus that code gave it on this press, and a field on the board itself (an editor
+        // the press finishes) keeps it too. A field the press left (Find, a panel's comment field) gives it up, as a
+        // press on any other focusable place takes it.
+        const field = active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor");
+        if (field && (active !== before || active.closest("#viewport"))) return;
         const target = key ? this.boardFocus.element(key) : $("viewport");
         if (!target?.isConnected || active === target) return;
         // Focus that moved on before this frame (code acting on the press, a click that an assistive technology
