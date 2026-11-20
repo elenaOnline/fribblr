@@ -1195,7 +1195,9 @@ function renderReaderInfo() {
       if (parent) actions.push(act('feature', `Feature on ${esc(parent.title)}…`));
     }
   }
-  const organize = actions.length ? `<section class="inspector-sec" aria-labelledby="reader-organize-heading"><h3 id="reader-organize-heading">Organize</h3><div class="reader-organize">${actions.join('')}</div></section>` : '';
+  // The Organize rows are drawn as the Feedback rows are, so they are one vertical toolbar too (↑/↓ with wrap, Home/End),
+  // as the item Inspector's actions, which hold the same Move, are.
+  const organize = actions.length ? `<section class="inspector-sec" aria-labelledby="reader-organize-heading"><h3 id="reader-organize-heading">Organize</h3><ui-toolbar orientation="vertical" class="reader-organize" aria-labelledby="reader-organize-heading">${actions.map(action => `<ui-toolbar-button>${action}</ui-toolbar-button>`).join('')}</ui-toolbar></section>` : '';
   const help = `<section class="inspector-sec" aria-labelledby="reader-help-heading"><h3 id="reader-help-heading">Help</h3><div class="reader-organize">${where.standalone ? act('reload', 'Reload content') : ''}${act('shortcuts', 'Keyboard shortcuts <kbd class="tk-kbd">?</kbd>')}</div></section>`;
 
   $('reader-info-body').innerHTML = `<div class="inspector-title"><h2 id="reader-info-name">${esc(descriptor(active, variant).name)}</h2><p>${esc(kind)} · on ${esc(readerBoardTitle())}${index >= 0 ? ` · ${index + 1} of ${sequence.length}` : ''}</p></div>

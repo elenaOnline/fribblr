@@ -4,6 +4,9 @@
 //   the trigger, and a press on the canvas from a field outside the board focuses the canvas;
 // - a press on a drawn-object bar button or a tools-rail button closes its tooltip, and it stays closed over the panel
 //   or picker the press opened until the pointer leaves the button;
+// - groups drawn like a converted twin are one Tab stop with arrows: the action rows in Shape and Line options, the
+//   connection points of a selected object, the board Inspector's Edit and Feedback rows, the reader Inspector's
+//   Organize rows;
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -91,6 +94,72 @@ try{
   {const b=await page.locator('button[data-edit-tool][aria-label^="Sticker"]').boundingBox();await page.mouse.move(b.x+b.width/2,b.y-70,{steps:2});await page.waitForTimeout(500);await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:3});
    ok(await until(async()=>(await tipShown()).includes('Sticker'),2000),'Back on the button after leaving it, its tooltip shows again');}
   await page.mouse.move(5,450);
+ }
+
+ // ---- 3. Groups that are one Tab stop with arrows. ----
+ const stops=sel=>page.evaluate(sel=>[...document.querySelectorAll(sel)].filter(b=>b.getClientRects().length&&b.tabIndex>=0&&!b.disabled).map(b=>b.textContent.trim()||b.getAttribute('aria-label')),sel);
+ const walk=async keys=>{const out=[];for(const key of keys){await page.keyboard.press(key);await page.waitForTimeout(80);out.push(await page.evaluate(()=>document.activeElement?.textContent?.trim()||document.activeElement?.getAttribute('aria-label')));}return out;};
+ {// Shape options and Line options: the action rows are one vertical toolbar.
+  for(const [sel,name] of [['#world [data-decoration="shape"]','Shape options'],['#world [data-decoration="arrow"]','Line options']]){
+   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+   await page.locator(sel).focus();await page.keyboard.press('Space');await page.waitForTimeout(300);
+   await page.locator(`.whiteboard-toolbar button[aria-label="${name}"]`).focus();await page.keyboard.press('Enter');
+   await page.locator('.whiteboard-menu:not([hidden]) .whiteboard-format-actions').waitFor();
+   eq(await page.evaluate(()=>{const t=document.querySelector('.whiteboard-menu .whiteboard-format-actions');return [t.getAttribute('role'),t.getAttribute('aria-orientation')];}),['toolbar','vertical'],`${name}: the action rows are a vertical toolbar`);
+   eq((await stops('.whiteboard-menu .whiteboard-format-actions button')).length,1,`${name}: the action rows are one Tab stop`);
+   await page.locator('.whiteboard-menu .whiteboard-format-actions button').first().focus();
+   eq(await walk(['ArrowDown','ArrowDown','End','Home']),['Send to back[','Bring to front]','Send to back[','Bring to front]'],`${name}: ↓ wraps between Bring to front and Send to back, Home and End reach the ends`);
+   ok(await page.evaluate(()=>{const m=document.querySelector('.whiteboard-menu');return m.scrollHeight<=m.clientHeight+1;}),`${name}: the panel is tall enough for its rows`);
+   await page.keyboard.press('Escape');await page.waitForTimeout(150);
+  }
+  // The connection points of a selected Text block: one stop, an arrow goes to that side's point.
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await page.locator('#world [data-decoration="words"]').focus();await page.keyboard.press('Space');await page.waitForTimeout(300);
+  eq(await page.evaluate(()=>{const g=document.querySelector('.whiteboard-ports');return [g.getAttribute('role'),g.getAttribute('aria-label')];}),['group','Connection points'],'The connection points are a named group');
+  eq((await stops('.whiteboard-ports [data-port]')).length,1,'The connection points are one Tab stop');
+  await page.locator('.whiteboard-ports [data-port][tabindex="0"]').focus();
+  eq(await walk(['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','End','Home']).then(list=>list.map(name=>name.split(' ').pop())),['right','bottom','left','top','left','top'],'Arrows go to that side\'s point; Home and End reach the first and last');
+  await page.keyboard.press('ArrowRight');await page.keyboard.press('Enter');
+  ok(await until(()=>page.evaluate(()=>document.querySelectorAll('.whiteboard-ports [data-port]').length>4&&document.activeElement?.matches('[data-port]'))),'Enter on a point begins a connection: the destinations show and focus stays on the points');
+  eq((await stops('.whiteboard-ports [data-port]')).length,1,'The destinations are one Tab stop too');
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+ }
+ {// The board Inspector's Edit and Feedback rows are toolbars, as the Filter row is.
+  await page.locator('#board-info-toggle').click();await page.locator('#board-info .inspector-edit-row').waitFor();await page.waitForTimeout(300);
+  for(const [sel,name] of [['#board-info .inspector-edit-row','Edit'],['#board-info .inspector-feedback-row','Feedback']]){
+   eq(await page.evaluate(sel=>{const t=document.querySelector(sel);return [t.getAttribute('role'),document.getElementById(t.getAttribute('aria-labelledby'))?.textContent];},sel),['toolbar',name],`The ${name} row is a toolbar named by its heading`);
+   eq((await stops(`${sel} button`)).length,1,`The ${name} row is one Tab stop`);
+  }
+  {const enabled=await page.evaluate(()=>[...document.querySelectorAll('#board-info .inspector-edit-row button')].filter(b=>!b.disabled&&b.getClientRects().length).map(b=>b.textContent.trim()));
+   ok(enabled.includes('Paste…')&&!enabled.some(name=>/^(Undo|Redo)/.test(name)),`Undo and Redo are disabled, Paste is not: ${enabled}`);
+   await page.locator('#workspace-paste').focus();
+   const seen=await walk(enabled.map(()=>'ArrowRight'));
+   eq([...seen].sort(),[...enabled].sort(),'In the Edit row the arrows visit every enabled button, passing over disabled Undo and Redo');
+   eq(seen.at(-1),'Paste…','and wrap back round');}
+  await page.locator('#board-info .inspector-feedback-row button[tabindex="0"]').focus();
+  eq((await walk(['ArrowRight','ArrowRight','ArrowRight'])).map(name=>name.replace(/⇧.*$/,'')),['Export notes','Copy notes as Markdown','Comments'],'In the Feedback row the arrows go Comments → Export notes → Copy notes as Markdown and wrap');
+  // Undo comes and goes with the history: enabled, it joins the arrow order; its button still reads disabled.
+  eq(await page.evaluate(()=>document.getElementById('workspace-undo').disabled),true,'Undo starts disabled');
+  await page.locator('#board-info-close').click();await page.waitForTimeout(200);
+  await page.locator(`#world [data-placement="${c.d}"]`).focus();await page.keyboard.press('Alt+ArrowRight');
+  ok(await until(()=>page.evaluate(()=>document.getElementById('workspace-undo').disabled===false)),'After a move Undo is enabled');
+  await page.locator('#board-info-toggle').click();await page.waitForTimeout(300);
+  await page.locator('#board-info .inspector-edit-row button[tabindex="0"]').focus();await page.keyboard.press('Home');
+  eq(await page.evaluate(()=>document.activeElement?.id),'workspace-undo','Home in the Edit row reaches Undo once it is enabled');
+  await page.keyboard.press('Escape');await page.waitForTimeout(200);
+  if(await page.locator('#board-info:not([hidden])').count()){await page.locator('#board-info-close').click();await page.waitForTimeout(200);}
+ }
+ {// The reader Inspector's Organize rows are one vertical toolbar, as its Feedback rows are.
+  await page.locator(`#world [data-placement="${c.a}"]`).focus();await page.keyboard.press('Enter');
+  await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(600);
+  await page.keyboard.press(process.platform==='darwin'?'Meta+i':'Control+i');
+  await page.locator('#reader-info ui-toolbar.reader-organize').waitFor();await page.waitForTimeout(300);
+  eq(await page.evaluate(()=>{const t=document.querySelector('#reader-info ui-toolbar.reader-organize');return [t.getAttribute('role'),t.getAttribute('aria-orientation')];}),['toolbar','vertical'],'The reader Inspector\'s Organize rows are a vertical toolbar');
+  eq((await stops('#reader-info ui-toolbar.reader-organize button')).length,1,'The Organize rows are one Tab stop');
+  await page.locator('#reader-info ui-toolbar.reader-organize button[tabindex="0"]').focus();
+  ok((await walk(['ArrowDown','ArrowUp'])).every(Boolean)&&await page.evaluate(()=>document.activeElement?.dataset.readerAct==='edit'),'↓ and ↑ move along the Organize rows');
+  await page.keyboard.press('Escape');await page.waitForTimeout(200);await page.keyboard.press('Escape');await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');await page.waitForTimeout(300);
  }
 
  assert.deepEqual(errors,[]);checks++;

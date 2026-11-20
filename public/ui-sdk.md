@@ -253,6 +253,16 @@ setPressed(mapToggle, mapIsOpen);                     // property write, no even
   height once, Reload while busy). It looks disabled too: a rule at the end of `calm.css` lays an `aria-disabled`
   top-bar key flat in the frame with a hairline, as `depth.css` draws `:disabled` (Undo and Redo with nothing to undo).
   The depth model has no `[aria-disabled]` rule of its own yet; the theme is asked for one, which would replace this.
+- **Buttons the app disables.** The SDK owns a toolbar button's `disabled` attribute and writes it from its part; a
+  natively disabled button behind an enabled part is an arrow stop focus can't land on, so the arrows stop there.
+  Disable such a button through its part with `setButtonOff(button, off)` (`ui-toolbar.js`): the part leaves the arrow
+  order (`focusable-when-disabled="false"`) and the SDK writes `disabled` on the button, so code and tests that read
+  `button.disabled` are unchanged (the board Inspector's Edit row). A toolbar that is not rendered at all (in a closed
+  panel) keeps its items as they are, and `followVisibility` reads them again when it shows: marking them disabled then
+  made the SDK write `disabled` on every button of a closed Inspector.
+- **Vertical toolbars** lay out as a column from the authored `orientation="vertical"` as well as the SDK's
+  `data-orientation` (`ui-sdk.css`): the SDK writes the latter a microtask after the element arrives, and a panel
+  measured in between (Shape options) took its rows for one line and sized itself short.
 - **App-owned state.** `onPress(toggle, fn)` cancels the SDK's flip and calls `fn(requested)`; the app writes its answer
   with `setPressed(el, on)`. `onChoose(group, fn)` does the same for a toggle group, `setChoice(group, value)` writes
   it. The answer must be written after the event returns, because the SDK restores a cancelled change when its
@@ -991,6 +1001,19 @@ opens every `[aria-haspopup]` button by clicking it.
   button. Typeface is a toggle group. Text box: Color applies to (segmented), Fill style / Border style (toggle groups),
   the palette (radio group), Padding (scrub), and a Box height `ui-toolbar` (Auto height a `ui-toggle` with one name in
   both states; Fit height once a `ui-toolbar-button`, `aria-disabled` while a fit saves).
+- The action rows at the end of Shape options and Line options (Bring to front, Send to back, and Edit text, Select
+  section, Remove from container where they apply) look like menu rows, so they are one vertical `ui-toolbar` named
+  "Actions" (`formatActions` in `renderObjectFormat`), as the % popover's zoom rows are: one Tab stop, ↑/↓ with wrap,
+  Home/End. Tab from it leaves the panel (`tabOutOfPanel`).
+- **Connection points** (`renderPorts`, `portKeys`). The four points round a selected Text block or shape, and the
+  destinations shown once a connection has begun, are one Tab stop in a `role=group` "Connection points", as the
+  comment pins are: the point focused last holds it (else the first). An arrow goes to that side's point of the same
+  object (↑ top, → right, ↓ bottom, ← left) and, from a point already on that side, to the nearest point that way
+  (`nearestInDirection` on screen boxes, among the destinations); Home and End reach the first and last. Enter or Space
+  presses the focused point: the first begins a connection and focus stays on that point among the destinations. That
+  click stops in `whiteboard.js`: choosing redraws the points, so the pressed one has left the page by the time the
+  canvas's click handler reads it, and that handler took it for a click on empty canvas and cleared the selection and
+  the connection just begun.
 - Where a panel starts (`focusPanelStart`, `text-appearance.js` `focus()`): the first control, unless one is marked
   `[data-autofocus]`; a group of choices is entered on its checked or pressed option. So Typeface starts on the chosen
   face, Text box on Color applies to, Ink and Text size on the chosen swatch / preset (a custom size: the scrub), Line
@@ -1107,8 +1130,12 @@ Layout and Pattern rows are segmented controls. Board color opens a swatch radio
 `workspace-board.js`); while the board has a colour, "Remove color" follows the custom colour (one more Tab stop), as the
 background image has "Remove image": it clears the colour, so the board stands on the Background chosen in Appearance,
 closes the palette and returns focus to Board color. The filter row (`.inspector-toggles`) is a `ui-toolbar` around the
-`aria-pressed` buttons. The Edit row (Undo, Redo, Copy, Paste…, Comparison order…) and the Feedback rows stay separate
-buttons: a panel's commands under section headings, Tab-walked as in any dialog.
+`aria-pressed` buttons. The Edit row (Undo, Redo, Copy selection, Paste…, Comparison order…, and Open primary content,
+Retry unsaved feedback, Recover unsaved text when they show) and the Feedback row (Comments, Export notes, Copy notes as
+Markdown) are drawn as the Filter row is, so they are toolbars too, each named by its heading (`toolbarRow` in
+`arrangeInspector`): one Tab stop, ←/→ with wrap, Home/End. A hidden button or a disabled one (Undo with nothing to undo)
+leaves the arrow order (`followVisibility`); the app disables them with `setButtonOff` (§ Toolbars), so their buttons
+still read `disabled` as before. Checked in `tests/last-fixes-browser.mjs`.
 
 **Item Inspector.** `workspace-board.js` `itemControls`, `closeContext`. A side panel. Appearance rows are segmented
 controls; Paper colour is a swatch radio group. The actions are a vertical `ui-toolbar` (`orientation="vertical"`, rows
@@ -1121,7 +1148,10 @@ passing remark (cards, Home, the Navigator), not focusable.
 
 **Reader Inspector.** `canvas.js` `readerInspector`, `setReaderInfoOpen`, `renderReaderInfo` (keeps the opening focus
 through its re-render); `board.html` `#reader-info-dialog`. A side panel. Its Feedback rows (Comments, Vote) are one
-vertical `ui-toolbar` (↑/↓), for the same reason as the item Inspector's. Organize and Help stay buttons (below).
+vertical `ui-toolbar` (↑/↓), for the same reason as the item Inspector's. Its Organize rows (Edit details…, Add board… or
+Its board, Move to another board…, Also show on another board…, Feature on …) are drawn as the Feedback rows are and hold
+the item Inspector's Move, so they are one vertical `ui-toolbar` too. Help stays a button (Keyboard shortcuts; Reload
+content on a standalone page): one or two commands, not a set.
 
 **Reader path.** `reader-path.js`, `board.html` `#reader-path-menu` (`ui-menu-trigger`, `guardMenu`). A Menu opened on a
 press on the title or count. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`). The

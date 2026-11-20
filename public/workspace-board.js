@@ -1,7 +1,7 @@
 import {closePanel, sidePanel} from "./side-panel.js";
 import {setItemDisabled} from "./header-toolbar.js";
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
-import {followVisibility,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
+import {followVisibility,setButtonOff,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
 import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked,focusAfterOutsidePress} from './popups.js';
 import {widgetOwnsKey} from './ui-sdk.js';
 import {tips,tip,setTip,tipOuter} from './tips.js';
@@ -565,7 +565,23 @@ export class WorkspaceBoard {
     const filter = section("Filter", "", [pick(".workspace-search"), filterBar], "inspector-filter");
     const order = document.createElement("button"); order.type = "button"; order.className = "tk-btn tk-sm tk-tonal";
     order.textContent = "Comparison order…"; order.onclick = () => this.orderForm();
-    const edit = section("Edit", "", [row("inspector-edit-row", [...edits, order])], "inspector-edit");
+    // The Edit and Feedback rows are drawn as the Filter row is, so they behave as it does: one toolbar each, named by
+    // its heading (one Tab stop, ←/→ along it with wrap, Home/End). A button that is hidden (Retry unsaved feedback,
+    // Recover unsaved text, Open primary content) or disabled (Undo with nothing to undo) leaves the arrow order
+    // (followVisibility); their own modules still find them by id and write `disabled` as before.
+    const toolbarRow = (cls, heading, nodes) => {
+      const el = document.createElement("ui-toolbar");
+      el.className = `inspector-row ${cls}`;
+      el.setAttribute("aria-labelledby", `board-info-${heading}-heading`);
+      nodes.filter(Boolean).forEach(node => el.append(node));
+      // Right around the button, inside any tooltip trigger (which stays the outermost wrapper, ui-sdk.md § Tooltips).
+      const off = [];
+      for (const button of el.querySelectorAll("button")) { const part = document.createElement("ui-toolbar-button"); button.before(part); part.append(button); if (button.disabled) off.push(button); }
+      followVisibility(el);
+      for (const button of off) setButtonOff(button, true);
+      return el;
+    };
+    const edit = section("Edit", "", [toolbarRow("inspector-edit-row", "edit", [...edits, order])], "inspector-edit");
     // Feedback: board-wide Comments as one full-width row (as in the opened Tinka's
     // Inspector), anything else the feedback controls add, and notes export.
     const comments = pick("[data-feedback-toggle]");
@@ -574,7 +590,7 @@ export class WorkspaceBoard {
     const exporter = $("export"); exporter?.classList.add("tk-btn", "tk-sm", "tk-tonal");
     const copy = document.createElement("button"); copy.type = "button"; copy.className = "tk-btn tk-sm tk-tonal";
     copy.textContent = "Copy notes as Markdown"; copy.setAttribute("aria-keyshortcuts", "Shift+Meta+C Control+Shift+C"); copy.onclick = () => this.copyNotes();
-    const feedback = section("Feedback", "", [comments, ...extra, row("", [exporter, copy])], "inspector-feedback");
+    const feedback = section("Feedback", "", [toolbarRow("inspector-feedback-row", "feedback", [comments, ...extra, exporter, copy])], "inspector-feedback");
     const appearance = section("Appearance", "this browser", [row("", [panel.querySelector(".appearance-control")])], "inspector-appearance");
     const guide = pick("#workspace-keyboard-shortcuts"); guide?.classList.add("tk-btn", "tk-sm", "tk-tonal");
     const help = section("Help", "", [panel.querySelector(".board-help"), row("", [guide])], "inspector-help");
@@ -1531,15 +1547,17 @@ export class WorkspaceBoard {
       if (!button) continue;
       const verb = direction === "undo" ? "Undo" : "Redo", label = this.history?.label(direction);
       button.textContent = label ? `${verb} ${label.toLowerCase()}` : verb;
-      button.disabled = !!busy || !this.history?.available(direction);
+      // Through the Edit toolbar's part (setButtonOff): the SDK writes the button's `disabled` from it.
+      const off = !!busy || !this.history?.available(direction);
+      setButtonOff(button, off);
       setTip(button, direction === "undo" ? "Undo movement, paste or removal" : "Redo movement, paste or removal");
       const quick = $("chrome-" + direction);
-      if (quick) { setItemDisabled(quick, button.disabled); setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
+      if (quick) { setItemDisabled(quick, off); setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     const hasDrawings = this.mode === "canvas" && (this.activeDecoration || this.decorationSelection.size);
-    if (copy) copy.disabled = !!busy || !this.clipboardCandidates().length && !hasDrawings;
-    if (paste) paste.disabled = !!busy;
+    if (copy) setButtonOff(copy, !!busy || !this.clipboardCandidates().length && !hasDrawings);
+    if (paste) setButtonOff(paste, !!busy);
   }
   async replayMovement(direction, {explicit = false} = {}) {
     if (this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy || this.history?.busy || this.client.pendingWrites || this.saving ||

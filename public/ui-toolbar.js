@@ -2,29 +2,47 @@
 // attribute, or by a media query (a narrow screen drops some actions), would still be a tab stop or an arrow-key
 // stop, and focus would land on nothing. followVisibility() keeps those items out of the toolbar's order: any
 // ui-toolbar-button whose button is not rendered is marked disabled and not focusable (the SDK's own
-// focusable-when-disabled="false"), and comes back when it is shown again.
+// focusable-when-disabled="false"), and comes back when it is shown again. A toolbar that is not rendered at all (it
+// sits in a closed panel) leaves its items as they are; their visibility is read again when it shows.
+//
+// A button the app disables itself (the board Inspector's Undo with nothing to undo) is disabled through its part,
+// with setButtonOff(button, off): the SDK owns a toolbar button's `disabled` attribute and writes it from the part
+// (a natively disabled button behind an enabled part is an arrow stop focus can't land on, and the arrows stop
+// there). The button still reads `disabled` as before, so code and tests that read it are unchanged.
 import './vendor/ui-sdk/web/toolbar.js';
+
+function sync(toolbar) {
+  const shown = toolbar.getClientRects().length > 0;
+  for (const part of toolbar.querySelectorAll('ui-toolbar-button')) {
+    const button = part.querySelector('button');
+    const gone = shown ? !button || button.getClientRects().length === 0 : !!part.__gone;
+    part.__gone = gone;
+    const skip = gone || !!part.__off;
+    if (skip === !!part.__skipped) continue;
+    part.__skipped = skip;
+    if (skip) { part.setAttribute('focusable-when-disabled', 'false'); part.disabled = true; }
+    else { part.disabled = false; part.removeAttribute('focusable-when-disabled'); }
+  }
+}
 
 export function followVisibility(toolbar) {
   if (!toolbar || toolbar.__followVisibility) return;
   toolbar.__followVisibility = true;
   let queued = 0;
-  const run = () => {
-    queued = 0;
-    for (const part of toolbar.querySelectorAll('ui-toolbar-button')) {
-      const button = part.querySelector('button');
-      const skip = !button || button.getClientRects().length === 0;
-      if (skip === !!part.__skipped) continue;
-      part.__skipped = skip;
-      if (skip) { part.setAttribute('focusable-when-disabled', 'false'); part.disabled = true; }
-      else { part.disabled = false; part.removeAttribute('focusable-when-disabled'); }
-    }
-  };
+  const run = () => { queued = 0; sync(toolbar); };
   const queue = () => { if (!queued) queued = requestAnimationFrame(run); };
   new MutationObserver(queue).observe(toolbar, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
   if (typeof ResizeObserver === 'function') new ResizeObserver(queue).observe(toolbar);
   addEventListener('resize', queue);
   run();
+}
+
+export function setButtonOff(button, off) {
+  const part = button?.closest?.('ui-toolbar-button'), toolbar = part?.closest('ui-toolbar');
+  if (!toolbar?.__followVisibility) { if (button) button.disabled = !!off; return; }
+  if (part.__off === !!off) return;
+  part.__off = !!off;
+  sync(toolbar);
 }
 
 // ---- Toggle buttons the app owns -------------------------------------------------------------------------------------
