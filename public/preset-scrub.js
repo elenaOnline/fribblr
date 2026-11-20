@@ -1,4 +1,15 @@
+// Preset buttons plus a scrub handle for any other value, on UI SDK parts where they exist:
+//  - The presets (S, M, L) are one choice: a segmented control, so a single Tab stop, arrows check as they move, and a
+//    preset chosen with the pointer or keys is committed at once.
+//  - The handle is a slider (a spinbutton for an unbounded value) of its own, and follows the SDK's slider keys: an arrow
+//    steps, Shift+arrow and Page Up/Down take a large step (ten steps), Home and End go to the bounds. It is not
+//    ui-slider or ui-number-input because it must also edit a mixed value by a relative amount ("Mixed values,
+//    increase by 4 pixels") and preview on the canvas while it moves. It keeps the SDK's change/commit split: every
+//    step or drag tick previews (valuechange), and the value is committed once, when the key comes up, the pointer
+//    lifts or focus leaves (valuecommit). Alt's small step is not offered: the values are
+//    whole pixels, and a tenth of a step is not a value they can take.
 // Preserve preset identity even when a custom value matches its number.
+import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from "./ui-segmented.js";
 export function mountPresetScrub(element, {
   label, inputLabel=`Adjust ${label.toLowerCase()}`, unit="", presets, min, max, step=1, value,
   selection, preview, commit,
@@ -18,17 +29,12 @@ export function mountPresetScrub(element, {
   row.className="preset-scrub-row";
   row.setAttribute("role","group");
   row.setAttribute("aria-label",label);
-  const buttons=choices.map(option=>{
-    const button=document.createElement("button");
-    button.type="button";
-    button.dataset.scrubPreset=option.id;
-    button.title=option.ariaLabel??option.label;
-    button.setAttribute("aria-label",button.title);
-    if(option.icon)button.innerHTML=option.icon;
-    else button.textContent=option.label;
-    row.append(button);
-    return button;
-  });
+  // display: contents, so the presets lay out as cells of the row (preset-scrub.css); the row stays the track.
+  const holder=document.createElement("div");
+  holder.innerHTML=segmentedHTML({label,className:"preset-scrub-presets",items:choices.map(option=>({
+    value:option.id,tip:option.ariaLabel??option.label,ariaLabel:option.ariaLabel??option.label,html:option.icon??undefined,label:option.label,attrs:{"data-scrub-preset":option.id}}))});
+  const presetControl=holder.firstElementChild;
+  row.append(presetControl);
   const custom=document.createElement("button");
   custom.type="button";
   custom.className="preset-scrub-custom";
@@ -52,8 +58,7 @@ export function mountPresetScrub(element, {
   element.replaceChildren(row,announcement);
 
   function paint(next, delta=null) {
-    for(const button of buttons)
-      button.setAttribute("aria-pressed",String(button.dataset.scrubPreset===next.preset));
+    setSegmented(presetControl,next.preset);
     custom.dataset.active=String(next.preset===null&&(next.value!==null||!!next.custom));
     custom.setAttribute("aria-valuenow",String(next.value??baseline));
     const amount=value=>`${value}${unitName?` ${unitName}`:""}`;
@@ -103,8 +108,7 @@ export function mountPresetScrub(element, {
     limit=edge;
   }
 
-  for(const [index,button] of buttons.entries())
-    on(button,"click",()=>update(choices[index].value,choices[index].id));
+  onSegmented(presetControl,id=>{const choice=choices.find(option=>option.id===id);if(choice)update(choice.value,choice.id);});
   on(custom,"pointerdown",event=>{
     if(event.button!==0||event.isPrimary===false||gesture)return;
     gesture={id:event.pointerId,x:event.clientX,value:saved.value??baseline,next:null,delta:null};
@@ -140,6 +144,7 @@ export function mountPresetScrub(element, {
   on(custom,"lostpointercapture",abortScrub);
 
   const increments={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1,PageDown:-10,PageUp:10};
+  const stepFor=event=>increments[event.key]*(event.shiftKey&&Math.abs(increments[event.key])===1?10:1);
   const adjustment=key=>Object.hasOwn(increments,key)||key==="Home"&&hasMin||key==="End"&&hasMax;
   const commitKeys=()=>{
     if(keyboard===null)return;
@@ -154,10 +159,10 @@ export function mountPresetScrub(element, {
     event.stopPropagation();
     const absolute=event.key==="Home"||event.key==="End";
     const base=saved.value??baseline, current=keyboard?.value??base;
-    const shift=absolute ? null : (keyboard?.delta??0)+increments[event.key]*step;
-    const value=absolute ? event.key==="Home"?min:max : bounded(current+increments[event.key]*step);
+    const shift=absolute ? null : (keyboard?.delta??0)+stepFor(event)*step;
+    const value=absolute ? event.key==="Home"?min:max : bounded(current+stepFor(event)*step);
     keyboard={value,delta:shift===null?null:saved.value===null?shift:value-base};
-    if(absolute||saved.value!==null)cueLimit(value,absolute?(event.key==="Home"?-1:1):increments[event.key]);
+    if(absolute||saved.value!==null)cueLimit(value,absolute?(event.key==="Home"?-1:1):stepFor(event));
     showPreview(value,keyboard.delta);
   });
   on(custom,"keyup",event=>{
@@ -175,7 +180,10 @@ export function mountPresetScrub(element, {
       saved={value:next,preset:match(next,preset),custom};
       if(!gesture&&keyboard===null)paint(saved);
     },
-    focus() { (buttons.find(button=>button.getAttribute("aria-pressed")==="true")??custom).focus({preventScroll:true}); },
+    focus() {
+      if(saved.preset!==null&&presetControl.isConnected)focusSegmented(presetControl);
+      else custom.focus({preventScroll:true});
+    },
     get editing() { return !!gesture||keyboard!==null; },
     destroy({commit:finish=false}={}) {
       if(!active)return;

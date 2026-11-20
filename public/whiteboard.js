@@ -14,8 +14,10 @@ import {isMacPlatform} from './reader-keys.js';
 import {canContain,containerDropLabel,containerFor,containerPlacementIds,expandContainerSelection,previewContainerMove,previewContainerLayout} from './containers.js';
 import {containerLayouts,mountContainerLayout} from './container-layout.js';
 import {mountPresetScrub} from './preset-scrub.js';
-import {inPopup} from './popups.js';
 import {announce, decorationLabel, sdkCore} from './board-focus.js';
+import {followVisibility} from './ui-toolbar.js';
+import {tips} from './tips.js';
+import {openOnArrowDown,inPopup} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -53,9 +55,18 @@ const icons = {
   rotate:'<path d="M13 6a5.3 5.3 0 1 0 .1 4M13 2v4h-4"/>',
   more:'<circle cx="3.5" cy="8" r=".8" fill="currentColor"/><circle cx="8" cy="8" r=".8" fill="currentColor"/><circle cx="12.5" cy="8" r=".8" fill="currentColor"/>',
 };
+// The object bar is a ui-toolbar: one Tab stop, arrows move along it (toolbar.md). A plain action is a ui-toolbar-button;
+// a set of which one is chosen (arrow route, text alignment, container layout) is a single-choice ui-toggle-group that
+// joins the toolbar's arrow order; a button that stays down (Preview) is a ui-toggle. The bar owns what is pressed (it
+// is drawn from the object), so the SDK's own flip of a toggle is cancelled in mount() and the next render shows the answer.
+const barButton=(action,label,body,{value,pressed,extra=''}={})=>`<button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" data-tip="${esc(label)}"${extra}>${body}</button>`;
 const barParts = {
-  button:(action,label,body,{value,pressed,extra=''}={})=>`<button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" title="${esc(label)}"${pressed!==undefined?` aria-pressed="${pressed}"`:''}${extra}>${body}</button>`,
-  group:(label,body)=>`<div class="whiteboard-bar-group" role="group" aria-label="${label}">${body}</div>`,
+  button:(action,label,body,opts={})=>opts.pressed!==undefined
+    ?`<ui-toggle${opts.pressed?' default-pressed':''}>${barButton(action,label,body,opts)}</ui-toggle>`
+    :`<ui-toolbar-button>${barButton(action,label,body,opts)}</ui-toolbar-button>`,
+  group:(label,body)=>`<ui-toolbar-group class="whiteboard-bar-group" aria-label="${label}">${body}</ui-toolbar-group>`,
+  // items: [value, label, body]; current: the pressed value (or undefined when the objects differ).
+  choice:(label,action,current,items,className='whiteboard-bar-group')=>`<ui-toggle-group class="${className}" aria-label="${label}" deselectable="false" data-bar-choice${current!==undefined&&current!==null?` default-value="${esc(String(current))}"`:''}>${items.map(([value,name,body])=>`<ui-toggle value="${esc(String(value))}">${barButton(action,name,body,{value})}</ui-toggle>`).join('')}</ui-toggle-group>`,
 };
 const defaultAlign = d => d.shape && d.shape !== 'rectangle' ? 'center' : 'left';
 const captionPresets = d => d.type==='text' ? {small:18,medium:21,large:36} :
@@ -214,12 +225,18 @@ export class Whiteboard {
       document.head.append(format);
     }
     this.ports=document.createElement('div'); this.ports.className='whiteboard-ports';
-    this.toolbar=document.createElement('div'); this.toolbar.className='whiteboard-toolbar';
-    this.toolbar.setAttribute('role','toolbar'); this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
+    this.toolbar=document.createElement('ui-toolbar'); this.toolbar.className='whiteboard-toolbar';
+    this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
     this.menu=document.createElement('div'); this.menu.className='whiteboard-menu'; this.menu.hidden=true;
     this.menu.setAttribute('role','menu'); this.menu.setAttribute('aria-label','Object actions');
     this.hint=document.createElement('div'); this.hint.className='whiteboard-connect-hint'; this.hint.hidden=true;
     this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.menu,this.hint);
+    followVisibility(this.toolbar);
+    // The bar draws what is pressed from the object itself: cancel a toggle's own flip (the SDK reports it in the capture
+    // phase, the events don't bubble) and let the action's save re-render the bar.
+    for(const type of ['pressedchange','valuechange'])this.toolbar.addEventListener(type,e=>e.preventDefault(),true);
+    // A button that opens a menu or panel opens it on ArrowDown, as a toolbar's menu button does; Left and Right keep moving.
+    openOnArrowDown(this.toolbar,'[aria-haspopup]',(event,button)=>{if(button.getAttribute('aria-expanded')!=='true')button.click();});
     if(this.host.hooks.viewOnly)return;
     this.recoverButton=document.getElementById('workspace-recover-text');
     if(this.recoverButton)this.recoverButton.onclick=()=>this.recoverText();
@@ -376,8 +393,9 @@ export class Whiteboard {
       this.toolbar.setAttribute('aria-label',this.groupName(list));
       this.toolbar.innerHTML=this.editor
         ? this.editor.rich?this.textEditorBar(this.editor)
-        : `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
-        : this.bar(list,draft)+(grouping?barParts.group('Grouping',`<button type="button" class="whiteboard-action-caption" data-whiteboard-action="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping}</button>`):'');
+        : `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><ui-toolbar-button><button type="button" data-whiteboard-action="done">Done</button></ui-toolbar-button><ui-toolbar-button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button></ui-toolbar-button>`
+        : this.bar(list,draft)+(grouping?barParts.group('Grouping',`<ui-toolbar-button><button type="button" class="whiteboard-action-caption" data-whiteboard-action="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping}</button></ui-toolbar-button>`):'');
+      tips(this.toolbar);
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }
     this.positionToolbar();
@@ -387,7 +405,7 @@ export class Whiteboard {
     const controls=session.previewing?'':group('Formatting',textFormatControls.map(([value,label,mark])=>button('format-text',label,mark,{value})).join(''));
     return controls+group('Editing',button('text-preview',session.previewing?'Continue editing':'Preview text',session.previewing?'Edit':'Preview',
       {pressed:session.previewing}))
-      +group('Finish editing',`<button class="whiteboard-action-caption" type="button" data-whiteboard-action="done" title="${esc(commitShortcutLabel())}">Done</button><button class="whiteboard-action-caption" type="button" data-whiteboard-action="cancel-edit">Cancel</button>`);
+      +group('Finish editing',`<ui-toolbar-button><button class="whiteboard-action-caption" type="button" data-whiteboard-action="done" data-tip="${esc(commitShortcutLabel())}">Done</button></ui-toolbar-button><ui-toolbar-button><button class="whiteboard-action-caption" type="button" data-whiteboard-action="cancel-edit">Cancel</button></ui-toolbar-button>`);
   }
   kindName(d) { return d.sticker?'Sticker':d.container?'Container':d.type==='line'?'Arrow':d.type==='text'?'Text':shapeNames[d.shape]||'Area'; }
   groupName(list) {
@@ -396,8 +414,8 @@ export class Whiteboard {
     return kinds.size===1?`${list.length} ${name==='text'?'text boxes':name+'s'}`:`${list.length} objects`;
   }
   bar(list,draft) {
-    const {button,group}=barParts,multi=list.length>1,first=list[0];
-    const action=(key,label)=>`<button type="button" class="whiteboard-action-caption" data-whiteboard-action="${key}">${label}</button>`;
+    const {button,group,choice}=barParts,multi=list.length>1,first=list[0];
+    const action=(key,label)=>`<ui-toolbar-button><button type="button" class="whiteboard-action-caption" data-whiteboard-action="${key}">${label}</button></ui-toolbar-button>`;
     const popup=key=>` aria-haspopup="dialog" aria-expanded="${this.appearance?.trigger===key}"`;
     const colorRole=commonDrawingRole(list);
     const colorValue=list.every(d=>d.color===first.color)?authoredColor(first.color):undefined;
@@ -414,31 +432,28 @@ export class Whiteboard {
     const pending=draft?.pending?'<span class="whiteboard-bar-status" role="status">Saving…</span>':'';
     if(!multi&&first.container){
       const layout=this.containerLayoutDrafts?.get(first.id)?.pending.layout??first.container.layout;
-      const modes=containerLayouts.map(([value,label,path])=>button('container-mode',label,
-        `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${path}"/></svg>`,{value,pressed:value===layout})).join('');
-      return group('Container color',color)+group('Container layout',modes)+
+      const modes=choice('Container layout','container-mode',layout,containerLayouts.map(([value,label,path])=>[value,label,
+        `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${path}"/></svg>`]));
+      return group('Container color',color)+modes+
         group('Container options',button('container-layout','More container options',icon(icons.more),{
           extra:` aria-haspopup="dialog" aria-expanded="${!!this.containerLayout}"`,
         }));
     }
     if(!multi&&first.sticker)return group('Sticker actions',more);
     if(!multi&&first.type==='text'){
-      const align=['left','center','right'].map(value=>button('align',`Align ${value}`,icon(icons['align-'+value]),{
-        value,pressed:value===(first.textAlign||'left'),
-      })).join('');
-      return group('Text appearance',color+size('text-size'))+group('Alignment',align)+
+      const align=choice('Alignment','align',first.textAlign||'left',['left','center','right'].map(value=>[value,`Align ${value}`,icon(icons['align-'+value])]));
+      return group('Text appearance',color+size('text-size'))+align+
         group('Text actions',button('text-appearance','Advanced text','<b class="whiteboard-size-letter">Aa</b>',{
           extra:popup('text-appearance'),
         })+more)+pending;
     }
     const arrange=multi&&this.host.arrangeObjects().length>1?button('arrange','Arrange: align, distribute, tidy',icon(icons.arrange),{extra:' aria-haspopup="dialog" aria-expanded="false"'}):'';
     if(list.every(d=>d.type==='line')) {
-      const routes=[['straight','Straight'],['elbow','Elbow'],['curved','Curve']]
-        .map(([value,label])=>button('route',label,icon(icons[value]),{value,pressed:list.every(d=>(d.route||'straight')===value)})).join('');
+      const routes=choice('Arrow route','route',list.every(d=>(d.route||'straight')===(first.route||'straight'))?first.route||'straight':undefined,[['straight','Straight'],['elbow','Elbow'],['curved','Curve']].map(([value,label])=>[value,label,icon(icons[value])]));
       const edit=!multi?button('edit','Edit arrow label',icon(icons.label)):'';
       const reverse=button('reverse',multi?'Reverse directions':'Reverse direction',icon(icons.reverse));
       const style=button('text-appearance','Line options',icon(icons.medium),{extra:popup('text-appearance')});
-      return group('Stroke color',color)+group('Arrow route',routes)+group('Arrow actions',edit+reverse+style+arrange);
+      return group('Stroke color',color)+routes+group('Arrow actions',edit+reverse+style+arrange);
     }
     const textOptions=list.every(d=>d.type!=='line'&&!d.sticker&&!d.container);
     const free=list.filter(d=>canContain(d)&&!containerFor(this.host.snapshot.decorations,d.id));
@@ -569,13 +584,12 @@ export class Whiteboard {
     const active=this.menu.contains(document.activeElement)?document.activeElement:null;
     const focused=active?{action:active.dataset.whiteboardAction,value:active.dataset.value,custom:active.type==='color',swatch:active.dataset.swatch,
       weight:active.closest('[data-arrow-weight]'),caption:active.closest('[data-caption-size]'),scrub:active.hasAttribute('data-scrub-value')}:null;
-    const {button}=barParts;
     const common=read=>{const values=objects.map(read);return values.every(value=>value===values[0])?values[0]:undefined;};
     const all=predicate=>objects.every(predicate);
     const role=commonDrawingRole(objects),channel=role==='stroke'?'border':role;
-    const choices=(name,action,current,options)=>`<fieldset class="whiteboard-format-section"><legend>${name}</legend><div class="whiteboard-format-options">
-      ${options.map(([value,label,mark])=>button(action,label,mark,{value,pressed:value===current})).join('')}
-    </div></fieldset>`;
+    // One choice among keys: a single-choice toggle group of buttons (arrows move, Space or Enter chooses).
+    const choices=(name,action,current,options)=>`<div class="whiteboard-format-section"><span class="whiteboard-format-legend" aria-hidden="true">${name}</span>${
+      barParts.choice(name,action,current,options,'whiteboard-format-options')}</div>`;
     const pick=(value,label=value)=>[value,label,icon(icons[value])];
     const sections=[];
     if(session.mode==='color'){
@@ -603,6 +617,7 @@ export class Whiteboard {
     this.menu.innerHTML=`<div class="text-format-controls whiteboard-object-format">
       ${sections.join('')}<span class="whiteboard-format-status" role="status">${esc(session.error||'')}</span>
     </div>`;
+    tips(this.menu);
     const custom=this.menu.querySelector('input[type=color]');
     const palette=this.menu.querySelector('[data-color-swatches]');
     if(palette)bindDrawingPalette(palette,{channel,label:session.label,value:common(d=>d.color),
@@ -639,10 +654,12 @@ export class Whiteboard {
     }
     this.positionMenu();
     const controls=[...this.menu.querySelectorAll('button')];
-    if(focused?.scrub)restoreFocus(this.menu.querySelector('[data-scrub-value]'));
+    // The palette's radios get their roles and tab stop a moment after they are inserted: focus the chosen one then.
+    if(focused?.swatch&&!focused.custom)queueMicrotask(()=>this.menu.querySelector(`[data-swatch="${CSS.escape(focused.swatch)}"]`)?.focus({preventScroll:true}));
+    else if(focused?.scrub)restoreFocus(this.menu.querySelector('[data-scrub-value]'));
     else if(focused?.caption)session.captionControl?.focus();
     else if(focused?.weight)session.weightControl?.focus();
-    else if(focused)restoreFocus(focused.custom?custom:focused.swatch?controls.find(control=>control.dataset.swatch===focused.swatch):
+    else if(focused)restoreFocus(focused.custom?custom:
       controls.find(control=>control.dataset.whiteboardAction===focused.action&&control.dataset.value===focused.value));
   }
   mountCaptionSize(session,element,objects,common) {
@@ -746,7 +763,7 @@ export class Whiteboard {
     const task=e.target.closest('[data-deco-task]');
     if(task) {
       e.preventDefault();e.stopPropagation();
-      if(this.host.hooks.viewOnly||this.host.mode!=='canvas'||this.editor||this.host.pointerGesture||document.querySelector('dialog[open]'))return;
+      if(this.host.hooks.viewOnly||this.host.mode!=='canvas'||this.editor||this.host.pointerGesture||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]'))return;
       await this.toggleTask(task);return;
     }
     const port=e.target.closest('[data-port]');
@@ -1123,7 +1140,8 @@ export class Whiteboard {
     },onError:()=>{}});
     form.addEventListener('keydown',event=>{
       if(rich&&event.key==='Tab'&&!event.shiftKey&&!this.toolbar.hidden){
-        event.preventDefault();restoreFocus(this.toolbar.querySelector('button'));
+        // Tab from the editor goes to the bar's tab stop (the item focused last), as it does for any toolbar.
+        event.preventDefault();if(this.toolbar.api?.focus)this.toolbar.api.focus();else restoreFocus(this.toolbar.querySelector('button'));
       }
       if(event.key!=='Escape')event.stopPropagation();
     });
@@ -1258,7 +1276,7 @@ export class Whiteboard {
       if(e.target.closest('#viewport')&&!e.target.closest('.whiteboard-ports'))this.clearSelection({finishEdit:true,focus:false});
       return;
     }
-    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open]')||this.host.pointerGesture||this.host.movePending)return;
+    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')||this.host.pointerGesture||this.host.movePending)return;
     const task=e.target.closest('[data-deco-task]');
     if(task){this.captureTask(task);return;}
     if(e.target.closest('input,textarea,[contenteditable]'))return;
@@ -1478,15 +1496,11 @@ export class Whiteboard {
       if(!e.repeat)this.adjustSticker(rotate,turn*(e.shiftKey?15:5));
       return;
     }
-    if(this.editor?.rich&&e.key==='Tab'&&e.shiftKey&&e.target===this.toolbar.querySelector('button')){
+    if(this.editor?.rich&&e.key==='Tab'&&e.shiftKey&&e.target.closest('.whiteboard-toolbar')){
       e.preventDefault();e.stopImmediatePropagation();
       restoreFocus(this.editor.previewing?this.editor.preview:this.editor.textarea);return;
     }
-    if(e.target.closest('.whiteboard-toolbar')&&['ArrowRight','ArrowLeft','Home','End'].includes(e.key)) {
-      const buttons=[...this.toolbar.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
-      e.preventDefault();e.stopImmediatePropagation();
-      buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length]?.focus();return;
-    }
+    // Arrows, Home and End on the bar belong to ui-toolbar: one Tab stop, focus moves along the buttons.
     if(e.target.closest('.whiteboard-menu')&&!this.appearance&&!this.containerLayout&&!e.target.closest('input,select,textarea')) {
       const buttons=[...this.menu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
       if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}

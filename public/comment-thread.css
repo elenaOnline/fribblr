@@ -1,6 +1,6 @@
 /* The Comment tool's thread card, @ picker and reference chips (comment-thread.js,
    comment-refs.js). Floating-object style of 1.0.4; light and dark come from tokens.css. */
-.ct-card{position:fixed;z-index:400;width:340px;max-width:calc(100vw - 16px);max-height:min(540px,calc(100dvh - 80px));display:flex;flex-direction:column;box-sizing:border-box;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:400 var(--type-ui)/1.5 var(--type-sans)}
+.ct-card{border:0;padding:0;overflow:visible;position:fixed;z-index:400;width:340px;max-width:calc(100vw - 16px);max-height:min(540px,calc(100dvh - 80px));display:flex;flex-direction:column;box-sizing:border-box;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:400 var(--type-ui)/1.5 var(--type-sans)}
 .ct-card[aria-busy=true]{cursor:progress}
 .ct-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .ct-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:10px 8px 8px 14px;border-bottom:1px solid var(--line-seam)}
@@ -69,13 +69,17 @@
 @media (hover:none){.cref-open{display:inline-flex}}
 .cref.missing{background:var(--surface-frame);color:var(--ink-2);text-decoration:line-through;cursor:default}
 .ct-composer .cref{cursor:default}
-/* @ picker */
-.cref-picker{position:fixed;z-index:420;max-height:300px;overflow:auto;box-sizing:border-box;padding:6px;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:var(--type-ui)/1.4 var(--type-sans)}
-.cref-picker h6{margin:6px 8px 4px;font:400 var(--type-meta)/1.3 var(--type-sans);color:var(--ink-2)}
-.cref-picker button{display:flex;width:100%;align-items:center;gap:8px;padding:6px 8px;border:0;border-radius:var(--shape-cell);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
-.cref-picker button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cref-picker button svg{width:14px;height:14px;fill:none;stroke:var(--ink-2);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.cref-picker button[aria-selected=true],.cref-picker button:hover{background:var(--surface-chosen)}
+/* @ picker: a UI SDK Trigger Menu popup (it places itself at the caret); the look is the float's */
+ui-trigger-menu{display:contents}
+.cref-picker{border:0;width:280px;max-width:calc(100vw - 16px);max-height:300px;overflow:auto;box-sizing:border-box;padding:6px;color:var(--ink);background:var(--surface-frame);border-radius:var(--shape-float);font:var(--type-ui)/1.4 var(--type-sans)}
+.cref-picker ui-trigger-menu-group{display:block}
+.cref-picker ui-trigger-menu-group:not(:has(ui-trigger-menu-item:not([hidden]))){display:none}
+.cref-picker ui-trigger-menu-group-label{display:block;margin:6px 8px 4px;font:400 var(--type-meta)/1.3 var(--type-sans);color:var(--ink-2)}
+.cref-picker ui-trigger-menu-item{display:flex;width:100%;box-sizing:border-box;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--shape-cell);color:inherit;font:inherit;text-align:left;cursor:pointer}
+.cref-picker ui-trigger-menu-item span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cref-picker ui-trigger-menu-item-icon{display:inline-flex;flex:none}
+.cref-picker ui-trigger-menu-item svg{width:14px;height:14px;fill:none;stroke:var(--ink-2);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.cref-picker ui-trigger-menu-item[data-highlighted],.cref-picker ui-trigger-menu-item:hover{background:var(--surface-chosen)}
 .cref-empty{margin:6px 8px;color:var(--ink-2);font-size:var(--type-meta)}
 /* her avatar is a small raised red key carrying her initial; the agent's is a white key with an ink rim (raised: depth.css) */
 .ct-avatar{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex:none;font:500 11px/1 var(--type-sans);color:var(--ink-on-mark);--key-face:var(--mark-red);--key-face-hover:var(--mark-red);--key-side:var(--mark-red-side);--key-side-hover:var(--mark-red-side);--key-rim:var(--mark-red);--key-rim-hover:var(--mark-red)}

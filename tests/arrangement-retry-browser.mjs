@@ -50,7 +50,7 @@ try{
   const until=async(check,ms=6000)=>{const end=Date.now()+ms;while(Date.now()<end){if(await check())return true;await page.waitForTimeout(100);}return false;};
   const centre=async locator=>{const b=await locator.boundingBox();return {x:b.x+b.width/2,y:b.y+b.height/2};};
   const settle=async()=>{await page.waitForFunction(()=>!document.querySelector('.workspace-dragging'));await page.waitForTimeout(400);};
-  const closeDialog=async()=>{const open=await page.locator('dialog[open]').count();if(open){await page.keyboard.press('Escape');await page.locator('dialog[open]').waitFor({state:'detached'}).catch(()=>{});}return open;};
+  const closeDialog=async()=>{const open=await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count();if(open){await page.keyboard.press('Escape');await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').waitFor({state:'detached'}).catch(()=>{});}return open;};
   const record=async(name,ok,extra={})=>{const shown=await closeDialog();results[name]={saved:ok,requests:requests.map(r=>`${r.type}:${r.status}`),dialogOpenAfter:shown,...extra};console.log(name.padEnd(30),JSON.stringify(results[name]));if(!ok)failures.push(`${name}: action was not saved after an unrelated revision change (${results[name].requests.join(', ')})`);await settle();};
   const lost=async(name,type,action,check,extra)=>{requests=[];armed={type,inject:bump};await action();await record(name,await until(check),extra?await extra():{});armed=null;};
   const drag=async(from,to,{hold=0}={})=>{await page.mouse.move(from.x,from.y);await page.mouse.down();if(hold){await page.waitForTimeout(hold);await page.locator('#workspace-child-drag').waitFor({timeout:3000});}await page.mouse.move(from.x+12,from.y+12,{steps:3});await page.mouse.move(to.x,to.y,{steps:10});await page.waitForTimeout(80);await page.mouse.up();};
@@ -128,9 +128,9 @@ try{
     await page.waitForFunction(()=>!document.querySelector('.workspace-toast'),null,{timeout:15000}).catch(()=>{});
     requests=[];armed={type,inject};await action();
     // Wait for the action's final response, then for its failure feedback.
-    await until(async()=>requests.some(r=>r.type===type)&&(await page.locator('dialog[open]').count()>0||(await page.locator('.workspace-toast').allTextContents()).some(t=>/could not apply|changed/i.test(t))),8000);
+    await until(async()=>requests.some(r=>r.type===type)&&(await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count()>0||(await page.locator('.workspace-toast').allTextContents()).some(t=>/could not apply|changed/i.test(t))),8000);
     await page.waitForTimeout(300);
-    const dialog=await page.locator('dialog[open]').count(),toast=await page.locator('.workspace-toast').allTextContents();armed=null;
+    const dialog=await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count(),toast=await page.locator('.workspace-toast').allTextContents();armed=null;
     const kept=await until(expect,3000);await closeDialog();
     results[name]={dialog,toast:toast.join(' | ').slice(0,160),otherWriterKept:kept,requests:requests.map(r=>`${r.type}:${r.status}`)};console.log(name.padEnd(30),JSON.stringify(results[name]));
     if(!kept)failures.push(`${name}: another writer's change was overwritten`);

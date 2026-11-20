@@ -189,7 +189,7 @@ body:has(#viewport[data-canvas-pattern="grid"]) #reader-dialog .reader-stage {
 #reader-info .reader-organize .tk-btn { justify-content: space-between; height: auto; min-height: 38px; padding-block: 6px; text-align: start; white-space: normal; }
 #reader-info .appearance-control { display: flex; width: 100%; }
 #reader-info .appearance-control .tk-seg { display: flex; width: 100%; }
-#reader-info .appearance-control .tk-seg > button { flex: 1; }
+#reader-info .appearance-control .tk-seg > :is(button, ui-segmented-control-item) { flex: 1; }
 #reader-info .reader-info-status { position: sticky; bottom: 0; justify-self: center; margin: 0; padding: 7px 12px; border-radius: var(--shape-key); background: var(--ink); color: var(--surface-frame); font-size: 11px; }
 #reader-info .reader-info-status[hidden] { display: none; }
 

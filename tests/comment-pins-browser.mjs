@@ -50,7 +50,7 @@ try{
     assert.match(await page.locator('.comment-target-tag').textContent(),/On Pricing hero/);
     await page.mouse.click(tile.x+120,tile.y+100);
     const composer=page.locator('.ct-card .ct-composer').first();await composer.waitFor();
-    assert.ok(!(await page.locator('#workspace-toast').isVisible())||!/Click the board/.test(await page.locator('#workspace-toast').textContent()),'the arming hint is gone once the composer opens');
+    assert.ok(!(await page.locator('.workspace-toast').first().isVisible())||!/Click the board/.test(await page.locator('.workspace-toast').first().textContent()),'the arming hint is gone once the composer opens');
     assert.ok(await until(async()=>/Live · 1 item$/.test(await page.locator('#live-status').textContent())),`one item, singular (${await page.locator('#live-status').textContent()})`);
     await composer.click();await page.keyboard.type('Headline feels generic');
     await page.locator('.ct-card [data-act="post"]').click();
@@ -77,6 +77,19 @@ try{
     if(evidence)await page.screenshot({path:path.join(evidence,'comment-detached.png')});
   });
 
+  await run('A focused pin keeps focus when the board is rebuilt around it',async(page,id,card,open)=>{
+    const t=await comment(id,{kind:'point',x:400,y:60,decorationId:'note',relative:{x:.44,y:.375}},'Still the plan?');
+    await open();
+    const pin=page.locator(`[data-comment-pin="${t}"]`);await pin.waitFor();
+    await pin.focus();
+    assert.equal(await page.evaluate(()=>document.activeElement?.dataset.commentPin),t);
+    // A live change rebuilds the world (taking the comment layer out and back): the pin is a new element, and focus is on it.
+    await applyOperation(config,{type:'createItem',boardId:id,item:{title:'Another card'},placement:{x:0,y:400,width:240,height:180}});
+    await page.locator('.workspace-card',{hasText:'Another card'}).waitFor();
+    await new Promise(r=>setTimeout(r,500));
+    assert.equal(await page.evaluate(()=>document.activeElement?.dataset.commentPin),t,'focus stays on the pin through the rebuild');
+  });
+
   await run('Send to agent marks open threads sent and copies a prompt',async(page,id,card,open)=>{
     const a=await comment(id,{kind:'point',x:60,y:60,placementId:card,relative:{x:.25,y:.33}},'Borrow the tone of B');
     const b=await comment(id,{kind:'point',x:20,y:300},'Add an FAQ link');
@@ -93,7 +106,7 @@ try{
     assert.match(clip,/node tinka\/app\/cli\.mjs inbox --config tinka\/local\/config\.json/);
     assert.match(clip,/mark (each|it) addressed/);assert.match(clip,/Never resolve/);
     assert.ok(clip.includes(`#comments/${a}`)&&clip.includes(`#comments/${b}`),'thread links');
-    assert.match(await page.locator('#workspace-toast').textContent(),/Copied: paste into your agent/);
+    assert.match(await page.locator('.workspace-toast').first().textContent(),/Copied: paste into your agent/);
     assert.ok(await until(async()=>await send.getAttribute('aria-disabled')==='true'),'nothing left to send');
     assert.equal(await page.locator(`[data-comment-pin="${a}"]`).getAttribute('data-status'),'sent');
   });
@@ -216,7 +229,7 @@ try{
     const since=(await (await fetch(`${url}/api/inbox?actor=design-agent&wait=0`)).json()).nextSince||'';
     const watch=new AbortController(),held=fetch(`${url}/api/inbox?actor=design-agent&since=${encodeURIComponent(since)}&wait=20&label=Design%20agent`,{signal:watch.signal}).catch(()=>{});
     assert.ok(await until(async()=>await send.evaluate(el=>el.classList.contains('agent-watching'))),'watching shows');
-    assert.match(await send.getAttribute('title'),/Agent is watching/);
+    assert.match(await send.getAttribute('data-tip'),/Agent is watching/);
     assert.match(await send.getAttribute('aria-label'),/^Send 1 open comment to your agent · Agent is watching$/,'screen readers hear it too');
     if(evidence)await page.screenshot({path:path.join(evidence,'comment-watching.png')});
     watch.abort();await held;

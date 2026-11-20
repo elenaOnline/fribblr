@@ -152,6 +152,8 @@ try {
   });
   const page = await context.newPage();
   const boardTool = async selector => {
+    // Right after a navigation the page's script may not have wired the Inspector toggle yet; the board title is set by it.
+    await page.waitForFunction(() => { const title = document.getElementById("board-title"); return title && title.textContent && title.textContent !== "Loading board…"; });
     const control = page.locator(selector);
     if (!(await control.isVisible())) await page.locator("#board-info-toggle").click();
     await control.click();
@@ -335,9 +337,10 @@ try {
   );
   await page.locator("#reader-note").fill("Immediate child navigation draft");
   await page.locator("#notes-close").click();
+  const parentPath = new URL(page.url()).pathname;
   await page.locator("#reader-down").click();
-  // The board's own URL already matches /boards/: wait for the child board's (it carries ?from=), not the page we left.
-  await page.waitForURL(/\/boards\/[^?]+\/\?from=/);
+  // The old board's URL already matches /boards/: wait for the child board's own page.
+  await page.waitForURL(url => url.pathname !== parentPath);
   await boardTool("#workspace-owner");
   await page.locator("#reader-dialog[open]").waitFor();
   assert.equal(await page.locator("#reader-name").textContent(), "One");
@@ -434,7 +437,7 @@ try {
   await (await cardNote()).fill("Network failure draft");
   // An outage reports without stealing focus; the draft stays and Retry appears.
   await page.waitForFunction(() => document.getElementById("save-status").textContent.startsWith("Feedback saved in this browser"));
-  await page.locator("#workspace-toast").filter({ hasText: "Notes remain in this browser" }).waitFor();
+  await page.locator('.workspace-toast').filter({ hasText: "Notes remain in this browser" }).first().waitFor();
   assert.equal(
     await (await cardNote()).inputValue(),
     "Network failure draft",
@@ -538,7 +541,7 @@ try {
       console.log(
         await page.evaluate(() => ({
           left: document.querySelector(".workspace-card")?.style.left,
-          dialogs: [...document.querySelectorAll("dialog[open]")].map(
+          dialogs: [...document.querySelectorAll(":is(dialog[open],[data-slot$=dialog-content][data-open])")].map(
             (d) => d.textContent,
           ),
           errors: document.getElementById("board-error")?.textContent,
@@ -558,7 +561,7 @@ try {
   await canvasText.press("ControlOrMeta+Enter");
   await page.locator(".workspace-decoration").waitFor();
   await page.waitForFunction(() => document.querySelector(".workspace-decoration [data-decoration-label]")?.textContent === "Making this week");
-  assert.equal(await page.locator('dialog.workspace-dialog[open]').count(), 0, "Canvas text edits in place");
+  assert.equal(await page.locator('.workspace-dialog:is([open],[data-open])').count(), 0, "Canvas text edits in place");
   const mark = await page.locator(".workspace-decoration").boundingBox(), area = await page.locator("#viewport").boundingBox();
   assert(mark.y >= area.y && mark.y + mark.height <= area.y + area.height, "Header Add text stays visible");
   await page.keyboard.press("Escape");
@@ -1115,7 +1118,7 @@ try {
           expected: p,
           actual: await inputPlacement(),
           view: await page.evaluate(() => ({
-            dialogs: [...document.querySelectorAll("dialog[open]")].map(
+            dialogs: [...document.querySelectorAll(":is(dialog[open],[data-slot$=dialog-content][data-open])")].map(
               (d) => d.textContent,
             ),
             viewport: document
@@ -1213,7 +1216,7 @@ try {
   await page.locator("#workspace-parent").waitFor();
   assert.equal(await page.locator("#workspace-parent").getAttribute("href"), "#parents", "Shared board without entry context requires parent choice");
   await page.locator("#workspace-parent").click();
-  for (const id of [parentA.boardId, parentB.boardId]) assert.equal(await page.locator(`dialog[open] a[href="/boards/${id}/"]`).isVisible(), true);
+  for (const id of [parentA.boardId, parentB.boardId]) assert.equal(await page.locator(`:is(dialog[open],[data-slot$=dialog-content][data-open]) a[href="/boards/${id}/"]`).isVisible(), true);
   await page.keyboard.press("Escape");
   await page.goto(base + `/boards/${stableBoard.boardId}/?from=${second.boardId}`);
   await page.locator("#workspace-parent").waitFor();
@@ -1337,7 +1340,7 @@ try {
   for (const [mode, className] of [["card", "workspace-compact"], ["icon", "workspace-icon"], ["panel", "workspace-panel"]]) {
     await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).click();
     await page.waitForFunction(className => document.querySelector(".workspace-card").classList.contains(className), className);
-    assert.equal(await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).getAttribute("aria-pressed"), "true", "Attached appearance popup changes " + mode);
+    assert.equal(await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).getAttribute("aria-checked"), "true", "Attached appearance popup changes " + mode);
   }
   await page.keyboard.press("Escape");
 
@@ -1790,7 +1793,7 @@ try {
   revision=(await snapshot()).revision;const ancestor=await op("createBoard",{title:"Selected ancestor",parentBoardId:f.parent.boardId}),descendant=await op("createBoard",{title:"Descendant",parentBoardId:ancestor.boardId}),alias=await op("reference",{sourceBoardId:ancestor.boardId,placementIds:descendant.placementIds,targetBoardId:f.parent.boardId});await op("updatePlacement",{boardId:f.parent.boardId,placementId:ancestor.placementIds[0],patch:{x:260,y:260,width:190,height:160}});await op("updatePlacement",{boardId:f.parent.boardId,placementId:alias.placementIds[0],patch:{x:650,y:260,width:230,height:220}});await showBoard(f.parent.boardId,1440,100);await selectMany([ids[0],ancestor.placementIds[0]]);before=await snapshot();start=writes.length;await beginMany(ids[0],cardFor(alias.placementIds[0]));assert.equal(await page.locator(".workspace-drop-target").count(),0);await page.mouse.up();assert.equal(writes.length,start,"A cycle of either selected member rejects all placements");assert.equal((await snapshot()).revision,before.revision);assert.equal(await page.locator(".workspace-card.selected").count(),2);
   start=writes.length;await beginMany(ids[0],cardFor(ancestor.placementIds[0]));await page.mouse.up();after=await waitGraph(ws=>ws.revision>before.revision);assert.deepEqual(writes.slice(start).map(w=>w?.type),["translatePlacements"],"Moving selected board surfaces are ignored as containment destinations");
   // A stale batch response keeps both placements, selection and local review drafts.
-  const draftKey=`tinka/${cfg.workspaceId}/item-review-drafts`,drafts=JSON.stringify({[f.children[0].itemId]:{note:"Unsaved selected review"}});await page.addInitScript(({key,value,path})=>{if(location.pathname===path&&!sessionStorage.getItem(key+"/multi-injected")){localStorage.setItem(key,value);sessionStorage.setItem(key+"/multi-injected","1");}},{key:draftKey,value:drafts,path:`/boards/${f.parent.boardId}/`});await page.reload();await cardFor(ids[0]).waitFor();await selectMany(ids);before=await snapshot();await page.route("**/api/operations",async route=>{if(route.request().postDataJSON()?.type==="move")await route.fulfill({status:409,contentType:"application/json",body:JSON.stringify({error:"Stale batch"})});else await route.continue();});start=writes.length;await beginMany(ids[0],cardFor(f.group.placementIds[0]));await page.locator(".workspace-drop-target").waitFor();await page.mouse.up();await page.waitForFunction(()=>document.getElementById("workspace-toast")?.textContent.includes("Move not saved"));assert.deepEqual(writes.slice(start).map(w=>w?.type),["move"]);assert.equal((await snapshot()).revision,before.revision);assert.equal(await page.locator(".workspace-card.selected").count(),2);assert.equal(await page.evaluate(key=>localStorage.getItem(key),draftKey),drafts);for(const id of ids)assert.deepEqual(activeBoard(await snapshot(),f.parent.boardId).placements.find(p=>p.id===id),activeBoard(before,f.parent.boardId).placements.find(p=>p.id===id));await page.unroute("**/api/operations");
+  const draftKey=`tinka/${cfg.workspaceId}/item-review-drafts`,drafts=JSON.stringify({[f.children[0].itemId]:{note:"Unsaved selected review"}});await page.addInitScript(({key,value,path})=>{if(location.pathname===path&&!sessionStorage.getItem(key+"/multi-injected")){localStorage.setItem(key,value);sessionStorage.setItem(key+"/multi-injected","1");}},{key:draftKey,value:drafts,path:`/boards/${f.parent.boardId}/`});await page.reload();await cardFor(ids[0]).waitFor();await selectMany(ids);before=await snapshot();await page.route("**/api/operations",async route=>{if(route.request().postDataJSON()?.type==="move")await route.fulfill({status:409,contentType:"application/json",body:JSON.stringify({error:"Stale batch"})});else await route.continue();});start=writes.length;await beginMany(ids[0],cardFor(f.group.placementIds[0]));await page.locator(".workspace-drop-target").waitFor();await page.mouse.up();await page.waitForFunction(()=>[...document.querySelectorAll('.workspace-toast')].map(t=>t.textContent).join(' ').includes("Move not saved"));assert.deepEqual(writes.slice(start).map(w=>w?.type),["move"]);assert.equal((await snapshot()).revision,before.revision);assert.equal(await page.locator(".workspace-card.selected").count(),2);assert.equal(await page.evaluate(key=>localStorage.getItem(key),draftKey),drafts);for(const id of ids)assert.deepEqual(activeBoard(await snapshot(),f.parent.boardId).placements.find(p=>p.id===id),activeBoard(before,f.parent.boardId).placements.find(p=>p.id===id));await page.unroute("**/api/operations");
   await writeFile(path.join(evidence,"multi-drag-receipt.json"),JSON.stringify({gestures:multiReceipts,translation:true,singleCompatibility:true,cancel:true,cycle:true,conflict:true},null,2));
   }
   if (!process.env.TINKA_HISTORY_ONLY && !process.env.TINKA_CLIPBOARD_ONLY) {
@@ -1873,7 +1876,7 @@ try {
     // Text editing keeps native undo rather than invoking movement restoration.
     await openItemDetails(hcard(aid).locator("[data-item-controls]"));const note=hp.locator("#workspace-item-controls [data-note]");await note.focus();await note.pressSequentially(" temporary");const typedNote=await note.inputValue();start=hwrites.length;await hp.keyboard.press("Meta+z");assert.notEqual(await note.inputValue(),typedNote,"Notes keep native text undo");assert.equal(hwrites.slice(start).some(w=>w.type==="restoreMovement"),false);await hp.keyboard.press("Escape");
     // A later arrangement change safely rejects the inverse and retains local drafts.
-    const draftKey=`tinka/${cfg.workspaceId}/item-review-drafts`,drafts=JSON.stringify({[f.children[1].itemId]:{note:"Keep local history draft"}});await hp.addInitScript(({key,value})=>{if(window.top===window)localStorage.setItem(key,value);},{key:draftKey,value:drafts});await hp.reload();await hcard(aid).waitFor();await hfixtureOp("updatePlacement",{boardId:bid,placementId:aid,patch:{x:active[0].x+99}});const conflicted=await hsnapshot();state=await hstate();start=hwrites.length;const rejection=hp.waitForResponse(r=>r.url()===base+"/api/operations"&&r.request().postDataJSON()?.type==="restoreMovement");await hp.evaluate(()=>document.activeElement?.blur());await hp.keyboard.press("Meta+z");assert.equal((await rejection).status(),409);await hp.locator("#workspace-toast").waitFor();assert.deepEqual(arrangement(await hsnapshot(),[bid,gid]),arrangement(conflicted,[bid,gid]));assert.deepEqual(await hstate(),state);assert.deepEqual(hwrites.slice(start).map(w=>w.type),["restoreMovement"]);assert.equal(await hp.evaluate(key=>localStorage.getItem(key),draftKey),drafts);
+    const draftKey=`tinka/${cfg.workspaceId}/item-review-drafts`,drafts=JSON.stringify({[f.children[1].itemId]:{note:"Keep local history draft"}});await hp.addInitScript(({key,value})=>{if(window.top===window)localStorage.setItem(key,value);},{key:draftKey,value:drafts});await hp.reload();await hcard(aid).waitFor();await hfixtureOp("updatePlacement",{boardId:bid,placementId:aid,patch:{x:active[0].x+99}});const conflicted=await hsnapshot();state=await hstate();start=hwrites.length;const rejection=hp.waitForResponse(r=>r.url()===base+"/api/operations"&&r.request().postDataJSON()?.type==="restoreMovement");await hp.evaluate(()=>document.activeElement?.blur());await hp.keyboard.press("Meta+z");assert.equal((await rejection).status(),409);await hp.locator('.workspace-toast').first().waitFor();assert.deepEqual(arrangement(await hsnapshot(),[bid,gid]),arrangement(conflicted,[bid,gid]));assert.deepEqual(await hstate(),state);assert.deepEqual(hwrites.slice(start).map(w=>w.type),["restoreMovement"]);assert.equal(await hp.evaluate(key=>localStorage.getItem(key),draftKey),drafts);
     await writeFile(path.join(evidence,"movement-history-receipt.json"),JSON.stringify({operations:hreceipts,representativeViews:[[1440,100],[1440,125],[390,100]],exactPlacementsAndOrder:true,canonicalReviewPreserved:true,stableNativeDocuments:true,branching:true,cancel:true,textUndo:true,conflictDrafts:true,footerAndContextMenu:true},null,2));await hc.close();
   }
   if (!process.env.TINKA_FOCUSED_ONLY && !process.env.TINKA_COVERS_ONLY && !process.env.TINKA_DRAG_BOARDS_ONLY && !process.env.TINKA_DRAG_OUT_ONLY && !process.env.TINKA_MULTI_DRAG_ONLY && !process.env.TINKA_MARQUEE_ONLY && !process.env.TINKA_HISTORY_ONLY) {
@@ -1908,7 +1911,7 @@ try {
     // Board owners copy their layout and keep ordinary children as references.
     const group=await cfixture("createBoard",{title:"Collection copy",parentBoardId:source.boardId});await cfixture("reference",{itemIds:[children[0].itemId],targetBoardId:group.boardId});await cfixture("updateBoard",{boardId:group.boardId,patch:{decorations:[{id:"copy-label",type:"text",text:"Copied layout",color:"#446633",x:10,y:10,width:180,height:50}]}});await cshow(source.boardId);const boardCopy=await ccopy(group.placementIds);await cshow(target.boardId);const pastedBoard=await cpaste(boardCopy.data),owner=pastedBoard.after.items.find(i=>i.id===pastedBoard.result.itemIds[0]),newBoard=cboard(pastedBoard.after,owner.childBoardId);assert.notEqual(newBoard.id,group.boardId);assert.deepEqual(newBoard.decorations,boardCopy.payload.boards[group.boardId].decorations);assert.equal(newBoard.placements[0].itemId,children[0].itemId);assert.equal(pastedBoard.after.homeBoardIds.includes(newBoard.id),false);await ccard(pastedBoard.result.placementIds[0]).locator("[data-cover-tile]").waitFor();assert.equal(await ccard(pastedBoard.result.placementIds[0]).locator("[data-cover-tile]").count(),1);
     // Invalid and foreign envelopes are rejected before any graph write.
-    for(const [payload,message]of [["{","could not be read"],[JSON.stringify({...copied.payload,workspaceId:"workspace-other"}),"different workspace"]]){const before=await csnapshot(),start=cwrites.length;assert.equal((await cevent("paste",{[mime]:payload})).prevented,true);await cp.waitForFunction(message=>document.getElementById("workspace-toast")?.textContent.includes(message),message);assert.equal(cwrites.length,start);assert.equal((await csnapshot()).revision,before.revision);}
+    for(const [payload,message]of [["{","could not be read"],[JSON.stringify({...copied.payload,workspaceId:"workspace-other"}),"different workspace"]]){const before=await csnapshot(),start=cwrites.length;assert.equal((await cevent("paste",{[mime]:payload})).prevented,true);await cp.waitForFunction(message=>[...document.querySelectorAll('.workspace-toast')].map(t=>t.textContent).join(' ').includes(message),message);assert.equal(cwrites.length,start);assert.equal((await csnapshot()).revision,before.revision);}
     // Editing fields retain native clipboard ownership; untrusted events intentionally have no UA insertion.
     await cp.locator("#board-info-toggle").click();await cp.locator("#workspace-search").focus();let start=cwrites.length;assert.equal((await cevent("paste",{"text/plain":"native search paste"},"#workspace-search")).prevented,false);assert.equal((await cevent("copy",{},"#workspace-search")).prevented,false);assert.equal(cwrites.length,start);await cp.locator("#board-info-toggle").click();await cp.evaluate(()=>document.activeElement?.blur());
     // URL metadata is routed locally; parser/network behavior is covered by the service tests.
@@ -1919,7 +1922,7 @@ try {
     // Clear active filters so the newly selected document is visible at narrow width.
     const docBoard=await cfixture("createBoard",{title:"Pasted document"});await cshow(docBoard.boardId,390);await cp.locator("#board-info-toggle").click();await cp.locator("#workspace-search").fill("does not match");await cp.locator("#workspace-favorites").click();await cp.locator("#board-info-toggle").click();await cp.evaluate(()=>document.activeElement?.blur());
     const line='A thoughtful line with <literal markup>, spaces, and a fresh beginning.\n',bigText='A long reading document\n\n'+line.repeat(Math.ceil(500000/line.length)).slice(0,500000)+'\nFinal line stays complete.\n';const documentPaste=await cpaste({"text/plain":bigText}),documentItem=documentPaste.after.items.find(i=>i.id===documentPaste.result.itemIds[0]);assert.equal(documentItem.content.text,bigText);assert.equal(await cp.locator("#workspace-search").inputValue(),"");assert.equal(await cp.locator("#workspace-favorites").getAttribute("aria-pressed"),"false");const documentCard=ccard(documentPaste.result.placementIds[0]);assert((await documentCard.textContent()).length<5000,"Card uses a bounded document excerpt");await cp.waitForFunction(id=>{const b=document.querySelector(`[data-placement="${id}"]`).getBoundingClientRect(),v=document.getElementById("viewport").getBoundingClientRect();return b.left>=v.left-1&&b.right<=v.right+1&&b.top>=v.top-1&&b.bottom<=v.bottom+1;},documentPaste.result.placementIds[0]);assert.equal(cboard(documentPaste.after,docBoard.boardId).placements[0].width,380);assert.equal(cboard(documentPaste.after,docBoard.boardId).placements[0].height,440);await cp.screenshot({path:path.join(evidence,"clipboard-document-390.png")});await documentCard.locator(".workspace-preview-launch").click();await cp.locator("#reader-dialog[open]").waitFor();const reader=cp.locator("#active-reader").contentFrame();await reader.locator(".item-text").waitFor();assert.equal(await reader.locator(".item-text").textContent(),bigText);assert.equal(await reader.locator(".item-text script,.item-text img").count(),0);await cp.locator("#close-reader").click();await cp.locator("#reader-dialog").waitFor({state:"hidden"});await creplay(false);assert.deepEqual(carrange(await csnapshot(),docBoard.boardId),carrange(documentPaste.before,docBoard.boardId));await creplay(true);
-    const tooLarge="x".repeat(1000000),largeBefore=await csnapshot();start=cwrites.length;await cevent("paste",{"text/plain":tooLarge});await cp.waitForFunction(()=>document.getElementById("workspace-toast")?.textContent.includes("too large"));assert.equal(cwrites.length,start);assert.equal((await csnapshot()).revision,largeBefore.revision);assert.equal(await cp.evaluate(()=>window.qaClipboardCalls.length),0);
+    const tooLarge="x".repeat(1000000),largeBefore=await csnapshot();start=cwrites.length;await cevent("paste",{"text/plain":tooLarge});await cp.waitForFunction(()=>[...document.querySelectorAll('.workspace-toast')].map(t=>t.textContent).join(' ').includes("too large"));assert.equal(cwrites.length,start);assert.equal((await csnapshot()).revision,largeBefore.revision);assert.equal(await cp.evaluate(()=>window.qaClipboardCalls.length),0);
     await writeFile(path.join(evidence,"clipboard-receipt.json"),JSON.stringify({operations:creceipts,sameAndCrossBoard:true,narrowOversizedVisible:true,snapshotAfterSourceMove:true,repeatedPaste:true,aliases:true,boardCopy:true,invalidAtomic:true,nativeEditingGuard:true,richURL:true,oEmbedPlainMetadata:true,blockedFallback:true,documentBytes:new TextEncoder().encode(bigText).length,documentExact:true,filterReveal:true,drafts:true,stableNativeMedia:true,syntheticClipboardOnly:true,nativeOSClipboardUntested:true},null,2));await cc.close();
   }
   assert.equal(errors.length, 0, errors.join("\n"));
