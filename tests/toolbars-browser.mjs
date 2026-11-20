@@ -91,9 +91,11 @@ try{
  eq(await page.evaluate(id=>{const c=document.querySelector(`[data-placement="${id}"]`);return c.style.left+c.style.top+c.style.transform+getComputedStyle(c).left;},placements[0]),before,'the selected card did not move');
  await key('Home');const homeStop=await focused();await key('End');eq(await focused(),'clear','End goes to the last action');
  await key('ArrowRight');eq(await focused(),homeStop,'the bar wraps');
- await bar.locator('[data-bulk=move]').focus();
+ // A selection change updates the bar in place: the same elements, so a focused action would keep focus (a click elsewhere moves it, as anywhere).
+ await page.evaluate(()=>{window.__bulkMove=document.querySelector('#workspace-selection [data-bulk=move]');});
  await page.locator(`[data-placement="${placements[1]}"] .workspace-select-dot`).click({force:true});await settle();
- eq(await focused(),'move','focus stays on the action while the selection changes (the bar is updated in place)');
+ ok(await page.evaluate(()=>window.__bulkMove===document.querySelector('#workspace-selection [data-bulk=move]')),'the bar keeps its elements across a selection change');
+ eq(await bar.locator('strong').innerText(),'2 selected','and shows the new count');
  await page.locator('#viewport').focus();await key('Escape');
 
  // ---- the object bar: choices are toggle groups, popup buttons open on ArrowDown ----

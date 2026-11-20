@@ -21,6 +21,7 @@ import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
 import {followVisibility, setPressed, onPress} from './ui-toolbar.js';
+import {openOnArrowDown} from './popups.js';
 import {segmentedHTML, setSegmented, focusSegmented} from './ui-segmented.js';
 import {tips, setTip} from './tips.js';
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './version-stack.js';
@@ -1763,6 +1764,8 @@ function setZoomMenuOpen(open, { focus = false } = {}) {
   else if (focus) $('zoom-menu-toggle').focus({ preventScroll: true });
 }
 $('zoom-menu-toggle').onclick = () => setZoomMenuOpen($('zoom-menu').hidden);
+// The % button is an item of the pill's ui-toolbar: ArrowDown opens its menu, as a toolbar's menu button does.
+openOnArrowDown(document.querySelector('.canvas-footer .zoom-pill'), '#zoom-menu-toggle', () => { if ($('zoom-menu').hidden) setZoomMenuOpen(true); });
 $('zoom-minus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom / 1.25); };
 $('zoom-plus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * 1.25); };
 $('zoom-menu').addEventListener('click', event => {
@@ -2055,6 +2058,7 @@ $('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka
 $('reader-info-toggle').onclick = () => setReaderInfoOpen(readerInfo.hidden, { focus: true });
 // The pill: − · % menu (zoom, window and version, light, type size, standalone) · + · Back · Fit.
 $('reader-zoom-toggle').onclick = () => setReaderMenuOpen($('reader-zoom-menu').hidden);
+openOnArrowDown(document.querySelector('.reader-footer .zoom-pill'), '#reader-zoom-toggle', () => { if ($('reader-zoom-menu').hidden) setReaderMenuOpen(true); });
 $('reader-zoom-minus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25);
 $('reader-zoom-plus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25);
 bindZoomSlider($('reader-zoom-slider'),value=>readerCanvas.zoomTo(value));

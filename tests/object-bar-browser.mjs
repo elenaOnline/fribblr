@@ -58,9 +58,9 @@ try{
  await swatch('palette:rose').click();assert.equal(await eventually(async()=>(await find('note')).color,v=>v==='palette:rose'),'palette:rose');
  await idle();await bar('caption-size').click();await size('large').click();assert.equal(await eventually(async()=>(await find('note')).textSize,v=>v==='large'),'large');
  assert.equal(await eventually(()=>css('[data-decoration=note] .workspace-decoration-label','fontSize'),v=>v==='28px'),'28px');
- // Keyboard: Tab walks the format controls, Enter applies, focus stays on the control.
+ // Keyboard: a choice is one Tab stop; an arrow moves along it, Enter applies, focus stays on the control.
  await size('large').and(page.locator('[aria-checked=true]')).waitFor();
- await idle();await format();await option('align','left').focus();await page.keyboard.press('Tab');
+ await idle();await format();await option('align','left').focus();await page.waitForTimeout(250);await page.keyboard.press('ArrowRight');
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'center');await page.keyboard.press('Enter');
  assert.equal(await eventually(async()=>(await find('note')).textAlign,v=>v==='center'),'center');
  assert.equal(await eventually(()=>css('[data-decoration=note] .workspace-decoration-label','textAlign'),v=>v==='center'),'center');
