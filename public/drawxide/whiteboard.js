@@ -324,6 +324,7 @@ function applyFrame(f) {
 
 function frame() {
   raf = 0;
+  if (!wb) return;
   const t0 = performance.now();
   if (awaitingPresent.length) { for (const m of awaitingPresent) m.present = t0 - m.ts; awaitingPresent = []; }
   const json = wb.frame(t0);
@@ -430,12 +431,20 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Pan with wheel / two-finger scroll; zoom with ctrl/cmd+wheel, which is also
 // how Chrome delivers a trackpad pinch. The bridge runs tldraw's normalizeWheel.
-canvas.addEventListener('wheel', (e) => {
+// Listened for on the window in the capture phase, registered before fribblr's
+// opened-item view adds its own (on the frame's load), so stopping it here keeps
+// the viewer from zooming or panning the whole frame as well.
+window.addEventListener('wheel', (e) => {
   e.preventDefault();
+  e.stopImmediatePropagation();
+  if (!wb || e.target !== canvas) return;
   const [x, y] = localPoint(e);
   wb.wheel(x, y, e.deltaX, e.deltaY, e.deltaMode, mods(e), performance.now());
   wake();
-}, {passive: false});
+}, {passive: false, capture: true});
+// Safari's pinch: keep the viewer from scaling the frame (the engine zooms on ctrl+wheel).
+for (const type of ['gesturestart', 'gesturechange', 'gestureend'])
+  window.addEventListener(type, (e) => { e.preventDefault(); e.stopImmediatePropagation(); }, {passive: false, capture: true});
 
 // Keys go through the engine's own shortcut layer (tool letters, undo/redo,
 // delete, select all, arrows, Escape, Space panning).
@@ -585,7 +594,11 @@ async function start() {
       try { wb.load_tldr(text); } catch { say(`could not load “${docId}”: ${err}`); }
     }
   }
-  lastSaved = wb.get_snapshot();   // opening a board does not save it again
+  // One tick first: the editor's first frame may touch records (camera, page
+  // state). Then opening a board does not save it again.
+  wb.frame(performance.now());
+  wb.reset_frames();
+  lastSaved = wb.get_snapshot();
   lastChangeCount = wb.change_count();
   window.addEventListener('resize', resize);
   say(`whiteboard “${docId}”`);
