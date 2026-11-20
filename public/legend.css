@@ -77,6 +77,8 @@ body:has(#workspace-item-controls, #board-info:not([hidden])) .kind-legend-entry
 }
 :is(button, .tk-mi, label) .tk-kbd:active:not(:disabled) { translate: none; --key-d: var(--depth-raised); }
 .keycap-printed { margin: 0 0 1px 4px; }
+/* a drawing's menu rows are blocks: a row that prints a cap sets it at the row's end, as menu rows do */
+.whiteboard-menu button:has(> .keycap-printed) { display: flex; align-items: center; justify-content: space-between; }
 /* on a blue key: the cap is cut from the key itself */
 .tk-primary .tk-kbd {
   color: var(--ink-on-mark);

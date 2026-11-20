@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {mkdtemp, mkdir, rm} from "node:fs/promises";
+import {mkdtemp, mkdir, readdir, readFile, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import {applyOperation, readWorkspace, getBoardSnapshot} from "../lib/workspace.mjs";
@@ -148,4 +148,197 @@ test("arrangePlacements sets per-object positions for placements and drawn eleme
   for (const [change,status] of [[{},400],[{placements:[]},400],[{placements:[{id:ids[0],x:1}]},400],[{placements:[{id:ids[0],x:1,y:1},{id:ids[0],x:2,y:2}]},400],
     [{placements:[{id:"missing-placement",x:1,y:1}]},404],[{decorations:[{id:"missing-deco",x:1,y:1}]},404],[{placements:[{id:ids[0],x:1,y:1,width:5}]},400],[{placements:[{id:ids[0],x:Infinity,y:1}]},400]])
     await assert.rejects(applyOperation(config,{type:"arrangePlacements",boardId,...change}),e => e.status === status,JSON.stringify(change));
+});
+
+// One shared stacking order for cards and drawn elements (public/stacking.js).
+import {applyStack,landOnTop,restack,stackOrder,stackRef} from "../public/stacking.js";
+const stacked = board => stackOrder(board).map(entry => entry.id);
+
+test("drawings saved without z keep their kind's level beneath or above every stored z",() => {
+  const board = {
+    decorations:[
+      {id:"line",type:"line",x:0,y:0,width:10,height:10,color:"#000",text:""},
+      {id:"region",type:"region",x:0,y:0,width:10,height:10,color:"#000",text:""},
+      {id:"sticker",type:"text",sticker:true,x:0,y:0,width:10,height:10,color:"#000",text:"🚀"},
+      {id:"text",type:"text",x:0,y:0,width:10,height:10,color:"#000",text:"T"},
+      {id:"shape",type:"region",shape:"rectangle",x:0,y:0,width:10,height:10,color:"#000",text:""},
+      {id:"box",type:"region",x:0,y:0,width:10,height:10,color:"#000",text:"",container:{layout:"vertical",children:["text"]}},
+    ],
+    placements:[{id:"p5",z:5},{id:"p0",z:0},{id:"p1",z:1},{id:"p2",z:2},{id:"gone",z:9,removedAt:"2026-01-01"}],
+  };
+  // Regions/containers, then text and shapes, beneath every placement (even z 0), and
+  // stickers and arrows above every placement (even z 5); same levels keep array order.
+  assert.deepEqual(stacked(board),["region","box","text","shape","p0","p1","p2","p5","line","sticker"]);
+  // A container is never drawn above its own members.
+  board.decorations[5] = {...board.decorations[5],z:40};
+  assert.deepEqual(stacked(board),["region","box","text","shape","p0","p1","p2","p5","line","sticker"]);
+  board.decorations[5] = {...board.decorations[5],container:{layout:"vertical",children:[{placementId:"p1"}]}};
+  assert.deepEqual(stacked(board),["region","text","shape","p0","box","p1","p2","p5","line","sticker"]);
+  // The levels follow the stored range, wherever it lies; stored drawings sort by z.
+  board.decorations[5] = {...board.decorations[5],z:-3,container:undefined};
+  board.placements = [{id:"p50",z:50},{id:"p60",z:60}];
+  assert.deepEqual(stacked(board),["region","text","shape","box","p50","p60","line","sticker"]);
+  // Restacking gives a moved drawing a stored z and leaves the rest in place.
+  const lifted = restack(board,[stackRef("decoration","shape")],"front");
+  assert.deepEqual(stacked(applyStack(structuredClone(board),lifted)),["region","text","box","p50","p60","line","sticker","shape"]);
+  // A new object lands on top, above the arrows and stickers saved without z.
+  const fresh = {...structuredClone(board),placements:[...board.placements,{id:"new",x:500,y:500,width:10,height:10,z:Math.max(...stackOrder(board).map(e => e.key)) + 1}]};
+  assert.deepEqual(stacked(applyStack(fresh,landOnTop(fresh,[stackRef("placement","new")]))).slice(-3),["line","sticker","new"]);
+});
+
+async function stackFixture(t) {
+  const directory = await mkdtemp(path.join(os.tmpdir(),"tinka-stacking-"));
+  t.after(() => rm(directory,{recursive:true,force:true}));
+  const config = {boardsRoot:path.join(directory,"boards")};
+  await mkdir(config.boardsRoot);
+  const write = (type,data = {}) => applyOperation(config,{type,boardId:"b",...data});
+  await applyOperation(config,{type:"createBoard",id:"b",title:"Stacking"});
+  const card = async (title,x,y,width = 300,height = 200) =>
+    (await write("createItem",{item:{title},placement:{x,y,width,height}})).result.placementIds[0];
+  const board = () => getBoardSnapshot(config,"b");
+  return {config,write,card,board};
+}
+
+test("new objects land on top, beneath anything already resting on them",async t => {
+  const {write,card,board} = await stackFixture(t);
+  const older = await card("Older",0,0), newer = await card("Newer",400,0);
+  assert.deepEqual(stacked(await board()),[older,newer]);
+  // A sticky dropped on a card lands above it.
+  await write("createDecoration",{decoration:{id:"note",type:"region",shape:"rectangle",x:20,y:20,width:120,height:100,color:"palette:gold",text:"Hi"}});
+  assert.deepEqual(stacked(await board()),[older,newer,"note"]);
+  // A coloured backdrop drawn around the newer card goes under it, above the rest.
+  await write("createDecoration",{decoration:{id:"backdrop",type:"region",x:360,y:-40,width:900,height:600,color:"palette:sage",text:"Area"}});
+  assert.deepEqual(stacked(await board()),[older,"note","backdrop",newer]);
+  // Copies keep their own order and land on top of everything.
+  const copy = (await write("duplicateOccurrences",{placementIds:[older],decorationIds:["note"],dx:32,dy:32})).result;
+  assert.deepEqual(stacked(await board()).slice(-2),[copy.placementIds[0],copy.decorationIds[0]]);
+});
+
+test("a drag drop comes forward only when it newly overlaps something above it",async t => {
+  const {config,write,card,board} = await stackFixture(t);
+  const a = await card("A",0,0), b = await card("B",1000,0), c = await card("C",0,400);
+  // A small slip of the top card changes nothing (nothing is above it anyway); a slide
+  // of A that keeps it clear of B and C leaves the order alone.
+  await write("updatePlacement",{placementId:a,patch:{x:6,y:4},restack:"drop"});
+  assert.deepEqual(stacked(await board()),[a,b,c]);
+  // An arrow-key nudge (no restack) into C does not reorder.
+  await write("translatePlacements",{placementIds:[a],dx:0,dy:250});
+  assert.deepEqual(stacked(await board()),[a,b,c]);
+  // A further small drag while it still overlaps C, and no new neighbour: unchanged.
+  await write("updatePlacement",{placementId:a,patch:{x:12,y:260},restack:"drop"});
+  assert.deepEqual(stacked(await board()),[a,b,c]);
+  // Resizing A over B never reorders, even though it now covers B.
+  await write("updatePlacement",{placementId:a,patch:{width:1200}});
+  assert.deepEqual(stacked(await board()),[a,b,c]);
+  await write("updatePlacement",{placementId:a,patch:{width:300}});
+  // A real drop onto B, which A did not overlap, brings A to the top, in one receipt.
+  const before = await board();
+  const dropped = await write("updatePlacement",{placementId:a,patch:{x:1100,y:60},restack:"drop"});
+  assert.deepEqual(stacked(await board()),[b,c,a]);
+  // Undo restores position and order together.
+  await applyOperation(config,{type:"restoreMovement",history:dropped.history});
+  const undone = await board();
+  assert.deepEqual(stacked(undone),[a,b,c]);
+  assert.deepEqual(undone.placements.find(p => p.id === a),before.placements.find(p => p.id === a));
+  // Multi-selection drags use the same rule and keep their own relative order.
+  // B lands on C (which is above both); A lands in empty space.
+  await write("translatePlacements",{placementIds:[a,b],dx:-900,dy:420,restack:"drop"});
+  assert.deepEqual(stacked(await board()),[c,a,b]);
+  // Selecting and restyling write nothing to the order; the drop rule needs a move.
+  await assert.rejects(write("updatePlacement",{placementId:a,patch:{presentation:{mode:"card"}},restack:"drop"}),{status:400});
+});
+
+test("a moved backdrop stays beneath what rests on it and rises only above the rest",async t => {
+  const {write,card,board} = await stackFixture(t);
+  await write("createDecoration",{decoration:{id:"area",type:"region",x:0,y:0,width:800,height:600,color:"palette:sage",text:"Area"}});
+  const resting = await card("Resting",100,100,240,160);
+  const neighbour = await card("Neighbour",820,0);
+  assert.deepEqual(stacked(await board()),["area",resting,neighbour]);
+  // Recolouring the backdrop leaves the order alone.
+  const order = stacked(await board());
+  await write("updateDecoration",{decorationId:"area",patch:{color:"palette:blue"}});
+  assert.deepEqual(stacked(await board()),order);
+  // Move the backdrop so it newly overlaps the neighbour, with the resting card still on it.
+  await write("updateDecoration",{decorationId:"area",patch:{x:50,y:0},restack:"drop"});
+  assert.deepEqual(stacked(await board()),[neighbour,"area",resting]);
+});
+
+test("Bring to front and Send to back reorder a selection as one undoable step",async t => {
+  const {config,write,card,board} = await stackFixture(t);
+  const a = await card("A",0,0), b = await card("B",50,50), c = await card("C",100,100);
+  await write("createDecoration",{decoration:{id:"note",type:"text",x:10,y:10,width:200,height:60,color:"palette:neutral",text:"Note"}});
+  assert.deepEqual(stacked(await board()),[a,b,c,"note"]);
+  const front = await write("restackOccurrences",{placementIds:[b,a],to:"front"});
+  assert.deepEqual(stacked(await board()),[c,"note",a,b]);
+  assert.ok(front.history);
+  await write("restackOccurrences",{placementIds:[],decorationIds:["note"],to:"back"});
+  assert.deepEqual(stacked(await board()),["note",c,a,b]);
+  const undo = await applyOperation(config,{type:"restoreMovement",history:(await write("restackOccurrences",{placementIds:[c],to:"front"})).history});
+  assert.deepEqual(stacked(await board()),["note",c,a,b]);
+  assert.ok(undo.history);
+  await assert.rejects(write("restackOccurrences",{placementIds:[a],to:"middle"}),{status:400});
+  await assert.rejects(write("restackOccurrences",{placementIds:[],to:"front"}),{status:400});
+});
+
+// A board saved before the shared order (drawings without z, card z a creation count).
+// Every write that gives objects a z (Bring to front, Send to back, a new object, a
+// pointer drop, duplicating) keeps everything it did not move in the order it painted in.
+test("on a board saved without drawing z, a reorder moves only what it was asked to move",async t => {
+  const {config,write,card,board} = await stackFixture(t);
+  const cards = [];
+  for (let i = 0; i < 12; i++) cards.push(await card(`Card ${i}`,(i % 4) * 340,Math.floor(i / 4) * 260,300,200));
+  const drawn = [
+    {id:"area",type:"region",x:-40,y:-40,width:1400,height:820,color:"palette:sage",text:"Area"},
+    {id:"box",type:"region",shape:"rectangle",x:20,y:20,width:200,height:120,color:"palette:gold",text:""},
+    {id:"label",type:"text",x:10,y:240,width:300,height:40,color:"palette:neutral",text:"Label"},
+    ...Array.from({length:4},(_,i) => ({id:`arrow-${i}`,type:"line",x:150 + i * 340,y:100,width:340,height:260,color:"#6c8060",text:"",endArrow:true,from:{x:150 + i * 340,y:100},to:{x:490 + i * 340,y:360}})),
+    {id:"sticker",type:"text",sticker:true,text:"🚀",x:400,y:20,width:96,height:96,color:"palette:neutral"},
+  ];
+  for (const decoration of drawn) await write("createDecoration",{decoration});
+  // Saved by 1.3: placements z 0..11 by creation, drawings without z. Each check below
+  // starts again from this board.
+  const files = path.join(config.boardsRoot,".tinka","boards");
+  let savedFile, saved;
+  for (const name of await readdir(files)) {
+    const file = path.join(files,name), board = JSON.parse(await readFile(file,"utf8"));
+    if (board.id !== "b") continue;
+    board.placements.forEach((p,index) => { p.z = index; });
+    for (const d of board.decorations) delete d.z;
+    savedFile = file; saved = JSON.stringify(board,null,2);
+  }
+  const fresh13 = () => writeFile(savedFile,saved);
+  const without = (order,moved) => order.filter(id => !moved.includes(id));
+  const keeps = async (label,moved,writeIt) => {
+    await fresh13();
+    const before = stacked(await board());
+    const result = await writeIt();
+    const after = stacked(await board());
+    assert.deepEqual(without(after,[...moved,...(result?.fresh || [])]),without(before,moved),label);
+    return {before,after,result};
+  };
+  await fresh13();
+  const initial = stacked(await board());
+  assert.deepEqual(initial.slice(-5),["arrow-0","arrow-1","arrow-2","arrow-3","sticker"]);
+  // Bring each card to the front and send it to the back, one at a time.
+  for (const id of [cards[0],cards[5],cards[11]]) {
+    const front = await keeps(`] on ${id}`,[id],() => write("restackOccurrences",{placementIds:[id],to:"front"}));
+    assert.equal(front.after.at(-1),id);
+    const back = await keeps(`[ on ${id}`,[id],() => write("restackOccurrences",{placementIds:[id],to:"back"}));
+    assert.equal(back.after[0],id);
+    // Undo puts the whole order back, the drawings without z included.
+    await fresh13();
+    const moved = await write("restackOccurrences",{placementIds:[id],to:"front"});
+    await applyOperation(config,{type:"restoreMovement",history:moved.history});
+    assert.deepEqual(stacked(await board()),initial,`undo of ] on ${id}`);
+  }
+  // The same for drawings saved without z.
+  for (const id of ["area","box","label","arrow-0","arrow-2","arrow-3","sticker"]) {
+    await keeps(`] on ${id}`,[id],() => write("restackOccurrences",{placementIds:[],decorationIds:[id],to:"front"}));
+    await keeps(`[ on ${id}`,[id],() => write("restackOccurrences",{placementIds:[],decorationIds:[id],to:"back"}));
+  }
+  // A new card, a pointer drop onto other cards, and a duplicate leave the rest alone.
+  await keeps("a new card",[],async () => ({fresh:[await card("New",700,300)]}));
+  await keeps("a drop",[cards[3]],() => write("updatePlacement",{placementId:cards[3],patch:{x:40,y:40},restack:"drop"}));
+  await keeps("a duplicate",[],async () => { const r = (await write("duplicateOccurrences",{placementIds:[cards[7]],decorationIds:["arrow-1"],dx:30,dy:30})).result;
+    return {fresh:[...r.placementIds,...r.decorationIds]}; });
 });

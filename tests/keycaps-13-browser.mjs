@@ -103,7 +103,9 @@ try {
   // Menu rows (UI SDK Menu) print their key in the row's shortcut part (popups.js menuItem).
   const menuCap=locator=>locator.locator('ui-menu-shortcut kbd').textContent();
   assert.deepEqual([await menuCap(edit),await menuCap(details),await menuCap(dup)],['E',cmd('I'),cmd('D')]);
-  assert.equal(await page.locator('.workspace-tile-menu kbd').count(),4,'three printed caps and the Open row\'s own ↵');
+  // 1.4: Bring to front ] and Send to back [ print theirs too
+  assert.deepEqual([await menuCap(page.locator('.workspace-tile-menu [data-tile-menu="front"]')),await menuCap(page.locator('.workspace-tile-menu [data-tile-menu="back"]'))],[']','[']);
+  assert.equal(await page.locator('.workspace-tile-menu kbd').count(),6,'five printed caps and the Open row\'s own ↵');
   await page.screenshot({path:path.join(evidence,'card-menu.png')});
   await page.keyboard.press('Escape');await settle();
   let total=await cardCount();
