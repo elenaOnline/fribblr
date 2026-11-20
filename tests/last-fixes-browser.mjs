@@ -13,6 +13,7 @@
 // - Home's confirmations have plain titles, not questions;
 // - J / K with a focused, unselected card step on from that card;
 // - disabled Undo and Redo dim their icons, as main does;
+// - the Move to a board dialog opens on its first choice, not on ×;
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -211,6 +212,15 @@ try{
   ok(await until(async()=>(await focused())==='card:Card C'),`J from the focused Card B goes to the next card, Card C: ${await focused()}`);
   await page.keyboard.press('k');await page.keyboard.press('k');
   ok(await until(async()=>(await focused())==='card:Card A'),`K, K from there goes back to Card A: ${await focused()}`);
+  for(let i=0;i<3;i++){await page.keyboard.press('Escape');await page.waitForTimeout(60);}
+ }
+
+ // ---- 9. The Move to a board dialog opens on its first choice. ----
+ {await page.locator(`#world [data-placement="${c.c}"]`).focus();await page.keyboard.press('Shift+F10');
+  await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor();await page.keyboard.type('mo');await page.keyboard.press('Enter');
+  await page.locator('ui-dialog-content[data-open][aria-modal=true] .workspace-board-choices').waitFor();await page.waitForTimeout(300);
+  eq(await page.evaluate(()=>{const a=document.activeElement;return [a?.type,a?.name,a?.checked];}),['radio','target',true],'Move to a board opens on its destination choice (the checked one), not on ×');
+  await page.keyboard.press('Escape');await page.waitForTimeout(300);
   for(let i=0;i<3;i++){await page.keyboard.press('Escape');await page.waitForTimeout(60);}
  }
 

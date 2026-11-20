@@ -337,7 +337,9 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
   `ui-dialog` and returns the `ui-dialog-content` (class `workspace-dialog`), which has `close()` and fires a `close`
   event once closed. The submit button moves into `footer.workspace-dialog-actions` with its hint (a keycap, or
   `shortcutHint` as words); ⌘↩ saves (`bindForm`). Focus opens on `[autofocus]`, else the first field, else the close
-  key. Tab wraps; Escape and a backdrop press close; focus returns to `opener` (default: the focused element). A
+  key. "The first field" skips a field inside a hidden part (the Move dialog's New board name until New board… is
+  chosen: autofocus there left focus on ×) and counts a choice: a radio group is entered on its checked radio, else
+  its first (`firstField` in `workspace.js`), so Move to a board opens on its destinations. Tab wraps; Escape and a backdrop press close; focus returns to `opener` (default: the focused element). A
   save in flight holds the dialog open.
 - **Discard question.** Only typed text asks. Once a text field or text area of a form with `onSubmit` holds text that
   differs from what it held before her first edit (noted on `beforeinput`), the dialog becomes `dismissible=false`;
