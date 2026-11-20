@@ -949,7 +949,9 @@ Files: `feedback.js`, `feedback.css`, `comment-pins.js` (Show points events), `o
   from the button, ↓/↑ too): checkbox items *Unresolved only* and *Show points* stay open as they toggle (the item's
   `checked` attribute is written back, or the SDK puts it back), then *Add point* (canvas only), *Board discussion* (an
   item's panel only) and *Your name…*. An action runs once the menu has closed and returned focus, so the focus it moves
-  (the composer, the name field) stays. The name is a field, so it is a Popover (`#feedback-name-popover`): from *As
+  (the composer, the name field) stays. A click away only closes the menu: the panel's own outside-press handler (on
+  window capture, ahead of the SDK) steps aside while a menu is open (`menuOpen()`), and focus goes back to ⋯ (a
+  `sharedMenu` returns focus to its opener when focus is still on its closed row, as after a swallowed press). The name is a field, so it is a Popover (`#feedback-name-popover`): from *As
   You* (above it) or *Your name…* (below ⋯); focus in the field, Enter saves and closes, Escape returns to the opener,
   Tab out continues after it (`tabTrigger`). The opener counts as part of the popover (a press on it, or focus landing
   on it, is no dismissal), so a second press closes it. Roots live in the panel's host (`<body>`, or the reader

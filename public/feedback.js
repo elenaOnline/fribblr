@@ -2,7 +2,7 @@ import {escape as esc,toast} from './workspace.js';
 import {pointAnchorAt,resolveCommentPoint} from './feedback-geometry.js';
 import {bindForm,restoreFocus,commitShortcutLabel,commitShortcutCap} from './interaction.js';
 import {setTip} from './tips.js';
-import {sharedMenu,sharedPopover,openMenu,menuItem,menuCheckbox,menuSeparator,inPopup} from './popups.js';
+import {sharedMenu,sharedPopover,openMenu,menuItem,menuCheckbox,menuSeparator,inPopup,menuOpen} from './popups.js';
 import {choiceHTML,setChoice,onChoose} from './ui-toolbar.js';
 export function voteTotals(votes={}){const result={yes:0,no:0,abstain:0};for(const vote of Object.values(votes||{}))if(Object.hasOwn(result,vote.value))result[vote.value]++;return result;}
 // Vote appears on a tile's hover bar (and in an opened Tinka's Inspector) only once
@@ -54,8 +54,11 @@ export class FeedbackController {
     };
     this.clickHandler=e=>{if(this.pointClick&&Date.now()<this.pointClick.until&&Math.hypot(e.clientX-this.pointClick.x,e.clientY-this.pointClick.y)<6&&this.viewport.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();this.pointClick=null;}};
     // A press outside the board's panel closes it (the ballot and the panel's own menu and name field are popups: the
-    // SDK closes them on an outside press, and a press inside them is not outside the panel).
+    // SDK closes them on an outside press, and a press inside them is not outside the panel). With a menu open, the
+    // press only closes the menu (menu.md: modal="pointer", "an outside press only closes the menu"): the SDK swallows
+    // it, and so does the panel.
     this.outsideHandler=e=>{
+      if(menuOpen())return;
       if(this.visible&&this.mode==='board'&&!this.pointMode&&!this.panel.contains(e.target)&&!e.target.closest('[data-item-feedback],[data-feedback-toggle],.feedback-pin,.feedback-options-menu,.feedback-name,.feedback-ballot'))this.close({restoreFocus:false});
     };
     this.keyHandler=e=>{if(e.key==='Escape')this.consumeEscape(e);};this.repositionHandler=()=>this.sizePanel();

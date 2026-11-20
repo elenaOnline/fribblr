@@ -165,6 +165,12 @@ try{
  assert.equal(await settings.getAttribute('aria-expanded'),'true');
  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-settings]'));
  assert.equal(await page.locator('.feedback-panel').isVisible(),true,'Escape closes only the menu');
+ // A click away only closes the menu (menu.md: modal="pointer"): the panel stays and focus goes back to ⋯.
+ await page.keyboard.press('Enter');await page.waitForFunction(()=>document.activeElement?.getAttribute('role')==='menuitemcheckbox');
+ {const v=await page.locator('#viewport').boundingBox();await page.mouse.click(v.x+40,v.y+v.height-120);}
+ await page.waitForFunction(()=>!document.querySelector('#feedback-options-menu ui-menu-content[data-open]'));
+ await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-settings]'));
+ assert.equal(await page.locator('.feedback-panel').isVisible(),true,'a click away closes only the menu, not the panel');
  await page.keyboard.press('ArrowDown');await page.waitForFunction(()=>document.activeElement?.getAttribute('role')==='menuitemcheckbox');
  await page.keyboard.press('y');assert.match(await page.evaluate(()=>document.activeElement.textContent),/Your name/,'typeahead');
  await page.keyboard.press('Enter');await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-name]'));
