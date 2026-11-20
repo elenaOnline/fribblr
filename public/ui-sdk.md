@@ -906,6 +906,8 @@ opener; `tinka:navigator-open` takes `detail.opener`). Dialog, Command, Tree, Se
   refused, and the `dismissattempt` for Escape moves focus to the toggle. A press on a toggle or Find button is not a
   click-away (its `outside-press` is cancelled; its own click toggles or focuses the field). Close also un-docks. The
   slide-in animation is finished on close.
+- The field's keycap prints Find's shortcut as the header's keycaps do (`capLabel` with `isMacPlatform`): ⌘K on Apple
+  platforms, Ctrl+K elsewhere.
 - Field and results: `ui-command filter="false"`. The server filters: the query goes to `/api/search` after 150 ms,
   stale requests aborted, previous results kept until the next arrive (status line and `status="loading"` say
   "Searching…"). The caret never leaves the field: arrows move the highlight (`aria-activedescendant`), Home/End move

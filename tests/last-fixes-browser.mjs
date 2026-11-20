@@ -14,6 +14,7 @@
 // - J / K with a focused, unselected card step on from that card;
 // - disabled Undo and Redo dim their icons, as main does;
 // - the Move to a board dialog opens on its first choice, not on ×;
+// - the Navigator prints Find's shortcut as the header does (⌘K on a Mac);
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -222,6 +223,14 @@ try{
   eq(await page.evaluate(()=>{const a=document.activeElement;return [a?.type,a?.name,a?.checked];}),['radio','target',true],'Move to a board opens on its destination choice (the checked one), not on ×');
   await page.keyboard.press('Escape');await page.waitForTimeout(300);
   for(let i=0;i<3;i++){await page.keyboard.press('Escape');await page.waitForTimeout(60);}
+ }
+
+ // ---- 9. The Navigator's shortcut reads as the header's. ----
+ {await page.locator('#chrome-search').click();await page.locator('#project-navigator[data-open]').waitFor();await page.waitForTimeout(300);
+  const caps=await page.evaluate(()=>[document.querySelector('.navigator-search kbd')?.textContent,document.querySelector('#chrome-search kbd')?.textContent]);
+  eq(caps[0],caps[1],`The Navigator prints the same shortcut as the header: ${caps}`);
+  if(process.platform==='darwin')eq(caps[0],'⌘K','⌘K on a Mac');
+  await page.keyboard.press('Escape');await page.waitForTimeout(200);if(await page.locator('#project-navigator[data-open]').count())await page.keyboard.press('Escape');
  }
 
  // ---- 6. Focus never drops to <body>. ----
