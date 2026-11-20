@@ -300,7 +300,7 @@ covers), `workspace-board.js` (the board's capture-phase key handler and its Esc
 markup passing through `boardFocus.cardMarkup`), `whiteboard.js` (drawn elements' markup through
 `boardFocus.decorationMarkup`; the keyboard resize corner; Enter on a container; announcements for arrow ends and
 sticker turns), `canvas.js` (`revealBox`, the viewport's `+`/`−`/`0`, the board step's focus, focus back to the card
-after the reader, the board map's zoom announcements), `board-step.js` (step keys), `board-map.js` (`0`), `calm.css`
+after the reader), `board-step.js` (step keys), `calm.css`
 (focus rings). Core helpers, standalone, from `vendor/ui-sdk/web/core.js` (a dynamic import, so the board's start never
 waits for it): `nearestInDirection`, `announce`, `keepFocus`, `moveMessage`, `resizeMessage`, `reorderMessage`.
 
