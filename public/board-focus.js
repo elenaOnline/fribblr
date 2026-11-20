@@ -138,11 +138,12 @@ export class BoardFocus {
     const parent = this.board.snapshot && containerMembers(this.board.snapshot).get(key)?.parent;
     if (parent) this.inside.set(parent.id, key);
   }
-  // Before a rebuild: where the focused item was, in case the rebuild removes it.
+  // Before a rebuild: where the focused item was on screen, in case the rebuild removes it. (On screen, not from the
+  // snapshot: a deleted drawn element has already left the snapshot the rebuild draws, where a removed card has not.)
   lostBox() {
     const el = this.element(this.stop);
-    if (!el || !el.contains(document.activeElement)) return null;
-    return this.items().find(item => item.el === el)?.rect || null;
+    if (!el || !el.contains(document.activeElement) || !el.getClientRects().length) return null;
+    return el.getBoundingClientRect();
   }
   // After a rebuild: the stop still names a rendered item, else the first card (or drawn element) takes it. If the
   // focused item went away (removed, moved into a board, filtered out), focus goes to the item nearest to where it
@@ -157,10 +158,13 @@ export class BoardFocus {
     const top = selector => [...world.querySelectorAll(selector)].find(el => !members.has(this.key(el)));
     let next = top('.workspace-card[data-placement]') || top('.workspace-decoration[data-decoration]');
     if (lost && next) {
+      // Nearest on screen: the canvas draws every item at one scale, so this is the nearest on the board too. It runs
+      // only when the focused item has just gone.
       const centre = r => [(r.left + r.right) / 2, (r.top + r.bottom) / 2], [x, y] = centre(lost);
       let best = Infinity;
       for (const item of this.items()) {
-        const [cx, cy] = centre(item.rect), d = Math.hypot(cx - x, cy - y);
+        if (!item.el.getClientRects().length) continue;
+        const [cx, cy] = centre(item.el.getBoundingClientRect()), d = Math.hypot(cx - x, cy - y);
         if (d < best) { best = d; next = item.el; }
       }
     }

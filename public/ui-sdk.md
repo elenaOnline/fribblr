@@ -533,7 +533,9 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   `reconcileChildren` never fights it) and moved in place on `focusin` (`setStop`: two elements' attributes). Before
   anything is focused, the first card on the board itself (not inside a container) holds it, else the first drawn
   element there. If the focused item goes away in a rebuild, focus goes to the item nearest where it was
-  (`lostBox`/`ensureStop`, the SDK's focus-recovery idea).
+  (`lostBox`/`ensureStop`, the SDK's focus-recovery idea): a removed card, and a deleted drawn element (Delete, or
+  ⌘D then Delete on the copy, which lands on the original). Both measure on screen, because a deleted drawn element
+  has already left the snapshot the rebuild draws (a removed card stays in it, marked removed).
 - **Controls inside an item.** The stop item's own controls follow it in Tab order: select circle, ⋯, title, resize
   corner, hover-strip buttons, version ticker; a Text block's task boxes, links and overflowing label (Chrome makes
   a scroller a Tab stop); a selected sticker's rotate and resize handles. Inside every other item they carry

@@ -2,6 +2,8 @@
 // (public/ui-sdk.md): focus never drops to <body>.
 // - Escape while connecting from the keyboard goes back to the connection point it started from; Escape on a point with
 //   nothing pending goes back to its object.
+// - Delete on a focused drawn object (a Text block, a shape, an arrow; or ⌘D then Delete on the copy) moves focus to the
+//   nearest item, as deleting a card does.
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
@@ -56,6 +58,30 @@ try{
   await page.keyboard.press('Escape');
   eq(await focused(),'drawn:words','Escape on a point with nothing pending goes back to its object');
   eq(await page.evaluate(()=>document.querySelector('#world [data-decoration="words"]').classList.contains('selected')||document.querySelector('#world [data-decoration="words"]').getAttribute('aria-selected')==='true'),true,'which stays selected');
+ }
+
+ // ---- 2. Delete on a focused drawn object moves focus to the nearest item, as for a card. ----
+ {const count=()=>page.locator('#world [data-decoration]').count();
+  for(const id of ['words','shape','arrow']){
+   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+   const before=await count();
+   await page.locator(`#world [data-decoration="${id}"]`).focus();await page.keyboard.press(process.platform==='darwin'?'Meta+d':'Control+d');
+   ok(await until(async()=>(await count())===before+1&&(await focused()).startsWith('drawn:')&&(await focused())!==`drawn:${id}`),`⌘D on ${id} makes a copy, which takes focus: ${await focused()}`);
+   await page.keyboard.press('Delete');
+   ok(await until(async()=>(await count())===before),`Delete removes the copy of ${id}`);
+   eq(await until(async()=>(await focused())===`drawn:${id}`&&focused()),`drawn:${id}`,`Focus goes to the nearest item, the original ${id} under the copy`);
+  }
+  // Select and Delete an original: focus goes to the nearest item that is left, never <body>.
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await page.locator('#world [data-decoration="shape"]').focus();await page.keyboard.press('Space');await page.waitForTimeout(300);
+  await page.keyboard.press('Delete');
+  ok(await until(async()=>!(await page.locator('#world [data-decoration="shape"]').count())),'Delete removes the selected shape');
+  const after=await until(async()=>{const f=await focused();return f!=='BODY'&&f!=='drawn:shape'&&f;});
+  ok(/^(drawn|card):/.test(after),`Focus goes to a neighbour, not <body>: ${after}`);
+  await page.waitForTimeout(800);
+  eq(await focused(),after,'and stays there');
+  await page.keyboard.press(process.platform==='darwin'?'Meta+z':'Control+z');
+  ok(await until(async()=>await page.locator('#world [data-decoration="shape"]').count()===1),'⌘Z puts the shape back');
  }
 
  assert.deepEqual(errors,[]);checks++;
