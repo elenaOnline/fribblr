@@ -4022,11 +4022,19 @@ export class WorkspaceBoard {
       }
       const key = item && this.boardFocus.key(item);
       if (!key && !document.activeElement?.closest?.("#world")) return;
+      // Where focus was before the press, by element and by board item (a re-render replaces the element).
+      const before = document.activeElement, beforeItem = before && this.boardFocus.item(before), beforeKey = beforeItem && this.boardFocus.key(beforeItem);
       requestAnimationFrame(() => {
         const active = document.activeElement;
         if (active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor")) return;
         const target = key ? this.boardFocus.element(key) : $("viewport");
         if (!target?.isConnected || active === target) return;
+        // Focus that moved on before this frame (code acting on the press, a click that an assistive technology
+        // sends in one go, a key pressed straight after) is left where it went: only focus still where it was, or
+        // dropped to <body> by a re-render, is moved to the pressed item.
+        const activeItem = active && active !== document.body ? this.boardFocus.item(active) : null;
+        if (active && active !== document.body && active !== before && !target.contains(active) &&
+            !(beforeKey && activeItem && this.boardFocus.key(activeItem) === beforeKey)) return;
         // A press on a card's own control area keeps native focus where it landed inside the card.
         if (key?.startsWith("placement:") && target.contains(active) && active !== target) return;
         if (key) this.boardFocus.setStop(key);
