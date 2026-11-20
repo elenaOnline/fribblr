@@ -372,9 +372,12 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
 - **Zoom keys:** `+`/`=`, `−` and `0` (100%, position kept about the centre) with the canvas or an item focused; announced
   in `#view-announce` ("Zoom 115%"). ⇧0, ⇧1, ⇧2, F and M are unchanged. Arrows / Page keys / Space still pan when the canvas
   itself has focus.
-- **Board step is `[` / `]` on a Mac.** ⌥←/→ is the SDK's move chord, so on the board it moves the focused item, and
-  stepping is `[` / `]` (the opened Tinka's own fallback keys). Ctrl+←/→ still steps on Windows and Linux. Inside an opened
-  Tinka ⌥←/→ is unchanged. A step with focus on the board takes focus to the stepped card.
+- **Board step is J / K** (merge14, on 1.4). ⌥←/→ is the SDK's move chord, so on the board it moves the focused item; 1.4
+  made `]` / `[` Bring to front / Send to back, as in drawing tools (tldraw, Excalidraw). So stepping is **J** (next) and
+  **K** (previous), the list-review keys of Gmail, GitHub, Feedly and Reddit (`board-step.js`, `reader-keys.js`
+  `stepLetter`; either case, never with Shift or a modifier, never in a field, never while a menu has focus: menus own
+  typed letters). Ctrl+←/→ still steps on Windows and Linux. Inside an opened Tinka nothing stacks, so `[` / `]` and ⌥←/→
+  still step there, and J / K step too. A step with focus on the board takes focus to the stepped card.
 - **Focus follows a press.** A press on a drawn element focuses it (a card takes focus natively; Whiteboard's pointerdown
   prevents that for drawn elements), so Option-arrow and Space act on what was pressed, never on an item focused earlier;
   a press on empty canvas takes focus off the items. Pointer focus draws no ring (`pointer-focus.js`).
@@ -472,7 +475,7 @@ closes it and moves on from the opener.
   board keys stripped, Escape cancels the drag.
 - **Keys.** Board handlers that run in the capture phase step aside for an open popup (`inPopup`): the board's key handler
   (`menuKey` also opens the card and board menus from Shift+F10 and ↓/↑ on a ⋯ or a version name, and lets a menu button in
-  a toolbar take ↓), board commands (`boardCommandBlocked`, so `[`/`]`, ⌘D, letters wait), the whiteboard's keys, the
+  a toolbar take ↓), board commands (`boardCommandBlocked`, so `[`/`]`, J/K, ⌘D, letters wait), the whiteboard's keys, the
   panning tool's Escape, the comment layer's Escape, the reader's Escape ladder, ⌘I and reader commands.
 
 ### Comment thread card and the @ picker (`ux/comments`)
@@ -588,11 +591,11 @@ Files: `reader-dialog.js` (new: `trapTab`, `tabStops`, `rememberOpener`, `opener
     reader's ladder peels feedback → path → % menu → Inspector → Navigator → notes, wherever focus is in the reader,
     and only then closes the reader. Escape during IME composition does nothing (as before).
   - **Focus goes back where it came from** (popups.md § Focus). Opened from a card on the board, focus returns to the
-    card last viewed (after any `[` / `]` stepping) without moving the board: the canvas's roving card
+    card last viewed (after any stepping) without moving the board: the canvas's roving card
     (`graph.focusPlacement`, when the canvas stream's roving group is there) or the card's Open control. Opened from
     anything else (the Navigator, a link), focus returns to that control while it is still on the page, else to the
     canvas.
-  - Unchanged: `[` `]`, ⌥←/→ (Ctrl+←/→ elsewhere) and plain ←/→ on Tinka's own chrome step; ⌥↑ / Escape go up; F,
+  - Unchanged: `[` `]`, ⌥←/→ (Ctrl+←/→ elsewhere) and plain ←/→ on Tinka's own chrome step (J / K too, since merge14); ⌥↑ / Escape go up; F,
     ⇧1, ⇧0, + / − zoom; ⌘I toggles the Inspector; keys forwarded from same-origin content.
 - **Stepper: `ui-pagination`** (`#reader-stepper`, labelled "Step through <board>"; role `navigation`, a list inside).
   `‹` and `›` are its Previous and Next parts; the `n / N` count between them stays our button (it opens the path's

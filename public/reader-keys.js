@@ -3,8 +3,9 @@
 // Step to the previous / next Tinka with ⌥← / ⌥→ on a Mac and Ctrl+← / Ctrl+→ on
 // Windows and Linux (Alt+← is browser Back there; Ctrl+← switches Spaces on a Mac).
 // The same modifier with ↑ goes up a level and with ↓ goes down into the Tinka's
-// own board. [ and ] are a fallback, and plain ← / → step while Tinka itself (not
-// the content or a field) has focus. Text fields keep every one of these keys.
+// own board. [ and ] are a fallback, as are J (next) and K (previous), the keys that
+// step on a board; plain ← / → step while Tinka itself (not the content or a field)
+// has focus. Text fields keep every one of these keys.
 export function isMacPlatform(nav = globalThis.navigator) {
   const platform = nav?.userAgentData?.platform || nav?.platform || nav?.userAgent || '';
   return /mac|iphone|ipad|ipod/i.test(platform);
@@ -13,6 +14,9 @@ export const stepModifierLabel = mac => mac ? '⌥' : 'Ctrl+';
 export const stepModifierName = mac => mac ? 'Alt' : 'Control';
 
 const ARROWS = { ArrowLeft: 'previous', ArrowRight: 'next', ArrowUp: 'up', ArrowDown: 'down' };
+// J steps to the next Tinka and K to the previous (either case, so Caps Lock does not stop them).
+const LETTERS = { j: 'next', k: 'previous' };
+export const stepLetter = event => LETTERS[String(event?.key || '').toLowerCase()] || null;
 
 // One keydown, classified. `editable` is true inside a text field, contenteditable
 // or other control that owns its keys; `tinkaFocus` is true when focus is on
@@ -26,6 +30,7 @@ export function readerCommand(event, { mac = false, editable = false, tinkaFocus
   if (editable || fromFrame) return null;
   if (key === '[') return 'previous';
   if (key === ']') return 'next';
+  if (stepLetter(event) && !event.shiftKey && !event.altKey && !event.ctrlKey) return stepLetter(event);
   if (event.altKey || event.ctrlKey) return null;
   if (!event.shiftKey && tinkaFocus && (key === 'ArrowLeft' || key === 'ArrowRight')) return ARROWS[key];
   const shifted = digit => event.shiftKey && (event.code ? event.code === `Digit${digit}` : key === '!@)'[digit === 0 ? 2 : digit - 1]);

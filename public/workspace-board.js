@@ -1007,7 +1007,7 @@ export class WorkspaceBoard {
       <dt>] / [</dt><dd>Bring the selection to the front / send it to the back</dd>
       <dt>⌘/Ctrl-G</dt><dd>Group the selected Canvas objects, or ungroup the selected group (select with Space, then ⌘/Ctrl-G)</dd>
       <dt>${isMacPlatform() ? "Option" : "Alt"}-drag</dt><dd>Place another copy on this canvas. Cards share their item; drawn elements have their own content.</dd>
-      <dt>${isMacPlatform() ? "[ · ]" : `${MOD}← · ${MOD}→ or [ · ]`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
+      <dt>${isMacPlatform() ? "K · J" : `${MOD}← · ${MOD}→ or K · J`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
       <dt>Tab, then arrow keys</dt><dd>Go to the board’s items: the arrows move to the nearest item that way; Home · End go to the first · last</dd>
       <dt>Space</dt><dd>Select or deselect the focused item (a grouped item brings its group)</dd>
       <dt>Enter</dt><dd>Open the focused Tinka, or the one selected; on a container, go in among its contents</dd>
@@ -1034,7 +1034,7 @@ export class WorkspaceBoard {
       <dt>⌘/Ctrl-Z · Shift-⌘/Ctrl-Z</dt><dd>Undo · Redo</dd>
       <dt>${isMacPlatform() ? "⌥" : "Alt+"}Arrow · ${isMacPlatform() ? "⌥⇧" : "Alt+Shift+"}Arrow</dt><dd>Move the focused item, and the selection or group with it, 1 · 10 units; in a container, move it one place · to the first or last place</dd>
       <dt>Escape</dt><dd>Close the newest panel or menu, then cancel a gesture, pending Cut or selection</dd>
-      <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ]</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
+      <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ] · K · J</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
     dialog.addEventListener("close", () => {
       if (returnFocus?.isConnected) returnFocus.focus({preventScroll:true});
     });

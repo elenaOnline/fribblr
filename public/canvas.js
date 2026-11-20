@@ -914,10 +914,10 @@ function updateReaderNavigation() {
   // The stepper is a UI SDK Pagination: at either end its step says it is disabled and keeps focus.
   const stepper = $('reader-stepper');
   if (index >= 0 && 'page' in stepper) { stepper.pageCount = sequence.length; stepper.page = index + 1; }
-  for (const [id, offset, label, arrow, bracket] of [['reader-previous', -1, 'Previous', '←', '['], ['reader-next', 1, 'Next', '→', ']']]) {
+  for (const [id, offset, label, arrow, bracket, letter] of [['reader-previous', -1, 'Previous', '←', '[', 'K'], ['reader-next', 1, 'Next', '→', ']', 'J']]) {
     const neighbor = index < 0 ? null : sequence[index + offset];
     const button = $(id);
-    button.title = neighbor ? `${label}: ${neighbor.name} (${MOD}${arrow} or ${bracket})` : `No ${label.toLowerCase()} Tinka`;
+    button.title = neighbor ? `${label}: ${neighbor.name} (${MOD}${arrow}, ${bracket} or ${letter})` : `No ${label.toLowerCase()} Tinka`;
     button.setAttribute('aria-label', neighbor ? `${label} Tinka: ${neighbor.name}` : `${label} Tinka`);
   }
   if (dialog.open && (document.activeElement === document.body || document.activeElement?.disabled)) focusTinka();
@@ -1233,7 +1233,7 @@ readerInfo.addEventListener('click', event => {
 function readerShortcuts() {
   return makeDialog('Keyboard shortcuts', `<p>Use these keys on an opened Tinka. Text fields keep their own keys, and so does content you are working in.</p>
     <dl><dt>${MOD}← · ${MOD}→</dt><dd>Previous · next Tinka on this board (also while local content has focus)</dd>
-    <dt>[ · ]</dt><dd>Previous · next Tinka</dd>
+    <dt>[ · ] or K · J</dt><dd>Previous · next Tinka</dd>
     <dt>← · →</dt><dd>Previous · next, while Tinka (not the content) has focus</dd>
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
@@ -1962,7 +1962,7 @@ function centerOn(wx, wy, { glide = false } = {}) {
   const x = viewport.clientWidth / 2 - wx * zoom, y = viewport.clientHeight / 2 - wy * zoom;
   if (glide) flyTo(zoom, x, y); else moveView(x, y);
 }
-// [ / ] on a board (also Ctrl+← / → on Windows and Linux) select the previous / next Tinka in
+// K / J on a board (also Ctrl+← / → on Windows and Linux) select the previous / next Tinka in
 // the opened Tinka's stepper order and bring it into view: a smooth pan that centres it at
 // the current zoom, zooming out only as far as it takes to fit it with Fit's margin. After
 // a Tinka too big for that zoom, the next one that fits returns to it, unless the zoom was
@@ -1985,7 +1985,7 @@ function stepOrder() {
   return all.filter(c => c.placement && rendered.has(c.placement.id)).map(c => ({ id: c.placement.id, concept: c }));
 }
 // The board's "current Tinka": the last one opened or viewed inside (stepping), stepped to
-// with [ / ], or selected on its own. With nothing selected, [ / ] continue from it. Kept per
+// with K / J, or selected on its own. With nothing selected, K / J continue from it. Kept per
 // board for this tab, across reloads; nothing is written to the board.
 const CURSOR_KEY = () => workspaceId && boardId ? `tinka/${workspaceId}/${boardId}/step-cursor` : null;
 let stepCursor, cursorLoaded = false;
