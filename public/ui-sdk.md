@@ -876,3 +876,71 @@ control.
   each announced in `#reader-view-announce` inside the reader dialog (the board's announcer is inert behind the modal).
   Fit's window has no native title (1.4's "Resource surface" named nothing); a chosen Window size keeps its resize hint.
   The reader has no keyboard pan: ←/→ step, as approved; a magnified resource pans by drag, wheel or Space-drag.
+
+### Last surfaces (`r2/fixsurf`)
+
+Files: `feedback.js`, `feedback.css`, `comment-pins.js` (Show points events), `order-list.js` (new), `workspace-board.js`
+(`orderForm`, `rovingMarkup`, the card strip and ticker markup, the Inspectors' rows), `workspace.css`, `calm.css`,
+`board-focus.js` (§ Toolbars inside an item), `board.html` (`#reader-file-versions`), `navigator.js`,
+`markdown-reader.js`, `media.css`, `canvas.js` (`closeFramePopup`). Tests: `feedback-browser`, `document-browser`,
+`inspector-commands-browser`, `navigator-browser`, `version-sheets-browser`.
+
+- **Comments panel.** ⋯ *Conversation options* is a Menu (`#feedback-options-menu`, `sharedMenu`, opened with `openMenu`
+  from the button, ↓/↑ too): checkbox items *Unresolved only* and *Show points* stay open as they toggle (the item's
+  `checked` attribute is written back, or the SDK puts it back), then *Add point* (canvas only), *Board discussion* (an
+  item's panel only) and *Your name…*. An action runs once the menu has closed and returned focus, so the focus it moves
+  (the composer, the name field) stays. The name is a field, so it is a Popover (`#feedback-name-popover`): from *As
+  You* (above it) or *Your name…* (below ⋯); focus in the field, Enter saves and closes, Escape returns to the opener,
+  Tab out continues after it (`tabTrigger`). The opener counts as part of the popover (a press on it, or focus landing
+  on it, is no dismissal), so a second press closes it. Roots live in the panel's host (`<body>`, or the reader
+  `<dialog>`), so no row is cut off by the panel. *Show points* talks to the comment layer by events
+  (`tinka:show-points` → `comment-pins.js`; `tinka:points-shown` back, so the option reads what ⇧C left). The panel's
+  window Escape handler steps aside for an open popup (`inPopup`).
+- **Vote ballot.** A non-modal Popover (`#feedback-ballot-popover`, content `.feedback-ballot`) under the Vote button
+  that opened it (the card's strip, the item Inspector's, the reader Inspector's), placed by the SDK. Yes / No / Abstain is
+  a single-choice `ui-toggle-group` (`choiceHTML`), not a radio group or segmented control: arrows in a radio group check
+  as they move, and every vote is written to the board at once, so moving focus would vote. One Tab stop, arrows move
+  without voting, Space/Enter votes. Focus opens on her vote (else Yes); Escape and × return to the opener; an outside
+  press closes it; a press on the Vote button toggles it. The ballot is built once per opening and updated in place
+  (counts, her vote, status), so focus stays as the vote saves; a choice made while one saves waits, and the latest wins.
+- **Comparison order** (`order-list.js`): a collection primitive like Home's (§ Collections): `fr-order-list` (role
+  `listbox`, `aria-roledescription`) > `fr-order-item` (display contents) > the row (role `option`, roving tabindex). Core
+  `createRovingFocus` + `createReorder` (`preview: true`: a dragged copy rides above the page and the list scrolls near
+  its edges). **Keys: the SDK's pick-up model**, because it is the documented default for a list (core.md § Sort a List,
+  SPEC B5 § 3.2) and Space is free here: Space/Enter pick up, ↑/↓ carry, Home/End to the ends, Space/Enter drop,
+  Escape puts it back (the dialog stays), Tab cancels. On the board Space already selects, so containers reorder with
+  the move chord (§ Board canvas); that chord works here too, as an immediate move (`reorder.move`, ⌥↑/↓, ⇧ to an end),
+  so the same chord means the same thing in both lists. The order is controlled (`list.value`, written back on
+  `valuechange`); `subscribe` redraws row order and numbers, moving the other rows around the held (or focused) one, so
+  it keeps focus and its pointer capture. The per-row ↑/↓ buttons are gone. Focus opens on the list.
+- **Toolbars inside a card** (`board-focus.js` § Toolbars inside an item): the hover strip (Open | Edit | Comments |
+  Vote | Favorite) and a stack's ‹ name › ticker are `role=toolbar` with `data-roving`. No `ui-toolbar` per card (an
+  element and a binding per card on the board's cheap paths): `rovingMarkup()` writes `tabindex=-1` on every control
+  but the first enabled one; one capture `keydown` listener on the page moves focus (←/→ wrap, Home/End; ↓ on a button
+  with `aria-haspopup` clicks it, so Vote opens its ballot; the version name's ↓ stays `menuKey`'s); the board's
+  `focusin` bookkeeping gives the focused control the stop and remembers it per toolbar for the stop item; a rebuild
+  re-asserts it (`restoreRoving`, only when something was remembered); focus arriving on a card hands the stop on if a
+  narrow card hides its first control (`roveReach`, one card, on focus). Controls hidden by the card's container queries
+  or `hidden` are skipped; `aria-disabled` steps (‹ › at either end) stay reachable. `setStop` leaves a toolbar's
+  non-stop controls at `-1`. The reader's version strip is a plain `ui-toolbar` (`board.html`). Perf: below.
+- **Navigator Recent and results.** Their links are the Command's options (activedescendant from the field), so they
+  carry `tabindex=-1`: the field is the list's one stop (command.md). Tab goes field → scope → trees.
+- **Board Inspector filter row**: a `ui-toolbar` (`.inspector-toggles`) of `ui-toolbar-button`s around the
+  `aria-pressed` buttons, as Home's row. The Edit row (Undo, Redo, Copy, Paste…, Comparison order…) and the Feedback
+  rows stay separate buttons: they are a panel's commands under section headings, Tab-walked as in any dialog
+  (dialog.md), with no twin elsewhere that behaves otherwise.
+- **Item Inspector actions**: a vertical `ui-toolbar` (`orientation="vertical"`): the rows look like menu rows, so they
+  behave as a list of actions does: one Tab stop, ↑/↓ with wrap, Home/End. The Feedback row (Favorite, Comments, Vote)
+  stays buttons for the reason above.
+- **Document reader** (`markdown-reader.js`, inside `media.html`, inside the reader's `item.html` frame): the bar is a
+  `ui-toolbar` ("Document tools": the source link as `ui-toolbar-link`, Contents, Annotations, Edit, Reload;
+  `followVisibility` drops hidden ones). Contents was a native `<select>`; it is a menu button (`#document-contents-menu`,
+  typeahead, ↓ opens) listing the headings, and a choice scrolls to the heading. Annotations is a non-modal Popover
+  (`#document-annotations-popover`, content `.document-annotations`) under its button: focus moves in, Escape / Close /
+  outside press close it, focus returns to the button; ↓ opens it (`openOnArrowDown`). Escape inside the frame is taken
+  by the SDK (preventDefault), so `media.js` and `item-content.js` never post `reader-close` for it: **the reader's
+  one-layer Escape** holds. If focus is in the reader's chrome while a frame popup is open, the reader's ladder closes
+  that popup first (`closeFramePopup` in `canvas.js`, same-origin frames, two deep). Reload while busy is an
+  `aria-disabled` toolbar item (it keeps focus). The selection's Highlight / Comment bar is a `ui-toolbar`. The SDK
+  modules, `ui-sdk.css` and `popups.css` load for the full reader only; until defined, popup content stays hidden
+  (`media.css`). The in-place editor has no toolbar (it is typed shortcuts), so nothing else there changed.
