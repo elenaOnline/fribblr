@@ -45,12 +45,14 @@ try{
   await page.goto(base+'/');await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   // Home's Appearance is a menu (fribblr): one button opening the Mode and Background rows.
-  const homeMode=async name=>{const menu=page.getByRole('button',{name:'Appearance',exact:true});if(await menu.getAttribute('aria-expanded')!=='true')await menu.click();return page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name,exact:true});};
-  assert.equal(await (await homeMode('Light')).getAttribute('aria-pressed'),'true');
+  const homeMode=async name=>{const menu=page.getByRole('button',{name:'Appearance',exact:true});if(await menu.getAttribute('aria-expanded')!=='true')await menu.click();return page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name,exact:true});};
+  // Home's Appearance is a UI SDK menu: Mode is a group of radio items (aria-checked).
+  assert.equal(await (await homeMode('Light')).getAttribute('aria-checked'),'true');
   await (await homeMode('Dark')).click();
   await page.reload();await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'dark');
-  assert.equal(await (await homeMode('Dark')).getAttribute('aria-pressed'),'true');
+  assert.equal(await (await homeMode('Dark')).getAttribute('aria-checked'),'true');
+  await page.keyboard.press('Escape');
   await page.screenshot({path:path.join(evidence,'home-dark.png')});
   // Preview launch buttons cover the artwork. Their hover backgrounds must
   // remain translucent in both appearances, including the legacy viewer.

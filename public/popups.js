@@ -147,12 +147,13 @@ if (typeof document !== 'undefined') document.addEventListener('pointerdown', ev
 export function inPopup(event) {
   // Escape with a tooltip showing belongs to the tooltip: it closes only the tooltip (tooltip.md § Keyboard).
   if (event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
-  const target = event?.target instanceof Element ? event.target : document.activeElement;
+  // (Loads under node for the unit tests, which pass plain objects for events and the document.)
+  const target = typeof Element !== 'undefined' && event?.target instanceof Element ? event.target : event?.target?.closest ? event.target : globalThis.document?.activeElement;
   if (target?.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])')) return true;
   // The trigger of a popup that has just opened: focus moves into it a frame later, and a key pressed in that frame
   // (Escape right after a click) still belongs to the popup, whose layer takes it.
   const controls = target?.closest?.('[aria-expanded="true"][aria-controls]')?.getAttribute('aria-controls');
-  return !!(controls && document.getElementById(controls)?.matches('[data-slot$="-content"][data-open]'));
+  return !!(controls && globalThis.document?.getElementById?.(controls)?.matches('[data-slot$="-content"][data-open]'));
 }
 
 // A menu or popover trigger inside a horizontal ui-toolbar opens on ArrowDown (the toolbar norm: arrows along the bar
