@@ -4154,8 +4154,11 @@ export class WorkspaceBoard {
         const activeItem = active && active !== document.body ? this.boardFocus.item(active) : null;
         if (active && active !== document.body && active !== before && !target.contains(active) &&
             !(beforeKey && activeItem && this.boardFocus.key(activeItem) === beforeKey)) return;
-        // A press on a card's own control area keeps native focus where it landed inside the card.
-        if (key?.startsWith("placement:") && target.contains(active) && active !== target) return;
+        // A press on a card's own control area keeps native focus where it landed inside the card. A control inside a
+        // drawn element focused since the press (an arrow's end handle, focused straight after the press that selected
+        // the arrow) keeps it too: moving focus off it would hand its next key (Delete) to the whole arrow.
+        if (target.contains(active) && active !== target &&
+          (key?.startsWith("placement:") || (active !== before && active.matches?.("button,a[href],[role=button]")))) return;
         if (key) this.boardFocus.setStop(key);
         target.focus({preventScroll:true});
       });

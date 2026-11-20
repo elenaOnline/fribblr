@@ -615,7 +615,7 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   pressed straight after) is left where it went: only focus still where it was (the same element, or the same board
   item re-rendered), or dropped to `<body>`, is moved. A press on empty canvas, or on a plain region's open middle,
   focuses the canvas, from wherever focus was (Add, Find, a panel's comment field): the canvas is a focusable place,
-  and a press on one takes focus. Only a field on the board itself (an editor the press finishes) keeps it. A press on a control inside a card keeps native focus there. Pointer focus draws no ring
+  and a press on one takes focus. Only a field on the board itself (an editor the press finishes) keeps it. A press on a control inside a card keeps native focus there, and a button inside the pressed drawn element that took focus within that frame (an arrow's end handle focused straight after the press that selected the arrow) keeps it: moving focus to the arrow would hand Delete to the whole arrow instead of detaching the end. Pointer focus draws no ring
   (`pointer-focus.js` marks it `data-pointer-focus`), except that the return pulse still shows. Checked in
   `tests/board-fixes-browser.mjs` and `tests/canvas-keyboard-browser.mjs`.
 - **Focus follows what the app creates** (`focusCreated`). What the app creates and selects takes focus (the first of
