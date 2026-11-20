@@ -3,7 +3,8 @@ import {appearanceThemes,compositeColor,renderDrawingColor,textFillColor,unpackC
 import {boardSurfaces,surfacePoints} from "./board-paint.js";
 
 const names = new Map(drawingPalette.map(({id,label}) => [id,label]));
-const mixed = "linear-gradient(135deg,var(--surface-1) 46%,var(--ink-3) 47% 53%,var(--surface-1) 54%)";
+// fribblr: role tokens (the app's old --surface-1/--ink-3 are retired), the same mark as .drawing-color-dot-mixed
+const mixed = "linear-gradient(135deg,var(--surface-paper) 46%,var(--ink-2) 47% 53%,var(--surface-paper) 54%)";
 const rgbHex = rgb => "#" + rgb.map(channel => Math.round(channel).toString(16).padStart(2,"0")).join("").toUpperCase();
 const chosenName = value => names.get(value) ?? value.toUpperCase();
 const normalized = value => {
