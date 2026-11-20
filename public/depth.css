@@ -173,7 +173,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
    The primary key is .tk-primary-style inputs: blue face, --mark-blue-side side, --mark-blue-deep rim and hover face. */
 :where(
 [data-height="raised"], .ct-avatar, .comment-pin, .tk-kbd, #world .workspace-select-dot,
-.whiteboard-toolbar .whiteboard-bar-button[aria-pressed="true"]:not([data-whiteboard-action="color"]), .edit-tools .tk-btn[aria-pressed="true"],
+.whiteboard-toolbar .whiteboard-bar-button:is([aria-pressed="true"], [aria-expanded="true"]):not([data-whiteboard-action="color"]), .whiteboard-menu .whiteboard-format-options button[aria-pressed="true"], .edit-tools .tk-btn[aria-pressed="true"],
 #reader-file-versions .tk-btn,
 :where(.workspace-toolbar button:not(.tk-seg > button, .tk-seg > [data-slot=segmented-control-item], .workspace-segments > button), .workspace-dialog button:not(.workspace-close, .workspace-item-sections > button), .workspace-button, .item-content button,
   .workspace-preview-launch span, .workspace-appearance-buttons button, .board-info #workspace-add),
@@ -182,7 +182,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 :is(#canvas-header, #reader-header) .tk-btn:not(.chrome-search, .reader-down), :is(.canvas-footer, .reader-footer) .zoom-pill .tk-btn:not(.zoom-percent),
 .calm-side-head .tk-btn, .board-map-head .tk-btn, #board-info .inspector-row-btn, #board-info .inspector-sec .tk-btn.tk-tonal, #board-info > .info-actions button,
 .board-card .home-select-dot, .workspace-cover-count, .project-navigator .navigator-chip,
-.text-format-faces button, .text-format-options button, .text-size-controls [data-auto-height], .emoji-picker-link
+.text-format-faces button, .text-format-options button, .text-format-box-height button, .emoji-picker-link
 ) {
   --key-d: var(--depth-raised);
   background-color: var(--key-face, var(--surface-paper));

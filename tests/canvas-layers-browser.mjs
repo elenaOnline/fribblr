@@ -1,11 +1,12 @@
-// Headless checks that a card's z orders cards among themselves only. Whatever its z,
-// a card sits above regions, containers, shapes, stickies and text, and below arrows,
-// stickers and comment pins, also inside a group or a container; the card layer moves
-// nothing and keeps regions, the board background and cards reachable by the pointer.
-// Uses only external fixtures.
+// Headless checks of a board saved before the shared stacking order: its drawings
+// have no z, and its cards' z is a creation count (0, 1, 2 ... 40). Whatever its z, a
+// card shows above the regions, containers, shapes, stickies and text saved that way,
+// and below the arrows, stickers and comment pins, also inside a group or a container;
+// Bring to front / Send to back and new cards still follow the one order. Regions, the
+// board background and cards stay reachable by the pointer. Uses only external fixtures.
 import './helpers/offline.mjs';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -38,9 +39,11 @@ try{
  // Overlapping cards still stack by their own z.
  const front=(await op('createItem',{item:{title:'Front card',content:{kind:'note',text:'z 3'}},placement:{x:1300,y:0,width:240,height:150,z:3}})).placementIds[0];
  const behind=(await op('createItem',{item:{title:'Card behind',content:{kind:'note',text:'z 2'}},placement:{x:1360,y:60,width:240,height:150,z:2}})).placementIds[0];
- // A sticker on a high card, like an arrow, stays above it.
+ // A sticker on a high card, like an arrow, stays above it, and one on a z 2 card.
  const stuck=await note('Under a sticker, z 40',{x:20,y:1480,width:240,height:150,z:40});
  await op('createDecoration',{decoration:{id:'sticker',type:'text',text:'🚀',sticker:true,x:150,y:1500,width:96,height:96,color:'palette:neutral'}});
+ const stuckLow=await note('Under a sticker, z 2',{x:1300,y:1480,width:240,height:150,z:2});
+ await op('createDecoration',{decoration:{id:'sticker-low',type:'text',text:'🚀',sticker:true,x:1430,y:1500,width:96,height:96,color:'palette:neutral'}});
  // Grouping a card with a shape it lies on changes membership only, not layers.
  await op('createDecoration',{decoration:{id:'grouped-shape',type:'region',shape:'rounded',x:320,y:1460,width:280,height:200,color:'#c9b6ea',text:''}});
  const grouped=await note('Grouped with its shape, z 0',{x:340,y:1490,width:240,height:150,z:0});
@@ -51,6 +54,10 @@ try{
  await op('createDecoration',{decoration:{id:'holder',type:'region',x:660,y:1460,width:100,height:100,color:'#dbe5d3',text:'Container',container:{layout:'horizontal',children:['held-shape',{placementId:held}]}}});
  const laid=(await getBoardSnapshot(config,'layers')).decorations.find(d=>d.id==='held-shape');
  const loose=await note('Loose on a container shape, z 1',{x:laid.x+40,y:laid.y+25,width:160,height:100,z:1});
+ // Saved by Tinka 1.3: no drawing carries a z.
+ const boardFiles=path.join(root,'boards','.tinka','boards');
+ for(const name of await readdir(boardFiles)){const file=path.join(boardFiles,name),board=JSON.parse(await readFile(file,'utf8'));
+  if(board.id!=='layers')continue;for(const drawn of board.decorations)delete drawn.z;await writeFile(file,JSON.stringify(board,null,2));}
  server=await listen(config,{port:0});const base=`http://127.0.0.1:${server.address().port}`;
  browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
  const page=await browser.newPage({viewport:{width:1700,height:1900},colorScheme:'light',reducedMotion:'reduce'});page.on('pageerror',e=>errors.push(e.message));
@@ -78,6 +85,7 @@ try{
  // The card layer moves nothing: a card sits exactly where its board units say.
  // Groups and containers keep the same layers.
  ok(await topAt(card(stuck),.6,.25)==='decoration:sticker',`A sticker stays above the z 40 card it is on: ${await topAt(card(stuck),.6,.25)}`);
+ ok(await topAt(card(stuckLow),.6,.25)==='decoration:sticker-low',`A sticker stays above the z 2 card it is on: ${await topAt(card(stuckLow),.6,.25)}`);
  for(const [fx,fy] of [[.5,.5],[.08,.1],[.92,.9]])assert.equal(await topAt(card(grouped),fx,fy),`card:${grouped}`,`A grouped card stays above the shape it is grouped with (${fx},${fy})`);
  checks++;
  for(const [fx,fy] of [[.5,.5],[.08,.1],[.92,.9]])assert.equal(await topAt(card(held),fx,fy),`card:${held}`,`A card in a container stays above the container (${fx},${fy})`);
@@ -90,6 +98,39 @@ try{
  // A card is still picked up by the pointer through the layer.
  await page.locator(`${card(cards['rounded/0'])} h3 button`).click({modifiers:['Shift']});
  ok(await page.locator(`${card(cards['rounded/0'])}.selected`).count()===1,'A card on a shape is still selectable');
+ await page.keyboard.press('Escape');
+ const shapeAt=async(id,fx,fy)=>{const r=await page.locator(`[data-decoration="${id}"]`).boundingBox();await page.mouse.click(r.x+r.width*fx,r.y+r.height*fy);};
+ // Bring to front and Send to back move only what is selected: everything else keeps
+ // the order it painted in, also the drawings saved without z (which a restack writes).
+ const painted=()=>page.evaluate(()=>[...document.querySelectorAll('#world [data-placement],#world [data-decoration]')]
+  .map(el=>[el.dataset.placement||el.dataset.decoration,Number(getComputedStyle(el).zIndex)]).sort((a,b)=>a[1]-b[1]).map(([id])=>id));
+ const restacked=async(label,id,select,key)=>{
+  const before=await painted();await select();await page.keyboard.press(key);
+  await page.waitForFunction(before=>JSON.stringify([...document.querySelectorAll('#world [data-placement],#world [data-decoration]')]
+   .map(el=>[el.dataset.placement||el.dataset.decoration,Number(getComputedStyle(el).zIndex)]).sort((a,b)=>a[1]-b[1]).map(([i])=>i))!==JSON.stringify(before),before);
+  await page.keyboard.press('Escape');await page.waitForTimeout(150);
+  const after=await painted(),rest=list=>list.filter(other=>other!==id);
+  assert.equal(key===']'?after.at(-1):after[0],id,`${label}: it goes to the ${key===']'?'front':'back'}`);
+  assert.deepEqual(rest(after),rest(before),`${label}: nothing else changes place`);checks++;
+ };
+ const pick=id=>async()=>{await page.locator(`${card(id)} h3 button`).click({modifiers:['Shift']});};
+ await restacked('Send to back on a shape saved without z','under-ellipse',()=>shapeAt('under-ellipse',.995,.5),'[');
+ await page.keyboard.press('Escape');
+ await restacked('Bring to front on a card',cards['ellipse/1'],pick(cards['ellipse/1']),']');
+ await restacked('Send to back on a card',cards['diamond/2'],pick(cards['diamond/2']),'[');
+ // The one order still rules: Bring to front lifts a shape saved without z over its
+ // cards, Send to back puts it beneath them again, each as a saved z.
+ await shapeAt('under-rounded',.995,.5);await page.keyboard.press(']');
+ await page.waitForFunction(id=>document.elementFromPoint(...(r=>[r.left+r.width/2,r.top+r.height/2])(document.querySelector(`.workspace-card[data-placement="${id}"]`).getBoundingClientRect()))?.closest('[data-decoration="under-rounded"]'),cards['rounded/40']);
+ ok(await topAt(card(cards['rounded/40']))==='decoration:under-rounded','Bring to front lifts a shape saved without z above the z 40 card on it');
+ await page.keyboard.press('[');
+ await page.waitForFunction(id=>document.elementFromPoint(...(r=>[r.left+r.width/2,r.top+r.height/2])(document.querySelector(`.workspace-card[data-placement="${id}"]`).getBoundingClientRect()))?.closest(`[data-placement="${id}"]`),cards['rounded/0']);
+ ok(await topAt(card(cards['rounded/0']))===`card:${cards['rounded/0']}`,'Send to back puts the shape beneath its z 0 card again');
+ ok(Number.isFinite((await getBoardSnapshot(config,'layers')).decorations.find(d=>d.id==='under-rounded').z),'The restacked shape now has a saved z');
+ // A new card lands on top, over the arrow saved without z.
+ const fresh=(await op('createItem',{item:{title:'New card under the arrow',content:{kind:'note',text:'Lands on top.'}},placement:{x:1040,y:121,width:120,height:80}})).placementIds[0];
+ await page.reload({waitUntil:'load'});await page.locator(card(fresh)).waitFor();await page.waitForTimeout(150);
+ ok(await topAt(card(fresh),.5,.5)===`card:${fresh}`,`A new card lands on top of the arrow across it: ${await topAt(card(fresh),.5,.5)}`);
  await page.screenshot({path:path.join(evidence,'canvas-layers.png')});
  assert.deepEqual(errors,[]);checks++;
  console.log(JSON.stringify({passed:true,checks,evidence}));

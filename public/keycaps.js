@@ -36,8 +36,8 @@ export function capFor(button, mac = MAC) {
 }
 
 // Labelled keys and menu rows; icon-only keys print nothing.
-// (the drawing bar's text-label actions and the Add menu's rows are labelled keys too)
-const LABELLED = ":is(button.tk-btn, .tk-mi, button.whiteboard-action-caption, .workspace-add-menu button)[aria-keyshortcuts]:not(.tk-icon)";
+// (the drawing bar's text-label actions, the Add menu's rows and a drawing's More rows are labelled keys too)
+const LABELLED = ":is(button.tk-btn, .tk-mi, button.whiteboard-action-caption, .workspace-add-menu button, .whiteboard-menu button)[aria-keyshortcuts]:not(.tk-icon)";
 function print(root = document) {
   for (const button of root.querySelectorAll(LABELLED)) {
     let cap = button.querySelector(":scope > kbd.keycap-printed");

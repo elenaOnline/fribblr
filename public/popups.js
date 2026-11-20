@@ -197,6 +197,22 @@ function triggerOf(content) {
     || (root?.id && document.querySelector(`ui-popover-trigger[for="${CSS.escape(root.id)}"] button, ui-dialog-trigger[for="${CSS.escape(root.id)}"] button`));
   return found instanceof HTMLElement && !content.contains(found) ? found : null;
 }
+// The same rule for a panel the app places itself (the drawing bar's format panels in whiteboard.js, which hold the
+// text-format and colour controls): forward from its last control `close()` runs and focus goes to `trigger`, so the
+// browser's Tab continues after it; backward from the first, focus goes to `trigger`. True when the Tab was steered.
+export function tabOutOfPanel(event, content, trigger, close) {
+  if (event.key !== 'Tab' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return false;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || !content?.contains(target) || !(trigger instanceof HTMLElement) || content.contains(trigger)) return false;
+  const stops = tabbablesIn(content);
+  if (!stops.length) return false;
+  const first = stops[0], last = stops[stops.length - 1];
+  if (!(event.shiftKey ? (target === first || first.contains(target)) : (target === last || last.contains(target)))) return false;
+  if (event.shiftKey) event.preventDefault();
+  else close?.();
+  trigger.focus({preventScroll: true});
+  return true;
+}
 if (typeof document !== 'undefined') document.addEventListener('keydown', event => {
   if (event.key !== 'Tab' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
   const target = event.target instanceof Element ? event.target : null;

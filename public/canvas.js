@@ -13,6 +13,7 @@ import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoo
 import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {ReaderCanvas, contentScrolls} from './reader-canvas.js';
+import {ReaderResourceSurface} from './reader-resource-surface.js';
 import {ReaderPath} from './reader-path.js';
 import {trapTab, rememberOpener, openerToReturnTo} from './reader-dialog.js';
 import {sidePanel} from './side-panel.js';
@@ -677,8 +678,8 @@ const MOD = stepModifierLabel(readerKeysMac);
 {
   const step = readerKeysMac ? 'Alt' : 'Control';
   $('close-reader').setAttribute('aria-keyshortcuts', `Escape ${step}+ArrowUp`);
-  $('reader-previous').setAttribute('aria-keyshortcuts', `${step}+ArrowLeft [`);
-  $('reader-next').setAttribute('aria-keyshortcuts', `${step}+ArrowRight ]`);
+  $('reader-previous').setAttribute('aria-keyshortcuts', `${step}+ArrowLeft [ K`);
+  $('reader-next').setAttribute('aria-keyshortcuts', `${step}+ArrowRight ] J`);
   // Labelled keys print a keycap for aria-keyshortcuts (keycaps.js); Down names its key in the tooltip only.
   $('reader-down').dataset.tipKeys = `${step}+ArrowDown`;
 }
@@ -686,6 +687,10 @@ const readerCanvas = new ReaderCanvas(readerStage, $('reader-plane'), $('reader-
   onChange: syncReaderZoom,
   onBack: shown => { $('reader-view-back').hidden = !shown; },
   reserveBottom: () => { const pill = dialog.querySelector('.reader-footer .zoom-pill'); return pill ? pill.offsetHeight + 20 : 0; },
+});
+const readerResource = new ReaderResourceSurface($('active-reader'), {
+  isActive: () => dialog.open,
+  onImageSize: (width, height) => readerCanvas.setResourceSize(width, height),
 });
 function syncReaderZoom(view) {
   const percent = Math.round(view.zoom * 100);
@@ -730,6 +735,10 @@ function setReaderSize(size) {
     viewer.style.removeProperty('height');
     viewer.dataset.size = readerView.size;
   }
+  // A chosen Window size can be dragged from its corner, and says so; Fit (1.4's resource surface, no corner) has no hint.
+  // The hint is the delegate's (tips.js; the window is a tooltip zone, so its frame is never wrapped): it shows over the
+  // window's own box, not over the page in its frame, as a native title did. An empty hint shows nothing.
+  viewer.dataset.tip = readerView.size === 'fit' ? '' : 'Drag the lower-right corner to resize';
   renderSizeControls();
   // A new window size shows whole again; canvas zoom never reflows it.
   if (dialog.open) readerCanvas.rest();
@@ -848,6 +857,14 @@ function renderReaderHeader() {
 function loadRevision({ focus = false } = {}) {
   if (!active) return;
   const variant = currentVariant();
+  readerCanvas.dropBack();
+  readerCanvas.fitted = true;
+  const kind = descriptor(active, variant).kind;
+  const viewport = active.placement?.presentation?.viewport;
+  // Documents retain native scrolling; visual resources use their authored viewport.
+  readerCanvas.setResourceSize(...(['html', 'image'].includes(kind)
+    ? [viewport?.width || 1000, viewport?.height || 720] : [null, null]));
+  if (dialog.open) readerCanvas.rest();
   $('active-reader').title = `${descriptor(active, variant).name} experiment`;
   const standalone = standaloneHref(active, variant);
   $('reader-standalone').hidden = !standalone;
@@ -856,7 +873,9 @@ function loadRevision({ focus = false } = {}) {
   activeRevision = active.graphItem ? versionStamp(auto, liveSnapshot?.items?.[active.graphItem.id]) : liveSnapshot?.concepts?.[activeSourceKey()]?.revision || null;
   $('reader-update').textContent = auto ? `Files changed · Reload ${auto.name}` : 'New version available · Reload experiment';
   $('reader-update').hidden = true;
-  replaceFrame($('active-reader'), previewHref(active, variant, readerView.theme, readerView.type, activeRevision || auto?.modifiedAt || 'initial', true));
+  const href = previewHref(active, variant, readerView.theme, readerView.type, activeRevision || auto?.modifiedAt || 'initial', true);
+  readerResource.reset(href);
+  replaceFrame($('active-reader'), href);
   if (focus) focusTinka();
 }
 
@@ -907,7 +926,7 @@ function updateReaderNavigation() {
   // The stepper is a UI SDK Pagination: at either end its step says it is disabled and keeps focus.
   const stepper = $('reader-stepper');
   if (index >= 0 && 'page' in stepper) { stepper.pageCount = sequence.length; stepper.page = index + 1; }
-  for (const [id, offset, label, arrow, bracket] of [['reader-previous', -1, 'Previous', '←', '['], ['reader-next', 1, 'Next', '→', ']']]) {
+  for (const [id, offset, label, arrow, bracket, letter] of [['reader-previous', -1, 'Previous', '←', '[', 'K'], ['reader-next', 1, 'Next', '→', ']', 'J']]) {
     const neighbor = index < 0 ? null : sequence[index + offset];
     const button = $(id);
     setTip(button, neighbor ? `${label}: ${neighbor.name}` : `No ${label.toLowerCase()} Tinka`);
@@ -1001,6 +1020,7 @@ function closeReader({ history: mode = 'push' } = {}) {
   readerCanvas.setSpacePan(false);
   if (dialog.open) dialog.close();
   projectNavigator?.host?.(null);
+  readerResource.reset();
   replaceFrame($('active-reader'), 'about:blank');
   active = null;
   commitHistory({ view: 'board', round: rounds[currentRound]?.id || null }, mode);
@@ -1225,12 +1245,12 @@ readerInfo.addEventListener('click', event => {
 function readerShortcuts() {
   return makeDialog('Keyboard shortcuts', `<p>Use these keys on an opened Tinka. Text fields keep their own keys, and so does content you are working in.</p>
     <dl><dt>${MOD}← · ${MOD}→</dt><dd>Previous · next Tinka on this board (also while local content has focus)</dd>
-    <dt>[ · ]</dt><dd>Previous · next Tinka</dd>
+    <dt>[ · ] or K · J</dt><dd>Previous · next Tinka</dd>
     <dt>← · →</dt><dd>Previous · next, while Tinka (not the content) has focus</dd>
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
     <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
-    <dt>Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out</dd>
+    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out</dd>
     <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
@@ -1248,14 +1268,24 @@ function readerTinkaFocus(target) {
   return !target.closest('#reader-file-versions,#reader-path-pop,#reader-zoom-menu,#reader-info,#notes-panel,.feedback-panel,.feedback-ballot,.project-navigator,.tk-seg,ui-toolbar,ui-toggle-group');
 }
 function readerBlocked() { return !dialog.open || !!document.querySelector('.workspace-dialog:is([open],[data-open])'); }
+let readerAnnounceTimer = 0;
+function announceReaderView(text = `Zoom ${Math.round(readerCanvas.view.zoom * 100)}%`) {
+  const live = $('reader-view-announce');
+  if (!live) return;
+  live.textContent = text;
+  clearTimeout(readerAnnounceTimer);
+  readerAnnounceTimer = setTimeout(() => { live.textContent = ''; }, 2500);
+}
 function runReaderCommand(command, { fromFrame = false } = {}) {
   if (command === 'previous' || command === 'next') { stepReader(command === 'next' ? 1 : -1, { focus: fromFrame ? 'tinka' : 'keep' }); return true; }
   if (command === 'up') { closeReader(); return true; }
   if (command === 'down') return goDown();
-  if (command === 'fit') { readerCanvas.fit(); return true; }
-  if (command === 'actual-size') { readerCanvas.zoomTo(1); return true; }
-  if (command === 'zoom-in') { readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25); return true; }
-  if (command === 'zoom-out') { readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25); return true; }
+  // The view keys are announced inside the reader (a modal dialog: the board's announcer is inert behind it), as the
+  // board announces its own (UI SDK viewport: "Zoom 150%").
+  if (command === 'fit') { readerCanvas.fit(); announceReaderView('Fitted this Tinka'); return true; }
+  if (command === 'actual-size') { readerCanvas.zoomTo(1); announceReaderView(); return true; }
+  if (command === 'zoom-in') { readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25); announceReaderView(); return true; }
+  if (command === 'zoom-out') { readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25); announceReaderView(); return true; }
   if (command === 'shortcuts') { readerShortcuts(); return true; }
   return false;
 }
@@ -1954,7 +1984,7 @@ function centerOn(wx, wy, { glide = false } = {}) {
   const x = viewport.clientWidth / 2 - wx * zoom, y = viewport.clientHeight / 2 - wy * zoom;
   if (glide) flyTo(zoom, x, y); else moveView(x, y);
 }
-// [ / ] on a board (also Ctrl+← / → on Windows and Linux) select the previous / next Tinka in
+// K / J on a board (also Ctrl+← / → on Windows and Linux) select the previous / next Tinka in
 // the opened Tinka's stepper order and bring it into view: a smooth pan that centres it at
 // the current zoom, zooming out only as far as it takes to fit it with Fit's margin. After
 // a Tinka too big for that zoom, the next one that fits returns to it, unless the zoom was
@@ -1977,7 +2007,7 @@ function stepOrder() {
   return all.filter(c => c.placement && rendered.has(c.placement.id)).map(c => ({ id: c.placement.id, concept: c }));
 }
 // The board's "current Tinka": the last one opened or viewed inside (stepping), stepped to
-// with [ / ], or selected on its own. With nothing selected, [ / ] continue from it. Kept per
+// with K / J, or selected on its own. With nothing selected, K / J continue from it. Kept per
 // board for this tab, across reloads; nothing is written to the board.
 const CURSOR_KEY = () => workspaceId && boardId ? `tinka/${workspaceId}/${boardId}/step-cursor` : null;
 let stepCursor, cursorLoaded = false;
@@ -2237,6 +2267,7 @@ dialog.addEventListener('close', () => { if (active && !dialog.open) closeReader
 $('active-reader').addEventListener('load', () => {
   if (!dialog.open) return;
   forwardFrame($('active-reader'));
+  readerResource.prepare();
   // Key events inside a frame do not reach the surrounding dialog.
   try {
     $('active-reader').contentWindow.addEventListener('keydown', event => {

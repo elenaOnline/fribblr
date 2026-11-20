@@ -103,7 +103,9 @@ try {
   // Menu rows (UI SDK Menu) print their key in the row's shortcut part (popups.js menuItem).
   const menuCap=locator=>locator.locator('ui-menu-shortcut kbd').textContent();
   assert.deepEqual([await menuCap(edit),await menuCap(details),await menuCap(dup)],['E',cmd('I'),cmd('D')]);
-  assert.equal(await page.locator('.workspace-tile-menu kbd').count(),4,'three printed caps and the Open row\'s own ↵');
+  // 1.4: Bring to front ] and Send to back [ print theirs too
+  assert.deepEqual([await menuCap(page.locator('.workspace-tile-menu [data-tile-menu="front"]')),await menuCap(page.locator('.workspace-tile-menu [data-tile-menu="back"]'))],[']','[']);
+  assert.equal(await page.locator('.workspace-tile-menu kbd').count(),6,'five printed caps and the Open row\'s own ↵');
   await page.screenshot({path:path.join(evidence,'card-menu.png')});
   await page.keyboard.press('Escape');await settle();
   let total=await cardCount();
@@ -182,9 +184,11 @@ try {
 
   // --- Icon-only keys: declared for assistive tech, printed nowhere ---
   await open('g');
-  const rail=await page.$$eval('#edit-tools [data-edit-tool]',els=>els.map(e=>[e.dataset.editTool,e.getAttribute('aria-keyshortcuts'),/\(([A-Z])\)$/.exec(e.title)?.[1]??null]));
+  // The hints are UI SDK tooltips (tips.js): the tooltip prints the declared key from aria-keyshortcuts in its shortcut
+  // part, so the hint text names no key of its own (one source, never two that can disagree) and there is no native title.
+  const rail=await page.$$eval('#edit-tools [data-edit-tool]',els=>els.map(e=>[e.dataset.editTool,e.getAttribute('aria-keyshortcuts'),e.dataset.tip??null,e.getAttribute('title')]));
   assert.deepEqual(rail.filter(r=>r[1]).map(r=>r[0]),['pointer','pan','text','sticky','comment']);
-  for(const [tool,declaredKey,titled] of rail)assert.equal(declaredKey,titled,`${tool}: the declared key is the one its tooltip names`);
+  for(const [tool,,tip,title] of rail){assert.ok(tip&&!/\([A-Z]\)$/.test(tip),`${tool}: its tooltip text names no key of its own (${tip})`);assert.equal(title,null,`${tool}: no native title beside the tooltip`);}
   assert.equal(await page.locator('#edit-tools kbd, #edit-tools-toggle kbd, #board-map-toggle kbd').count(),0,'icon-only keys print no cap');
   assert.equal(await page.locator('#edit-tools-toggle').getAttribute('aria-keyshortcuts'),'A');
   const pressed=tool=>page.locator(`#edit-tools [data-edit-tool="${tool}"]`).getAttribute('aria-pressed');

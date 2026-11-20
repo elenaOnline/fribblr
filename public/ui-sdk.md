@@ -372,9 +372,12 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
 - **Zoom keys:** `+`/`=`, `−` and `0` (100%, position kept about the centre) with the canvas or an item focused; announced
   in `#view-announce` ("Zoom 115%"). ⇧0, ⇧1, ⇧2, F and M are unchanged. Arrows / Page keys / Space still pan when the canvas
   itself has focus.
-- **Board step is `[` / `]` on a Mac.** ⌥←/→ is the SDK's move chord, so on the board it moves the focused item, and
-  stepping is `[` / `]` (the opened Tinka's own fallback keys). Ctrl+←/→ still steps on Windows and Linux. Inside an opened
-  Tinka ⌥←/→ is unchanged. A step with focus on the board takes focus to the stepped card.
+- **Board step is J / K** (merge14, on 1.4). ⌥←/→ is the SDK's move chord, so on the board it moves the focused item; 1.4
+  made `]` / `[` Bring to front / Send to back, as in drawing tools (tldraw, Excalidraw). So stepping is **J** (next) and
+  **K** (previous), the list-review keys of Gmail, GitHub, Feedly and Reddit (`board-step.js`, `reader-keys.js`
+  `stepLetter`; either case, never with Shift or a modifier, never in a field, never while a menu has focus: menus own
+  typed letters). Ctrl+←/→ still steps on Windows and Linux. Inside an opened Tinka nothing stacks, so `[` / `]` and ⌥←/→
+  still step there, and J / K step too. A step with focus on the board takes focus to the stepped card.
 - **Focus follows a press.** A press on a drawn element focuses it (a card takes focus natively; Whiteboard's pointerdown
   prevents that for drawn elements), so Option-arrow and Space act on what was pressed, never on an item focused earlier;
   a press on empty canvas takes focus off the items. Pointer focus draws no ring (`pointer-focus.js`).
@@ -472,7 +475,7 @@ closes it and moves on from the opener.
   board keys stripped, Escape cancels the drag.
 - **Keys.** Board handlers that run in the capture phase step aside for an open popup (`inPopup`): the board's key handler
   (`menuKey` also opens the card and board menus from Shift+F10 and ↓/↑ on a ⋯ or a version name, and lets a menu button in
-  a toolbar take ↓), board commands (`boardCommandBlocked`, so `[`/`]`, ⌘D, letters wait), the whiteboard's keys, the
+  a toolbar take ↓), board commands (`boardCommandBlocked`, so `[`/`]`, J/K, ⌘D, letters wait), the whiteboard's keys, the
   panning tool's Escape, the comment layer's Escape, the reader's Escape ladder, ⌘I and reader commands.
 
 ### Comment thread card and the @ picker (`ux/comments`)
@@ -588,11 +591,11 @@ Files: `reader-dialog.js` (new: `trapTab`, `tabStops`, `rememberOpener`, `opener
     reader's ladder peels feedback → path → % menu → Inspector → Navigator → notes, wherever focus is in the reader,
     and only then closes the reader. Escape during IME composition does nothing (as before).
   - **Focus goes back where it came from** (popups.md § Focus). Opened from a card on the board, focus returns to the
-    card last viewed (after any `[` / `]` stepping) without moving the board: the canvas's roving card
+    card last viewed (after any stepping) without moving the board: the canvas's roving card
     (`graph.focusPlacement`, when the canvas stream's roving group is there) or the card's Open control. Opened from
     anything else (the Navigator, a link), focus returns to that control while it is still on the page, else to the
     canvas.
-  - Unchanged: `[` `]`, ⌥←/→ (Ctrl+←/→ elsewhere) and plain ←/→ on Tinka's own chrome step; ⌥↑ / Escape go up; F,
+  - Unchanged: `[` `]`, ⌥←/→ (Ctrl+←/→ elsewhere) and plain ←/→ on Tinka's own chrome step (J / K too, since merge14); ⌥↑ / Escape go up; F,
     ⇧1, ⇧0, + / − zoom; ⌘I toggles the Inspector; keys forwarded from same-origin content.
 - **Stepper: `ui-pagination`** (`#reader-stepper`, labelled "Step through <board>"; role `navigation`, a list inside).
   `‹` and `›` are its Previous and Next parts; the `n / N` count between them stays our button (it opens the path's
@@ -823,3 +826,31 @@ pill), `whiteboard.js` (object and arrow bar, format panel), `container-layout.j
 - Left as native, on purpose: standalone `aria-pressed` buttons that are not in a toolbar (Favorites, Last 6 weeks,
   Archive, auto height, automatic border) — a native toggle button already has the SDK toggle's keys; native radio
   fieldsets (`workspace-choice-pills`) — native radios are already one Tab stop with arrows that check.
+
+### Tinka 1.4 surfaces (`r2/merge14`)
+
+Files: `workspace-board.js` (card menu, `]`/`[` handler), `whiteboard.js` (drawn More, format panels, Tab-out),
+`text-appearance.js`, `text-format-controls.css`, `text-ink-preview.js`, `reader-canvas.js`, `reader-keys.js`,
+`board-step.js`, `canvas.js`, `popups.js` (`tabOutOfPanel`). Components: Menu, Toolbar, Toggle, Toggle group, Segmented
+control.
+
+- **Bring to front / Send to back.** Rows of the card menu (SDK Menu, `menuItem(..., {shortcut: ']'|'['})`, Canvas only,
+  not view-only) and of the drawn-object More (`menuActions`, items carry `data-whiteboard-more`). Typeahead reaches
+  them ("b"); Enter restacks and focus returns to the card. The drawing options panel keeps 1.4's action rows with their
+  printed keys (`keycaps.js`). On a board `]` / `[` run them for the selection (1.4); stepping moved to J / K (Canvas
+  keyboard section).
+- **Typeface and Text box** (1.4 split the old Advanced text). Typeface is a single-choice toggle group of the three
+  faces. Text box: Color applies to (segmented), Fill style / Border style (toggle groups), the palette (radio group),
+  Padding (preset scrub), and a **Box height** `ui-toolbar`: Auto height is a `ui-toggle` (`onPress`/`setPressed`; one
+  name in both states, per toggle.md), Fit height once a `ui-toolbar-button` that is `aria-disabled` (reachable, inert)
+  while a fit saves. Opening focuses the first control (Fill). The four text panels and the drawing options stay in the
+  bar's own panel element (they hold the text-format and colour controls; see Menus) but keep a popover's Tab:
+  `tabOutOfPanel` closes the panel from its last control and Tab moves on after its button; Shift+Tab from the first
+  goes back to the button. Escape and an outside press close it and focus returns to its button, as before.
+- **Ink preview** (1.4 `text-ink-preview.js`): the bar's Ink button carries its displayed-ink description as
+  `aria-description` and as its SDK tooltip (`data-tip`), never a native title.
+- **Resource surface** (1.4 `reader-resource-surface.js`, `reader-canvas.js`): no new controls; Window and zoom are the
+  converted % popover and pill. Keys follow the viewport norms: `+` / `−` / `0` (100%, new in the reader) and F (fit),
+  each announced in `#reader-view-announce` inside the reader dialog (the board's announcer is inert behind the modal).
+  Fit's window has no native title (1.4's "Resource surface" named nothing); a chosen Window size keeps its resize hint.
+  The reader has no keyboard pan: ←/→ step, as approved; a magnified resource pans by drag, wheel or Space-drag.
