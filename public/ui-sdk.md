@@ -156,7 +156,8 @@ CSS in `workspace.css` (`.workspace-toasts`, `.workspace-toast`, dialog backdrop
 - **Dialog** (`ui-dialog`, modal). `makeDialog(title, body, onSubmit, {opener, compact, shortcutHint, onDismiss, className})`
   keeps upstream's 1.3 signature and footer (the submit key and its hint go in `footer.workspace-dialog-actions`): it returns the
   `ui-dialog-content` element (class `workspace-dialog`), which has `close()` and fires a `close` event once closed.
-  `onDismiss(form)` runs when the dialog closes without saving. A dialog that has it keeps its draft (the new-board dialog),
+  `onDismiss(form)` runs as the dialog closes without saving (at once, not a frame later, so a dialog reopened straight
+  away finds it). A dialog that has it keeps its draft (the new-board dialog),
   so it never asks "Discard your changes?". `opener` is where focus goes back on close (default: the focused element).
   Focus opens on the first field (`autofocus` is set on it), else the close key; Tab wraps; Escape and a press on the
   backdrop close; focus returns to what had it. A form with typed-in changes asks "Discard your changes?" (an alert
@@ -380,7 +381,8 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   still step there, and J / K step too. A step with focus on the board takes focus to the stepped card.
 - **Focus follows a press.** A press on a drawn element focuses it (a card takes focus natively; Whiteboard's pointerdown
   prevents that for drawn elements), so Option-arrow and Space act on what was pressed, never on an item focused earlier;
-  a press on empty canvas takes focus off the items. Pointer focus draws no ring (`pointer-focus.js`).
+  a press on empty canvas takes focus off the items, a frame after the press. Pointer focus draws no ring
+  (`pointer-focus.js`), except that the return pulse still shows on a card that pointer focus lands on.
 - **Focus comes back.** Closing the reader returns focus to the card last viewed when it was opened from the board's
   items. Escape in the selection bar sends focus to the board's roving item (or the first card, or the canvas).
 - **The board's key handlers step aside** for SDK widgets: `inPopup()` first (an open menu or popover owns every key,
@@ -661,7 +663,8 @@ Files: `header-toolbar.js` (new: `headerToolbar`, `setItemDisabled`), `board.htm
 - **Wrapping as buttons arrive.** The bar's buttons come from the page, `workspace-board.js` and re-renders, so
   `headerToolbar()` wraps each in a `ui-toolbar-button` right around the button (inside any tooltip trigger, which must
   stay outermost), watching only the bar's own children. A button that is not rendered leaves the arrow order.
-- **Disabled stays reachable.** Undo and Redo with nothing to undo are `aria-disabled` and stay in the arrow order
+- **Disabled stays reachable.** Undo and Redo with nothing to undo, and the opened Tinka's Favorite while notes load, are
+  `aria-disabled` and stay in the arrow order
   (toolbar.md § Disabled: the SDK's default), instead of natively disabled and skipped. Set it with
   `setItemDisabled(button, on)`; writing `button.disabled` on a toolbar item would take it out of focus entirely.
 - In the reader, ←/→ on the actions toolbar now move along it (`readerTinkaFocus` excludes `ui-toolbar`); `[` / `]`
