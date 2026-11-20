@@ -90,8 +90,21 @@ const canBeBase = entry => !(entry.kind === 'decoration' && (entry.value.type ==
 const isLine = entry => entry.kind === 'decoration' && entry.value.type === 'line';
 const shown = entry => !(entry.kind === 'placement' && entry.value.archivedAt);
 
+// The order the board paints in once `changes` are written: the same objects, in
+// their own array order, with the new z values.
+function orderAfter(order, changes) {
+  const z = new Map(changes.map(change => [change.entry.ref, change.z])), board = {decorations:[], placements:[]};
+  for (const entry of [...order].sort((a, b) => a.tie - b.tie || a.index - b.index))
+    (entry.kind === 'placement' ? board.placements : board.decorations).push(z.has(entry.ref) ? {...entry.value, z:z.get(entry.ref)} : entry.value);
+  return stackOrder(board).map(entry => entry.ref).join('\n');
+}
 // The z changes that turn the current order into `desired`, touching as few objects
-// as possible: unchanged bottom (or top) runs keep their values.
+// as possible: unchanged bottom (or top) runs keep their values. Those runs keep
+// their place only if their keys stay where they were; a drawing without a stored z
+// does not (its key follows the stored range), and equal keys can fall either side
+// of a tie. So the result is checked against writing every object its rank in
+// `desired`, and that is written instead whenever the two would paint differently:
+// a reorder never moves anything it was not asked to move.
 function changesFor(order, desired) {
   let prefix = 0;
   while (prefix < order.length && order[prefix].ref === desired[prefix].ref) prefix++;
@@ -99,6 +112,8 @@ function changesFor(order, desired) {
   let suffix = 0;
   while (suffix < order.length && order[order.length - 1 - suffix].ref === desired[desired.length - 1 - suffix].ref) suffix++;
   const keys = list => list.map(entry => entry.key);
+  const needed = list => list.filter(change => change.entry.key !== change.z || !Number.isFinite(change.entry.value.z));
+  const ranks = needed(desired.map((entry, index) => ({entry, z:index + 1})));
   let changes;
   if (order.length - prefix <= order.length - suffix) {
     const base = prefix ? Math.max(...keys(order.slice(0, prefix))) : 0;
@@ -107,10 +122,10 @@ function changesFor(order, desired) {
     const head = desired.length - suffix, base = suffix ? Math.min(...keys(order.slice(order.length - suffix))) : 0;
     changes = desired.slice(0, head).map((entry, index) => ({entry, z:base - head + index}));
   }
-  if (changes.some(change => Math.abs(change.z) > STACK_RANGE - 1))
-    changes = desired.map((entry, index) => ({entry, z:index + 1}));
-  return changes.filter(change => change.entry.key !== change.z || !Number.isFinite(change.entry.value.z))
-    .map(({entry, z}) => ({kind:entry.kind, id:entry.id, z}));
+  changes = needed(changes);
+  if (changes.some(change => Math.abs(change.z) > STACK_RANGE - 1) || orderAfter(order, changes) !== orderAfter(order, ranks))
+    changes = ranks;
+  return changes.map(({entry, z}) => ({kind:entry.kind, id:entry.id, z}));
 }
 // `block` moves above everything else, and `resting` (if any) stays above `block`.
 function lift(order, block, resting = new Set()) {
