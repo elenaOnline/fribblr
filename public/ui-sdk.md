@@ -340,7 +340,10 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
   key. "The first field" skips a field inside a hidden part (the Move dialog's New board name until New board… is
   chosen: autofocus there left focus on ×) and counts a choice: a radio group is entered on its checked radio, else
   its first (`firstField` in `workspace.js`), so Move to a board opens on its destinations. Tab wraps; Escape and a backdrop press close; focus returns to `opener` (default: the focused element). A
-  save in flight holds the dialog open.
+  save in flight holds the dialog open. The return runs a frame after the SDK's own (so a caller's `close` listener has
+  the last word); if another dialog has opened and taken focus in that frame (Enter on the opener again, at once), it
+  keeps it, unless that dialog holds the opener (a dialog opened from another). Before, the late return pulled focus
+  out of the new dialog onto the opener behind it, and the next Space opened a second copy.
 - **Discard question.** Only typed text asks. Once a text field or text area of a form with `onSubmit` holds text that
   differs from what it held before her first edit (noted on `beforeinput`), the dialog becomes `dismissible=false`;
   Escape or a backdrop press then asks, in an alert dialog titled "Discard the text you typed" ("Nothing in “Edit item”
@@ -533,7 +536,9 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   `reconcileChildren` never fights it) and moved in place on `focusin` (`setStop`: two elements' attributes). Before
   anything is focused, the first card on the board itself (not inside a container) holds it, else the first drawn
   element there. If the focused item goes away in a rebuild, focus goes to the item nearest where it was
-  (`lostBox`/`ensureStop`, the SDK's focus-recovery idea).
+  (`lostBox`/`ensureStop`, the SDK's focus-recovery idea): a removed card, and a deleted drawn element (Delete, or
+  ⌘D then Delete on the copy, which lands on the original). Both measure on screen, because a deleted drawn element
+  has already left the snapshot the rebuild draws (a removed card stays in it, marked removed).
 - **Controls inside an item.** The stop item's own controls follow it in Tab order: select circle, ⋯, title, resize
   corner, hover-strip buttons, version ticker; a Text block's task boxes, links and overflowing label (Chrome makes
   a scroller a Tab stop); a selected sticker's rotate and resize handles. Inside every other item they carry
@@ -593,8 +598,11 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   size; a sticker keeps its proportions; an auto-height Text block becomes fixed, as a drag makes it. Announced with
   `resizeMessage`. Arrow ends, an arrow's bend and a sticker's rotation have keys and are announced ("Arrow end moved
   to 420, 310.", "Sticker rotated to 15°.").
-- **Writes queue instead of racing.** A keyboard move, reorder or resize holds the board busy until its write and
-  refresh land (`keyMoveRunning`); meanwhile the key queue (`installKeyQueue`, window capture) holds Option-arrows and
+- **Writes queue instead of racing.** A drawn object's save holds Undo, Redo and Paste busy until its refresh has
+  landed (`decorationCommitting`, a setter that updates them), as the board's command keys already wait for it
+  (`keysBusy`): before, they read idle while the saved board was still being fetched, so a gesture begun then (a card
+  resize after moving an arrow's end) drew from the board before the save, and the arrow jumped to its old side. A
+  keyboard move, reorder or resize holds the board busy until its write and refresh land (`keyMoveRunning`); meanwhile the key queue (`installKeyQueue`, window capture) holds Option-arrows and
   arrows on a resize corner and replays them in order. Plain arrows, and Space / Enter on a focused item or on a
   button or link, are never queued (`queueableKey`): a replay would land on whatever has focus by then, or swallow a
   button's native press. Escape clears the queue.
@@ -607,7 +615,7 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   pressed straight after) is left where it went: only focus still where it was (the same element, or the same board
   item re-rendered), or dropped to `<body>`, is moved. A press on empty canvas, or on a plain region's open middle,
   focuses the canvas, from wherever focus was (Add, Find, a panel's comment field): the canvas is a focusable place,
-  and a press on one takes focus. Only a field on the board itself (an editor the press finishes) keeps it. A press on a control inside a card keeps native focus there. Pointer focus draws no ring
+  and a press on one takes focus. Only a field on the board itself (an editor the press finishes) keeps it. A press on a control inside a card keeps native focus there, and a button inside the pressed drawn element that took focus within that frame (an arrow's end handle focused straight after the press that selected the arrow) keeps it: moving focus to the arrow would hand Delete to the whole arrow instead of detaching the end. Pointer focus draws no ring
   (`pointer-focus.js` marks it `data-pointer-focus`), except that the return pulse still shows. Checked in
   `tests/board-fixes-browser.mjs` and `tests/canvas-keyboard-browser.mjs`.
 - **Focus follows what the app creates** (`focusCreated`). What the app creates and selects takes focus (the first of
@@ -704,7 +712,9 @@ edits. What the browser leaves out is added:
   the reader. Escape during IME composition does nothing. A frame's own SDK popup with focus inside takes its Escape in
   the frame (the SDK calls `preventDefault`), so `media.js` and `item-content.js` never post `reader-close` for it.
 - **Focus goes back** (popups.md § Focus). Opened from a card on the board, focus returns to the card last viewed
-  (after any stepping) without moving the board: `graph.focusPlacement`, or the card's Open control. Opened from
+  (after any stepping) without moving the board: `graph.focusPlacement`, or the card's Open control. A card's menu
+  (⋯, right-click, Shift+F10, "Open") counts as the card (`openReader`): its item has left the page by the time the
+  reader closes, and the canvas would be the fallback. Opened from
   anything else, `rememberOpener()` / `openerToReturnTo()` return focus to that control while it is still on the page
   and focusable, else to the canvas.
 - **Stepper: `ui-pagination`** (`#reader-stepper`, "Step through <board>"; role `navigation`, a list inside). ‹ and ›
@@ -1027,7 +1037,10 @@ opens every `[aria-haspopup]` button by clicking it.
   presses the focused point: the first begins a connection and focus stays on that point among the destinations. That
   click stops in `whiteboard.js`: choosing redraws the points, so the pressed one has left the page by the time the
   canvas's click handler reads it, and that handler took it for a click on empty canvas and cleared the selection and
-  the connection just begun.
+  the connection just begun. Escape while connecting cancels it, and the points re-render under focus, so
+  `handleEscape` sends focus back to the point the connection started from (`refocusSource`: it is the Tab stop
+  again), else to its object. Escape on a point with nothing pending goes back to its object, selection kept, as
+  Escape from the bar does (`focusRef`). Neither leaves focus on `<body>`.
 - Where a panel starts (`focusPanelStart`, `text-appearance.js` `focus()`): the first control, unless one is marked
   `[data-autofocus]`; a group of choices is entered on its checked or pressed option. So Typeface starts on the chosen
   face, Text box on Color applies to, Ink and Text size on the chosen swatch / preset (a custom size: the scrub), Line
@@ -1143,8 +1156,12 @@ A pointer drags a row (3 px threshold). Focus opens on the list.
 Layout and Pattern rows are segmented controls. Board color opens a swatch radio group (`bindInspectorColor` in
 `workspace-board.js`); while the board has a colour, "Remove color" follows the custom colour (one more Tab stop), as the
 background image has "Remove image": it clears the colour, so the board stands on the Background chosen in Appearance,
-closes the palette and returns focus to Board color. The filter row (`.inspector-toggles`) is a `ui-toolbar` around the
-`aria-pressed` buttons. The Edit row (Undo, Redo, Copy selection, Paste…, Comparison order…, and Open primary content,
+closes the palette and returns focus to Board color. Pressed while a chosen colour is still saving, it waits for that
+save and then clears (it used to do nothing). Board color and Background image… are drawn as the Filter row is,
+so they are one `ui-toolbar` too ("Board background", `.inspector-background-row`): one Tab stop, ←/→ with wrap,
+Home/End. The palette opens under the row, outside the toolbar, so its own arrows stay its own; Escape there comes back
+to Board color, and closing the Background image dialog comes back to Background image…. The filter row
+(`.inspector-toggles`) is a `ui-toolbar` around the `aria-pressed` buttons. The Edit row (Undo, Redo, Copy selection, Paste…, Comparison order…, and Open primary content,
 Retry unsaved feedback, Recover unsaved text when they show) and the Feedback row (Comments, Export notes, Copy notes as
 Markdown) are drawn as the Filter row is, so they are toolbars too, each named by its heading (`toolbarRow` in
 `arrangeInspector`): one Tab stop, ←/→ with wrap, Home/End. A hidden button or a disabled one (Undo with nothing to undo)

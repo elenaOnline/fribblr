@@ -1081,9 +1081,14 @@ try {
       beforeControls,
       "Notes, stars and editor controls do not drag",
     );
-    // Bring the resize grip into view with ordinary scrolling, as a person would.
+    // Bring the resize grip into view with ordinary scrolling, as a person would: clear of the bars that float over the
+    // bottom of the canvas (the tools rail, and the selection bar the starred card brings), not only inside the viewport.
+    const clearBottom = () => page.evaluate(() => Math.min(document.getElementById("viewport").getBoundingClientRect().bottom,
+      ...[...document.querySelectorAll(".edit-tools,#workspace-selection,.canvas-footer")]
+        .filter((el) => !el.hidden && el.getClientRects().length).map((el) => el.getBoundingClientRect().top)));
     const grip = await page.locator(".workspace-resize").first().boundingBox(),
-      area = await page.locator("#viewport").boundingBox();
+      area = await page.locator("#viewport").boundingBox(),
+      floor = await clearBottom();
     const background = await page.locator("#viewport").evaluate((vp) => {
       const r = vp.getBoundingClientRect();
       for (const x of [r.left + 8, r.right - 8])
@@ -1096,15 +1101,15 @@ try {
     await page.mouse.move(background.x, background.y);
     await page.mouse.wheel(
       Math.max(0, grip.x + grip.width - area.x - area.width + 25),
-      Math.max(0, grip.y + grip.height - area.y - area.height + 25),
+      Math.max(0, grip.y + grip.height - floor + 25),
     );
-    await page.waitForFunction(() => {
+    await page.waitForFunction((floor) => {
       const grip = document
           .querySelector(".workspace-resize")
           .getBoundingClientRect(),
         vp = document.getElementById("viewport").getBoundingClientRect();
-      return grip.right <= vp.right && grip.bottom <= vp.bottom;
-    });
+      return grip.right <= vp.right && grip.bottom <= floor;
+    }, floor);
     writes = placementWrites;
     await dragPointer(
       await page.locator(".workspace-resize").first().boundingBox(),

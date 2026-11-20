@@ -202,7 +202,10 @@ try{
    assert.equal(await eventually(async()=>(await find('wide')).thickness,v=>v===expected),expected);await idle();
    assert.equal((await snapshot()).revision,beforeKey+1);
  }
- // Keyboard focus on the scrub shows its SDK tooltip, which takes the first Escape (tooltip.md § Keyboard).
+ // Keyboard focus on the scrub shows its SDK tooltip, which takes the first Escape (tooltip.md § Keyboard). Tab away and
+ // back, so the scrub is entered by keyboard whether or not the save above rebuilt the panel under focus.
+ await page.keyboard.press('Shift+Tab');await page.keyboard.press('Tab');
+ assert.equal(await custom.evaluate(el=>el===document.activeElement),true,'Tab comes back to the weight scrub');
  await page.locator('ui-tooltip-content[data-open]').waitFor();
  await page.keyboard.press('Escape');await page.locator('ui-tooltip-content[data-open]').waitFor({state:'detached'}).catch(()=>{});assert.equal(await page.locator('ui-tooltip-content[data-open]').count(),0,'Escape closes only the hint');
  await page.keyboard.press('Escape');

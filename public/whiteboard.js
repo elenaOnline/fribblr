@@ -1551,7 +1551,15 @@ export class Whiteboard {
   }
   handleEscape(e) {
     if(e.key!=='Escape')return false;
-    if(this.drag||this.pendingFrom||this.connectMode){this.cancel();return true;}
+    if(this.drag||this.pendingFrom||this.connectMode){
+      // From the keyboard, the connection points re-render under focus: focus goes back to the point the connection
+      // started from, else to its object.
+      const from=this.pendingFrom,onPort=this.ports.contains(document.activeElement);
+      if(onPort&&from)this.portStop=JSON.stringify(from);
+      this.cancel();
+      if(onPort)this.refocusSource(from);
+      return true;
+    }
     // Escape keeps what was typed (as in Figma or Miro): it commits and leaves edit mode.
     // Discarding stays an explicit choice (the toolbar's cancel-edit action).
     if(this.editor){if(e.isComposing||e.keyCode===229||this.editor.composing)return false;this.commitEdit({focus:true});return true;}
@@ -1562,8 +1570,24 @@ export class Whiteboard {
       const d=this.selectedDecorations()[0],el=d&&document.querySelector(`#world ${selector(d.id)}`);
       if(el){el.focus({preventScroll:true});return true;}
     }
+    // Escape on a connection point (nothing pending) goes back to its object, selection kept, as from the bar.
+    if(this.ports.contains(e.target)&&this.focusRef(this.selectedRef()))return true;
     if(this.host.decorationSelection?.size>1){this.clearSelection();return true;}
     return false;
+  }
+  // After the connection points re-render: the point `from` names (else the tab stop), else the selected object.
+  refocusSource(from) {
+    if(this.ports.contains(document.activeElement))return;
+    const key=from&&JSON.stringify(from),ports=[...this.ports.querySelectorAll('[data-port]')];
+    const port=ports.find(el=>el.dataset.port===key)||(!from&&this.ports.querySelector('[data-port][tabindex="0"]'));
+    if(port?.isConnected){port.focus({preventScroll:true});return;}
+    this.focusRef(from||this.selectedRef());
+  }
+  focusRef(ref) {
+    const el=ref?.decorationId?document.querySelector(`#world ${selector(ref.decorationId)}`)
+      :ref?.placementId?document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(ref.placementId)}"]`):null;
+    el?.focus({preventScroll:true});
+    return !!el;
   }
   arrowHandleKey(e) {
     const handle=e.target.closest('[data-endpoint],[data-arrow-bend]');
