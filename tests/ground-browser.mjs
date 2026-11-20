@@ -34,13 +34,13 @@ try{
   await page.goto(base+'/');await page.locator('.board-card').first().waitFor();
   assert.equal(await html('data-ground'),'desk');
   const trigger=page.getByRole('button',{name:'Appearance',exact:true});
-  const ground=page.getByRole('group',{name:'Background',exact:true});
+  const ground=page.getByRole('radiogroup',{name:'Background',exact:true});
   assert.equal(await ground.isVisible(),false,'The Background choice is not on screen until the menu opens');
   await trigger.focus();await page.keyboard.press('Enter');
   await ground.waitFor();assert.equal(await trigger.getAttribute('aria-expanded'),'true');
-  assert.deepEqual(await ground.getByRole('button').allTextContents(),['Blue','White']);
-  assert.equal(await ground.getByRole('button',{name:'Blue'}).getAttribute('aria-pressed'),'true');
-  await ground.getByRole('button',{name:'White'}).focus();await page.keyboard.press('Enter');
+  assert.deepEqual(await ground.getByRole('radio').allTextContents(),['Blue','White']);
+  assert.equal(await ground.getByRole('radio',{name:'Blue'}).getAttribute('aria-checked'),'true');
+  await ground.getByRole('radio',{name:'White'}).focus();await page.keyboard.press('Space');
   assert.equal(await html('data-ground'),'white');assert.equal(await stored(),'white');
   assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(255, 255, 255)','White is a flat white ground');
   await page.keyboard.press('Escape');assert.equal(await ground.isVisible(),false);
@@ -62,17 +62,17 @@ try{
   await page.goto(base+'/boards/study/');await page.locator('.workspace-card').first().waitFor();
   await page.locator('#board-info-toggle').click();
   const inspector=page.locator('#board-info .inspector-appearance');await inspector.waitFor();
-  const boardGround=inspector.getByRole('group',{name:'Background',exact:true});
-  assert.equal(await boardGround.getByRole('button',{name:'White'}).getAttribute('aria-pressed'),'true');
-  await boardGround.getByRole('button',{name:'Blue'}).click();
+  const boardGround=inspector.getByRole('radiogroup',{name:'Background',exact:true});
+  assert.equal(await boardGround.getByRole('radio',{name:'White'}).getAttribute('aria-checked'),'true');
+  await boardGround.getByRole('radio',{name:'Blue'}).click();
   assert.equal(await html('data-ground'),'desk');assert.equal(await stored(),'desk');
-  await boardGround.getByRole('button',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
+  await boardGround.getByRole('radio',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
 
   // Dark has one ground: White is kept for light, and the row cannot be changed while dark.
-  const mode=inspector.getByRole('group',{name:'Appearance mode'});
-  await mode.getByRole('button',{name:'Dark'}).click();
+  const mode=inspector.getByRole('radiogroup',{name:'Appearance mode'});
+  await mode.getByRole('radio',{name:'Dark'}).click();
   assert.equal(await html('data-appearance'),'dark');assert.equal(await html('data-ground'),'desk');
-  assert.equal(await boardGround.getByRole('button',{name:'White'}).isDisabled(),true);assert.equal(await stored(),'white');
+  assert.equal(await boardGround.getByRole('radio',{name:'White'}).isDisabled(),true);assert.equal(await stored(),'white');
   await page.reload();await page.locator('.workspace-card').first().waitFor();
   assert.deepEqual((await first()).body,{ground:'desk',appearance:'dark'},'Dark reloads dark, on its own ground');
   await page.evaluate(()=>localStorage.setItem('tinka/appearance','light'));await page.reload();await page.locator('.workspace-card').first().waitFor();
@@ -90,7 +90,7 @@ try{
   const box=await page.locator('.appearance-pop').boundingBox();
   assert.ok(box.x>=0&&box.x+box.width<=390,`Menu fits the screen: ${box.x}..${box.x+box.width}`);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No sideways scroll');
-  await ground.getByRole('button',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
+  await ground.getByRole('radio',{name:'White'}).click();assert.equal(await html('data-ground'),'white');
   await page.mouse.click(200,600);assert.equal(await ground.isVisible(),false,'Click-away closes the menu');
 
   assert.deepEqual(errors,[]);

@@ -1336,7 +1336,7 @@ try {
   for (const [mode, className] of [["card", "workspace-compact"], ["icon", "workspace-icon"], ["panel", "workspace-panel"]]) {
     await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).click();
     await page.waitForFunction(className => document.querySelector(".workspace-card").classList.contains(className), className);
-    assert.equal(await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).getAttribute("aria-pressed"), "true", "Attached appearance popup changes " + mode);
+    assert.equal(await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).getAttribute("aria-checked"), "true", "Attached appearance popup changes " + mode);
   }
   await page.keyboard.press("Escape");
 

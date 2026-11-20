@@ -248,7 +248,7 @@ html[data-appearance="dark"] .whiteboard-markdown-editor { outline-color:color-m
 .text-align-center .whiteboard-text-preview { text-align:center; }
 .text-align-right .whiteboard-text-preview { text-align:right; }
 .whiteboard-format-section { min-width:0; margin:0; border:0; padding:0; }
-.whiteboard-format-section > legend { padding:0; margin-bottom:4px; font-size:12px; color:var(--ink-2); }
+.whiteboard-format-section > :is(legend, .whiteboard-format-legend) { display:block; padding:0; margin-bottom:4px; font-size:12px; color:var(--ink-2); }
 .whiteboard-format-options { display:flex; align-items:center; gap:4px; }
 .whiteboard-menu .whiteboard-format-options button { width:35px; min-width:35px; }
 .whiteboard-format-status { color:var(--ink); }   /* danger has no colour */

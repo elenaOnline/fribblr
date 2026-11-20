@@ -65,7 +65,7 @@ const barParts = {
     :`<ui-toolbar-button>${barButton(action,label,body,opts)}</ui-toolbar-button>`,
   group:(label,body)=>`<ui-toolbar-group class="whiteboard-bar-group" aria-label="${label}">${body}</ui-toolbar-group>`,
   // items: [value, label, body]; current: the pressed value (or undefined when the objects differ).
-  choice:(label,action,current,items)=>`<ui-toggle-group class="whiteboard-bar-group" aria-label="${label}" deselectable="false" data-bar-choice${current!==undefined&&current!==null?` default-value="${esc(String(current))}"`:''}>${items.map(([value,name,body])=>`<ui-toggle value="${esc(String(value))}">${barButton(action,name,body,{value})}</ui-toggle>`).join('')}</ui-toggle-group>`,
+  choice:(label,action,current,items,className='whiteboard-bar-group')=>`<ui-toggle-group class="${className}" aria-label="${label}" deselectable="false" data-bar-choice${current!==undefined&&current!==null?` default-value="${esc(String(current))}"`:''}>${items.map(([value,name,body])=>`<ui-toggle value="${esc(String(value))}">${barButton(action,name,body,{value})}</ui-toggle>`).join('')}</ui-toggle-group>`,
 };
 const defaultAlign = d => d.shape && d.shape !== 'rectangle' ? 'center' : 'left';
 const captionPresets = d => d.type==='text' ? {small:18,medium:21,large:36} :
@@ -577,13 +577,12 @@ export class Whiteboard {
     const active=this.menu.contains(document.activeElement)?document.activeElement:null;
     const focused=active?{action:active.dataset.whiteboardAction,value:active.dataset.value,custom:active.type==='color',swatch:active.dataset.swatch,
       weight:active.closest('[data-arrow-weight]'),caption:active.closest('[data-caption-size]'),scrub:active.hasAttribute('data-scrub-value')}:null;
-    const {button}=barParts;
     const common=read=>{const values=objects.map(read);return values.every(value=>value===values[0])?values[0]:undefined;};
     const all=predicate=>objects.every(predicate);
     const role=commonDrawingRole(objects),channel=role==='stroke'?'border':role;
-    const choices=(name,action,current,options)=>`<fieldset class="whiteboard-format-section"><legend>${name}</legend><div class="whiteboard-format-options">
-      ${options.map(([value,label,mark])=>button(action,label,mark,{value,pressed:value===current})).join('')}
-    </div></fieldset>`;
+    // One choice among keys: a single-choice toggle group of buttons (arrows move, Space or Enter chooses).
+    const choices=(name,action,current,options)=>`<div class="whiteboard-format-section"><span class="whiteboard-format-legend" aria-hidden="true">${name}</span>${
+      barParts.choice(name,action,current,options,'whiteboard-format-options')}</div>`;
     const pick=(value,label=value)=>[value,label,icon(icons[value])];
     const sections=[];
     if(session.mode==='color'){
@@ -611,6 +610,7 @@ export class Whiteboard {
     this.menu.innerHTML=`<div class="text-format-controls whiteboard-object-format">
       ${sections.join('')}<span class="whiteboard-format-status" role="status">${esc(session.error||'')}</span>
     </div>`;
+    tips(this.menu);
     const custom=this.menu.querySelector('input[type=color]');
     const palette=this.menu.querySelector('[data-color-swatches]');
     if(palette)bindDrawingPalette(palette,{channel,label:session.label,value:common(d=>d.color),
@@ -647,10 +647,12 @@ export class Whiteboard {
     }
     this.positionMenu();
     const controls=[...this.menu.querySelectorAll('button')];
-    if(focused?.scrub)restoreFocus(this.menu.querySelector('[data-scrub-value]'));
+    // The palette's radios get their roles and tab stop a moment after they are inserted: focus the chosen one then.
+    if(focused?.swatch&&!focused.custom)queueMicrotask(()=>this.menu.querySelector(`[data-swatch="${CSS.escape(focused.swatch)}"]`)?.focus({preventScroll:true}));
+    else if(focused?.scrub)restoreFocus(this.menu.querySelector('[data-scrub-value]'));
     else if(focused?.caption)session.captionControl?.focus();
     else if(focused?.weight)session.weightControl?.focus();
-    else if(focused)restoreFocus(focused.custom?custom:focused.swatch?controls.find(control=>control.dataset.swatch===focused.swatch):
+    else if(focused)restoreFocus(focused.custom?custom:
       controls.find(control=>control.dataset.whiteboardAction===focused.action&&control.dataset.value===focused.value));
   }
   mountCaptionSize(session,element,objects,common) {

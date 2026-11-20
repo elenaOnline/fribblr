@@ -131,6 +131,7 @@ function bindInspectorColor(host,{label,read,save,options,role}) {
   const trigger=host.querySelector("[data-inspector-color]"),panel=host.querySelector("[data-inspector-palette]");
   panel.innerHTML=paletteMarkup(["fill"],{options,resolve:(id,_channel,theme)=>renderDrawingColor(literalFill(id),role,theme)});
   const palette=panel.querySelector("[data-color-swatches]");
+  tips(panel);
   let writing=false,painted=read();
   const setValue=bindDrawingPalette(palette,{channel:"fill",label,value:painted,toValue:literalFill,previewRole:role,
     choose:async value=>{
@@ -152,7 +153,7 @@ function bindInspectorColor(host,{label,read,save,options,role}) {
     trigger.setAttribute("aria-expanded",String(open));
     if(open){
       sync(true);
-      (palette.querySelector("[aria-pressed=true]")||palette.querySelector("button"))?.focus({preventScroll:true});
+      (palette.querySelector("[data-swatch][data-checked]")||palette.querySelector("[data-swatch]"))?.focus({preventScroll:true});
     }
   };
   trigger.onclick=()=>toggle(panel.hidden);
