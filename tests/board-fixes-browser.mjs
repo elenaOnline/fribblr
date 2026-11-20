@@ -6,7 +6,8 @@
 // - what the app creates and selects (⌘D, ⌘C ⌘V, an Option-drag copy) takes focus, so Option-arrow moves the copy;
 // - C, then Enter on the focused item, places a comment there; Escape disarms;
 // - Tab past the drawn-object bar or any of its panels goes on to the board's focused item, never to <body>;
-// - the bar's panels start on their checked option, or on their first control (never on ×);
+// - the bar's panels start on their checked option, or on their first control (never on ×), with no tooltip there, so
+//   one Escape closes them;
 // - in a popover, arrows don't walk between controls (Tab does), and a slider's arrows stay the slider's;
 // - the reader's path menu marks the current place with aria-current, not with the highlight's look.
 import assert from 'node:assert/strict';
@@ -219,6 +220,15 @@ try{
        const chosen=group?.querySelector('[data-checked],[aria-pressed="true"],[aria-checked="true"]');
        return chosen&&chosen!==a&&!a.contains(chosen)?`starts on ${a.getAttribute('aria-label')}, not on the chosen ${chosen.getAttribute('aria-label')}`:'ok';
      }),'ok',`${label} (${id}) starts on its first control, a group on its chosen option`);
+     // 10. Focus the panel placed on its start opens no tooltip, so one Escape closes the panel (as on main) and focus
+     // goes back to its button without a hint popping there either.
+     await page.waitForTimeout(120);
+     eq(await page.locator('ui-tooltip-content[data-open]').count(),0,`${label} (${id}) opened by keyboard shows no tooltip on its starting control`);
+     await page.keyboard.press('Escape');
+     ok(await until(async()=>!(await inPanel())&&await page.evaluate(a=>document.activeElement?.dataset?.whiteboardAction===a,action)),`One Escape closes ${label} (${id}) and returns to its button`);
+     await page.waitForTimeout(120);
+     eq(await page.locator('ui-tooltip-content[data-open]').count(),0,`and no tooltip opens on ${label} as focus comes back`);
+     await page.keyboard.press('Enter');ok(await until(inPanel),`${label} opens again`);
      let n=0;while(n++<40&&await inPanel()){await page.keyboard.press('Tab');await page.waitForTimeout(40);}
      eq(await focused(),`drawn:${id}`,`Tab out of the last control of ${label} (${id}) goes back to the object`);
      eq(await page.locator('.whiteboard-menu:not([hidden]),ui-popover-content[data-open]').count(),0,`and ${label} closes`);

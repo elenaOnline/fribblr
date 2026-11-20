@@ -586,6 +586,12 @@ pickers, the comment card and `media.html`'s document tools. Component: Tooltip.
   - Keyboard focus opens it at once, a click that focuses does not: the SDK's modality rule (the last input was a key,
     not a lone modifier, or Tab; a window blur mutes it until the next key). Focus leaving closes a tooltip that focus
     opened.
+  - Focus the app places as a key opens or closes something opens nothing: Enter, Space or Escape moving focus off the
+    control they were pressed on (a panel's starting control, focus handed back to an opener), or an arrow that leaves
+    its group (↓ on a bar button opening its panel). That focus is not walked to, and a hint on it took the first Escape
+    meant for the panel (the bar's colour, size, Text box and Padding panels needed two Escapes). Tab and arrows inside
+    a group still open hints at once, and there the SDK's rule stands: Escape closes only the tooltip. Applies to the
+    delegate's focus opens and, through `openchange`, to wrapped triggers.
   - A press (pointer down, Enter, Space) closes it; after a press it stays closed until the pointer leaves.
   - A popup opening closes it, whatever opened the popup (a press, a key, code), and the delegated control under the
     pointer counts as pressed (tooltip.md: pressing the trigger closes the tooltip; "pressing opens the popover

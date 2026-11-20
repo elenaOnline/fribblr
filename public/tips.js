@@ -40,7 +40,9 @@ function tooltipFor(host) {
   root.addEventListener('openchange', event => {
     if (!event.detail.value) return;
     // Focus coming back to a trigger after its popup closed doesn't reopen the hint (tooltip.md § Focus).
-    if (quiet(root.api?.getPayload?.()) || (event.detail.reason === 'trigger-focus' && popupJustClosed())) event.preventDefault();
+    // Nor does focus the app placed as a key opened something (placedByKey, below).
+    const focusTarget = event.detail.event?.target instanceof Element ? event.detail.event.target : root.api?.getPayload?.();
+    if (quiet(root.api?.getPayload?.()) || (event.detail.reason === 'trigger-focus' && (popupJustClosed() || (focusTarget instanceof Element && placedByKey(focusTarget))))) event.preventDefault();
   });
   root.addEventListener('payloadchange', event => {
     if (quiet(event.detail.value)) { event.preventDefault(); queueMicrotask(() => root.api?.close?.()); return; }
@@ -202,6 +204,11 @@ export function tooltipOpen() {
 //     the control and the tooltip, 4 px out, as the SDK computes it;
 //   - keyboard focus opens it at once; a click that focuses does not (the last input was a pointer: the SDK's modality
 //     rule, which a window blur also mutes until the next key); focus leaving closes a tooltip that focus opened;
+//   - focus the app places as a key opens or closes something (Enter or Space on a control, an arrow that leaves its
+//     group, as ↓ on a bar button opening its panel, or Escape handing focus back to the opener) opens nothing: that
+//     focus is a panel's starting point or a return, not focus the person walked to, and a hint there would take the
+//     first Escape meant for the panel (as on main, one Escape closes it). Tab and arrows inside a group still open
+//     hints at once;
 //   - a press (pointer down, Enter, Space) closes it, and after a press it stays closed until the pointer leaves the
 //     control;
 //   - a popup opening (menu, popover, dialog), whatever opened it, closes the tooltip, and the control under the pointer
@@ -232,6 +239,8 @@ let pending = null;   // {el, timer}
 let pressed = null;   // a pressed control: no hover tooltip until the pointer leaves it
 let still = null;     // a control that arrived under the resting pointer: it waits for the pointer to move
 let pointerX = NaN, pointerY = NaN; // the pointer's last position (pointermove)
+let lastKey = null;   // {key, target, at}: the last key pressed, to tell walked focus from placed focus
+const GROUP = '[role=toolbar], [role=radiogroup], [role=menu], [role=listbox], [role=grid], [role=tablist], ui-radio-group, ui-segmented-control, ui-toggle-group';
 let tracking = null;  // pointermove listener while the pointer travels from the control to the tooltip
 
 // A control the delegate serves: it carries data-tip and has no trigger wrapper of its own.
@@ -345,6 +354,19 @@ function leave(el, event) {
   document.addEventListener('pointermove', tracking, true);
 }
 
+// Focus moved by the key just pressed onto a control other than the one it was pressed on, by opening or closing
+// something: Enter, Space or Escape (they press or dismiss; they never walk focus), or an arrow that left its group (↓
+// on a menu button opening its panel).
+function placedByKey(el) {
+  if (!lastKey || performance.now() - lastKey.at > 300) return false;
+  const from = lastKey.target;
+  if (!(from instanceof Element) || from === el || from.contains(el)) return false;
+  if (lastKey.key === 'Enter' || lastKey.key === ' ' || lastKey.key === 'Escape') return true;
+  if (!lastKey.key.startsWith('Arrow')) return false;
+  const group = from.closest(GROUP);
+  return !group || !group.contains(el);
+}
+
 function installDelegate() {
   if (typeof document === 'undefined' || installDelegate.done) return;
   installDelegate.done = true;
@@ -354,6 +376,7 @@ function installDelegate() {
     windowBlurred = false;
     const modifier = event.metaKey || event.ctrlKey || event.altKey || /^(Meta|Control|Alt|Shift)$/.test(event.key);
     if (event.key === 'Tab' || !modifier) modality = 'keyboard';
+    if (!event.repeat) lastKey = {key: event.key, target: event.target, at: performance.now()};
     if (event.key === 'Enter' || event.key === ' ') {
       if (current && current.el.contains(event.target)) close('trigger-press', event);
       // A press from the keyboard counts for the pointer resting on the same control, as a click does.
@@ -416,7 +439,7 @@ function installDelegate() {
   document.addEventListener('focusin', event => {
     const el = delegated(event.target);
     // A menu row's hint shows on hover only, as in native menus: arrowing through a menu opens nothing over it.
-    if (!el || el !== event.target || modality !== 'keyboard' || windowBlurred || el.closest('[role=menu]')) return;
+    if (!el || el !== event.target || modality !== 'keyboard' || windowBlurred || el.closest('[role=menu]') || placedByKey(el)) return;
     show(el, 'keyboard', event);
   });
   document.addEventListener('focusout', event => {
