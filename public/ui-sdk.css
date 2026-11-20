@@ -1,0 +1,51 @@
+/* UI SDK glue. Linked first on every page that uses the SDK, so this layer declaration comes before any other rule:
+   the SDK's own few rules (closed popups hidden, default display) live in @layer ui-sdk and every unlayered rule of
+   ours wins over them (vendor/ui-sdk/docs/styling-and-animation.md § The ui-sdk Layer).
+   The SDK supplies behaviour only. Looks come from the role tokens (tokens.css) and the depth model (depth.css):
+   popup content joins the float height with data-height="float" or an existing float class; keys stay raised. */
+@layer ui-sdk;
+
+/* Content parts can flash before their module upgrades them; keep them hidden until defined. */
+:is(ui-menu-content, ui-popover-content, ui-dialog-content, ui-alert-dialog-content, ui-tooltip-content, ui-select-content, ui-hover-card-content):not(:defined) { display: none; }
+
+
+/* Segmented control (ui-segmented.js): a radio group drawn as the theme's .tk-seg, a sunken track with the chosen item
+   a raised cell. The items are the SDK's own elements (role radio), so the .tk-seg > button rules of tokens.css and
+   depth.css are repeated here for them, keyed on data-checked instead of aria-pressed. An item with a tooltip sits in its
+   trigger (display: contents), so the rules reach through that wrapper too. */
+ui-segmented-control { display: inline-flex; }
+:is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item { box-sizing: border-box; height: 28px; padding: 0 12px; border: 0; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background-color: transparent; user-select: none; -webkit-user-select: none; }
+:is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item:hover, :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item[data-checked] { color: var(--ink); }
+:is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item[data-checked] { background-color: var(--surface-paper); box-shadow: inset 0 -1.5px 0 var(--key-side), inset 0 0 0 1px var(--line-seam); }
+:is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item[data-disabled] { cursor: default; }
+/* The old items were buttons and also took the button rules of what holds them. In the view pills' menus that was
+   canvas.css's `.view-tools button { min-width: 44px }`: the cells shrink to share the menu's width instead of standing
+   at their text width (the reader's Window row of four would otherwise run past its 288 px menu and scroll sideways). */
+.view-tools :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item { min-width: 44px; }
+
+/* Toolbar and toggle parts that wrap one of our buttons: the button takes part in layout directly (display: contents,
+   as the SDK does for triggers). A wrapper hidden with the attribute still hides. */
+ui-toolbar-button, ui-toolbar-link, ui-toggle { display: contents; }
+:is(ui-toolbar-button, ui-toolbar-link, ui-toggle)[hidden] { display: none; }
+ui-toolbar, ui-toggle-group, ui-toolbar-group { display: flex; }
+ui-toolbar[hidden], ui-toggle-group[hidden], ui-toolbar-group[hidden] { display: none; }
+
+
+/* Tooltip (tips.js): one shared ui-tooltip per page. An ink float like the toast (depth.css float height: the rim takes
+   the face colour, so only the soft cast shows), small text, a square-leaning corner, no arrow, nothing glows. The
+   shortcut reads as the keycap text the app prints elsewhere, dimmed on the ink face. The SDK places it (top, flipping
+   below when there is no room) and keeps it in the top layer; the trigger wrappers lay out as their button. */
+ui-tooltip, ui-tooltip-trigger { display: contents; }
+ui-tooltip-trigger[hidden] { display: none; }
+.tk-tip {
+  --float-rim: var(--ink);
+  box-sizing: border-box; max-width: min(320px, calc(100vw - 16px)); margin: 0; padding: 5px 8px; border: 0;
+  border-radius: var(--shape-cell); background: var(--ink); color: var(--surface-paper);
+  font: 400 12px/1.35 var(--type-sans); text-align: left; overflow-wrap: anywhere;
+  transform-origin: var(--transform-origin); transition: opacity .12s ease-out;
+}
+.tk-tip:is([data-starting-style], [data-ending-style]) { opacity: 0; }
+.tk-tip[data-instant] { transition: none; }
+.tk-tip-keys { margin-left: 8px; white-space: nowrap; opacity: .72; }
+.tk-tip-keys[hidden] { display: none; }
+.tk-tip-key { font: inherit; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
