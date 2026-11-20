@@ -76,8 +76,10 @@ export function chipElement(ref, {state = "active", editable = false} = {}) {
   chip.dataset.ref = JSON.stringify(cleanRef(ref));
   chip.dataset.kind = ref.kind;
   const icon = ICON[ref.kind === "placement" ? "item" : ref.kind] || ICON.item;
-  chip.innerHTML = `${icon}<span class="cref-label">${esc(ref.label)}</span>${!editable && ref.kind !== "board" && state !== "deleted" ? `<button type="button" class="cref-open" tabindex="-1" aria-label="Open ${esc(ref.label)}" title="Open">${ICON.open}</button>` : ""}`;
-  chip.title = state === "deleted" ? "Deleted" : ref.kind === "board" ? "Open board" : "Show on board · ⌘-click or ↗ opens it";
+  chip.innerHTML = `${icon}<span class="cref-label">${esc(ref.label)}</span>${!editable && ref.kind !== "board" && state !== "deleted" ? `<button type="button" class="cref-open" tabindex="-1" aria-label="Open ${esc(ref.label)}" data-tip="Open">${ICON.open}</button>` : ""}`;
+  // A hint on the shared tooltip, served by its delegate (tips.js): the comment card is a tooltip zone, so a chip in
+  // editable text gets no wrapper element.
+  chip.dataset.tip = state === "deleted" ? "Deleted" : ref.kind === "board" ? "Open board" : "Show on board · ⌘-click or ↗ opens it";
   if (!editable) { chip.setAttribute("role", "link"); chip.tabIndex = 0; }
   return chip;
 }
