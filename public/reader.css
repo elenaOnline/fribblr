@@ -113,6 +113,8 @@
 #reader-dialog #reader-window[data-size="standard"] { width: 1000px; height: 720px; }
 #reader-dialog #reader-window[data-size="wide"] { width: 1380px; height: 840px; }
 #reader-dialog #active-reader { border-radius: var(--shape-slab); }
+/* a document fitted to the stage fills it: square lower corners, so no sliver of the clipped side shows in them */
+#reader-dialog #reader-window[data-flush="true"], #reader-dialog #reader-window[data-flush="true"] #active-reader { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .reader-pan-shield { position: absolute; inset: 0; z-index: 2; cursor: grab; }
 .reader-pan-shield[hidden] { display: none; }
 

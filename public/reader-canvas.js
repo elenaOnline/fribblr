@@ -129,6 +129,8 @@ export class ReaderCanvas {
     this.stage.style.setProperty('--reader-pattern-x', `${Math.round(x)}px`);
     this.stage.style.setProperty('--reader-pattern-y', `${Math.round(y)}px`);
     this.stage.dataset.fitted = String(this.fitted);
+    // fribblr: a document fitted to the stage fills it edge to edge, its side off the bottom (depth.css reads this)
+    this.sheet.dataset.flush = String((this.sheet.dataset?.size || 'fit') === 'fit' && !this.resourceSize);
     this.onChange(this.view);
   }
   stopGlide() { cancelAnimationFrame(this.glide); this.glide = 0; }
