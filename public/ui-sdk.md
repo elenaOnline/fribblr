@@ -449,8 +449,10 @@ closes it and moves on from the opener.
 - **Zoom popovers** (`board.html` `#zoom-popover`, `#reader-zoom-popover`; `canvas.js` `setZoomMenuOpen`,
   `setReaderMenuOpen`): Popovers (sliders, the Pattern / Window / Light segmented controls, the version list), outside
   their pill toolbars; the reader's inside the modal reader dialog. Trigger: `ui-popover-trigger for=` around %. ↓ on %
-  opens them (`openOnArrowDown`, a Popover trigger has no ↓). Focus goes to the first control, ↑/↓ still step through the
-  buttons, Tab walks through and out to the next pill control, Escape and a choice return to %, an outside press closes
+  opens them (`openOnArrowDown`, a Popover trigger has no ↓). Focus goes to the first control; a Popover is not a menu,
+  so arrows don't walk between its controls (fix round 2: ↓ used to step from a button onto the slider, and the next ↓
+  changed the zoom): Tab walks through and out to the next pill control, and arrows belong to the focused control (the
+  slider's change the zoom, the segmented controls' choose), Escape and a choice return to %, an outside press closes
   them and reaches its target. A click into the experiment frame closes the reader's; switching windows leaves it open.
   The pill's 44px rows and slider theme reach them by naming `.board-zoom-popover` / `.reader-zoom-popover` /
   `.zoom-menu` in the theme's own selectors (`calm.css`, `canvas.css`, `ui-sdk.css`), at the same specificity: no copied

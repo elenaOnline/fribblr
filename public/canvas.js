@@ -1944,14 +1944,9 @@ $('zoom-menu').addEventListener('click', event => {
   else if (to === 'selection') fitSelection();
   else changeZoom(Number(to));
 });
-$('zoom-menu').addEventListener('keydown', event => {
-  if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
-  const items = [...$('zoom-menu').querySelectorAll('button:not([hidden]),input')];
-  const index = items.indexOf(document.activeElement);
-  if (index < 0 || document.activeElement.type === 'range') return;
-  event.preventDefault();
-  items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
-});
+// The % popover is a Popover, not a menu: Tab moves through its controls (popover.md), and arrows belong to the control
+// that has focus (the slider's change the zoom, the Pattern's choose). Arrows don't walk between its rows, so ↓ never
+// steps from a button onto the slider and the next ↓ never changes the zoom by surprise.
 // Segmented controls (ui-segmented.js): valuechange does not bubble, but it does pass through the capture phase, so one
 // listener on the document hears every copy (the zoom menu's, the Inspector's) and the others are kept in step.
 document.addEventListener('valuechange', event => {
@@ -2247,14 +2242,7 @@ $('reader-zoom-menu').addEventListener('click', event => {
   }
   if (size) setReaderSize(size.dataset.size);
 });
-$('reader-zoom-menu').addEventListener('keydown', event => {
-  if (!['ArrowDown', 'ArrowUp'].includes(event.key) || document.activeElement?.type === 'range') return;
-  const items = [...$('reader-zoom-menu').querySelectorAll('button:not([hidden]),input,a:not([hidden])')];
-  const index = items.indexOf(document.activeElement);
-  if (index < 0) return;
-  event.preventDefault();
-  items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
-});
+// The reader's % popover, likewise: Tab moves through it, arrows stay with the focused control.
 // A version can be chosen from the % menu or the Inspector.
 dialog.addEventListener('click', event => {
   const choice = event.target.closest('[data-revision-choice]');

@@ -195,6 +195,25 @@ try{
  await page.keyboard.press('Tab');ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-editor'))),'Tab past the bar goes back to the editor');
  await page.keyboard.press('Escape');await clear();
 
+ // ---- 6. A popover is not a menu: arrows don't walk between its controls (Tab does); a slider's arrows are its own. ----
+ for(const [where,toggle,slider,label]of[['board','#zoom-menu-toggle','#zoom-slider','Board zoom'],['reader','#reader-zoom-toggle','#reader-zoom-slider','Tinka zoom']]){
+   if(where==='reader'){await clear();await page.locator(`#world .workspace-card[data-placement="${c.a}"]`).focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(500);}
+   const zoomText=()=>page.locator(toggle).textContent().then(t=>t.trim());
+   await page.locator(toggle).focus();await page.keyboard.press('ArrowDown');
+   ok(await until(()=>page.evaluate(sel=>!!document.activeElement?.closest('ui-popover-content'),toggle)),`↓ on % opens the ${where} popover, focus inside`);
+   const first=await page.evaluate(()=>document.activeElement.textContent.trim()),z0=await zoomText();
+   for(let i=0;i<4;i++){await page.keyboard.press('ArrowDown');await page.waitForTimeout(40);}
+   eq(await page.evaluate(()=>document.activeElement.textContent.trim()),first,`In the ${where} % popover, ↓ does not walk from its first control`);
+   eq(await zoomText(),z0,`and the ${where} zoom is unchanged`);
+   await page.keyboard.press('Tab');ok((await page.evaluate(()=>document.activeElement.textContent.trim()))!==first,`Tab moves on through the ${where} popover`);
+   await page.locator(slider).focus();await page.keyboard.press('ArrowUp');
+   ok(await until(async()=>(await zoomText())!==z0),`On the ${where} slider (${label}), the arrows change the zoom: the slider owns them`);
+   eq(await page.evaluate(()=>document.activeElement?.id),slider.slice(1),'and focus stays on the slider');
+   await page.keyboard.press('Escape');
+   if(where==='reader'){await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});}
+ }
+ await clear();
+
  // The starts, by name: the chosen swatch, the pressed arrowhead, the chosen shape.
  eq(panelStarts['arrow:Stroke color'],'Blue','The stroke palette starts on the chosen swatch');
  eq(panelStarts['shape:Fill color'],'Gold','The fill palette starts on the chosen swatch');
