@@ -6,6 +6,23 @@
 import {wheelZoomFactor} from './canvas-zoom.js';
 import {onThemeChange} from './tokens.js';
 import {canvasBackdrop,readableColor,renderDrawingColor} from './theme-colors.js';
+import {headerToolbar} from './header-toolbar.js';
+import {inPopup} from './popups.js';
+
+// The map's head (Fit selected, Fit board, Close) is a UI SDK Toolbar: one Tab stop, arrows along it. Its buttons are
+// gathered into the toolbar as this module loads, before tooltips wrap them (tips.js keeps the tooltip trigger
+// outermost). The stage stays role=application: a 2-D surface drawn on a canvas, which the SDK has no element for;
+// its keys are the SDK viewport's (arrows pan, + / − zoom, 0 shows 100%), and Escape anywhere in the map closes it.
+export function mapHeadToolbar(head) {
+  if (!head || head.querySelector('ui-toolbar')) return;
+  const tools = document.createElement('ui-toolbar');
+  tools.className = 'board-map-tools';
+  tools.setAttribute('aria-label', 'Map');
+  tools.append(...head.querySelectorAll(':scope > button'));
+  head.append(tools);
+  headerToolbar(tools);
+}
+if (typeof document !== 'undefined') mapHeadToolbar(document.querySelector('#board-map .board-map-head'));
 
 // Fit the content bounds into a box at most `width` wide and `maxHeight` tall.
 export function mapBox(bounds, { width = 248, maxHeight = 200, minHeight = 96 } = {}) {
@@ -72,7 +89,7 @@ export class BoardMap {
     c.clearRect(0, 0, this.canvas.width, this.canvas.height);
     const css = getComputedStyle(this.el), token = name => css.getPropertyValue(name).trim();
     const selectedCount = items.filter(item => item.selected).length;
-    this.stage.setAttribute('aria-label', `Board map: ${items.length} ${items.length === 1 ? 'item' : 'items'}${selectedCount ? `, ${selectedCount} selected` : ''}. Arrow keys move the view, plus and minus zoom; click or drag to move there.`);
+    this.stage.setAttribute('aria-label', `Board map: ${items.length} ${items.length === 1 ? 'item' : 'items'}${selectedCount ? `, ${selectedCount} selected` : ''}. Arrow keys move the view, plus and minus zoom, 0 shows 100%; click or drag to move there.`);
     if (!box) { this.frame.hidden = true; return; }
     const shape = (r, radius) => {
       const x = (r.x - box.x) * box.s, y = (r.y - box.y) * box.s;
@@ -179,11 +196,16 @@ export class BoardMap {
       if (step) this.hooks.panScreen(step[0] * .25, step[1] * .25);
       else if (event.key === '+' || event.key === '=') this.hooks.zoomBy(1.25);
       else if (event.key === '-' || event.key === '_') this.hooks.zoomBy(1 / 1.25);
-      // 0 shows the board at 100%, as on the canvas (UI SDK viewport keys).
-      else if (event.key === '0' && !event.shiftKey) this.hooks.zoomTo?.(1);
+      else if (event.key === '0' && !event.shiftKey) this.hooks.actualSize?.();
       else if (event.key === 'Escape' && !event.repeat && !event.defaultPrevented) this.hooks.close();
       else return;
       event.preventDefault(); event.stopPropagation();
+    });
+    // Escape on the head's buttons closes the map too, and focus goes back to its toggle (as from the stage).
+    this.el.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented || event.isComposing || inPopup(event) || !event.target.closest?.('.board-map-head')) return;
+      event.preventDefault(); event.stopPropagation();
+      this.hooks.close();
     });
   }
 }

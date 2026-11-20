@@ -529,6 +529,119 @@ its trigger. Component: Tooltip. Test: `tests/tooltips-browser.mjs`.
   tooltip, and a tap's `pointerleave` comes before its click). (3) A hand-over within a shared tooltip is a payload
   change, not a new open, so it gets no `data-instant` (it doesn't re-animate either).
 
+### Opened item: the reader as a modal Dialog (`r2/reader`)
+
+Files: `reader-dialog.js` (new: `trapTab`, `tabStops`, `rememberOpener`, `openerToReturnTo`), `canvas.js` (`openReader`,
+`closeReader`, `focusBoardItem`, `handleEscape` and the document Escape handler, `updateReaderNavigation`),
+`board.html` (`#reader-stepper`), `reader.css`. Components: Dialog (behaviour), Pagination.
+
+- **Still the browser's `<dialog>`, behaving as the SDK's modal Dialog.** `showModal()` already gives what `ui-dialog`
+  `modal="true"` gives: the top layer, the rest of the page inert and hidden from assistive technology, `aria-modal`.
+  Swapping the element for `ui-dialog-content` would change every `dialog[open]` check across the app and about 90
+  test selectors in 24 files that the other streams also edit, and upstream 1.4 edits these same lines
+  (`openReader`/`closeReader`/`loadRevision`) for its resource viewer. What the browser leaves out is added:
+  - **Focus on open**: Tinka's canvas (`#reader-stage`), so its keys work at once: the SDK's `initial-focus` set to the
+    canvas, as before.
+  - **Tab wraps** (dialog.md § Modal: trapped). From the last control Tab goes to the first, Shift+Tab from the first to
+    the last; the browser's dialog let Tab leave for the browser's toolbar. A nested modal dialog or a menu inside keeps
+    its own Tab (`OWN_TAB`).
+  - **Escape, one layer at a time.** An open SDK popup inside the reader (menu, popover, tooltip, nested dialog, an
+    Inspector with focus inside it) takes its own Escape first (`inPopup` in the document Escape handler); then the
+    reader's ladder peels feedback → path → % menu → Inspector → Navigator → notes, wherever focus is in the reader,
+    and only then closes the reader. Escape during IME composition does nothing (as before).
+  - **Focus goes back where it came from** (popups.md § Focus). Opened from a card on the board, focus returns to the
+    card last viewed (after any `[` / `]` stepping) without moving the board: the canvas's roving card
+    (`graph.focusPlacement`, when the canvas stream's roving group is there) or the card's Open control. Opened from
+    anything else (the Navigator, a link), focus returns to that control while it is still on the page, else to the
+    canvas.
+  - Unchanged: `[` `]`, ⌥←/→ (Ctrl+←/→ elsewhere) and plain ←/→ on Tinka's own chrome step; ⌥↑ / Escape go up; F,
+    ⇧1, ⇧0, + / − zoom; ⌘I toggles the Inspector; keys forwarded from same-origin content.
+- **Stepper: `ui-pagination`** (`#reader-stepper`, labelled "Step through <board>"; role `navigation`, a list inside).
+  `‹` and `›` are its Previous and Next parts; the `n / N` count between them stays our button (it opens the path's
+  neighbours). We set `pageCount` and `page` from the stepping sequence (property writes, no event) and cancel
+  `pagechange`: our own click handlers step. What changes: at either end the step keeps focus and says it is disabled
+  (`aria-disabled`, `data-disabled`) instead of turning natively disabled and dropping focus to the canvas
+  (pagination.md: "Pressing Next onto the last page keeps focus on Next"). The dimmed look keys on `aria-disabled` too.
+- **Notes column: left as it is, with the reason.** `#notes-panel` is a column the reader lays out beside the content
+  (the content narrows), not a panel over it, so it stays an `aside` named by its heading. It already behaves as the
+  SDK's non-modal Dialog would: Notes opens it with focus in the field, Escape inside closes it and focus returns to
+  Notes, Tab moves on and it stays open, the × closes it. Converting it would change nothing she can feel.
+- **Footer:** the zoom pill and its % menu are the controls and menus streams'. Its place in the order is after the
+  content, before the notes column.
+- **Version switcher's place.** `#reader-file-versions` sits between the header and the stage in the DOM, so Tab goes
+  header (navigation, then the actions toolbar) → version switcher → Inspector (when open) → content → zoom pill →
+  notes, matching what the eye reads top to bottom. The switcher's own menu is the menus stream's.
+
+### Inspectors: board, item and opened Tinka as non-modal Dialogs (`r2/reader`)
+
+Files: `side-panel.js` (new: `sidePanel`, `closePanel`), `canvas.js` (`boardInspector`, `readerInspector`,
+`setInfoOpen`, `setReaderInfoOpen`, `renderReaderInfo` keeps the opening focus through its re-render),
+`workspace-board.js` (`itemControls`, `closeContext`; four `closePanel($("board-info"))` calls), `board.html`
+(`#board-info-dialog`, `#reader-info-dialog`). Component: Dialog, non-modal.
+
+- **Why non-modal Dialog.** An Inspector is a working panel beside the board (or the opened Tinka), like the Navigator:
+  the board stays usable around it. Not modal; not a Popover (hangs off its trigger, closes when focus leaves); not a
+  Drawer (a modal sheet with a drag handle). Markup: `<ui-dialog modal="false" close-on-outside-press>` around
+  `<ui-dialog-content inline class="calm-side …">`; `inline` keeps the panel's fixed place and stacking (no top layer).
+  The SDK writes `role="dialog"`; the panel is named by its heading (`aria-labelledby`) or `aria-label`.
+- **Focus on open:** the first control of the panel's body (`[data-initial-focus]`, marked by `sidePanel.open()`), not
+  the header's × (the SDK's first focusable; the SDK's own examples put Close last). The item Inspector starts where
+  its opener asks (Notes, the actions, Appearance), as before. Opened without focus (`focus: false`), nothing moves.
+- **Escape** closes it while focus is inside, and focus goes back to the control that opened it (`final-focus`: the
+  toggle, Details… on the selection bar), or, after ⌘I, to whatever had focus (a card, the canvas). Opened from a
+  menu item that has gone, the item Inspector returns to the card's ⋯, else the card. With focus elsewhere, the
+  board's and the reader's Escape ladders still close an open Inspector in their turn (focus stays put). Escape on an
+  open Inspector's toggle closes it.
+- **Tab** leaves the panel like any part of the page and the panel stays open (popups.md § Focus: "A non-modal dialog
+  stays open"). Order: toggle (in the top bar's toolbar) → panel → the board. This is the SDK's documented non-modal
+  behaviour, so last round's audit note ("Tab walks out into the canvas with the panel still open") is the norm, not
+  a fault.
+- **Outside press** closes it; a press on one of its openers is theirs (they toggle), and presses in what the panel
+  opens (modal dialogs, menus, the feedback panel, the vote ballot) are not a click-away (`keepOpen`). A press into
+  the opened Tinka's content (an iframe) is not seen by the page, as before.
+- **Code that only knows `#board-info`** closes it with `closePanel()`; never write `hidden` on a panel the SDK owns
+  (its state would not follow). Reading `.hidden` is fine. The item Inspector's element is removed a frame after it
+  closes, once the SDK has returned focus; its id goes at once, so a new one never shares it.
+- The panels' inner controls (segmented rows, swatches, toolbars) are the controls stream's.
+
+### Top bars: navigation, then one toolbar of commands (`r2/reader`)
+
+Files: `header-toolbar.js` (new: `headerToolbar`, `setItemDisabled`), `board.html` (`#chrome-actions` and the reader's
+`.chrome-actions` are `ui-toolbar`), `canvas.js` (one call), `workspace-board.js` (Undo/Redo through
+`setItemDisabled`; Undo/Redo inserted beside `tipOuter()` of the Inspector toggle). Component: Toolbar.
+
+- **The split.** The left of each bar is navigation: the Navigator toggle, home, the parent crumb and the board title;
+  in the reader also Up, the path and the stepper. Those are links and places, each its own Tab stop, as other apps'
+  headers keep them and as the SDK's Navigation Menu does ("Tab moves through the triggers and top-level links in
+  order, like any links on a page"). The right of each bar acts on what is shown: on a board Find, Undo, Redo,
+  Inspector, Add ("Board actions"); in the reader Favorite, Notes, Find, Inspector ("Tinka actions"). Those are a
+  `ui-toolbar`: one Tab stop (the item focused last), ←/→ along it with wrap, Home/End to its ends, Enter/Space press,
+  ↓ opens Add's menu. The board's title is a heading, not a field, so nothing in the bar needs a text field's keys.
+- **Wrapping as buttons arrive.** The bar's buttons come from the page, `workspace-board.js` and re-renders, so
+  `headerToolbar()` wraps each in a `ui-toolbar-button` right around the button (inside any tooltip trigger, which must
+  stay outermost), watching only the bar's own children. A button that is not rendered leaves the arrow order.
+- **Disabled stays reachable.** Undo and Redo with nothing to undo are `aria-disabled` and stay in the arrow order
+  (toolbar.md § Disabled: the SDK's default), instead of natively disabled and skipped. Set it with
+  `setItemDisabled(button, on)`; writing `button.disabled` on a toolbar item would take it out of focus entirely.
+- In the reader, ←/→ on the actions toolbar now move along it (`readerTinkaFocus` excludes `ui-toolbar`); `[` / `]`
+  and ⌥←/→ still step from there, and plain ←/→ still step from the stepper and the canvas.
+
+### Board map (`r2/reader`)
+
+Files: `board-map.js` (`mapHeadToolbar`, Escape and `0` keys), `canvas.js` (`actualSize` and announced zoom keys),
+`calm.css` (`.board-map-tools { display: contents }`), `workspace-board.js` (the board's key ladder steps aside for the
+whole map, not only its stage). Component: Toolbar.
+
+- **Head: a `ui-toolbar`** ("Map": Fit selected, Fit board, Close): one Tab stop, arrows along it. Gathered as the module
+  loads, before tooltips wrap the buttons. No keycaps in the head (as decided in round 1).
+- **Stage: left as `role="application"`,** with the reason: it is a 2-D pan-and-zoom surface drawn on one canvas; the SDK
+  ships no element for it, and its Core viewport (`createViewport`) needs a primitive around the board, which the
+  canvas stream has not adopted. `application` tells screen readers to pass the arrows through, which the stage needs.
+  Its keys are the SDK viewport's: arrows pan, + / − zoom, **0 shows 100%** (new), each zoom announced in the board's
+  live region ("Zoom 100%"). Pointer: click jumps, drag pans, wheel zooms, as before.
+- **Escape anywhere in the map** (stage or head) closes it and focus goes to its toggle (the head is new; the stage did
+  this already). A tooltip showing takes the first Escape.
+
 ### Sticker picker (`r2/stickers`)
 
 Files: `emoji-picker.js` (the popup and the picker), `emoji-picker.css`, `emoji-search.js` (matching, skin tones);

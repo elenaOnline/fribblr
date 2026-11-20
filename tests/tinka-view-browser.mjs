@@ -288,7 +288,7 @@ try{
  eq(await name(),titleOf(0),'Five plain ← presses step back five Tinkas without a click');
  await page.locator('#reader-next').click();at++;await settle();
  for(let n=0;n<5;n++){await page.keyboard.press('ArrowRight');at++;await settle();if(at<6){eq(await page.evaluate(()=>document.activeElement?.id),'reader-next',`Focus stays on Next after → #${n+1}`);ok(!(await ring("#reader-next")),`The clicked Next button shows no ring after → #${n+1}: ${await page.evaluate(()=>{const e=document.getElementById("reader-next");return JSON.stringify({attr:e.hasAttribute("data-pointer-focus"),fv:e.matches(":focus-visible"),o:getComputedStyle(e).outlineStyle,b:getComputedStyle(e).boxShadow})})}`);}}
- eq([await name(),await page.evaluate(()=>document.activeElement?.id)],[titleOf(6),'reader-stage'],'After clicking Next, five plain → presses keep stepping; at the end (Next disabled) focus is on Tinka');
+ eq([await name(),await page.evaluate(()=>document.activeElement?.id),await page.locator('#reader-next').getAttribute('aria-disabled')],[titleOf(6),'reader-next','true'],'After clicking Next, five plain → presses keep stepping; at the end Next keeps focus and says it is disabled (UI SDK Pagination)');
  await page.keyboard.press('[');at--;await settle();await page.keyboard.press('[');at--;await settle();await page.keyboard.press(']');at++;await settle();
  eq(await name(),titleOf(5),'[ and ] keep stepping too');
  // A click on the header's background lands on Tinka's canvas, so the plain keys still work.
