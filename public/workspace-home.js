@@ -63,7 +63,7 @@ export function boardInfo(board, { description = "", counts = [], kinds = null, 
     : byEdit ? timeHTML(board.createdAt, { prefix: "created ", verb: "Created" })
     : timeHTML(edited, { prefix: "edited ", verb: "Edited" });
   const line = [...counts, primary].filter(Boolean).join('<span class="board-sep" aria-hidden="true"> · </span>');
-  return `<div class="board-info"><div class="board-title-row"><h3${id("title")} title="${esc(board.title)}">${esc(board.title)}</h3>${fresh ? '<span class="tk-new">New</span>' : ""}</div><p${id("desc")}>${esc(description)}</p>${kinds ? kindsLine(kinds) : ""}<div class="card-bottom"${id("meta")}><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
+  return `<div class="board-info"><div class="board-title-row"><h3${id("title")} data-tip="${esc(board.title)}" data-tip-truncated>${esc(board.title)}</h3>${fresh ? '<span class="tk-new">New</span>' : ""}</div><p${id("desc")}>${esc(description)}</p>${kinds ? kindsLine(kinds) : ""}<div class="card-bottom"${id("meta")}><span class="board-meta">${line}</span><span class="board-edited">${secondary}</span></div></div>`;
 }
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 8.5 2.6 2.6L12.2 5.4"/></svg>';
 const CLOSE = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>';

@@ -16,13 +16,15 @@ function sync() {
   const mode = read('mode'), ground = read('ground'), dark = document.documentElement.dataset.appearance === 'dark';
   document.querySelectorAll('[data-appearance-seg]').forEach(seg => setSegmented(seg, mode));
   document.querySelectorAll('[data-ground-seg]').forEach(seg => { setSegmented(seg, ground); seg.disabled = dark; });
-  document.querySelectorAll('.appearance-ground').forEach(row => { row.title = dark ? 'Dark mode has one background' : ''; });
+  // The hint (shared tooltip, tips.js) explains the disabled row only in dark mode; an empty hint shows nothing. The row is a
+  // tooltip zone, so it is served by the delegate rather than wrapped (a wrapper would bind the first key inside it).
+  document.querySelectorAll('.appearance-ground').forEach(row => { row.dataset.tip = dark ? 'Dark mode has one background' : ''; });
   // Home's Appearance menu: two radio groups follow the same choice. The Background items are disabled (still focusable,
   // as disabled menu items are) while the page is dark.
   document.querySelectorAll('ui-menu-radio-group[name="appearance-mode"]').forEach(group => { if (group.value !== mode) group.value = mode; });
   document.querySelectorAll('ui-menu-radio-group[name="appearance-ground"]').forEach(group => {
     if (group.value !== ground) group.value = ground;
-    group.title = dark ? 'Dark mode has one background' : '';
+    group.dataset.tip = dark ? 'Dark mode has one background' : '';
     group.querySelectorAll('ui-menu-radio-item').forEach(item => item.toggleAttribute('disabled', dark));
   });
 }
@@ -38,7 +40,7 @@ addEventListener('storage', event => { if (event.key === KEY.ground) sync(); });
 const segment = (label, list, attr, value) => segmentedHTML({ label, attrs: { [attr]: '' }, value, items: list.map(([id, name]) => ({ value: id, label: name, attrs: { [attr.replace('-seg', '-set')]: id } })) });
 const rows = () => `<div class="appearance-rows">`
   + `<div class="appearance-choice"><div class="appearance-choice-label" aria-hidden="true">Mode</div>${segment('Appearance mode', MODES, 'data-appearance-seg', read('mode'))}</div>`
-  + `<div class="appearance-choice appearance-ground"><div class="appearance-choice-label" aria-hidden="true">Background</div>${segment('Background', GROUNDS, 'data-ground-seg', read('ground'))}</div>`
+  + `<div class="appearance-choice appearance-ground" data-tip-zone data-tip=""><div class="appearance-choice-label" aria-hidden="true">Background</div>${segment('Background', GROUNDS, 'data-ground-seg', read('ground'))}</div>`
   + `</div>`;
 const ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path class="appearance-icon-fill" d="M10 3.5a6.5 6.5 0 0 1 0 13z"/></svg>';
 let menus = 0;

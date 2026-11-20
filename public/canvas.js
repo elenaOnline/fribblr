@@ -174,7 +174,7 @@ async function loadAppTitle() {
   loadCanvasPattern();
   $('project-label').textContent = 'Home';
   $('reader-project').textContent = 'Home';
-  document.querySelectorAll('.brand').forEach(brand => { brand.setAttribute('aria-label', `${appTitle} home`); brand.title = `${appTitle} · all boards`; });
+  document.querySelectorAll('.brand').forEach(brand => { brand.setAttribute('aria-label', `${appTitle} home`); setTip(brand, `${appTitle} · all boards`); });
   if (board) updateMetadata();
 }
 
@@ -188,7 +188,7 @@ function updateMetadata() {
   $('board-title').textContent = title;
   $('board-number').textContent = boardNumber;
   $('board-number').hidden = !boardNumber;
-  $('board-title').title = title;
+  setTip($('board-title'), title);
   if (active) renderReaderChrome();
   $('board-description').textContent = board.description || 'Working experiments and the questions they invite.';
   $('experiment-count').textContent = `${all.length} ${all.length === 1 ? 'experiment' : 'experiments'}`;
@@ -202,7 +202,7 @@ function buildCanvas() {
     const previewSource=previewHref(concept,null,concept.tone==='night'?'night':'paper');
     const retained=retainedLegacy.get(concept.key);
     const preview=retained?.dataset.previewSource===previewSource?retained.src:previewSource;
-    return `<article class="concept-card" data-key="${esc(concept.key)}" data-placement="${esc(concept.key)}"><header class="card-label"><div class="card-title">${concept.number ? `<span class="card-number">${esc(concept.number)}</span>` : ''}<h3>${esc(concept.name)}</h3><span class="build-badge"></span></div><div class="card-actions"><button class="shortlist" type="button" data-star="${esc(concept.key)}" aria-label="Favorite ${esc(concept.name)}" aria-pressed="false">☆</button><button type="button" data-tile-notes="${esc(concept.key)}" aria-label="Notes on ${esc(concept.name)}" title="Notes">${noteGlyph}<span class="tile-note-dot" hidden></span></button><button type="button" data-legacy-menu="${esc(concept.key)}" aria-label="Actions for ${esc(concept.name)}" aria-haspopup="menu" aria-expanded="false">${moreGlyph}</button></div></header><div class="preview"><iframe src="${esc(preview)}" data-preview-source="${esc(previewSource)}" title="${esc(concept.name)} preview" tabindex="-1" loading="eager" inert></iframe><button class="preview-launch" type="button" data-open="${esc(concept.key)}" aria-label="Explore ${esc(concept.name)}"><span>Open ${esc(concept.name)} ↗</span></button></div></article>`;
+    return `<article class="concept-card" data-key="${esc(concept.key)}" data-placement="${esc(concept.key)}"><header class="card-label"><div class="card-title">${concept.number ? `<span class="card-number">${esc(concept.number)}</span>` : ''}<h3>${esc(concept.name)}</h3><span class="build-badge"></span></div><div class="card-actions"><button class="shortlist" type="button" data-star="${esc(concept.key)}" aria-label="Favorite ${esc(concept.name)}" aria-pressed="false">☆</button><button type="button" data-tile-notes="${esc(concept.key)}" aria-label="Notes on ${esc(concept.name)}" data-tip="Notes">${noteGlyph}<span class="tile-note-dot" hidden></span></button><button type="button" data-legacy-menu="${esc(concept.key)}" aria-label="Actions for ${esc(concept.name)}" aria-haspopup="menu" aria-expanded="false">${moreGlyph}</button></div></header><div class="preview"><iframe src="${esc(preview)}" data-preview-source="${esc(previewSource)}" title="${esc(concept.name)} preview" tabindex="-1" loading="eager" inert></iframe><button class="preview-launch" type="button" data-open="${esc(concept.key)}" aria-label="Explore ${esc(concept.name)}"><span>Open ${esc(concept.name)} ↗</span></button></div></article>`;
   }).join('');
   const freshLegacy=document.createElement("template");
   freshLegacy.innerHTML = rounds.map(round => `<section class="round" data-round="${esc(round.id)}" aria-labelledby="round-heading-${esc(round.id)}"><header class="round-header"><span class="round-label">ROUND ${esc(round.number || '')} · ${esc(round.date || '')}</span><h2 id="round-heading-${esc(round.id)}">${esc(round.title || 'Exploration')}</h2><p>${esc(round.description || '')}</p></header><div class="concepts">${cards(round)}</div></section>`).join('') + '<section class="future-row"><span>CONTINUE EXPLORING</span><h2>Room for what comes next.</h2><p>New explorations can join this board without replacing earlier work.</p></section>';
@@ -274,7 +274,7 @@ function applyView() {
   const percent = Math.round(zoom * 100);
   slider.value = String(sliderFromZoom(zoom));
   slider.setAttribute('aria-valuetext', `${percent} percent`);
-  slider.title = `Zoom ${percent}%`;
+  setTip(slider, `Zoom ${percent}%`);
   syncViewChrome();
 }
 
@@ -674,6 +674,15 @@ const readerInspector = sidePanel($('reader-info-dialog'), {
 });
 const readerKeysMac = isMacPlatform();
 const MOD = stepModifierLabel(readerKeysMac);
+// The reader's step keys, declared per platform (⌥ on a Mac, Ctrl elsewhere) so the tooltips print this platform's.
+{
+  const step = readerKeysMac ? 'Alt' : 'Control';
+  $('close-reader').setAttribute('aria-keyshortcuts', `Escape ${step}+ArrowUp`);
+  $('reader-previous').setAttribute('aria-keyshortcuts', `${step}+ArrowLeft [ K`);
+  $('reader-next').setAttribute('aria-keyshortcuts', `${step}+ArrowRight ] J`);
+  // Labelled keys print a keycap for aria-keyshortcuts (keycaps.js); Down names its key in the tooltip only.
+  $('reader-down').dataset.tipKeys = `${step}+ArrowDown`;
+}
 const readerCanvas = new ReaderCanvas(readerStage, $('reader-plane'), $('reader-window'), {
   onChange: syncReaderZoom,
   onBack: shown => { $('reader-view-back').hidden = !shown; },
@@ -727,7 +736,9 @@ function setReaderSize(size) {
     viewer.dataset.size = readerView.size;
   }
   // A chosen Window size can be dragged from its corner, and says so; Fit (1.4's resource surface, no corner) has no hint.
-  if (readerView.size === 'fit') viewer.removeAttribute('title'); else viewer.title = 'Drag the lower-right corner to resize';
+  // The hint is the delegate's (tips.js; the window is a tooltip zone, so its frame is never wrapped): it shows over the
+  // window's own box, not over the page in its frame, as a native title did. An empty hint shows nothing.
+  viewer.dataset.tip = readerView.size === 'fit' ? '' : 'Drag the lower-right corner to resize';
   renderSizeControls();
   // A new window size shows whole again; canvas zoom never reflows it.
   if (dialog.open) readerCanvas.rest();
@@ -744,7 +755,7 @@ function setType(value, send = true) {
   const input = $('reader-type');
   input.value = String(readerView.type);
   input.setAttribute('aria-valuetext', `${readerView.type}%`);
-  input.title = `Type size ${readerView.type}%`;
+  setTip(input, `Type size ${readerView.type}%`);
   if (send) sendPreferences();
 }
 
@@ -790,12 +801,12 @@ function renderFileVersionControls() {
   if (time.textContent !== timeLabel) time.textContent = timeLabel;
   time.hidden = !timeLabel;
   time.dateTime = version?.modifiedAt || '';
-  time.title = modified ? `Modified ${modified.exact}` : '';
+  setTip(time, modified ? `Modified ${modified.exact}` : '');
   for (const [id, choice, end] of [['reader-older-file', previous, 'Oldest version'], ['reader-newer-file', next, 'Newest version']]) {
     const button = $(id);
     button.dataset.revisionChoice = choice?.id || '';
     button.setAttribute('aria-disabled', String(!choice));
-    button.title = choice ? `Show ${choice.name}` : end;
+    setTip(button, choice ? `Show ${choice.name}` : end);
   }
 }
 
@@ -816,7 +827,7 @@ function syncReaderNotes() {
   document.querySelector('.note-dot').hidden = !hasNote;
   $('notes-toggle').setAttribute('aria-label', hasNote ? 'Notes (this experiment has a note)' : 'Notes');
   const starred = Boolean(notes[active.key]?.star);
-  $('reader-star').title = starred ? 'Favorite · remove from favorites' : 'Favorite';
+  setTip($('reader-star'), starred ? 'Favorite · remove from favorites' : 'Favorite');
 }
 
 function renderReaderHeader() {
@@ -829,7 +840,7 @@ function renderReaderHeader() {
   $('reader-name').textContent = name;
   // The opened item carries its kind, as its card on the board does.
   markKind(document.querySelector('.reader-title-row'), active.graphItem || null);
-  $('reader-path').title = `${name}${hint ? ` · ${hint}` : ''} · click for where you are`;
+  setTip($('reader-path'), `${name}${hint ? ` · ${hint}` : ''} · click for where you are`);
   const number = shownNumber(active);
   $('reader-number').textContent = number;
   $('reader-number').hidden = !number;
@@ -887,7 +898,7 @@ function renderReaderChrome() {
   if (!active) return;
   const title = readerBoardTitle();
   $('reader-up-label').textContent = title;
-  $('close-reader').title = `Up to ${title} (Esc · ${MOD}↑)`;
+  setTip($('close-reader'), `Up to ${title}`);
   $('close-reader').setAttribute('aria-label', `Up to board ${title}`);
   $('close-reader').href = `${location.pathname}${location.search}${rounds[currentRound] ? `#round-${rounds[currentRound].id}` : ''}`;
   const child = graph?.childInfo(active.graphItem);
@@ -895,7 +906,7 @@ function renderReaderChrome() {
   down.hidden = !child;
   if (child) {
     $('reader-down-label').textContent = child.count == null ? 'Board' : `Board · ${child.count}`;
-    down.title = `Go down into its board, ${child.title} (${MOD}↓)`;
+    setTip(down, `Go down into its board, ${child.title}`);
     down.setAttribute('aria-label', `Open its board ${child.title}${child.count == null ? '' : `, ${child.count} ${child.count === 1 ? 'item' : 'items'}`}`);
   }
   readerPath.refresh();
@@ -911,14 +922,14 @@ function updateReaderNavigation() {
   $('reader-stepper').setAttribute('aria-label', `Step through ${title}`);
   $('reader-count').textContent = index < 0 ? '' : `${index + 1} / ${sequence.length}`;
   $('reader-count').setAttribute('aria-label', index < 0 ? 'Neighbours' : `${index + 1} of ${sequence.length} on ${title}: show them`);
-  $('reader-count').title = `${sequence.length} on ${title} · show them`;
+  setTip($('reader-count'), `${sequence.length} on ${title} · show them`);
   // The stepper is a UI SDK Pagination: at either end its step says it is disabled and keeps focus.
   const stepper = $('reader-stepper');
   if (index >= 0 && 'page' in stepper) { stepper.pageCount = sequence.length; stepper.page = index + 1; }
   for (const [id, offset, label, arrow, bracket, letter] of [['reader-previous', -1, 'Previous', '←', '[', 'K'], ['reader-next', 1, 'Next', '→', ']', 'J']]) {
     const neighbor = index < 0 ? null : sequence[index + offset];
     const button = $(id);
-    button.title = neighbor ? `${label}: ${neighbor.name} (${MOD}${arrow}, ${bracket} or ${letter})` : `No ${label.toLowerCase()} Tinka`;
+    setTip(button, neighbor ? `${label}: ${neighbor.name}` : `No ${label.toLowerCase()} Tinka`);
     button.setAttribute('aria-label', neighbor ? `${label} Tinka: ${neighbor.name}` : `${label} Tinka`);
   }
   if (dialog.open && (document.activeElement === document.body || document.activeElement?.disabled)) focusTinka();
@@ -1531,7 +1542,7 @@ document.addEventListener('keydown',event=>{
 function applyNotes() {
   $('reader-note').disabled=!graph&&!notesReady;
   $('reader-star').disabled=!graph&&!notesReady;
-  document.querySelectorAll('[data-tile-notes]').forEach(element=>{const has=Boolean(notes[element.dataset.tileNotes]?.note);element.querySelector('.tile-note-dot')?.toggleAttribute('hidden',!has);element.title=has?'Notes · has a saved note':'Notes';});
+  document.querySelectorAll('[data-tile-notes]').forEach(element=>{const has=Boolean(notes[element.dataset.tileNotes]?.note);element.querySelector('.tile-note-dot')?.toggleAttribute('hidden',!has);setTip(element,has?'Notes · has a saved note':'Notes');});
   document.querySelectorAll('[data-note]').forEach(element => { const value = notes[element.dataset.note]?.note || ''; if (element.value !== value) element.value = value; });
   document.querySelectorAll('[data-star]').forEach(element => { const starred = Boolean(notes[element.dataset.star]?.star); element.setAttribute('aria-pressed', String(starred)); element.disabled=!graph&&!notesReady; if(!element.querySelector('svg'))element.textContent = starred ? '★' : '☆'; });
   syncReaderNotes();
@@ -1673,7 +1684,7 @@ function applyBoardSnapshotNow(snapshot) {
     const state = labels[entry.state] ? entry.state : 'reserved';
     card.dataset.buildState = state;
     card.dataset.liveRevision = entry.revision;
-    const badge = card.querySelector('.build-badge'); badge.textContent = labels[state]; badge.title = entry.message || labels[state];
+    const badge = card.querySelector('.build-badge'); badge.textContent = labels[state]; setTip(badge, entry.message || labels[state]);
     const overlay = card.querySelector('.build-overlay'); overlay.hidden = !['building', 'reserved'].includes(state);
     overlay.querySelector('strong').textContent = state === 'building' ? 'Taking shape.' : 'A place for a new idea.';
     overlay.querySelector('span').textContent = entry.message || (state === 'building' ? 'This experiment is being built. Its preview will appear when it is ready to review.' : 'This slot is reserved for a future experiment.');

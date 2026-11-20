@@ -7,7 +7,7 @@
 // replyComment, setCommentStatus, editComment, deleteComment; GET /api/feedback).
 import "./vendor/ui-sdk/web/popover.js";
 import {defined} from "./ui-sdk.js";
-import {tips} from "./tips.js";
+import "./tips.js"; // the comment card is a tooltip zone: its hints use the delegate
 import {esc, attachPicker, bindChips, chipElement, chipLabel, composerEmpty, composerValue, renderBody, setComposerValue, decorationLabel, itemLabel, refState} from "./comment-refs.js";
 
 const STATUS = {open:"Open", sent:"Sent to agent", working:"Agent working", addressed:"Addressed · check it", question:"Agent asks you", resolved:"Resolved"};
@@ -127,7 +127,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   const pop = document.createElement("ui-popover");
   pop.setAttribute("modal", "false"); pop.setAttribute("presentation", isSheet() ? "sheet" : "popover");
   const card = document.createElement("ui-popover-content");
-  card.className = "ct-card"; card.setAttribute("hidden", ""); card.setAttribute("aria-label", threadId ? "Comment thread" : "New comment");
+  card.className = "ct-card"; card.dataset.tipZone = ""; card.setAttribute("hidden", ""); card.setAttribute("aria-label", threadId ? "Comment thread" : "New comment");
   for (const [name, value] of [["side", "right"], ["align", "start"], ["side-offset", "12"], ["align-offset", "-40"], ["collision-padding", "8"], ["initial-focus", "none"]]) card.setAttribute(name, value);
   card.dataset.commentCard = threadId || "new";
   card.classList.toggle("ct-sheet", isSheet());
@@ -235,10 +235,6 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (saved) setComposerValue(composer, board, saved.text, saved.refs);
     picker = attachPicker(composer, board, {onChange:persist});
     composer.addEventListener("input", persist);
-    // Chips in posted messages carry their hint as a native title: move it to the SDK tooltip too (the composer's own
-    // chips sit in editable text, where a wrapper element would get in the way, and keep theirs).
-    for (const chip of card.querySelectorAll(".ct-msg [title]")) { chip.dataset.tip = chip.title; chip.removeAttribute("title"); }
-    tips(card);
     if (had && !card.contains(document.activeElement)) {
       const same = hadKey && [...card.querySelectorAll("[data-act]")].find(el => el.dataset.act === hadKey.act && el.dataset.id === hadKey.id && !el.disabled);
       (same || composer)?.focus({preventScroll:true});

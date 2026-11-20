@@ -1,6 +1,7 @@
 import {escape as esc,toast} from './workspace.js';
 import {pointAnchorAt,resolveCommentPoint} from './feedback-geometry.js';
 import {bindForm,restoreFocus,commitShortcutLabel,commitShortcutCap} from './interaction.js';
+import {setTip} from './tips.js';
 export function voteTotals(votes={}){const result={yes:0,no:0,abstain:0};for(const vote of Object.values(votes||{}))if(Object.hasOwn(result,vote.value))result[vote.value]++;return result;}
 // Vote appears on a tile's hover bar (and in an opened Tinka's Inspector) only once
 // someone has voted on the item; until then it is in Details… and the More menu.
@@ -164,7 +165,7 @@ export class FeedbackController {
     try{await this.client.write('vote',{itemId,actor:{...this.actor},value});await this.refresh();this.ballotMessage='Vote saved';}catch(error){this.ballotMessage=error.message;throw error;}finally{this.voting.delete(itemId);this.renderBallot();this.syncVoteTriggers();this.positionBallot();this.onVotesChanged?.();}
   }
   syncVoteTriggers(){
-    for(const b of document.querySelectorAll('[data-item-vote]')){const itemId=b.dataset.itemVote,item=this.getBoard().items?.[itemId];if(!item)continue;const{mine,totals,pending}=this.voteState(itemId),label=`Vote on ${item.title}${mine?`; your vote: ${mine}`:''}. Yes ${totals.yes}, No ${totals.no}, Abstain ${totals.abstain}`;b.setAttribute('aria-pressed',String(Boolean(mine)));b.setAttribute('aria-label',label);b.title=label;b.dataset.voteValue=mine||'';b.disabled=pending;if(b.classList.contains('workspace-vote-trigger'))b.hidden=!this.showsVote(itemId);const text=b.querySelector('[data-vote-summary]');if(text)text.textContent=mine?capital(mine):'Vote';}
+    for(const b of document.querySelectorAll('[data-item-vote]')){const itemId=b.dataset.itemVote,item=this.getBoard().items?.[itemId];if(!item)continue;const{mine,totals,pending}=this.voteState(itemId),label=`Vote on ${item.title}${mine?`; your vote: ${mine}`:''}. Yes ${totals.yes}, No ${totals.no}, Abstain ${totals.abstain}`;b.setAttribute('aria-pressed',String(Boolean(mine)));b.setAttribute('aria-label',label);setTip(b,label);b.dataset.voteValue=mine||'';b.disabled=pending;if(b.classList.contains('workspace-vote-trigger'))b.hidden=!this.showsVote(itemId);const text=b.querySelector('[data-vote-summary]');if(text)text.textContent=mine?capital(mine):'Vote';}
   }
   async annotationAction(type,itemId,detail,options={}){
     const key=JSON.stringify({type,itemId,...detail});let action=this.annotationActions.get(key);if(action?.pending)return;

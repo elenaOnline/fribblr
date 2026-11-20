@@ -311,7 +311,8 @@ waits for it): `nearestInDirection`, `announce`, `keepFocus`, `moveMessage`, `re
 implemented on top of the board's own pan, drag, resize and marquee engine, not with `createRovingFocus`/`spatialMove`,
 `createMove`, `createResize`, `createReorder` or `createViewport`. Those are context helpers that need a primitive with a
 part around every card (the Collections pattern above); that would put SDK elements on the paths that must stay cheap
-(the tooltips stream measured ~20% more wheel-pan style work from per-card wrappers). Everything here runs on key, focus
+(per-card tooltip wrappers measured about 20% more wheel-pan style work in round 1, and about 25–40% more board render
+time in round 2; § Tooltips). Everything here runs on key, focus
 and press events; nothing runs per card on wheel, pointer pan, drag or marquee, and no observer was added. A later
 overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ move: spatialMove({ rect }) })` (the rect is
 `items()`'s board-unit boxes), `moveKey` with `createMove({ step: 1, group })`, `resizeKey` with `createResize`,
@@ -504,71 +505,90 @@ Files: `comment-thread.js`, `comment-thread.css`, `comment-refs.js` (`attachPick
 - Key handling: the card still stops keydown (except Escape) from reaching the board; board handlers also step aside through
   `role=dialog` and `inPopup`. ⌘↩ still posts/saves.
 
-### Tooltips (`ux/tooltips`)
+### Tooltips (`ux/tooltips`, round 2 on the whole app: `r2/tips`)
 
-Files: `tips.js` (new: the shared tooltip and its helpers), the tooltip rules at the end of `ui-sdk.css`; hints moved
-from `title` to `data-tip` in `board.html`, `home.html`, `canvas.js`, `workspace-board.js`, `whiteboard.js`,
-`comment-pins.js`, `kind-legend.js`, `navigator.js` (its header toggle only), `workspace-home.js`, `home.js`,
-`appearance.js`, `relative-dates.js`, `ui-segmented.js`. Shared: `widgetOwnsKey()` (`ui-sdk.js`) and `inPopup()`
-(`popups.js`) give Escape to an open tooltip; `ui-sdk.css` and `calm.css` let the segmented rules reach an item inside
-its trigger. Component: Tooltip. Test: `tests/tooltips-browser.mjs`.
+Files: `tips.js` (the shared tooltip, its helpers and the delegate), the tooltip rules at the end of `ui-sdk.css`. Every
+native `title` that was a control hint is now `data-tip`, across the board, Home, the reader, the Inspectors, menus,
+pickers, the comment card and `media.html`'s document tools. Component: Tooltip. Test: `tests/tooltips-browser.mjs`.
 
 - **One shared tooltip per page** (tooltip.md § Shared): `<ui-tooltip id="tk-tip">` at the end of `<body>`, made on
-  first use, and a second one, `reader-dialog-tip`, inside the reader (a modal `<dialog>` makes the rest of the page
-  inert, so a tooltip outside it could not be pointed into). A control carries its hint as `data-tip="…"` and sits in a
-  `<ui-tooltip-trigger for="tk-tip">` whose `payload` is the control itself; on `payloadchange` the content reads
-  `data-tip`. So every norm is the SDK's, and the page holds one tooltip, not one per control.
-- **Markup.** Write `data-tip` (no `title`) on the control and call `tips(container)` after rendering it: it wraps each
-  `[data-tip]` in its trigger and sets the payload (idempotent, cheap when nothing changed). A render that reconciles
-  (Home's grid and selection bar, `timeHTML(…, {tip: true})`, `segmentedHTML` items with `tip`) writes the wrapper in its
-  markup with `tipTrigger(html)`, so reconciling keeps it; `tips()` then only sets payloads. Change a hint with
-  `setTip(el, text)` (an open tooltip follows). `data-tip=""` keeps a trigger silent (the Inspector's Background row,
-  which explains itself only in dark mode); `data-tip-truncated` shows the hint only while the element's text is cut
-  off (board title, Home's board titles; tooltip.md § Truncated Text).
-- **Nesting.** The tooltip trigger is the outermost wrapper: `<ui-tooltip-trigger><ui-toolbar-button><ui-menu-trigger>
-  <button>`. The tooltip trigger finds the button inside the others; a menu or toolbar part outside the tooltip
-  trigger would bind the trigger element instead (tested). `tips()` wraps the outermost of a control's own
-  display:contents wrappers. **Anything inserted next to a hinted control goes next to `tipOuter(control)`**, or it lands
-  inside the trigger, which binds the first button or link it holds (the board's parent crumb, the Navigator toggle
-  beside the brand, the edit-tools toggle beside the map toggle, Undo/Redo beside the Inspector toggle).
-- **Shortcuts** come from the control's `aria-keyshortcuts` (only this platform's ones: "Meta+K Control+K" shows ⌘K on
-  a Mac, Ctrl+K elsewhere) and show as `<ui-tooltip-shortcut>` parts, hidden from screen readers (who hear
-  `aria-keyshortcuts`), printed as the app prints keycaps (`capLabel`: "⇧1", "⌘K", "Esc"), several joined with "or".
-  A labelled `tk-btn` with `aria-keyshortcuts` gets a visible keycap (`keycaps.js`), so where the tooltip names a
-  shortcut the button doesn't print, the keys go in `data-tip-keys` (the map head's Fit buttons, Comments, the reader's
-  Down).
-- **Names.** Every trigger of a shared tooltip needs a name of its own, so the tooltip describes it and never labels
-  it; `tip()` adds `aria-label` from the hint when a control has no name. Where the hint only repeats the name
-  ("Zoom in"), its words are `aria-hidden` inside the content, so screen readers don't hear it twice. The Edit tools'
-  names lost their " · T" suffix: the key is now `aria-keyshortcuts` and shows in the tooltip.
-- **Escape.** With a tooltip showing, Escape belongs to it (it closes only the tooltip, tooltip.md § Keyboard):
-  `widgetOwnsKey()` and `inPopup()` return true, so the board's Escape ladders (selection, Inspector, reader) take the
-  next press. The kind legend's own Escape waits the same way. A tooltip that opened by hover over the reader also
-  takes the first Escape.
-- **Look.** `.tk-tip`: an ink face like the toast (`data-height="float"` with the rim set to the face, so only the
-  soft cast shows), 12 px text, `--shape-cell` corners, no arrow, a 120 ms fade that `data-instant` skips. Placement is
-  the SDK's (top, flipping and shifting, 8 px from the window's edges).
-- **Boundary: chrome on the SDK, the canvas on native titles.** Everything outside `#world` that had a hint is on the
-  SDK tooltip: the canvas header (brand, UI SDK tag, parent crumb, board title, Find, Undo/Redo, Inspector, Add,
-  Navigator toggle), both zoom pills (−, %, +, Back, map, edit tools, Fit), the selection bar, the whiteboard object and
-  arrow bars, the Edit tools palette, the board map head, the comment bar, the kind legend, the board and item
-  Inspectors (close keys, Undo/Redo, appearance items, paper swatches, dates, the dark-mode Background row), the
-  reader's header and footer, and Home's masthead, selection bar, board titles and dates (the old `tk-date-tip` is
-  gone). **Everything inside `#world` keeps its native `title`**: card controls (select circle, ⋯, title, resize corner,
-  the hover toolbar's Edit, Comments, Vote, Favorite), badges, board-tile dates, drawn-element ports and arrow handles,
-  comment pins, the legacy canvas's cards. Measured headless on `showcase-dense` (84 items, 560 card controls): wrapping
-  the card controls in triggers cost about 12% on a cold board render (46 → 52 ms median) and about 20% on each
-  wheel-pan event's forced style recalculation (13.5 → 16.5 ms), the hottest path. With the chrome converted and the
-  cards left alone, runs stayed within run-to-run noise (`team/ux/tooltips/evidence`; the machine was loaded, so read
-  these as rough). Also left native, each a whole surface: popup contents (the zoom popover's slider; the reader's %
-  menu, not on the SDK: Window sizes, the Light note, Type size; the Home Appearance menu's disabled Background group in
-  dark mode), the Navigator panel (its rows sit in the SDK Tree's `as-child` labels, which a trigger can't wrap), and
-  the reader stage's resize hint. `<iframe title>` is an accessible name, not a hint, and stays everywhere.
-- **SDK notes (0.1.0-beta.10).** (1) The trigger manages `aria-describedby` on its control (an existing one is
-  replaced) and writes `type="button"` even on a link, a heading or a `<time>`. (2) After a tap on one trigger of a
-  shared tooltip, the next mouse hover on another is ignored until the pointer leaves a trigger (the press flag is per
-  tooltip, and a tap's `pointerleave` comes before its click). (3) A hand-over within a shared tooltip is a payload
-  change, not a new open, so it gets no `data-instant` (it doesn't re-animate either).
+  first use, and one per modal `<dialog>` (`reader-dialog-tip`; the rest of the page is inert while it is open). A
+  control carries its hint as `data-tip="…"`; the content reads `data-tip` from the payload (the control itself) on
+  `payloadchange`. The page holds one tooltip, not one per control. A control reaches it in one of two ways:
+  - **Wrapped** (the chrome: headers, pills, toolbars, the Inspectors' own keys): the control sits in a
+    `<ui-tooltip-trigger for="tk-tip">` whose `payload` is the control, so every norm is the SDK's own. Write `data-tip`
+    and call `tips(container)` after rendering (idempotent), or write the wrapper in reconciled markup with
+    `tipTrigger(html)`.
+  - **Delegated** (a control inside a **tooltip zone**: `[data-tip-zone]` or any `ui-segmented-control`): it carries only
+    `data-tip` and gets no wrapper; `tips()` skips it. One set of listeners on the document opens the shared tooltip for
+    it through the controller, `api.open({anchor, payload})`. Zones: the board's `#world` (cards, drawn-element handles,
+    comment pins, the legacy canvas), segmented controls, the Navigator panel, the comment card, the sticker picker,
+    the document reader's tools, the Inspector's Background row, the reader's window. A `[data-tip]` outside a zone that
+    has no wrapper yet (a control rendered after `tips()` ran, a menu row) is served by the delegate too.
+- **Why the delegate.** A wrapper per card control is an element per control: on `showcase-dense` (84 cards, 560 hinted
+  controls, 3,637 elements under `#viewport`) wrapping them adds 560 elements. Measured headless, interleaved, three
+  rounds each against `ui-sdk` before this stream (`team/ux/r2/tips/perf.mjs`, `summ.py`; style = trace
+  `UpdateLayoutTree` CPU per event), medians of the two loops:
+  | | render warm | render cold | Ctrl-wheel zoom style | drag style | wheel-pan style |
+  |---|---|---|---|---|---|
+  | `ui-sdk` before | 43.9 / 57.9 ms | 61.9 / 77.6 | 19.1 / 25.1 | 2.40 / 3.35 | 0.32 / 0.51 |
+  | delegate (this branch) | 44.6 / 57.5 | 65.3 / 77.6 | 19.6 / 25.3 | 2.52 / 3.21 | 0.43 / 0.45 |
+  | a trigger per card control | 65.5 / 80.4 | 81.4 / 95.8 | 20.8 / 27.4 | 2.73 / 3.44 | 0.34 / 0.55 |
+  The second loop ran on a busier machine (all rows higher). The delegate stays within run-to-run noise of the board
+  without card hints; wrappers cost 40–50% on a re-render, about 25% on a cold one, 6–9% on zoom and drag. Wheel pan no
+  longer restyles the board at all (the non-inherited `--pattern-x/-y`, § Restyle cost), so round 1's 20% wheel figure
+  has moved to render, zoom and drag. Input-to-present latency (2nd rAF) was equal across all four (headless frames
+  quantize it). `main` (Tinka 1.4 + theme, no SDK) was measured beside them for reference: render 41.9 / 53.4 ms, but
+  15.7 / 21.0 ms of style per wheel-pan event (it lacks the pattern fix).
+- **What the delegate reproduces** (tooltip.md § Delay and Grouping, § Keyboard, § Tested Behavior; source:
+  `web/chunks/CpFjFmpa.js`, `BT526ott.js`, 0.1.0-beta.10):
+  - 600 ms of rest before the first opens; while a tooltip is open, or closed less than 400 ms ago (the SDK's group
+    window; the docs say "a moment ago"), the next opens at once. Opening closes the other (the SDK's group does that for
+    controller opens too and marks the instant one `data-instant`), so wrapped and delegated hand over to each other.
+  - Leaving the control closes it at once (close-delay 0) unless the pointer is inside the convex hull of the control
+    and the tooltip, 4 px out (the SDK's rule), so the pointer can move into it.
+  - Keyboard focus opens it at once, a click that focuses does not: the SDK's modality rule (the last input was a key,
+    not a lone modifier, or Tab; a window blur mutes it until the next key). Focus leaving closes a tooltip that focus
+    opened.
+  - A press (pointer down, Enter, Space) closes it; after a pointer press it stays closed until the pointer leaves.
+  - Escape closes only the tooltip: a controller open sits in no SDK layer, so the delegate takes the press (capture on
+    `document`, after the board's window handlers have stepped aside via `widgetOwnsKey()`) and stops it, so a menu or
+    dialog around it stays. Window blur and the SDK's other dismissals apply as for any open.
+  - Touch never opens one. Only the control that opened it is described by it (`aria-describedby` is set while open
+    and restored on close).
+  - Where the SDK has no case: a pointer moving with a button held (drag, marquee) opens nothing, as native titles never
+    did; a control that leaves the page while its tooltip shows closes it (the anchor is read on every placement check);
+    an iframe inside a hinted element is the page it shows, so the reader window's hint shows over its own box only; a
+    menu row's hint opens on hover only, as in native menus (arrowing through a menu opens nothing over it).
+- **Shortcuts** come from the control's `aria-keyshortcuts` (only this platform's: "Meta+K Control+K" shows ⌘K on a Mac)
+  and show as `<ui-tooltip-shortcut>` parts, hidden from screen readers, printed as the app prints keycaps (`capLabel`),
+  joined with "or". Hint text never carries keys. A labelled `tk-btn` with `aria-keyshortcuts` prints a visible keycap
+  (`keycaps.js`), so where the tooltip names a key the button doesn't print, the keys go in `data-tip-keys` (the map
+  head's Fit buttons, Comments, the reader's Down). The reader's step keys are declared per platform (⌥ on a Mac, Ctrl
+  elsewhere): Up `Escape Alt+ArrowUp`, Previous `Alt+ArrowLeft [ K`, Next `Alt+ArrowRight ] J`.
+- **Markup rules.** Change a hint with `setTip(el, text)` (an open tooltip follows); inside a zone, writing
+  `el.dataset.tip` is enough. `data-tip=""` keeps a control silent (the Background row, the reader window at Fit).
+  `data-tip-truncated` shows the hint only while the text is cut off, sideways or by a line clamp; its value may name the
+  descendant that truncates (`data-tip-truncated=".navigator-name"`). Anything inserted next to a wrapped control goes
+  next to `tipOuter(control)`, or it lands inside the trigger. A wrapped trigger is the outermost wrapper:
+  `<ui-tooltip-trigger><ui-toolbar-button><ui-menu-trigger><button>`. Menu helpers take `tip` (`menuItem(…, {tip})`).
+- **Names.** Every trigger of a shared tooltip needs a name of its own, so the tooltip describes it and never labels it;
+  `tip()` adds `aria-label` from the hint when a wrapped control has none. Where the hint only repeats the name, its
+  words are `aria-hidden` inside the content.
+- **Look.** `.tk-tip`: an ink face like the toast (`data-height="float"`, the rim set to the face), 12 px text,
+  `--shape-cell` corners, no arrow, a 120 ms fade that `data-instant` skips. Placement is the SDK's (top, flipping and
+  shifting, 8 px from the window's edges). `media.html` links `ui-sdk.css` and loads `tips.js` only for the full reader,
+  so card previews stay light. `tokens.css` still has the old `.tk-date-tip` rule; nothing uses it now (the theme team
+  may drop it).
+- **Left native, with reasons.** `<iframe title>` everywhere (the frame's accessible name, not a hint). `return-mark.js`,
+  the "Back to Tinka" chip Tinka's server adds to a project's own HTML page: it runs in a closed shadow root on a page
+  Tinka didn't build and promises to touch nothing else there, so it doesn't load the SDK.
+- **SDK notes (0.1.0-beta.10).** (1) The trigger manages `aria-describedby` on its control and writes `type="button"`
+  even on a link, a heading or a `<time>`. (2) After a tap on one wrapped trigger of a shared tooltip, the next mouse
+  hover on another is ignored until the pointer leaves a trigger (the press flag is per tooltip, and a tap's
+  `pointerleave` comes before its click). (3) A hand-over within a shared tooltip is a payload change, so it doesn't
+  re-animate. (4) While a controller open shows the tooltip (store `trigger` null), the SDK writes `aria-describedby` on
+  every wrapped trigger of that tooltip; focus is then on the delegated control, so no screen reader hears it.
 
 ### Opened item: the reader as a modal Dialog (`r2/reader`)
 
@@ -809,9 +829,8 @@ pill), `whiteboard.js` (object and arrow bar, format panel), `container-layout.j
   container (canvas.js hears every Pattern, Window, Light and Version copy from one capture listener on `document`; the
   object bar cancels its toggles' own flips with a capture listener, since it redraws what is pressed from the object).
 - Segmented markup: `segmentedHTML()` makes `<ui-segmented-control class="tk-seg …">` so the theme's
-  `.tk-seg > [data-slot=segmented-control-item]` rules apply. An item with a hint sits in its `ui-tooltip-trigger`
-  (`tip:`), which is no longer a direct child of `.tk-seg`; those items still use the copied rule in `ui-sdk.css`
-  (`.tk-seg > ui-tooltip-trigger > …`).
+  `.tk-seg > [data-slot=segmented-control-item]` rules apply. An item's hint (`tip:`) is a `data-tip` on the item itself,
+  served by the delegated tooltip (§ Tooltips), so every item stays a direct child of `.tk-seg`.
 - The selection bar is built once and updated in place (count, Group/Restore labels, which actions show), so a focused
   action keeps focus across selection changes. The canvas tools rail is a `ui-toolbar`: Navigation (Pointer, Pan) and
   Feedback (Comment) are toggle groups, Draw is a `ui-toolbar-group` of buttons. The rail and map toggles are `ui-toggle`

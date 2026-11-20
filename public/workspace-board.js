@@ -355,11 +355,11 @@ export class WorkspaceBoard {
     add.className = "tk-btn tk-primary chrome-add";
     add.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg><span class="chrome-add-label">Add</span>';
     add.setAttribute("aria-label", "Add");
-    add.title = "Add text, shapes, arrows, items and boards";
+    add.dataset.tip = "Add text, shapes, arrows, items and boards";
     const actions = $("chrome-actions");
     const quick = document.createElement("span");
     quick.className = "chrome-history";
-    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
+    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" data-tip="Undo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" data-tip="Redo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
     // Beside the Inspector toggle's outermost wrapper (toolbar part, tooltip trigger), never inside it.
     tipOuter($("board-info-toggle")).before(quick);
     // Add opens the shared Add menu (popups.js): an item of the "Board actions" toolbar whose button is the menu's
@@ -370,6 +370,7 @@ export class WorkspaceBoard {
     addTrigger.append(add);
     addPart.append(addTrigger);
     actions.append(addPart);
+    tips(actions);
     this.addMenuElement();
     this.installEditTools();
     const history = document.createElement("div");
@@ -616,10 +617,10 @@ export class WorkspaceBoard {
     const { previous, next } = nearbyFileVersions(item, version.id);
     const time = modifiedTime(version.modifiedAt);
     const title = `File version ${version.name}${time ? ` · Modified ${time.exact}` : ""}`;
-    const arrow = (direction, candidate, path) => `<button type="button" data-file-version-step="${direction}" aria-label="${direction === "previous" ? "Previous" : "Next"} version" aria-disabled="${!candidate}" title="${candidate ? `Show ${esc(candidate.name)}` : direction === "previous" ? "Oldest version" : "Newest version"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg></button>`;
+    const arrow = (direction, candidate, path) => `<button type="button" data-file-version-step="${direction}" aria-label="${direction === "previous" ? "Previous" : "Next"} version" aria-disabled="${!candidate}" data-tip="${candidate ? `Show ${esc(candidate.name)}` : direction === "previous" ? "Oldest version" : "Newest version"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg></button>`;
     // The name is a menu button listing every version (versionMenu); the arrows step to the neighbours.
-    const choose = previous || next ? `<button type="button" class="workspace-file-version-name" data-file-version-menu="${esc(placementId)}" aria-haspopup="menu" aria-expanded="${this.versionMenuPlacement === placementId}" aria-label="${esc(title)}: choose a version" title="${esc(title)}"><span role="status">${esc(version.name)}</span></button>`
-      : `<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" title="${esc(title)}">${esc(version.name)}</span>`;
+    const choose = previous || next ? `<button type="button" class="workspace-file-version-name" data-file-version-menu="${esc(placementId)}" aria-haspopup="menu" aria-expanded="${this.versionMenuPlacement === placementId}" aria-label="${esc(title)}: choose a version" data-tip="${esc(title)}"><span role="status">${esc(version.name)}</span></button>`
+      : `<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" data-tip="${esc(title)}">${esc(version.name)}</span>`;
     return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${previous || next ? arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5") : ""}${choose}${previous || next ? arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5") : ""}</span>`;
   }
   aliasConcept(key) {
@@ -691,14 +692,14 @@ export class WorkspaceBoard {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parent"}));
         crumb.href = `/boards/${encodeURIComponent(parent.id)}/`;
         crumb.setAttribute("aria-label", "Return to parent board " + parent.title);
-        crumb.title = "Return to " + parent.title +
-          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : "");
+        setTip(crumb, "Return to " + parent.title +
+          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : ""));
       } else if (parents.length > 1) {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parents"}));
         crumb.href = "#parents";
         crumb.setAttribute("role", "button");
         crumb.setAttribute("aria-label", "Choose a parent board");
-        crumb.title = "Choose from " + parents.length + " parent boards";
+        setTip(crumb, "Choose from " + parents.length + " parent boards");
         crumb.onclick = event => {
           event.preventDefault();
           makeDialog("This board appears on", parents.map(p =>
@@ -1462,9 +1463,9 @@ export class WorkspaceBoard {
       const verb = direction === "undo" ? "Undo" : "Redo", label = this.history?.label(direction);
       button.textContent = label ? `${verb} ${label.toLowerCase()}` : verb;
       button.disabled = !!busy || !this.history?.available(direction);
-      button.title = direction === "undo" ? "Undo movement, paste or removal (⌘/Ctrl Z)" : "Redo movement, paste or removal (⌘/Ctrl Shift Z)";
+      setTip(button, direction === "undo" ? "Undo movement, paste or removal" : "Redo movement, paste or removal");
       const quick = $("chrome-" + direction);
-      if (quick) { setItemDisabled(quick, button.disabled); quick.title = `${label ? `${verb} ${label.toLowerCase()}` : verb} (${direction === "undo" ? "⌘Z" : "⇧⌘Z"})`; }
+      if (quick) { setItemDisabled(quick, button.disabled); setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     const hasDrawings = this.mode === "canvas" && (this.activeDecoration || this.decorationSelection.size);
@@ -1579,14 +1580,14 @@ export class WorkspaceBoard {
       const childBoard = boardTile ? this.snapshot.childBoards?.[item.childBoardId] : null;
       const childCount = childBoard ? childBoard.placements.filter(entry => !entry.removedAt && !entry.deletedAt && !entry.archivedAt).length : this.snapshot.boardCovers?.[item.childBoardId]?.count;
       const placeMeta = boardTile ? `<span class="workspace-place-meta">Board${Number.isFinite(childCount) ? ` · ${childCount} ${childCount === 1 ? "item" : "items"}` : ""}${childBoard?.updatedAt ? ` · ${timeHTML(childBoard.updatedAt, { prefix: "edited ", verb: "Edited" })}` : ""}</span>` : "";
-      const badges = `<span class="workspace-badges" aria-hidden="true">${review.star ? '<span class="workspace-badge workspace-badge-star" title="Favorite"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></span>' : ""}${review.note ? '<span class="workspace-badge workspace-badge-note" title="Has notes"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 15h4"/></svg></span>' : ""}${voteState.mine ? `<span class="workspace-badge workspace-badge-vote" title="Your vote">${esc(choice)}</span>` : ""}</span>`;
+      const badges = `<span class="workspace-badges" aria-hidden="true">${review.star ? '<span class="workspace-badge workspace-badge-star" data-tip="Favorite"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></span>' : ""}${review.note ? '<span class="workspace-badge workspace-badge-note" data-tip="Has notes"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 15h4"/></svg></span>' : ""}${voteState.mine ? `<span class="workspace-badge workspace-badge-vote" data-tip="Your vote">${esc(choice)}</span>` : ""}</span>`;
       const tileNumber = String(c.shownNumber ?? "").trim().slice(0, 8);
-      const titleButton = `${tileNumber ? `<span class="workspace-concept-number workspace-caption-number">${esc(tileNumber)}</span>` : ""}<button type="button" class="workspace-panel-title" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" title="${esc(item.title)}">${esc(item.title)}</button>`;
-      const select = `<button type="button" class="workspace-select-dot" data-placement-select="${esc(p.id)}" aria-pressed="${selected}" aria-label="${selected ? "Deselect" : "Select"} ${esc(item.title)}" title="${selected ? "Deselect" : "Select"} (or Shift-click the item)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10.2 3 3 6-6.4"/></svg></button>`;
+      const titleButton = `${tileNumber ? `<span class="workspace-concept-number workspace-caption-number">${esc(tileNumber)}</span>` : ""}<button type="button" class="workspace-panel-title" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" data-tip="${esc(item.title)}" data-tip-truncated>${esc(item.title)}</button>`;
+      const select = `<button type="button" class="workspace-select-dot" data-placement-select="${esc(p.id)}" aria-pressed="${selected}" aria-label="${selected ? "Deselect" : "Select"} ${esc(item.title)}" data-tip="${selected ? "Deselect" : "Select"} (or Shift-click the item)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10.2 3 3 6-6.4"/></svg></button>`;
       const ticker = version && !unavailable && !this.hooks.viewOnly ? this.fileVersionTicker(item, version, p.id) : "";
-      const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${ticker}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize bottom right of ${esc(item.title)}" title="Drag to resize, or focus and use arrow keys" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown">◢</button>` : ""}</footer>`;
-      const more = `<button type="button" class="workspace-tile-more" data-item-controls="${esc(p.id)}" data-controls-focus="menu" aria-label="Actions for ${esc(item.title)}" aria-haspopup="menu" aria-expanded="${this.tileMenuPlacement === p.id}" title="Item actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>${review.note ? '<span class="workspace-note-dot" aria-hidden="true"></span>' : ""}</button>`;
-      const toolbar = `<div class="workspace-tile-toolbar" role="toolbar" aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" title="Edit document (E)">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" title="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" title="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" title="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`;
+      const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${ticker}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize bottom right of ${esc(item.title)}" data-tip="Drag to resize, or focus and use arrow keys" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown">◢</button>` : ""}</footer>`;
+      const more = `<button type="button" class="workspace-tile-more" data-item-controls="${esc(p.id)}" data-controls-focus="menu" aria-label="Actions for ${esc(item.title)}" aria-haspopup="menu" aria-expanded="${this.tileMenuPlacement === p.id}" data-tip="Item actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>${review.note ? '<span class="workspace-note-dot" aria-hidden="true"></span>' : ""}</button>`;
+      const toolbar = `<div class="workspace-tile-toolbar" role="toolbar" aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" data-tip="Edit document" aria-keyshortcuts="E">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" data-tip="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" data-tip="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" data-tip="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`;
       const visual = unavailable
         ? `<div class="workspace-build-placeholder"><strong>${item.build.state === "building" ? "In progress" : "Reserved"}</strong><span>${esc(item.build.message || "The preview will appear when this work is ready for review.")}</span></div>`
         : live ? `<iframe ${excerpt ? 'class="workspace-document-excerpt"' : ""} src="${esc(preview)}" data-preview-source="${esc(previewSource)}" title="${esc(item.title)} ${panel ? "design" : "live"} preview" tabindex="-1" loading="lazy" inert></iframe>`
@@ -1793,7 +1794,7 @@ export class WorkspaceBoard {
       const title = this.snapshot.items[p?.itemId]?.title || "item";
       button.setAttribute("aria-pressed", String(selected));
       button.setAttribute("aria-label", `${selected ? "Deselect" : "Select"} ${title}`);
-      button.title = `${selected ? "Deselect" : "Select"} (or Shift-click the item)`;
+      setTip(button, `${selected ? "Deselect" : "Select"} (or Shift-click the item)`);
     }
     const count = $("workspace-selection").querySelector("strong");
     if (count) count.textContent = `${this.selectedCount()} selected`;
@@ -3760,7 +3761,7 @@ export class WorkspaceBoard {
     const {root, content} = this.arrangeMenuElement();
     const item = ([kind,label,icon]) => menuItem(kind, label, {icon:svg16(icon), disabled:kind.startsWith("distribute") && count < 3, attrs:`data-arrange="${kind}"`});
     content.innerHTML = menuGroup("Align", ARRANGE.slice(0,6).map(item).join("")) + menuGroup("Distribute", ARRANGE.slice(6,8).map(item).join(""))
-      + menuSeparator + menuItem("tidy", "Tidy into grid", {icon:svg16(ARRANGE[8][2]), title:"Tidy the selection into a grid, keeping reading order", attrs:'data-arrange="tidy"'});
+      + menuSeparator + menuItem("tidy", "Tidy into grid", {icon:svg16(ARRANGE[8][2]), tip:"Tidy the selection into a grid, keeping reading order", attrs:'data-arrange="tidy"'});
     this.arrangeAnchor?.setAttribute("aria-expanded", "false");
     this.arrangeAnchor = anchor;
     anchor.setAttribute("aria-haspopup", "menu");

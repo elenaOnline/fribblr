@@ -11,20 +11,15 @@
 
 /* Segmented control (ui-segmented.js): a radio group drawn as the theme's .tk-seg. The theme's own rules
    (tokens.css, depth.css) match `.tk-seg > [data-slot=segmented-control-item]` with [data-checked]; nothing is copied.
-   STOPGAP, to delete when the depth model also lists the form: an item with a tooltip sits in its trigger
-   (`.tk-seg > ui-tooltip-trigger > item`: item appearance, the reader's Window sizes, the S/M/L presets), which the
-   theme's direct-child rules don't reach. Asked of the theme team 2026-11-20. */
+   An item's hint is a data-tip the shared tooltip's delegate serves (tips.js), so items stay direct children. */
 ui-segmented-control { display: inline-flex; }
-.tk-seg > [data-slot=segmented-control-item], .tk-seg > ui-tooltip-trigger > [data-slot=segmented-control-item] { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-.tk-seg > ui-tooltip-trigger > [data-slot=segmented-control-item] { height: 28px; padding: 0 12px; border: 0; border-radius: var(--shape-cell); color: var(--ink-2); font: 400 var(--type-ui)/1 var(--type-sans); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background-color: transparent; }
-.tk-seg > ui-tooltip-trigger > [data-slot=segmented-control-item]:is(:hover, [data-checked]) { color: var(--ink); }
-.tk-seg > ui-tooltip-trigger > [data-slot=segmented-control-item][data-checked] { background-color: var(--surface-paper); box-shadow: inset 0 -1.5px 0 var(--key-side), inset 0 0 0 1px var(--line-seam); }
-.tk-seg > [data-slot=segmented-control-item][data-disabled], .tk-seg > ui-tooltip-trigger > [data-slot=segmented-control-item][data-disabled] { cursor: default; }
+.tk-seg > [data-slot=segmented-control-item] { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+.tk-seg > [data-slot=segmented-control-item][data-disabled] { cursor: default; }
 /* The old items were buttons and also took the button rules of what holds them. In the view pills' menus that was
    canvas.css's `.view-tools button { min-width: 44px }`: the cells shrink to share the menu's width instead of standing
    at their text width (the reader's Window row of four would otherwise run past its 288 px menu and scroll sideways). */
 /* The zoom popovers sit outside their pill now (popups.js), so the rule names them too. */
-:is(.view-tools, .zoom-menu) :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item { min-width: 44px; }
+:is(.view-tools, .zoom-menu) .tk-seg > ui-segmented-control-item { min-width: 44px; }
 
 /* Toolbar and toggle parts that wrap one of our buttons: the button takes part in layout directly (display: contents,
    as the SDK does for triggers). A wrapper hidden with the attribute still hides. */
@@ -49,6 +44,8 @@ ui-tooltip-trigger[hidden] { display: none; }
 }
 .tk-tip:is([data-starting-style], [data-ending-style]) { opacity: 0; }
 .tk-tip[data-instant] { transition: none; }
+/* A delegated tooltip on the board lets presses through to what it covers (tips.js). */
+.tk-tip[data-pass] { pointer-events: none; }
 .tk-tip-keys { margin-left: 8px; white-space: nowrap; opacity: .72; }
 .tk-tip-keys[hidden] { display: none; }
 .tk-tip-key { font: inherit; font-variant-numeric: tabular-nums; letter-spacing: .02em; }

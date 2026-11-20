@@ -161,7 +161,7 @@ html[data-appearance=dark] .text-format-fill-preview { background:var(--preview-
   grid-template-columns:repeat(8,minmax(0,1fr));
   gap:2px 3px;
 }
-.text-format-swatches :is([data-swatch], ui-tooltip-trigger > [data-swatch]),.text-format-swatches .text-format-custom {
+.text-format-swatches [data-swatch],.text-format-swatches .text-format-custom {
   box-sizing:border-box;
   cursor:pointer;
   display:grid;

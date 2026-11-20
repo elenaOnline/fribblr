@@ -15,6 +15,7 @@ import './vendor/ui-sdk/web/popover.js';
 import './vendor/ui-sdk/web/toggle.js';
 import { announce, createLocalStorage, createPreference, createVirtualizer } from './vendor/ui-sdk/web/core.js';
 import { segmentedHTML, onSegmented } from './ui-segmented.js';
+import './tips.js';
 import { EMOJI_STICKER_MIME, emojiSticker, favoriteEmoji } from './emoji-stickers.js';
 import { makeEmojiSearch, skinTones, skinToneNames } from './emoji-search.js';
 
@@ -131,6 +132,7 @@ export function mountEmojiPicker(host, { choose, close }) {
   const toneIndex = () => Math.max(0, skinTones.indexOf(tone.get().value));
   const picker = doc.createElement('div');
   picker.className = 'emoji-picker';
+  picker.dataset.tipZone = ''; // hints on the shared tooltip's delegate (tips.js), no wrapper per key
   picker.innerHTML = `
     <input type="search" class="tk-field emoji-picker-search" placeholder="Search emoji" aria-label="Search emoji"
       role="combobox" aria-autocomplete="list" aria-expanded="true" aria-haspopup="grid" aria-controls="${id}-grid"
@@ -139,7 +141,7 @@ export function mountEmojiPicker(host, { choose, close }) {
     <div class="emoji-picker-view">
       <span class="emoji-picker-title" id="${id}-title">Favorites</span>
       ${segmentedHTML({ label: 'Skin tone', className: 'emoji-picker-tones', value: tone.get().value,
-        items: skinTones.map((value, index) => ({ value, ariaLabel: skinToneNames[index], title: skinToneNames[index],
+        items: skinTones.map((value, index) => ({ value, ariaLabel: skinToneNames[index], tip: skinToneNames[index],
           html: `<span aria-hidden="true">✋${index ? String.fromCodePoint(0x1F3FA + index) : ''}</span>` })) })}
     </div>
     <div class="emoji-picker-results" id="${id}-grid" role="grid" tabindex="0" aria-labelledby="${id}-title" aria-colcount="7" aria-rowcount="0">
@@ -288,7 +290,7 @@ export function mountEmojiPicker(host, { choose, close }) {
     categories.innerHTML = [-1, ...order].map(index => {
       const label = index === -1 ? 'Favorites' : groups[index];
       const aria = label === 'Component' ? 'Emoji components' : label;
-      return `<ui-toggle value="${index}"><button type="button" class="emoji-picker-category" aria-label="${esc(aria)}" title="${esc(aria)}">${categoryIcons[label] || esc(label[0])}</button></ui-toggle>`;
+      return `<ui-toggle value="${index}"><button type="button" class="emoji-picker-category" aria-label="${esc(aria)}" data-tip="${esc(aria)}">${categoryIcons[label] || esc(label[0])}</button></ui-toggle>`;
     }).join('');
     syncCategories();
   }
