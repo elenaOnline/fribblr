@@ -541,7 +541,7 @@ pill), `whiteboard.js` (object and arrow bar, format panel), `container-layout.j
   press does nothing). The object bar opens every `[aria-haspopup]` button this way by clicking it, as Enter would.
 - **Scrub handle** (`preset-scrub.js`): a slider (spinbutton when unbounded) of its own, with the SDK slider's keys: arrow
   step, Shift+arrow and Page Up/Down large step (ten steps), Home/End bounds; it previews on every step or drag tick and
-  commits once when the key comes up, the pointer lifts or focus leaves; Escape puts the preview back. It is not
+  commits once when the key comes up, the pointer lifts or focus leaves (closing the panel completes a step in progress, as before). It is not
   `ui-slider`/`ui-number-input` because it also edits a mixed value by a relative amount and previews on the canvas.
   Alt's small step is not offered: the values are whole pixels.
 - Left as native, on purpose: standalone `aria-pressed` buttons that are not in a toolbar (Favorites, Last 6 weeks,

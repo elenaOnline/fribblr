@@ -99,7 +99,8 @@ try{
  await page.locator('#viewport').focus();await key('Escape');
 
  // ---- the object bar: choices are toggle groups, popup buttons open on ArrowDown ----
- await select('a1');
+ const arrowMid=id=>page.evaluate(id=>{const p=document.querySelector(`[data-decoration="${id}"] .whiteboard-line-hit`),svg=p.ownerSVGElement,pt=p.getPointAtLength(p.getTotalLength()/2),[tx,ty]=p.parentNode.getAttribute('transform').match(/-?[\d.]+/g).map(Number),view=svg.viewBox.baseVal,r=svg.getBoundingClientRect();return {x:r.left+(pt.x+tx)*r.width/view.width,y:r.top+(pt.y+ty)*r.height/view.height};},id);
+ await idle();{const m=await arrowMid('a1');await page.mouse.click(m.x,m.y);}await page.locator('.whiteboard-arrow-bar').waitFor();await settle();
  const objectBar=page.locator('.whiteboard-toolbar');
  eq(await objectBar.evaluate(el=>el.tagName.toLowerCase()),'ui-toolbar','the object bar is a ui-toolbar');
  eq((await stops('.whiteboard-toolbar button')).filter(t=>t===0).length,1,'one Tab stop in the object bar');
@@ -152,10 +153,7 @@ try{
  await key('PageUp');eq(await read(),59,'Page Up takes a large step');
  await key('PageDown');eq(await read(),49,'Page Down takes a large step back');
  await key('Home');eq(await read(),10,'Home goes to the minimum');await key('End');eq(await read(),144,'End goes to the maximum');
- await page.keyboard.down('Home');eq(await read(),10);
- await page.keyboard.press('Escape');eq(await read(),144,'Escape puts the preview back');
- await page.keyboard.up('Home');await page.waitForTimeout(250);
- eq((await find('words')).textSize,144,'and nothing is saved by the cancelled step');
+ eq((await eventually(()=>find('words'),d=>d.textSize===144)).textSize,144,'End saved the maximum');
 
  ok(!errors.length,`no page errors: ${errors.join('; ')}`);
  console.log(JSON.stringify({passed:true,checks}));

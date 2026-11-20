@@ -6,7 +6,7 @@
 //    ui-slider or ui-number-input because it must also edit a mixed value by a relative amount ("Mixed values,
 //    increase by 4 pixels") and preview on the canvas while it moves. It keeps the SDK's change/commit split: every
 //    step or drag tick previews (valuechange), and the value is committed once, when the key comes up, the pointer
-//    lifts or focus leaves (valuecommit). Escape puts the preview back. Alt's small step is not offered: the values are
+//    lifts or focus leaves (valuecommit). Alt's small step is not offered: the values are
 //    whole pixels, and a tenth of a step is not a value they can take.
 // Preserve preset identity even when a custom value matches its number.
 import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from "./ui-segmented.js";
