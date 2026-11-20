@@ -922,7 +922,15 @@ Files: `feedback.js`, `feedback.css`, `comment-pins.js` (Show points events), `o
   re-asserts it (`restoreRoving`, only when something was remembered); focus arriving on a card hands the stop on if a
   narrow card hides its first control (`roveReach`, one card, on focus). Controls hidden by the card's container queries
   or `hidden` are skipped; `aria-disabled` steps (‹ › at either end) stay reachable. `setStop` leaves a toolbar's
-  non-stop controls at `-1`. The reader's version strip is a plain `ui-toolbar` (`board.html`). Perf: below.
+  non-stop controls at `-1`. The reader's version strip is a plain `ui-toolbar` (`board.html`).
+  Measured headless on `showcase-dense` (84 cards, 3,637 elements under `#viewport`), interleaved, three rounds each
+  against `ui-sdk` head c2f55d1 (`team/ux/r2/fixsurf/perf.mjs`, `loop.sh`, `summ.py`; the tips stream's probe), medians:
+  | | render warm | render cold | wheel-pan style | Ctrl-wheel zoom style | drag style | wheel / drag latency |
+  |---|---|---|---|---|---|---|
+  | `ui-sdk` head | 58.0 ms | 78.3 | 0.56 | 24.2 | 3.25 | 45.6 / 29.6 |
+  | this branch | 59.3 | 78.5 | 0.55 | 24.7 | 3.27 | 45.9 / 29.5 |
+  All within run-to-run spread (warm render ranged 55–62 ms on both). Element count is unchanged; the markup adds one
+  attribute per toolbar and `tabindex` on controls that already had it inside every non-stop card.
 - **Navigator Recent and results.** Their links are the Command's options (activedescendant from the field), so they
   carry `tabindex=-1`: the field is the list's one stop (command.md). Tab goes field → scope → trees.
 - **Board Inspector filter row**: a `ui-toolbar` (`.inspector-toggles`) of `ui-toolbar-button`s around the
