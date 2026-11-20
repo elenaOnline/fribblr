@@ -137,7 +137,8 @@ function open(button, event, placementId) {
 - **A menu stays inside the window.** The SDK shifts a popup back into view only as far as it still touches its anchor,
   so an anchor past the window's edge (the ⋯ of a card the board shows half, then Shift+F10) took the menu past the
   edge. `openMenu` passes such an anchor (element or rect) clamped into the window less the content's
-  `collision-padding` (`inWindow`); an anchor already inside, and a point, go as they are.
+  `collision-padding`, along the axis it runs past (`inWindow`). An anchor inside the window goes as it is, even
+  inside a large padding that only keeps the menu clear of a bar (the comment cluster's), and so does a point.
 - One menu element serves every card. Fill its content just before opening.
 - A popover opened from code: `root.api.open({anchor})`.
 
