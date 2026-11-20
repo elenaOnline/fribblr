@@ -78,10 +78,10 @@ export class ProjectNavigator {
     const scopes=Object.entries(SCOPES).filter(([value])=>this.boardId||value==='project');
     const dialog=this.dialog=document.createElement('ui-dialog');
     dialog.id='navigator-dialog'; dialog.setAttribute('modal','false'); dialog.setAttribute('close-on-outside-press','');
-    dialog.innerHTML=`<ui-dialog-content id="project-navigator" class="project-navigator" inline hidden initial-focus="#navigator-query">
+    dialog.innerHTML=`<ui-dialog-content id="project-navigator" class="project-navigator" inline hidden initial-focus="#navigator-query" data-tip-zone>
       <header class="navigator-head"><div class="navigator-heading"><ui-dialog-title id="navigator-title" class="tk-eyebrow">Navigator</ui-dialog-title><p class="navigator-project">${esc(this.config.projectLabel)}</p></div>
-      <button type="button" class="tk-btn tk-sm tk-icon navigator-pin" data-nav-pin aria-pressed="false" aria-label="Keep open" title="Keep open beside the board">${svg(ICON.pin)}</button>
-      <ui-dialog-close><button type="button" class="tk-btn tk-sm tk-icon" data-nav-close aria-label="Close navigator" title="Close">${svg(ICON.x)}</button></ui-dialog-close></header>
+      <button type="button" class="tk-btn tk-sm tk-icon navigator-pin" data-nav-pin aria-pressed="false" aria-label="Keep open" data-tip="Keep open beside the board">${svg(ICON.pin)}</button>
+      <ui-dialog-close><button type="button" class="tk-btn tk-sm tk-icon" data-nav-close aria-label="Close navigator" data-tip="Close navigator" aria-keyshortcuts="Escape">${svg(ICON.x)}</button></ui-dialog-close></header>
       <ui-command class="navigator-command" filter="false"${this.q?` default-query="${esc(this.q)}"`:''}>
       <div class="navigator-find"><label class="navigator-search">${svg(ICON.search)}<ui-command-input><input id="navigator-query" class="tk-field" type="text" maxlength="2000" placeholder="Find a board or item" aria-label="Find a board or item by name or description" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" value="${esc(this.q)}"></ui-command-input><kbd class="tk-kbd" aria-hidden="true">${SHORTCUT}</kbd></label>
       <div class="navigator-scope"${this.boardId?'':' hidden'}><ui-select id="navigator-scope-select" default-value="${this.scope}">
@@ -329,7 +329,7 @@ export class ProjectNavigator {
   recentMarkup(){
     const ids=this.recent.filter(id=>id!==this.boardId&&this.graph.boards.has(id)).slice(0,5);
     if(!ids.length)return '';
-    return `<ui-command-group class="navigator-recent-group"><ui-command-group-label class="tk-eyebrow">Recent</ui-command-group-label><div class="navigator-recent">${ids.map(id=>{const board=this.graph.boards.get(id);return `<ui-command-item value="recent:${esc(id)}" label="${esc(board.title||id)}" as-child><a class="navigator-chip" href="${boardURL(id)}" data-nav-board="${esc(id)}" title="${esc(this.path(id))}"><span class="navigator-chip-window" aria-hidden="true"></span><span>${esc(board.title||id)}</span></a></ui-command-item>`;}).join('')}</div></ui-command-group>`;
+    return `<ui-command-group class="navigator-recent-group"><ui-command-group-label class="tk-eyebrow">Recent</ui-command-group-label><div class="navigator-recent">${ids.map(id=>{const board=this.graph.boards.get(id);return `<ui-command-item value="recent:${esc(id)}" label="${esc(board.title||id)}" as-child><a class="navigator-chip" href="${boardURL(id)}" data-nav-board="${esc(id)}" data-tip="${esc(this.path(id))}"><span class="navigator-chip-window" aria-hidden="true"></span><span>${esc(board.title||id)}</span></a></ui-command-item>`;}).join('')}</div></ui-command-group>`;
   }
   // A section band is the root row of its tree: chevron, icon, label and count; → / ← open and close it.
   sectionLabel(id,label,icon,count,extra=''){
@@ -356,11 +356,11 @@ export class ProjectNavigator {
       if(node.children.length&&this.expanded.has(node.id))expanded.push(value);
       const hint=node.repeated?'Shared reference':shared?'Multiple parents':board.legacy?'Legacy board':'';
       const lead=node.children.length?chevron():`<span class="navigator-branch" aria-hidden="true">${node.repeated?svg(ICON.shared):''}</span>`;
-      return `<ui-tree-item value="${esc(value)}" label="${esc(board.title)}"><ui-tree-item-label as-child><a class="navigator-row" href="${boardURL(node.id,node.parent)}" data-nav-board="${esc(node.id)}" title="${esc(board.title)}">${lead}<span class="navigator-name">${esc(board.title)}</span>${hint?`<small>${hint}</small>`:''}</a></ui-tree-item-label>${node.children.length?`<ui-tree-group>${node.children.map(item).join('')}</ui-tree-group>`:''}</ui-tree-item>`;
+      return `<ui-tree-item value="${esc(value)}" label="${esc(board.title)}"><ui-tree-item-label as-child><a class="navigator-row" href="${boardURL(node.id,node.parent)}" data-nav-board="${esc(node.id)}" data-tip="${esc(board.title)}" data-tip-truncated=".navigator-name">${lead}<span class="navigator-name">${esc(board.title)}</span>${hint?`<small>${hint}</small>`:''}</a></ui-tree-item-label>${node.children.length?`<ui-tree-group>${node.children.map(item).join('')}</ui-tree-group>`:''}</ui-tree-item>`;
     };
     const rows=roots.map(item).join('');
     const current=this.boardId&&this.graph.boards.has(this.boardId)?`b:${this.boardId}`:'';
-    const location=this.boardId?`<p class="navigator-location" title="${esc(this.path(this.boardId))}"><span class="sr-only">You are here: </span><bdi>${esc(this.path(this.boardId))}</bdi></p>`:'';
+    const location=this.boardId?`<p class="navigator-location" data-tip="${esc(this.path(this.boardId))}" data-tip-truncated="bdi"><span class="sr-only">You are here: </span><bdi>${esc(this.path(this.boardId))}</bdi></p>`:'';
     // The location line sits under the band, outside the rows (it is not a tree item), and folds away with the section.
     const tree=`<ui-tree class="navigator-tree navigator-group is-boards" aria-label="Project boards" mode="none" expand-on-press="false"${current?` current="${esc(current)}"`:''} default-expanded="${esc(expanded.join(','))}"><ui-tree-item value="sec:boards" class="navigator-section" label="Boards">${this.sectionLabel('boards','Boards','tree',this.graph.boards.size)}${location}<ui-tree-group>${rows}</ui-tree-group></ui-tree-item></ui-tree>`;
     return `${tree}${truncated?'<p class="navigator-empty">More boards are available. Search by name to find them.</p>':''}${!count?'<p class="navigator-empty">No boards yet.</p>':''}`;
