@@ -31,3 +31,11 @@ export function setSegmented(el, value) {
 export function onSegmented(el, fn) {
   el.addEventListener('valuechange', event => { if (event.detail.value != null) fn(event.detail.value, event); });
 }
+
+// Focus the checked option (the control's Tab stop). The SDK gives its items their role and tabindex a microtask after
+// they are inserted, so a control just rendered is focused after that.
+export function focusSegmented(el, options = { preventScroll: true }) {
+  if (!el) return;
+  const run = () => (el.querySelector('ui-segmented-control-item[aria-checked="true"]:not([disabled])') || el.querySelector('ui-segmented-control-item:not([disabled])'))?.focus(options);
+  if (el.querySelector('ui-segmented-control-item[role]')) run(); else queueMicrotask(run);
+}
