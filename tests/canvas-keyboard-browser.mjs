@@ -277,7 +277,11 @@ try{
  await page.locator('#world [data-decoration="rocket"]').focus();await page.keyboard.press('Space');
  await page.keyboard.press(`${mod}+g`);
  ok(await until(async()=>!(await snapshot()).groups.some(g=>g.decorationIds.includes('rocket'))),'Space on a grouped item, then ⌘/Ctrl-G, ungroups');
- await page.keyboard.press('Escape');await page.waitForTimeout(150);
+ // The server has it before the board has re-read it: wait for the board to settle, as for grouping above, so the
+ // Escape lands on the settled selection (else the next Space toggles a still-selected sticker off).
+ ok(await until(()=>page.evaluate(()=>!document.getElementById('workspace-paste')?.disabled&&!document.getElementById('chrome-undo')?.matches('[disabled],[aria-disabled=true]'))),'The ungroup settles');
+ await page.keyboard.press('Escape');
+ ok(await until(async()=>await drawnSelected()===0),'Escape clears the selection');
 
  // A selected sticker or shape has a keyboard resize corner; a sticker keeps its proportions.
  await page.locator('#world [data-decoration="rocket"]').focus();await page.keyboard.press('Space');
