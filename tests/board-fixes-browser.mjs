@@ -36,8 +36,8 @@ try{
  const text=(id,body,x,y)=>({id,type:'text',x,y,width:220,height:60,text:body,color:'#456139'});
  for(const decoration of [
    text('words','Some words',0,240),
-   {id:'shape',type:'region',shape:'rounded',x:300,y:240,width:200,height:120,text:'A shape',color:'#dbe5d3'},
-   {id:'arrow',type:'line',x:600,y:40,width:240,height:120,color:'#6c8060',text:'',endArrow:true,from:{x:600,y:40},to:{x:840,y:160}},
+   {id:'shape',type:'region',shape:'diamond',x:300,y:240,width:200,height:120,text:'A shape',color:'palette:gold'},
+   {id:'arrow',type:'line',x:600,y:40,width:240,height:120,color:'palette:blue',text:'',endArrow:true,from:{x:600,y:40},to:{x:840,y:160}},
    {id:'rocket',type:'text',text:'🚀',sticker:true,x:600,y:260,width:112,height:112,color:'palette:neutral'},
    text('one','One',0,0),text('two','Two',0,0),
    {id:'box',type:'region',x:0,y:420,width:560,height:420,text:'Box',color:'#dbe5d3',container:{layout:'vertical',children:['one','two',{placementId:c.m}]}},
@@ -174,6 +174,16 @@ try{
      await page.locator(`.whiteboard-toolbar:not([hidden]) [data-whiteboard-action="${action}"]`).focus();await page.keyboard.press('Enter');
      ok(await until(inPanel),`${label} opens with focus inside it`);
      panelStarts[`${id}:${label}`]=await page.evaluate(()=>{const a=document.activeElement;return a.getAttribute('aria-label')||a.textContent.trim();});
+     // 5. One rule for where a panel starts: its first control, a group of choices entered on its chosen option; a
+     // colour palette on its chosen swatch, never on the panel's ×.
+     await page.waitForTimeout(80);
+     eq(await page.evaluate(()=>{
+       const a=document.activeElement;
+       if(a.matches('[data-format-close],[aria-label^="Close"]'))return 'starts on its close button';
+       const group=a.closest('ui-radio-group,ui-toggle-group,ui-segmented-control');
+       const chosen=group?.querySelector('[data-checked],[aria-pressed="true"],[aria-checked="true"]');
+       return chosen&&chosen!==a&&!a.contains(chosen)?`starts on ${a.getAttribute('aria-label')}, not on the chosen ${chosen.getAttribute('aria-label')}`:'ok';
+     }),'ok',`${label} (${id}) starts on its first control, a group on its chosen option`);
      let n=0;while(n++<40&&await inPanel()){await page.keyboard.press('Tab');await page.waitForTimeout(40);}
      eq(await focused(),`drawn:${id}`,`Tab out of the last control of ${label} (${id}) goes back to the object`);
      eq(await page.locator('.whiteboard-menu:not([hidden]),ui-popover-content[data-open]').count(),0,`and ${label} closes`);
@@ -184,6 +194,12 @@ try{
  await page.keyboard.press('Tab');ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-toolbar'))),'Tab from the editor goes to the bar');
  await page.keyboard.press('Tab');ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-editor'))),'Tab past the bar goes back to the editor');
  await page.keyboard.press('Escape');await clear();
+
+ // The starts, by name: the chosen swatch, the pressed arrowhead, the chosen shape.
+ eq(panelStarts['arrow:Stroke color'],'Blue','The stroke palette starts on the chosen swatch');
+ eq(panelStarts['shape:Fill color'],'Gold','The fill palette starts on the chosen swatch');
+ eq(panelStarts['arrow:Line options'],'Arrowhead at end','Line options start on the pressed arrowhead');
+ ok(Object.values(panelStarts).every(name=>!/^Close/.test(name)),`No panel starts on ×: ${JSON.stringify(panelStarts)}`);
 
  assert.deepEqual(errors,[]);checks++;
  console.log(`Board fixes browser checks passed: ${checks} assertions. Evidence: ${evidence}`);

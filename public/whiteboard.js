@@ -681,6 +681,7 @@ export class Whiteboard {
     tips(this.menu);
     const custom=this.menu.querySelector('input[type=color]');
     const palette=this.menu.querySelector('[data-color-swatches]');
+    palette?.setAttribute('data-autofocus','');
     if(palette)bindDrawingPalette(palette,{channel,label:session.label,value:common(d=>d.color),
       choose:value=>this.applyObjectFormat(session,'color',value,{finishAfterClose:true})});
     const caption=this.menu.querySelector('[data-caption-size]');
@@ -760,7 +761,26 @@ export class Whiteboard {
     this.menu.hidden=false;
     this.toolbar.querySelector(`[data-whiteboard-action="${trigger}"]`)?.setAttribute('aria-expanded','true');
     this.renderObjectFormat(session);
-    restoreFocus(this.menu.querySelector('button'));
+    this.focusPanelStart();
+  }
+  // Where a bar panel starts, by the SDK's one rule (popover.md, popups.md § Focus): its first control, unless one is
+  // marked [data-autofocus]; a group of choices is entered on its checked or pressed option (radio.md, toggle.md,
+  // segmented-control.md). A colour panel marks its palette: its × closes the panel and is not where the work starts,
+  // so the palette's checked swatch takes focus. The SDK gives a group's items their tab stops a microtask after they
+  // are inserted, so this waits for that and then takes the first control in Tab order.
+  focusPanelStart() {
+    const panel=this.menu,session=this.appearance;
+    queueMicrotask(()=>{
+      if(this.appearance!==session||panel.hidden||panel.contains(document.activeElement))return;
+      // A size panel's one control is a preset scrub: it is entered on its checked preset, or on its handle when the
+      // size is a custom value (preset-scrub.js focus()).
+      if(session?.mode==='size'&&session.captionControl){session.captionControl.focus();return;}
+      const stops=root=>[...root.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')]
+        .filter(el=>el.tabIndex>=0&&!el.disabled&&!el.closest('[hidden]')&&el.getClientRects().length);
+      const auto=panel.querySelector('[data-autofocus]');
+      const target=(auto&&(auto.querySelector('[data-checked]')||stops(auto)[0]||(auto.tabIndex>=0?auto:null)))||stops(panel)[0];
+      restoreFocus(target||panel.querySelector('button'));
+    });
   }
   applyObjectFormat(session,action,value,{finishAfterClose=false}={}) {
     const boardId=this.host.snapshot.id;

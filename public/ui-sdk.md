@@ -892,6 +892,14 @@ control.
   rule carries it past the bar. From the object, Tab goes on through its own controls (resize corner, ports) and the
   page; Shift+Tab from the bar still goes back along the page (the tools rail). Escape (deselect) takes the bar away.
   Checked in `tests/board-fixes-browser.mjs`.
+- **Where a bar panel starts** (`whiteboard.js` `focusPanelStart`, `text-appearance.js` `focus()`, fix round 2). One rule,
+  the SDK's (popover.md "Opening moves focus to the first focusable element", popups.md § Focus `initial-focus`): the
+  panel's first control, unless one is marked `[data-autofocus]`; a group of choices is entered on its checked or
+  pressed option (radio.md, toggle.md, segmented-control.md). So Typeface starts on the chosen face, Text box on Color
+  applies to (its first control, checked Fill or Border), Ink and Text size on the chosen swatch / preset (a custom size:
+  the scrub handle), Line options on the pressed arrowhead, Shape options on the chosen shape. A colour panel marks its
+  palette `[data-autofocus]`: its × closes the panel and is not where the work starts, so focus starts on the chosen
+  swatch (none chosen: the first).
 - **Ink preview** (1.4 `text-ink-preview.js`): the bar's Ink button carries its displayed-ink description as
   `aria-description` and as its SDK tooltip (`data-tip`), never a native title.
 - **Resource surface** (1.4 `reader-resource-surface.js`, `reader-canvas.js`): no new controls; Window and zoom are the
