@@ -128,7 +128,9 @@ try{
 
  // Escape in the selection bar clears the selection and sends focus back to the board's roving item.
  await page.locator(`.workspace-card[data-placement="${c.a2}"]`).focus();await page.keyboard.press('Space');
- await page.locator('#workspace-selection button:not([hidden])').first().focus();
+ await page.locator('#workspace-selection button:not([hidden])').first().focus();await page.waitForTimeout(100);
+ // A tooltip shown by that focus takes the first Escape (UI SDK: Escape closes only the tooltip).
+ if(await page.locator('ui-tooltip-content[data-open]').count()){await page.keyboard.press('Escape');ok(await until(async()=>!(await page.locator('ui-tooltip-content[data-open]').count())),'The first Escape closes the tooltip');}
  await page.keyboard.press('Escape');
  ok(await until(async()=>(await selected()).length===0),'Escape in the selection bar clears the selection');
  ok(await until(async()=>(await focused())==='card:A2'),`Focus goes back to the item focused last: ${await focused()}`);

@@ -393,9 +393,9 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   holding F or Z through it; its documented keyboard behaviour (Escape cancels and keeps the old selection; Shift adds)
   is already ours. The one thing it adds, announcing the count once the selection is made, is added: the result is said
   on release.
-- **The board map is left as it is**: there is no SDK minimap, and `createViewport` is the board's own viewport model, not
-  a control beside it. The map already owns its keys and focus (the board's handlers skip `.board-map-stage`); it gained
-  the canvas's `0` (100%), its zoom keys now announce the zoom as the canvas's do, and its name says its keys.
+- **The board map** is not a canvas item and keeps no SDK minimap (there is none; `createViewport` is the board's own
+  viewport model). The reader stream made its head a toolbar and its stage follow the SDK viewport keys (`0`, zoom
+  announcements); the board's key handler steps aside for the whole map (`.board-map`).
 - Help text, the canvas's `aria-label` and the Keyboard shortcuts sheet describe all of this.
 
 ### Menus and popovers (`ux/menus`)

@@ -17,7 +17,7 @@ import {mountPresetScrub} from './preset-scrub.js';
 import {announce, decorationLabel, sdkCore} from './board-focus.js';
 import {followVisibility} from './ui-toolbar.js';
 import {tips} from './tips.js';
-import {openOnArrowDown,inPopup} from './popups.js';
+import {openOnArrowDown} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -1477,8 +1477,9 @@ export class Whiteboard {
     return true;
   }
   keydown(e) {
-    // An open menu or popover (this bar's More, Arrange, the board's menus) takes its own keys, Escape included.
-    if(inPopup(e))return;
+    // A key pressed inside an open SDK menu or popover (this bar's More, Arrange, the board's menus) is the popup's,
+    // Escape included. (A showing tooltip's Escape is left to the bar's own ladder here, as the controls stream has it.)
+    if(e.target.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])'))return;
     const task=e.target.closest('[data-deco-task]');
     if(task&&[' ','Enter'].includes(e.key)) {
       if(e.repeat)e.preventDefault();
