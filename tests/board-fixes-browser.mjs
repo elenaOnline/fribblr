@@ -107,6 +107,10 @@ try{
  await page.keyboard.press(`${mod}+i`);
  ok(await until(async()=>(await page.locator('#workspace-item-controls').getAttribute('aria-label'))==='Details of Card B'),'⌘I opens the focused card\'s Details, as its menu advertises');
  eq(await page.locator('#board-info[data-open]').count(),0,'and not the board Inspector');
+ // 8. Every row of the item Inspector keeps the panel's inset: the sections sit in its body, none after it.
+ eq(await page.evaluate(()=>{const panel=document.getElementById('workspace-item-controls'),body=panel.querySelector('.calm-side-body'),left=el=>Math.round(el.getBoundingClientRect().left);
+   const rows=[...panel.querySelectorAll('.inspector-sec,.inspector-paper,.inspector-props dt,.inspector-acts .tk-mi')];
+   return {outside:rows.filter(el=>!body.contains(el)).length,insets:[...new Set(rows.map(left))].length};}),{outside:0,insets:1},'The item Inspector\'s rows (Paper color, Details, actions) share one inset inside its body');
  await page.keyboard.press('Escape');
  ok(await until(async()=>(await focused())==='card:Card B'),`Escape from those Details returns focus to the card: ${await focused()}`);
  {const n=await cardCount();await focusCard(c.b);await page.keyboard.press(`${mod}+d`);
