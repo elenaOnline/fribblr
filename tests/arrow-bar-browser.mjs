@@ -56,7 +56,7 @@ try{
  assert.equal(await page.locator('.whiteboard-menu [data-color-swatches]').count(),0);
  assert.equal(await option('route').count(),0);
  assert.equal(await option('heads','end').getAttribute('aria-pressed'),'true');
- for(const b of await page.locator('.whiteboard-arrow-bar button').all())assert.ok(await b.getAttribute('title'),'every bar control has a tooltip');
+ for(const b of await page.locator('.whiteboard-arrow-bar button').all()){assert.ok(await b.getAttribute('data-tip'),'every bar control has a tooltip');assert.equal(await b.getAttribute('title'),null,'on the UI SDK tooltip, not a native title');}
 
  // Each control saves one field and marks itself current.
  await bar('drawing-color').click();
@@ -78,9 +78,10 @@ try{
  await idle();await page.keyboard.press('Escape');
  await bar('route','elbow').click();assert.equal(await eventually(async()=>(await find('flow')).route,v=>v==='elbow'),'elbow');
  assert.ok(await eventually(async()=>(await stroke('flow').getAttribute('d')).split('L').length>=4,Boolean),'elbow path bends');
- // Tab and Enter choose a primary route and keep it focused.
- await idle();await bar('route','elbow').focus();await page.keyboard.press('Tab');
+ // The bar is one Tab stop: an arrow moves to the next route without choosing it, Enter chooses it and keeps it focused.
+ await idle();await bar('route','elbow').focus();await page.waitForTimeout(300);await page.keyboard.press('ArrowRight');
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'curved');
+ assert.equal((await find('flow')).route,'elbow','moving focus along the bar chooses nothing');
  await page.keyboard.press('Enter');assert.equal(await eventually(async()=>(await find('flow')).route,v=>v==='curved'),'curved');
  assert.match(await eventually(()=>stroke('flow').getAttribute('d'),v=>/C/.test(v)),/C/);
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'curved');

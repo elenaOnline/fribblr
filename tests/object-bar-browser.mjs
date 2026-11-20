@@ -52,7 +52,7 @@ try{
  assert.equal(await page.locator('.whiteboard-port').count(),4);
  await page.screenshot({path:path.join(evidence,'sticky-bar-light.png')});
  await bar('drawing-color').click();
- for(const b of await page.locator('.whiteboard-arrow-bar [role=group]:not([aria-label=Container]) button').all())assert.ok(await b.getAttribute('title'),'every bar control has a tooltip');
+ for(const b of await page.locator('.whiteboard-arrow-bar [role=group]:not([aria-label=Container]) button').all()){assert.ok(await b.getAttribute('data-tip'),'every bar control has a tooltip');assert.equal(await b.getAttribute('title'),null,'on the UI SDK tooltip, not a native title');}
  assert.equal(await swatch('palette:gold').getAttribute('aria-pressed'),'true');
  await page.screenshot({path:path.join(evidence,'sticky-paper-palette-light.png')});
  await swatch('palette:rose').click();assert.equal(await eventually(async()=>(await find('note')).color,v=>v==='palette:rose'),'palette:rose');
