@@ -144,14 +144,17 @@ function bindInspectorColor(host,{label,read,save,options,role,clear,canClear=()
   if(remove)remove.hidden=!canClear();
   const palette=panel.querySelector("[data-color-swatches]");
   tips(panel);
-  let writing=false,painted=read();
+  // The write in flight, if any: a choice made meanwhile is dropped (the palette then shows what was saved), and Remove
+  // color waits for it, so a quick Remove after a choice still clears the colour.
+  let writing=null,painted=read();
+  const write=async run=>{
+    writing=(async()=>{ try { await run(); } catch(error) { showFailure(error); } })();
+    await writing;writing=null;sync(true);
+  };
   const setValue=bindDrawingPalette(palette,{channel:"fill",label,value:painted,toValue:literalFill,previewRole:role,
     choose:async value=>{
       if(writing||value===read())return;
-      writing=true;
-      try { await save(value); }
-      catch(error) { showFailure(error); }
-      finally { writing=false;sync(true); }
+      await write(()=>save(value));
     },
   });
   const sync=(force=false)=>{
@@ -162,11 +165,8 @@ function bindInspectorColor(host,{label,read,save,options,role,clear,canClear=()
     trigger.querySelector(".drawing-color-dot").outerHTML=colorDot(value,role);
   };
   if(remove)remove.onclick=async()=>{
-    if(writing)return;
-    writing=true;
-    try { await clear(); }
-    catch(error) { showFailure(error); }
-    finally { writing=false;sync(true); }
+    while(writing)await writing;
+    if(canClear())await write(clear);
     // The button has gone with the colour: the palette closes and focus goes back to its trigger.
     toggle(false);trigger.focus({preventScroll:true});
   };
