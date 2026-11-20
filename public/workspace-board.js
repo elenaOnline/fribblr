@@ -839,7 +839,8 @@ export class WorkspaceBoard {
   boardCommandBlocked(event) {
     return this.clipboardBlocked() || this.history?.busy ||
       event?.target.closest?.("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]") ||
-      document.activeElement?.closest("[role=textbox]") || widgetOwnsKey(event) || inPopup(event);
+      // A key pressed while a popup is open belongs to it (a click on a palette tool is never blocked by one).
+      document.activeElement?.closest("[role=textbox]") || widgetOwnsKey(event) || (event?.type === "keydown" && inPopup(event));
   }
   installBoardCommands(bar) {
     const guide = document.createElement("button");
@@ -2085,6 +2086,9 @@ export class WorkspaceBoard {
     // wheel, so a moved ⋯ counts too; a scroll notification that moved nothing (revealing the invoker) does not.
     const away = e => {
       if (!ui.root.open || (e.target instanceof Node && ui.content.contains(e.target))) return;
+      // The board revealing the opener as the menu opens (focus moving to it) scrolls too: the menu follows its anchor
+      // then (the SDK re-reads it), so only a scroll after that settles closes it.
+      if (e.type === "scroll" && performance.now() - this.tileMenuOpenedAt < 500) { this.tileMenuOrigin = this.tileMenuAnchor?.getBoundingClientRect() || this.tileMenuOrigin; return; }
       if (e.type === "scroll") { const now = this.tileMenuAnchor?.isConnected ? this.tileMenuAnchor.getBoundingClientRect() : null, was = this.tileMenuOrigin; if (now && was && Math.abs(now.x - was.x) <= .5 && Math.abs(now.y - was.y) <= .5) return; }
       // A close asked for in the menu's first frame can be refused while it is still opening: ask again next frame.
       if (!ui.root.api.close({reason:"imperative"})) requestAnimationFrame(() => { if (ui.root.open) ui.root.api.close({reason:"imperative"}); });
@@ -2124,6 +2128,7 @@ export class WorkspaceBoard {
     control?.setAttribute("aria-expanded", "true");
     this.tileMenuAnchor = anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
     this.tileMenuOrigin = this.tileMenuAnchor?.getBoundingClientRect() || null;
+    this.tileMenuOpenedAt = performance.now();
     // Focus goes back to what opened the menu: the ⋯ when it was opened from the ⋯, else the card (a right-click or
     // Shift+F10 on the card), where the arrows keep moving between cards.
     const fromMore = !!anchor?.matches?.('[data-controls-focus="menu"]') && !point && (!event || !!event.target?.closest?.('[data-controls-focus="menu"]'));

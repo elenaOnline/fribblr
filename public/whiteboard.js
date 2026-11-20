@@ -1495,7 +1495,7 @@ export class Whiteboard {
   }
   keydown(e) {
     // An open UI SDK menu or popover owns its keys (typeahead, arrows, Escape peels one layer).
-    if(inPopup(e))return;
+    if(inPopup(e,{tooltips:false}))return;
     const task=e.target.closest('[data-deco-task]');
     if(task&&[' ','Enter'].includes(e.key)) {
       if(e.repeat)e.preventDefault();

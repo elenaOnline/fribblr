@@ -144,9 +144,10 @@ if (typeof document !== 'undefined') document.addEventListener('pointerdown', ev
 // ladders and command keys step aside for it: the popup's own handlers (Escape peels one layer, typeahead, arrows)
 // run after them. widgetOwnsKey() (ui-sdk.js) covers the board command keys; this narrower check is for handlers that
 // must keep their keys in non-popup dialogs such as the Inspector.
-export function inPopup(event) {
-  // Escape with a tooltip showing belongs to the tooltip: it closes only the tooltip (tooltip.md § Keyboard).
-  if (event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
+export function inPopup(event, {tooltips = true} = {}) {
+  // Escape with a tooltip showing belongs to the tooltip: it closes only the tooltip (tooltip.md § Keyboard). A handler
+  // whose Escape already did its job before the SDK's (the drawn-object bar's panels) passes tooltips: false.
+  if (tooltips && event?.key === 'Escape' && typeof document !== 'undefined' && document.querySelector('ui-tooltip-content[data-open]')) return true;
   // (Loads under node for the unit tests, which pass plain objects for events and the document.)
   const target = typeof Element !== 'undefined' && event?.target instanceof Element ? event.target : event?.target?.closest ? event.target : globalThis.document?.activeElement;
   if (target?.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])')) return true;
