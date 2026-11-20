@@ -350,44 +350,80 @@ on wheel, pointer pan, drag or marquee, and no observer was added. A later overh
   viewed when the reader was opened from the board's items (A5's return-to-trigger rule), instead of to the canvas.
 - Help text, the canvas's `aria-label` and the Keyboard shortcuts sheet describe all of this.
 
-### Menus and popovers (`ux/menus`)
+### Menus and popovers (`ux/menus`, round 2 on Tinka 1.3: `r2/menus`)
 
-Shared: `popups.js`, `popups.css` (see § Popups). Components: Menu, Popover.
+Shared: `popups.js`, `popups.css` (see § Popups; `popups.css` is linked last on `board.html` and `home.html`). Components:
+Menu, Popover. Every menu below: typeahead, wrap, Home/End, Escape one layer, focus into it on open and back on close,
+an outside press closes only the menu, placement flips and shifts at the window edge (`collision-padding="8"`), Tab
+closes it and moves on from the opener.
 
-- **Card ⋯ and right-click** (`workspace-board.js` `tileMenu`, `runTileMenu`): one `ui-menu#workspace-tile-menu` at the
-  end of `<body>`. ⋯ opens it under the button (right edges aligned), right-click at the pointer (selecting the card
-  first, as before), Shift+F10 / context-menu key on a focused card under its ⋯; ↓/↑ on a focused ⋯ open at the first /
-  last item. A second right-click re-anchors (on another card it becomes that card's menu). Items keep
-  `data-tile-menu`; Handoff is a link item. Wheel, a scroll that moves the card, or a resize closes it, as before (the
-  SDK says nothing about scrolling). The legacy canvas's `.legacy-tile-menu` (`canvas.js`) is not converted.
-- **Add and the board context menu** (`addMenuItems`, `addMenuElement`, `addMenu`, `runAdd`): `#workspace-add-menu`
-  with the Add button as its trigger; `#board-context-menu`, the same items, opened by a right-click on empty canvas
-  (an object lands at the pointer), by Shift+F10 on the focused canvas (centre), and beside the edit tools' More. Two
-  elements so a right-click never marks Add expanded. Items keep `data-add`.
-- **Arrange** (`arrangeMenu`): `#arrange-menu`, opened from the selection bar or the drawn-object bar. A menu is a
-  vertical list, so the old 6-column icon grid became Align and Distribute groups whose items carry their names
-  (typeahead: "d" finds Distribute). Disabled choices stay focusable.
-- **Zoom** (`board.html` `#zoom-popover`, `canvas.js`): a Popover (it holds a slider and the Pattern segmented
-  control), outside the pill. Focus goes to the first control, ↑/↓ still step through its buttons, Tab walks through and
-  out (closing it), Escape returns to %, an outside press closes it and reaches its target (Popover is non-modal).
-  The reader's % menu (`#reader-zoom-menu`) is not converted.
-- **Comments** (`comment-pins.js` `mountMenus`, `renderMenu`, `openCluster`): `#comment-layer-menu` (trigger: the
-  Comments button) with checkbox items Show comments (⇧C) and Show resolved, which stay open as they toggle, then the
-  threads waiting on you; `#comment-cluster-menu` beside a cluster pin (flips when there is no room). "Nothing right
-  now" is a disabled item.
-- **Reader More…** (`canvas.js` `setReaderMoreOpen`, `readerAct`): `#reader-more` inside the reader dialog, above the
-  button, flipping down when there is no room. Inspector buttons and menu items run through one `readerAct()`.
-- **Reader path** (`reader-path.js`, `board.html` `#reader-path-menu`): a **Menu**, not a Popover or Hover Card: each row
-  is a place to go (a list of actions, like a Finder path menu); a Hover Card needs a link trigger and never opens on
-  touch; a Popover is for fields. Its two triggers are the title and the count. The SDK has no hover-open menu, so the
-  old hover delay is gone: it opens on a press. "… n more" unfolds in place (`close-on-select="false"`).
-- **Whiteboard More** (`whiteboard.js` `mountMenu`, `openMenu`, `runMenu`): `#whiteboard-menu` under the bar's More,
-  anchored to whichever More button the bar currently has. Custom colour is an item that opens the system colour
-  picker (an off-screen `input[type=color]` beside the bar); the rest keep `data-whiteboard-action` for tests but run
-  through the menu's `action` event.
+- **Card ⋯ and right-click** (`workspace-board.js` `tileMenuElement`, `tileMenu`, `runTileMenu`, `menuKey`): one
+  `ui-menu#workspace-tile-menu` at the end of `<body>`. ⋯ opens it under the button (right edges aligned), right-click at
+  the pointer (selecting the card first), Shift+F10 / the context-menu key on a focused card under its ⋯; ↓/↑ on a
+  focused ⋯ open it at the first / last item. A second right-click re-anchors (on another card it becomes that card's
+  menu). Focus returns to the ⋯ when it came from the ⋯, else to the card; Details… from the card's menu returns to the
+  card when the Inspector closes. Items keep `data-tile-menu`; Handoff is a link item. Wheel, a scroll that moves the
+  card, or a resize closes it.
+- **Card menu on legacy boards** (`canvas.js` `legacyMenuElement`, `openLegacyMenu`, `runLegacyMenu`):
+  `#legacy-tile-menu`, the same pattern (content keeps `.workspace-tile-menu.legacy-tile-menu`). Items run through the
+  menu's `action` event, not the board's `data-open` / `data-tile-notes` / `data-remove-experiment` click handlers.
+  `tile-ui.js` lost the hand-rolled `bindTileMenu`.
+- **Add and the board context menu** (`addMenuItems`, `addMenuElement`, `addMenu`, `runAdd`): upstream 1.3's option list
+  in two menus with the same items: `#workspace-add-menu` with Add as its trigger (`ui-menu-trigger for=`), and
+  `#board-context-menu`, opened by a right-click on empty canvas (the object lands at the pointer) or Shift+F10 on the
+  focused canvas (its centre). Two elements so a right-click never marks Add expanded. T, S and D print as keycaps; inside
+  the menu letters are typeahead. Items keep `data-add`, so tests scope them: `#workspace-add-menu [data-add=…]`.
+  `whiteboard.css` hides the drawn-object bar only while an Add menu is open (`.workspace-add-menu[data-open]`): the
+  content is now always in the page.
+- **Arrange** (`arrangeMenuElement`, `arrangeMenu`, `positionArrangeMenu`): `#arrange-menu`, opened from the selection
+  bar's Arrange or the drawn-object bar's (↓ opens it from either toolbar). A vertical menu with Align and Distribute
+  groups whose items carry their names (typeahead: "d" finds Distribute); Distribute is disabled below three objects,
+  still focusable. It opens on the side of its bar away from the selection (upstream 1.3's intent: the objects stay in
+  view) and `positionArrangeMenu` re-reads that side when the view moves. The trigger gets `aria-haspopup="menu"` and
+  `aria-expanded` from `arrangeMenu`, whoever builds the button.
+- **Zoom popovers** (`board.html` `#zoom-popover`, `#reader-zoom-popover`; `canvas.js` `setZoomMenuOpen`,
+  `setReaderMenuOpen`): Popovers (sliders, the Pattern / Window / Light segmented controls, the version list), outside
+  their pill toolbars; the reader's inside the modal reader dialog. Trigger: `ui-popover-trigger for=` around %. ↓ on %
+  opens them (`openOnArrowDown`, a Popover trigger has no ↓). Focus goes to the first control, ↑/↓ still step through the
+  buttons, Tab walks through and out to the next pill control, Escape and a choice return to %, an outside press closes
+  them and reaches its target. A click into the experiment frame closes the reader's; switching windows leaves it open.
+  The pill's 44px rows and slider theme reach them by naming `.board-zoom-popover` / `.reader-zoom-popover` /
+  `.zoom-menu` in the theme's own selectors (`calm.css`, `canvas.css`, `ui-sdk.css`), at the same specificity: no copied
+  rules. Placement matches the old `right: -40px` (`align="end" align-offset="-40"`).
 - **Home Appearance** (`appearance.js`): a menu of two radio groups, Mode and Background; radio items stay open; the
-  Background items are disabled (focusable, inert, titled) while the page is dark. The Inspectors keep their
-  segmented rows.
+  Background items are disabled (focusable, inert, titled) while the page is dark. Light is upstream 1.3's default; an
+  overview capture's forced appearance (`?overview&appearance=…`) is not saved and the menu shows the stored choice.
+  The Inspectors keep their segmented rows (controls stream).
+- **Comments** (`comment-pins.js` `mountMenus`, `renderMenu`, `openCluster`): `#comment-layer-menu` (trigger: the Comments
+  button; ↓ opens it from the pill) with checkbox items Show comments (⇧C) and Show resolved, which stay open as they
+  toggle, then the threads waiting on you; `#comment-cluster-menu` beside a cluster pin, clear of the bottom bar (its
+  `collision-padding` is the bar's height). "Nothing right now" is a disabled item.
+- **Reader path** (`reader-path.js`, `board.html` `#reader-path-menu`): a **Menu** opened on a press (title or count), not on
+  hover. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`).
+- **Drawn-object More** (`whiteboard.js` `mountPopups`, `openMenu`, `runMore`): `#whiteboard-more-menu`, anchored to the bar's
+  current More (the bar re-renders as the selection saves), on the bar's side away from the object. Its actions are
+  upstream's (Fit height to text, Select section contents, Edit container title, Remove from container). Items carry
+  `data-whiteboard-more`, not `data-whiteboard-action`, so the bar's click handler never runs them twice.
+- **Container More options** (`whiteboard.js` `configureContainer`): a **Popover** `#whiteboard-container-popover` (gap and
+  padding scrubbers, columns), centred on the bar away from the container, as upstream placed it. Closing it by any route
+  completes a valid in-progress edit (`container-layout.js`). Content keeps `.whiteboard-menu.whiteboard-container-layout`
+  for the theme. Tab out continues from More options (`content.tabTrigger`). The bar's other panels (colour, text size and
+  ink, drawing options) stay in `whiteboard.js`'s own panel element: those belong to the colour and text-format controls.
+- **Version stacks** (`workspace-board.js` `versionMenuElement`, `versionMenu`; `canvas.js` `#reader-version-menu`): the
+  version name on a stack's tile and in the reader's strip is a menu button listing every version as radio items (name
+  and modified time) that close the menu on choice; ‹ › still step. **Menu, not Select**: a Select's external triggers
+  (`for=`) all expand together, anchor to the first trigger and return focus there (0.1.0-beta.10), so one Select can't
+  serve the per-card triggers the board rebuilds, and a Select per card would put its popup inside the card. A menu radio
+  group is the SDK's other single-choice list. The name keeps a `role="status"` span, so stepping is still announced.
+- **Copy preview** (`copy-preview.js`): the ghosts drawn while ⌥-dragging copies. No SDK component applies. The nearest,
+  Core's `bindDragPreview`, clones one element into the top layer at screen scale, which would re-mount every card's live
+  frame (a second browsing context, which `copy-preview.js` exists to avoid) and lose the board's zoom and the objects'
+  relative places. The ghosts already do what the SDK asks of a drag copy: an `aria-hidden` layer, `inert`, ids and
+  board keys stripped, Escape cancels the drag.
+- **Keys.** Board handlers that run in the capture phase step aside for an open popup (`inPopup`): the board's key handler
+  (`menuKey` also opens the card and board menus from Shift+F10 and ↓/↑ on a ⋯ or a version name, and lets a menu button in
+  a toolbar take ↓), board commands (`boardCommandBlocked`, so `[`/`]`, ⌘D, letters wait), the whiteboard's keys, the
+  panning tool's Escape, the comment layer's Escape, the reader's Escape ladder, ⌘I and reader commands.
 
 ### Comment thread card and the @ picker (`ux/comments`)
 
