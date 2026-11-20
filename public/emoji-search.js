@@ -1,8 +1,13 @@
 import { emojiSticker, favoriteEmoji } from './emoji-stickers.js';
 
-const key = emoji => emoji.replaceAll('\uFE0F', '');
+const key = emoji => emoji.replaceAll('️', '');
 const words = text => text.normalize('NFKD').replace(/\p{Mark}/gu, '').toLowerCase().match(/[a-z0-9]+/g) || [];
 const withTone = /[\u{1F3FB}-\u{1F3FF}]/u;
+const tonesIn = /[\u{1F3FB}-\u{1F3FF}]/gu;
+
+// The skin-tone choice: 0 is the default (yellow) emoji, 1–5 are the Fitzpatrick modifiers U+1F3FB–U+1F3FF.
+export const skinTones = ['default', 'light', 'medium-light', 'medium', 'medium-dark', 'dark'];
+export const skinToneNames = ['Default skin tone', 'Light skin tone', 'Medium-light skin tone', 'Medium skin tone', 'Medium-dark skin tone', 'Dark skin tone'];
 
 const favorites = new Map(favoriteEmoji.map(entry => [key(entry[0]), entry]));
 
@@ -18,16 +23,37 @@ export function makeEmojiSearch(entries, groups) {
   });
   const byEmoji = new Map(choices.map(choice => [key(choice.emoji), choice]));
   const byGroup = groups.map((_, index) => choices.filter(choice => choice.group === index));
+  // Each emoji that takes a skin tone -> its five one-tone variants (every modifier in the sequence the same tone).
+  // Mixed-tone sequences (two people in different tones) stay reachable by searching "skin" or "tone".
+  const toned = new Map();
+  for (const choice of choices) {
+    if (!choice.tone) continue;
+    const found = choice.emoji.match(tonesIn);
+    if (new Set(found).size !== 1) continue;
+    const base = byEmoji.get(key(choice.emoji.replace(tonesIn, '')));
+    if (!base || base === choice) continue;
+    if (!toned.has(base)) toned.set(base, []);
+    toned.get(base)[found[0].codePointAt(0) - 0x1F3FA] = choice;
+  }
+  const inTone = (choice, tone) => (tone && toned.get(choice)?.[tone]) || choice;
 
-  return function find(query, group, includeTones) {
+  // find(query, group, tone) -> { entries: [[emoji, name]…] }. group -1 is Favorites; tone 0–5 (skinTones).
+  return function find(query, group, tone = 0) {
     const pasted = emojiSticker(query);
     if (pasted) {
       const known = byEmoji.get(key(pasted));
-      return { entries: [[pasted, known?.name || 'Pasted emoji']], canShowTones: false };
+      return { entries: [[pasted, known?.name || 'Pasted emoji']] };
     }
     const queryTerms = words(query);
-    if (query.trim() && !queryTerms.length) return { entries: [], canShowTones: false };
-    if (!queryTerms.length && group === -1) return { entries: favoriteEmoji, canShowTones: false };
+    if (query.trim() && !queryTerms.length) return { entries: [] };
+    if (!queryTerms.length && group === -1) {
+      if (!tone) return { entries: favoriteEmoji };
+      return { entries: favoriteEmoji.map(entry => {
+        const choice = byEmoji.get(key(entry[0]));
+        const variant = choice && toned.get(choice)?.[tone];
+        return variant ? [variant.emoji, `${entry[1]}: ${skinToneNames[tone].toLowerCase()}`] : entry;
+      }) };
+    }
 
     let matches = byGroup[group] || [];
     if (queryTerms.length) {
@@ -44,9 +70,10 @@ export function makeEmojiSearch(entries, groups) {
         .sort((a, b) => b.score - a.score)
         .map(({ choice }) => choice);
     }
+    // A query that names a tone ("thumbs up skin tone", "skin") lists every variant; otherwise each emoji shows once,
+    // in the chosen tone.
     const explicitTone = queryTerms.includes('tone') || queryTerms.includes('skin');
-    const canShowTones = !explicitTone && matches.some(choice => choice.tone);
-    const visible = includeTones || explicitTone ? matches : matches.filter(choice => !choice.tone);
-    return { entries: visible.map(({ emoji, name }) => [emoji, name]), canShowTones };
+    const visible = explicitTone ? matches : matches.filter(choice => !choice.tone).map(choice => inTone(choice, tone));
+    return { entries: visible.map(({ emoji, name }) => [emoji, name]) };
   };
 }

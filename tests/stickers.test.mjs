@@ -21,17 +21,27 @@ test('the complete bundled repertoire can be added and has category and global k
   for(const [emoji] of emojiEntries)assert.equal(emojiSticker(emoji),emoji);
   const find=makeEmojiSearch(emojiEntries,emojiGroups);
   const animals=emojiGroups.indexOf('Animals & Nature'),people=emojiGroups.indexOf('People & Body');
-  assert.deepEqual(find('',-1,false).entries,favoriteEmoji);
-  assert.ok(find('',animals,false).entries.some(([emoji])=>emoji==='🫍'));
+  assert.deepEqual(find('',-1,0).entries,favoriteEmoji);
+  assert.ok(find('',animals,0).entries.some(([emoji])=>emoji==='🫍'));
   for(const [query,emoji] of [
     ['release','🚀'],['fire truck','🚒'],['orca','🫍'],['cracking face','🫫'],
     ['flag scotland','\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}'],
     ['Cote d Ivoire','🇨🇮'],['thumbs up medium skin tone','👍🏽'],['head shaking horizontally','🙂‍↔️'],
-  ])assert.equal(find(query,animals,false).entries[0][0],emoji,query);
-  assert.deepEqual(find('👩🏽‍💻',-1,false).entries,[['👩🏽‍💻','Woman technologist: medium skin tone']]);
-  assert.equal(find('',people,false).canShowTones,true);
-  assert.ok(find('',people,true).entries.length > find('',people,false).entries.length);
-  assert.deepEqual(find('noactualemojimatches',-1,false).entries,[]);
+  ])assert.equal(find(query,animals,0).entries[0][0],emoji,query);
+  assert.deepEqual(find('👩🏽‍💻',-1,0).entries,[['👩🏽‍💻','Woman technologist: medium skin tone']]);
+  // Skin tone is one choice (0 = default, 1–5 = light … dark): each emoji that takes a tone shows once, in that tone.
+  const plain=find('',people,0).entries,medium=find('',people,3).entries;
+  assert.equal(medium.length,plain.length);
+  assert.ok(!plain.some(([emoji])=>/[\u{1F3FB}-\u{1F3FF}]/u.test(emoji)),'the default tone shows no toned variants');
+  assert.deepEqual(medium[plain.findIndex(([emoji])=>emoji==='👋')],['👋🏽','Waving hand: medium skin tone']);
+  assert.ok(medium.some(([emoji])=>emoji==='🧑🏽‍🤝‍🧑🏽'),'a sequence of several people takes the tone throughout');
+  assert.ok(medium.some(([emoji])=>emoji==='👣'),'emoji without tones stay as they are');
+  assert.deepEqual(find('',-1,5).entries.find(([emoji])=>emoji.startsWith('👍')),['👍🏿','Thumbs up: dark skin tone'],'favorites take the tone too');
+  assert.equal(find('thumbs',-1,2).entries[0][0],'👍🏼');
+  assert.ok(find('skin',people,0).entries.length>find('',people,0).entries.length,'a query naming the tone lists every variant');
+  // Matching ignores case and accents.
+  for(const query of ['piñata','PIÑATA','pinata','Pinata'])assert.equal(find(query,-1,0).entries[0][0],'🪅',query);
+  assert.deepEqual(find('noactualemojimatches',-1,0).entries,[]);
 });
 
 test('a sticker from the bundled repertoire can use code points newer than the host Unicode runtime',async t=>{

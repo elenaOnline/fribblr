@@ -1,10 +1,15 @@
+/* The emoji sticker picker (emoji-picker.js). A float (ui-popover-content.tk-menu); the field is sunken, the skin-tone
+   choice is the theme's segmented track. Grid geometry is kept in step with CELL_MIN / CELL_GAP / ROW in the script. */
 .workspace-sticker-picker {
   width: min(344px, calc(100vw - 16px));
+  padding: 0;
+  overflow: hidden;
 }
 
 .emoji-picker {
   box-sizing: border-box;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   width: 100%;
   padding: 10px;
@@ -34,34 +39,29 @@
   scrollbar-width: thin;
 }
 
-.emoji-picker-category,
-.emoji-picker-link {
+.emoji-picker-category {
   min-width: 0;
+  min-height: 34px;
   padding: 0;
   border: 0;
   border-radius: var(--shape-cell);
   color: var(--ink-2);
-  font: inherit;
-  cursor: pointer;
-}
-
-.emoji-picker-category {
   background: transparent;
-  min-height: 34px;
+  font: inherit;
   font-size: 15px;
+  cursor: pointer;
 }
 
 .emoji-picker-category:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 
-/* a chosen category is "on": the chosen tint with a blue rim (the links are raised keys; depth.css draws their on) */
-.emoji-picker-category[aria-pressed='true'] {
+/* the chosen category is "on": the chosen tint with a blue rim (ui-toggle writes aria-pressed and data-pressed) */
+.emoji-picker-category[data-pressed] {
   color: var(--ink);
   background: var(--surface-chosen);
   box-shadow: inset 0 0 0 1px var(--mark-blue);
 }
 
-.emoji-picker-category:focus-visible,
-.emoji-picker-link:focus-visible {
+.emoji-picker-category:focus-visible {
   outline: 2px solid var(--mark-blue);
   outline-offset: -2px;
 }
@@ -71,33 +71,55 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 29px;
-  padding: 0 2px;
+  min-height: 34px;
+  padding: 4px 2px 0;
   border-top: 1px solid var(--line-hair);
   font-size: var(--type-meta);
   font-weight: 600;
 }
 
-.emoji-picker-view .emoji-picker-link {
-  min-height: 28px;
-  padding: 0 7px;
-  font-weight: 500;
+.emoji-picker-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.emoji-picker-tones { flex: none; padding: 2px; }
+
+.emoji-picker .emoji-picker-tones > ui-segmented-control-item {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 3px;
+  font: 15px/1 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', emoji, sans-serif;
+}
+
+.emoji-picker .emoji-picker-tones > ui-segmented-control-item:focus-visible {
+  outline: 2px solid var(--mark-blue);
+  outline-offset: -2px;
+}
+
+/* The grid scrolls the whole view; only the rows in view exist, each placed at its offset. */
 .emoji-picker-results {
+  --emoji-cols: 7;
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
-  gap: 2px;
-  max-height: min(248px, 40dvh);
+  height: min(248px, 40dvh);
   padding: 2px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 
-.emoji-picker-results:empty {
-  display: none;
+.emoji-picker-space {
+  position: relative;
+}
+
+.emoji-picker-row {
+  position: absolute;
+  inset: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--emoji-cols), minmax(0, 1fr));
+  gap: 2px;
 }
 
 .emoji-picker-option {
@@ -105,56 +127,46 @@
   place-items: center;
   height: 44px;
   min-width: 0;
-  padding: 0;
-  border: 0;
   border-radius: var(--shape-key);
   color: var(--ink);
-  background: transparent;
   font: 24px/1 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', emoji, sans-serif;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.emoji-picker-option:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+/* One highlight for pointer and keys (as in menus): the chosen tint; a blue ring while the keys drive it. */
+.emoji-picker-option[data-highlighted] { background: var(--surface-chosen); }
 
-.emoji-picker-option:focus-visible {
+.emoji-picker:has(.emoji-picker-search:focus-visible, .emoji-picker-results:focus-visible) .emoji-picker-option[data-highlighted] {
   outline: 2px solid var(--mark-blue);
   outline-offset: -2px;
-  background: var(--surface-chosen);
 }
 
 .emoji-picker-results[aria-disabled="true"] .emoji-picker-option {
   cursor: wait;
 }
 
-.emoji-picker-pages {
-  display: grid;
-  grid-template-columns: 34px 1fr 34px;
-  gap: 6px;
+/* The highlighted sticker's name (or how many there are), and in its place any message. One line, fixed height. */
+.emoji-picker-foot {
+  display: flex;
   align-items: center;
+  min-height: 28px;
+  padding: 0 2px;
   border-top: 1px solid var(--line-hair);
   color: var(--ink-2);
-  text-align: center;
   font-size: var(--type-meta);
   font-variant-numeric: tabular-nums;
 }
 
-.emoji-picker-pages button {
-  min-height: 32px;
-  font-size: 22px;
+.emoji-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.emoji-picker-pages button:disabled {
-  opacity: .35;
-  cursor: default;
-}
+.emoji-picker-status { overflow-wrap: anywhere; }
 
-.emoji-picker-status {
-  padding: 2px;
-  color: var(--ink-2);
-  overflow-wrap: anywhere;
-}
-
-.emoji-picker-status:empty {
-  position: absolute;
-  padding: 0;
-}
+.emoji-picker-status:empty { display: none; }
+.emoji-picker-foot:has(.emoji-picker-status:not(:empty)) .emoji-picker-name { display: none; }
