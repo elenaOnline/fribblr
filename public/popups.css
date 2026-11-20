@@ -57,6 +57,14 @@ ui-menu-content.reader-path-pop { position: revert-layer; animation: none; width
 .reader-path-pop .reader-path-row { cursor: default; user-select: none; }
 .reader-path-pop .reader-path-row:hover:not([data-highlighted], .is-current) { background: transparent; }
 .reader-path-pop .reader-path-row[data-highlighted] { background: var(--surface-chosen); }
+/* Where you are is marked by aria-current, quietly and unlike the highlight: the highlighted row is the only filled one.
+   The current place keeps its medium weight and "here", and gains a short straight mark-blue rule at its leading edge
+   (the colour of the ladder's current dot), clear of the row's corners. Highlighted, it is filled as well. */
+.reader-path-pop .reader-path-row[aria-current="true"] {
+  background-color: transparent; background-image: linear-gradient(var(--mark-blue), var(--mark-blue));
+  background-repeat: no-repeat; background-position: 0 8px; background-size: 2px calc(100% - 16px);
+}
+.reader-path-pop .reader-path-row[aria-current="true"][data-highlighted] { background-color: var(--surface-chosen); }
 /* The comment layer and cluster menus keep their own width limit (workspace.css .comment-menu). */
 ui-menu-content.comment-menu { max-width: min(340px, calc(100vw - 16px)); }
 ui-menu-content.appearance-menu-content { min-width: 200px; }

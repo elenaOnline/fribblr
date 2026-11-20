@@ -459,6 +459,7 @@ export class WorkspaceBoard {
     $("workspace-retry-drafts").hidden = !this.pendingReview.size;
     $("workspace-retry-drafts").onclick = () => this.saveReview([], {});
     window.addEventListener("pagehide", () => this.persistDrafts());
+    if (!this.hooks.viewOnly) this.pressFocus();
     this.whiteboard = new Whiteboard(this);
     this.whiteboard.mount();
     if (!this.hooks.viewOnly) {
@@ -844,6 +845,32 @@ export class WorkspaceBoard {
   clipboardCandidates() {
     return this.renderedPlacements().filter(p => this.selection.has(p.id));
   }
+  // With nothing selected, the board's commands act on the item that has keyboard focus (on it, or on a control inside
+  // it), as its own menu advertises (Details… ⌘I, Duplicate ⌘D, Edit document E, Bring to front ]). With a selection
+  // they act on the selection. Focus is not selection (ui-sdk.md § Board canvas); this only names a target when there
+  // is no selection to act on.
+  focusedTarget() {
+    if (this.mode !== "canvas" || this.selection.size || this.activeDecoration || this.decorationSelection?.size) return null;
+    const el = this.boardFocus.item(document.activeElement);
+    if (!el || document.activeElement.closest("input,textarea,select,[contenteditable],[role=textbox]")) return null;
+    return el.dataset.placement ? {placementId:el.dataset.placement} : {decorationId:el.dataset.decoration};
+  }
+  // The focused item becomes the selection, as the card's menu makes it when it opens, so a command that works on the
+  // selection (Duplicate, Bring to front) acts on it. A grouped item brings its group, as a click does. Focus stays.
+  adoptFocusedTarget() {
+    const ref = this.focusedTarget();
+    if (!ref) return false;
+    const key = this.boardFocus.key(this.boardFocus.item(document.activeElement));
+    this.toggleOccurrence(ref);
+    this.boardFocus.keepOn(key);
+    return true;
+  }
+  // The focused Markdown document card when nothing is selected (E edits it).
+  focusedDocument() {
+    const ref = this.focusedTarget();
+    const p = ref?.placementId && this.snapshot.placements.find(p => p.id === ref.placementId), item = p && this.snapshot.items[p.itemId];
+    return item && this.editableDocument(item) ? {item, placementId:p.id} : null;
+  }
   boardCommandBlocked(event) {
     return this.clipboardBlocked() || this.history?.busy ||
       event?.target.closest?.("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]") ||
@@ -916,11 +943,14 @@ export class WorkspaceBoard {
         const hasDrawings = this.mode === "canvas" && (this.decorationSelection?.size || this.activeDecoration);
         if (event.target.closest?.(editing) || document.activeElement?.closest(editing) ||
             document.activeElement?.tagName === "IFRAME" || document.querySelector(MODAL_OPEN) || widgetOwnsKey(event) ||
-            !this.clipboardCandidates().length && !hasDrawings) return;
+            !this.clipboardCandidates().length && !hasDrawings && !this.focusedTarget()) return;
         // Board-owned Duplicate never falls through to browser Bookmark while
         // a held key or an in-flight action suppresses another duplication.
         event.preventDefault(); event.stopImmediatePropagation();
-        if (!event.repeat && !this.boardCommandBlocked(event)) this.duplicateSelection();
+        if (event.repeat || this.boardCommandBlocked(event)) return;
+        // Nothing selected: the focused item is duplicated, as its menu's Duplicate ⌘D does.
+        if (!this.clipboardCandidates().length && !hasDrawings) this.adoptFocusedTarget();
+        this.duplicateSelection();
         return;
       }
       // F fits when it is released, so it (and Z) can be held through a selection box.
@@ -964,8 +994,8 @@ export class WorkspaceBoard {
       else if (!command && shifted(2) && this.mode === "canvas")
         action = () => this.hooks.fit?.("selection");
       // ] brings the selection to the front and [ sends it to the back.
-      else if (!command && (key === "]" || key === "[") && this.stackSelection())
-        action = () => this.restackSelection(key === "]" ? "front" : "back");
+      else if (!command && (key === "]" || key === "[") && (this.stackSelection() || this.focusedTarget() && this.mode === "canvas" && !this.hooks.viewOnly))
+        action = () => { if (!this.stackSelection()) this.adoptFocusedTarget(); this.restackSelection(key === "]" ? "front" : "back"); };
       // M shows or hides the board map.
       else if (!command && !event.shiftKey && key === "m" && this.mode === "canvas")
         action = () => this.hooks.toggleMap?.();
@@ -976,9 +1006,10 @@ export class WorkspaceBoard {
         action = () => this.setCanvasTool(key === "h" ? "pan" : "pointer");
       else if (!command && key === "?") action = () => this.keyboardShortcuts();
       // E edits the one selected Markdown document.
-      else if (!command && !event.shiftKey && key === "e" && this.selectedDocument()) {
-        const id = this.selectedDocument().id;
-        action = () => this.editDocument(id);
+      else if (!command && !event.shiftKey && key === "e" && (this.selectedDocument() || this.focusedDocument())) {
+        const focused = this.selectedDocument() ? null : this.focusedDocument();
+        const id = focused ? focused.item.id : this.selectedDocument().id;
+        action = () => this.editDocument(id, focused ? {placementId:focused.placementId} : {});
       }
       // C arms the Comment tool; Shift-C shows or hides the comments layer.
       else if (!command && key === "c" && this.mode === "canvas" && this.commentPins)
@@ -1004,8 +1035,8 @@ export class WorkspaceBoard {
     closePanel($("board-info"));
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
-      <dt>⌘/Ctrl-D</dt><dd>Duplicate selection</dd>
-      <dt>] / [</dt><dd>Bring the selection to the front / send it to the back</dd>
+      <dt>⌘/Ctrl-D</dt><dd>Duplicate selection (with nothing selected, the focused item)</dd>
+      <dt>] / [</dt><dd>Bring the selection (or the focused item) to the front / send it to the back</dd>
       <dt>⌘/Ctrl-G</dt><dd>Group the selected Canvas objects, or ungroup the selected group (select with Space, then ⌘/Ctrl-G)</dd>
       <dt>${isMacPlatform() ? "Option" : "Alt"}-drag</dt><dd>Place another copy on this canvas. Cards share their item; drawn elements have their own content.</dd>
       <dt>${isMacPlatform() ? "K · J" : `${MOD}← · ${MOD}→ or K · J`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
@@ -1014,7 +1045,7 @@ export class WorkspaceBoard {
       <dt>Enter</dt><dd>Open the focused Tinka, or the one selected; on a container, go in among its contents</dd>
       <dt>Escape on an item in a container</dt><dd>Back out to the container</dd>
       <dt>⌘/Ctrl-K or /</dt><dd>Find across this project (Navigator)</dd>
-      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka or this board</dd>
+      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka (with nothing selected, the focused one) or this board</dd>
       <dt>Shift-click · ⌘/Ctrl-click</dt><dd>Add a Tinka to the selection</dd>
       <dt>F</dt><dd>Fit the selection, then the whole board (⌥-click Fit always fits the board)</dd>
       <dt>Hold F · Z while drawing a selection box</dt><dd>When you let go: fit what the box selected · zoom to the box itself</dd>
@@ -1025,13 +1056,13 @@ export class WorkspaceBoard {
       <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
-      <dt>E</dt><dd>Edit the selected Markdown document</dd>
-      <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment · Show or hide comments</dd>
+      <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
+      <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment, or press Enter on the focused one · Show or hide comments</dd>
       <dt>N</dt><dd>Quick jot: type a line, Enter adds it as a sticky; Escape closes</dd>
       <dt>?</dt><dd>Show keyboard shortcuts</dd>
       <dt>⌘/Ctrl-C · X · V</dt><dd>Copy · Cut · Paste</dd>
       <dt>Shift-⌘/Ctrl-C</dt><dd>Copy this board's notes as Markdown (text, stickies and linked item titles)</dd>
-      <dt>Delete / Backspace</dt><dd>Remove selection from this board</dd>
+      <dt>Delete / Backspace</dt><dd>Remove selection from this board (only what is selected: Space selects the focused item)</dd>
       <dt>⌘/Ctrl-Z · Shift-⌘/Ctrl-Z</dt><dd>Undo · Redo</dd>
       <dt>${isMacPlatform() ? "⌥" : "Alt+"}Arrow · ${isMacPlatform() ? "⌥⇧" : "Alt+Shift+"}Arrow</dt><dd>Move the focused item, and the selection or group with it, 1 · 10 units; in a container, move it one place · to the first or last place</dd>
       <dt>Escape</dt><dd>Close the newest panel or menu, then cancel a gesture, pending Cut or selection</dd>
@@ -2022,7 +2053,7 @@ export class WorkspaceBoard {
         <div class="inspector-open"><button type="button" class="tk-btn tk-primary" data-context-open ${["reserved","building"].includes(item.build?.state) && !placeOnly ? "disabled" : ""}>${placeOnly ? "Open board" : "Open"}</button>${item.childBoardId && item.content ? `<button type="button" class="tk-btn tk-tonal" data-context-board>Open board</button>` : ""}${resourceURL(item.resources?.find(r=>r.role==="handoff")?.resource)?`<a class="tk-btn" href="${esc(resourceURL(item.resources.find(r=>r.role==="handoff").resource))}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}<button type="button" class="tk-btn tk-tonal" data-context-edit>Edit item…</button></div>
         <section class="inspector-sec"><h3>Notes <span>saved as you type</span></h3><label class="workspace-context-note"><span class="inspector-label">Notes</span><textarea data-note="items/${esc(id)}" aria-label="Notes on ${esc(item.title)}" placeholder="A thought to return to…">${esc(note)}</textarea></label></section>
         <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
-        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, tip: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div></div><div class="inspector-paper">${inspectorColorMarkup("Paper color",paper,"paper")}</div></section>
+        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, tip: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div><div class="inspector-paper">${inspectorColorMarkup("Paper color",paper,"paper")}</div></section>
         <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
         <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
       </div>`;
@@ -3929,6 +3960,15 @@ export class WorkspaceBoard {
       if (["Delete", "Backspace"].includes(e.key)) {
         if (e.repeat || e.shiftKey || this.clipboardBlocked() || this.history?.busy) return;
         const ids = this.clipboardCandidates().map(p => p.id);
+        // Delete removes the selection only, never an item that merely has focus: removing is the one board command
+        // whose slip costs work, and the card's menu prints no Delete key. With nothing selected it says how instead
+        // of doing nothing silently.
+        if (!ids.length && this.focusedTarget() && e.target === this.boardFocus.item(e.target)) {
+          e.preventDefault();
+          const message = `Nothing is selected. Press Space to select ${this.boardFocus.label(e.target)}, then Delete.`;
+          announce(message); toast(message);
+          return;
+        }
         if (!ids.length) return;
         e.preventDefault(); e.stopImmediatePropagation();
         this.removePlacements(ids);
@@ -3941,18 +3981,35 @@ export class WorkspaceBoard {
       const item = this.boardFocus.item(e.target);
       if (item) this.boardFocus.setStop(this.boardFocus.key(item));
     });
-    // A press on a drawn element makes it the focused item, as a press on a card does natively (Whiteboard's pointerdown
-    // prevents that for drawn elements), so Option-arrow and Space act on what was pressed, not on an item focused
-    // earlier. A press on the empty canvas (or a plain region's open middle, which works as empty canvas) takes focus
-    // off the items. One check per press; nothing on pointer moves.
-    document.addEventListener("pointerdown", e => {
-      if (this.mode !== "canvas" || e.button !== 0 || !e.target.closest?.("#viewport")) return;
-      if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],.whiteboard-editor,[data-port],.workspace-card,.board-map")) return;
-      let item = e.target.closest("#world .workspace-decoration[data-decoration]");
-      if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) item = null;
-      const target = item || (document.activeElement?.closest?.("#world") ? viewport : null);
-      if (target) requestAnimationFrame(() => {
-        if (target.isConnected && !document.activeElement?.matches?.("input,textarea,select,[contenteditable]")) target.focus({preventScroll:true});
+  }
+  // Focus follows a press: a press on any board item (card, drawn element, sticker, container member) makes it the
+  // focused item, so Option-arrow, Space and the board's commands act on what was just pressed, never on an item
+  // focused earlier. A card takes focus natively, but Whiteboard's pointerdown prevents that for drawn elements and
+  // stops the event on document capture, and a press that starts a group drag can stop it on window capture. So this
+  // listens on window capture, registered before any of those, and only notes the press; focus moves a frame later,
+  // by the item's key, because the press's own selection may re-render the element. A press on the empty canvas (or a
+  // plain region's open middle, which works as empty canvas) takes focus off the items. One check per press; nothing
+  // on pointer moves.
+  pressFocus() {
+    window.addEventListener("pointerdown", e => {
+      if (this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool || !e.target.closest?.("#viewport")) return;
+      if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],[data-deco-task],.whiteboard-editor,[data-port],.board-map,.whiteboard-ports")) return;
+      let item = this.boardFocus.item(e.target);
+      if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) {
+        const r = item.getBoundingClientRect();
+        if (e.clientX > r.left + 6 && e.clientX < r.right - 6 && e.clientY > r.top + 28 && e.clientY < r.bottom - 6) item = null;
+      }
+      const key = item && this.boardFocus.key(item);
+      if (!key && !document.activeElement?.closest?.("#world")) return;
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor")) return;
+        const target = key ? this.boardFocus.element(key) : $("viewport");
+        if (!target?.isConnected || active === target) return;
+        // A press on a card's own control area keeps native focus where it landed inside the card.
+        if (key?.startsWith("placement:") && target.contains(active) && active !== target) return;
+        if (key) this.boardFocus.setStop(key);
+        target.focus({preventScroll:true});
       });
     }, true);
   }

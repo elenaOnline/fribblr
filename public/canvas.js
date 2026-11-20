@@ -1901,13 +1901,15 @@ $('view-back').onclick = goBack;
 $('board-info-toggle').onclick = () => setInfoOpen(!boardInspector.isOpen, { focus: true, opener: $('board-info-toggle') });
 $('board-info-close').onclick = () => setInfoOpen(false, { focus: true });
 $('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('chrome-search') } }));
-// ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
+// ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one; with nothing selected, the focused
+// card (its menu's Details… ⌘I), focus coming back to the card when it closes; otherwise the board.
 document.addEventListener('keydown', event => {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'i' || event.repeat) return;
   if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]') || inPopup(event)) return;
   event.preventDefault();
-  const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : null;
-  if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes'); return; }
+  const focusedCard = graph?.selection?.size ? null : graph?.focusedTarget?.()?.placementId || null;
+  const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : focusedCard;
+  if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes', { returnToCard: !!focusedCard }); return; }
   if (graph?.context) { graph.closeContext(true); return; }
   setInfoOpen(!boardInspector.isOpen, { focus: true });
 }, true);
@@ -1943,14 +1945,9 @@ $('zoom-menu').addEventListener('click', event => {
   else if (to === 'selection') fitSelection();
   else changeZoom(Number(to));
 });
-$('zoom-menu').addEventListener('keydown', event => {
-  if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
-  const items = [...$('zoom-menu').querySelectorAll('button:not([hidden]),input')];
-  const index = items.indexOf(document.activeElement);
-  if (index < 0 || document.activeElement.type === 'range') return;
-  event.preventDefault();
-  items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
-});
+// The % popover is a Popover, not a menu: Tab moves through its controls (popover.md), and arrows belong to the control
+// that has focus (the slider's change the zoom, the Pattern's choose). Arrows don't walk between its rows, so ↓ never
+// steps from a button onto the slider and the next ↓ never changes the zoom by surprise.
 // Segmented controls (ui-segmented.js): valuechange does not bubble, but it does pass through the capture phase, so one
 // listener on the document hears every copy (the zoom menu's, the Inspector's) and the others are kept in step.
 document.addEventListener('valuechange', event => {
@@ -2246,14 +2243,7 @@ $('reader-zoom-menu').addEventListener('click', event => {
   }
   if (size) setReaderSize(size.dataset.size);
 });
-$('reader-zoom-menu').addEventListener('keydown', event => {
-  if (!['ArrowDown', 'ArrowUp'].includes(event.key) || document.activeElement?.type === 'range') return;
-  const items = [...$('reader-zoom-menu').querySelectorAll('button:not([hidden]),input,a:not([hidden])')];
-  const index = items.indexOf(document.activeElement);
-  if (index < 0) return;
-  event.preventDefault();
-  items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
-});
+// The reader's % popover, likewise: Tab moves through it, arrows stay with the focused control.
 // A version can be chosen from the % menu or the Inspector.
 dialog.addEventListener('click', event => {
   const choice = event.target.closest('[data-revision-choice]');

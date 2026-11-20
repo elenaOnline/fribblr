@@ -350,6 +350,13 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   Whiteboard's (options, edit text). ⇧-click stays a toggle on the canvas (round 1's decision: a 2-D board has no order for
   a range). Focus ring: an ink ring outside the blue selection line, following the card's squircle and standing clear of
   a version stack's sheets (`--under-d`), so a focused selected item shows both. Drawn elements get the same ring, square.
+- **Commands with nothing selected act on the focused item.** ⌘I opens the focused card's Details (focus comes back to
+  the card), ⌘D duplicates it, E edits a focused Markdown document, `]` / `[` restack it: the keys the card's menu prints
+  act on what the menu belongs to (`focusedTarget()`, `adoptFocusedTarget()` in `workspace-board.js`; Duplicate and
+  restack make the focused item the selection first, as opening its menu does). With a selection they act on the
+  selection, as before. **Delete is the exception**: it removes only what is selected, because a slip costs work and
+  the menu prints no Delete key; on an unselected focused item it removes nothing and says "Nothing is selected. Press
+  Space to select <item>, then Delete." (live region and toast).
 - **Option/Alt + arrow moves the focused item**, 1 unit, 10 with Shift (`createMove`'s keys and steps). A focused item
   that is selected carries the selection (and a mixed group's drawn elements); a grouped one that is not selected carries
   its group, as dragging it does; one that is neither moves alone; with no item focused, the selection moves. A container
@@ -384,6 +391,13 @@ overhaul to a primitive would replace `BoardFocus` with `createRovingFocus({ mov
   prevents that for drawn elements), so Option-arrow and Space act on what was pressed, never on an item focused earlier;
   a press on empty canvas takes focus off the items, a frame after the press. Pointer focus draws no ring
   (`pointer-focus.js`), except that the return pulse still shows on a card that pointer focus lands on.
+- **Focus follows a press.** A press on any board item (card, Text block, shape, arrow, sticker, container, container
+  member) focuses it, so Option-arrow, Space and the board's commands act on what was pressed, never on an item focused
+  earlier; a press on empty canvas takes focus off the items. A card takes focus natively, but Whiteboard's pointerdown
+  prevents that for drawn elements and stops the event on document capture (and a group drag can stop it on window
+  capture), so `pressFocus()` listens on window capture, registered before Whiteboard mounts, and focuses the item by
+  its key a frame later (the press's own selection may re-render it). Pointer focus draws no ring (`pointer-focus.js`).
+  Checked in `tests/board-fixes-browser.mjs`.
 - **Focus comes back.** Closing the reader returns focus to the card last viewed when it was opened from the board's
   items. Escape in the selection bar sends focus to the board's roving item (or the first card, or the canvas).
 - **The board's key handlers step aside** for SDK widgets: `inPopup()` first (an open menu or popover owns every key,
@@ -440,8 +454,10 @@ closes it and moves on from the opener.
 - **Zoom popovers** (`board.html` `#zoom-popover`, `#reader-zoom-popover`; `canvas.js` `setZoomMenuOpen`,
   `setReaderMenuOpen`): Popovers (sliders, the Pattern / Window / Light segmented controls, the version list), outside
   their pill toolbars; the reader's inside the modal reader dialog. Trigger: `ui-popover-trigger for=` around %. ↓ on %
-  opens them (`openOnArrowDown`, a Popover trigger has no ↓). Focus goes to the first control, ↑/↓ still step through the
-  buttons, Tab walks through and out to the next pill control, Escape and a choice return to %, an outside press closes
+  opens them (`openOnArrowDown`, a Popover trigger has no ↓). Focus goes to the first control; a Popover is not a menu,
+  so arrows don't walk between its controls (fix round 2: ↓ used to step from a button onto the slider, and the next ↓
+  changed the zoom): Tab walks through and out to the next pill control, and arrows belong to the focused control (the
+  slider's change the zoom, the segmented controls' choose), Escape and a choice return to %, an outside press closes
   them and reaches its target. A click into the experiment frame closes the reader's; switching windows leaves it open.
   The pill's 44px rows and slider theme reach them by naming `.board-zoom-popover` / `.reader-zoom-popover` /
   `.zoom-menu` in the theme's own selectors (`calm.css`, `canvas.css`, `ui-sdk.css`), at the same specificity: no copied
@@ -455,7 +471,9 @@ closes it and moves on from the opener.
   toggle, then the threads waiting on you; `#comment-cluster-menu` beside a cluster pin, clear of the bottom bar (its
   `collision-padding` is the bar's height). "Nothing right now" is a disabled item.
 - **Reader path** (`reader-path.js`, `board.html` `#reader-path-menu`): a **Menu** opened on a press (title or count), not on
-  hover. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`).
+  hover. Each row is a place to go; "… n more" unfolds in place (`close-on-select="false"`). Where you are is marked with `aria-current="true"` and a quiet look of its own (popups.css: a short mark-blue rule at
+  the row's leading edge, the medium weight and "here"), never the highlight's fill, so the highlighted row is the only
+  filled one (fix round 2; before, the two "here" rows were filled like it).
 - **Drawn-object More** (`whiteboard.js` `mountPopups`, `openMenu`, `runMore`): `#whiteboard-more-menu`, anchored to the bar's
   current More (the bar re-renders as the selection saves), on the bar's side away from the object. Its actions are
   upstream's (Fit height to text, Select section contents, Edit container title, Remove from container). Items carry
@@ -504,6 +522,12 @@ Files: `comment-thread.js`, `comment-thread.css`, `comment-refs.js` (`attachPick
   the SDK; empty groups are hidden in CSS. `itemselect` is cancelled and the existing chip insertion runs. Focus stays in the
   composer; the composer carries `aria-controls`, `aria-activedescendant`. The menu is nested in the card's popover, so a press
   in the list is not an outside press.
+- **Placing a pin by keyboard** (`comment-pins.js` `dropOn`, `place`). With the tool armed (C), Enter or Space on the
+  focused board item drops the pin on it, near its top-right corner (an arrow: at its middle, on the line), and Enter on
+  the focused canvas drops it on the board at the middle of the view (Space there still pans). The new thread card
+  opens as for a click, focus in the composer, and closing it returns focus to the item. While armed, the focused item
+  is marked as the target ("On Card B"), as the pointer's hover marks it. Escape disarms. Checked in
+  `tests/board-fixes-browser.mjs`.
 - Key handling: the card still stops keydown (except Escape) from reaching the board; board handlers also step aside through
   `role=dialog` and `inPopup`. ⌘↩ still posts/saves.
 
@@ -869,6 +893,23 @@ control.
   bar's own panel element (they hold the text-format and colour controls; see Menus) but keep a popover's Tab:
   `tabOutOfPanel` closes the panel from its last control and Tab moves on after its button; Shift+Tab from the first
   goes back to the button. Escape and an outside press close it and focus returns to its button, as before.
+- **Tab past the drawn-object bar** (`whiteboard.js` `tabPastBar`, fix round 2). The bar is its object's toolbar but sits
+  at the end of `<body>`, so the browser's stop after its one Tab stop is nothing (`<body>`; in a window, the browser's
+  own toolbar). Tab forward from the bar goes back to what the bar edits: the editor while a text is edited (Shift+Tab
+  from the bar already went there), else the selected object, else the board's focused item. Every panel of the bar
+  follows by composition: its Tab-out sends focus to its button first (`tabOutOfPanel` for Typeface, Text box, Ink, Text
+  size, colour and drawing options; popups.js for the container options popover, `content.tabTrigger`), and the same
+  rule carries it past the bar. From the object, Tab goes on through its own controls (resize corner, ports) and the
+  page; Shift+Tab from the bar still goes back along the page (the tools rail). Escape (deselect) takes the bar away.
+  Checked in `tests/board-fixes-browser.mjs`.
+- **Where a bar panel starts** (`whiteboard.js` `focusPanelStart`, `text-appearance.js` `focus()`, fix round 2). One rule,
+  the SDK's (popover.md "Opening moves focus to the first focusable element", popups.md § Focus `initial-focus`): the
+  panel's first control, unless one is marked `[data-autofocus]`; a group of choices is entered on its checked or
+  pressed option (radio.md, toggle.md, segmented-control.md). So Typeface starts on the chosen face, Text box on Color
+  applies to (its first control, checked Fill or Border), Ink and Text size on the chosen swatch / preset (a custom size:
+  the scrub handle), Line options on the pressed arrowhead, Shape options on the chosen shape. A colour panel marks its
+  palette `[data-autofocus]`: its × closes the panel and is not where the work starts, so focus starts on the chosen
+  swatch (none chosen: the first).
 - **Ink preview** (1.4 `text-ink-preview.js`): the bar's Ink button carries its displayed-ink description as
   `aria-description` and as its SDK tooltip (`data-tip`), never a native title.
 - **Resource surface** (1.4 `reader-resource-surface.js`, `reader-canvas.js`): no new controls; Window and zoom are the

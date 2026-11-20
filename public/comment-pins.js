@@ -1,6 +1,6 @@
 // The board's Comment tool: C arms a comment cursor, a click drops a pin on empty
-// canvas, a card or a drawn element, and pins show who wrote each thread and where
-// it stands. The bottom bar holds the layer menu (show/hide, resolved, "Waiting on
+// canvas, a card or a drawn element (or, by keyboard, Enter on the focused item or
+// the focused canvas), and pins show who wrote each thread and where it stands. The bottom bar holds the layer menu (show/hide, resolved, "Waiting on
 // you") and "Send to agent", which marks open threads sent and copies a prompt.
 // Thread cards (reading, replying, new threads) live in comment-thread.js.
 import {pointAnchorAt, resolveCommentPoint, alongAnchorAt} from './feedback-geometry.js';
@@ -110,10 +110,20 @@ export class CommentPins {
     window.addEventListener('hashchange', () => { if (/^#comments\//.test(location.hash)) this.reload().then(() => this.openLinked()); });
     window.addEventListener('click', e => { if (this.swallowClick && Date.now() < this.swallowClick) { e.preventDefault();e.stopImmediatePropagation();this.swallowClick = 0; } }, true);
     window.addEventListener('keydown', e => {
+      if (!this.armed || inPopup(e) || e.isComposing) return;
       // An open menu takes its own Escape (it closes one layer and returns focus).
-      if (e.key !== 'Escape' || inPopup(e)) return;
-      if (this.armed) { e.preventDefault();e.stopImmediatePropagation();this.arm(false); }
+      if (e.key === 'Escape') { e.preventDefault();e.stopImmediatePropagation();this.arm(false);return; }
+      // The keyboard's click: Enter (or Space) on the focused board item drops the pin on it; Enter on the focused
+      // canvas drops it on the board, at the middle of the view (Space there still pans).
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.repeat || !(e.key === 'Enter' || e.key === ' ')) return;
+      const item = e.target.closest?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]');
+      if (item === e.target || (e.key === 'Enter' && e.target === this.viewport)) {
+        e.preventDefault();e.stopImmediatePropagation();
+        this.dropOn(item === e.target ? item : null);
+      }
     }, true);
+    // Armed, focus moving onto an item marks it as the pointer's hover does, so the keyboard sees the target too.
+    window.addEventListener('focusin', e => { if (this.armed) this.hover(e.target.matches?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]') ? {target:e.target} : null); }, true);
     this.mountMenus();
     this.sync();this.renderBar();
   }
@@ -242,7 +252,11 @@ export class CommentPins {
     this.armed = on;this.viewport?.classList.toggle('comment-armed', on);
     this.board.syncEditTools?.();
     if (!on) this.hover(null);
-    else this.armHint = toast('Click the board, a card or a drawn element to comment. Escape cancels.');
+    else {
+      this.armHint = toast('Click the board, a card or a drawn element to comment, or press Enter on the focused one. Escape cancels.');
+      const focused = document.activeElement;
+      if (focused?.matches?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]')) this.hover({target:focused});
+    }
   }
   target(e) {
     const card = e.target.closest?.('#world .workspace-card[data-placement]'), drawn = e.target.closest?.('#world [data-decoration]');
@@ -317,7 +331,27 @@ export class CommentPins {
   async drop(e) {
     if (!this.armed || e.button !== 0 || !this.viewport?.contains(e.target) || e.target.closest('.comment-pins,.workspace-tile-toolbar,.whiteboard-toolbar')) return;
     e.preventDefault();e.stopImmediatePropagation();this.swallowClick = Date.now() + 700;
-    const hit = this.target(e), anchor = this.anchorFor(e.clientX, e.clientY, hit);
+    return this.place(e.clientX, e.clientY, this.target(e));
+  }
+  // The keyboard's drop: on a focused item, near its top-right corner (an arrow: at its middle, on the line); with no
+  // item, on the board at the middle of the view. The thread card opens as it does for a click; closing it returns
+  // focus to the item.
+  dropOn(element) {
+    const hit = element ? this.target({target:element}) : null;
+    let x, y;
+    const line = element?.querySelector('.whiteboard-line-hit');
+    if (line) {
+      const m = line.getScreenCTM(), q = line.getPointAtLength(line.getTotalLength() / 2);
+      x = q.x * m.a + q.y * m.c + m.e;y = q.x * m.b + q.y * m.d + m.f;
+    } else {
+      const r = (element || this.viewport).getBoundingClientRect();
+      if (element) { x = Math.max(r.left, r.right - Math.min(24, r.width / 2));y = Math.min(r.bottom, r.top + Math.min(24, r.height / 2)); }
+      else { x = r.left + r.width / 2;y = r.top + r.height / 2; }
+    }
+    return this.place(x, y, hit);
+  }
+  async place(clientX, clientY, hit) {
+    const anchor = this.anchorFor(clientX, clientY, hit), e = {clientX, clientY};
     this.arm(false);
     // The arming hint has done its job once the composer opens.
     if (this.armHint) { dismissToast(this.armHint);this.armHint = null; }
