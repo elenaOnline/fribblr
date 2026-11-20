@@ -204,8 +204,8 @@ export function tooltipOpen() {
 //     the control and the tooltip, 4 px out, as the SDK computes it;
 //   - keyboard focus opens it at once; a click that focuses does not (the last input was a pointer: the SDK's modality
 //     rule, which a window blur also mutes until the next key); focus leaving closes a tooltip that focus opened;
-//   - focus the app places as a key opens or closes something (Enter or Space on a control, an arrow that leaves its
-//     group, as ↓ on a bar button opening its panel, or Escape handing focus back to the opener) opens nothing: that
+//   - focus the app places as a key opens, closes or jumps (Enter or Space on a control, an arrow that leaves its group,
+//     as ↓ on a bar button opening its panel, Escape handing focus back, a shortcut such as Option-F10) opens nothing: that
 //     focus is a panel's starting point or a return, not focus the person walked to, and a hint there would take the
 //     first Escape meant for the panel (as on main, one Escape closes it). Tab and arrows inside a group still open
 //     hints at once;
@@ -354,15 +354,18 @@ function leave(el, event) {
   document.addEventListener('pointermove', tracking, true);
 }
 
-// Focus moved by the key just pressed onto a control other than the one it was pressed on, by opening or closing
-// something: Enter, Space or Escape (they press or dismiss; they never walk focus), or an arrow that left its group (↓
-// on a menu button opening its panel).
+// Focus moved by the key just pressed onto a control other than the one it was pressed on, by opening, closing or
+// jumping: any key but the ones that walk focus (Tab; arrows, Home, End, PageUp, PageDown inside a group; a typed
+// letter's typeahead), so Enter, Space, Escape, a shortcut (Option-F10 to the drawing bar), or an arrow that left its
+// group (↓ on a menu button opening its panel).
+const WALK = /^(Arrow(Up|Down|Left|Right)|Home|End|PageUp|PageDown)$/;
 function placedByKey(el) {
   if (!lastKey || performance.now() - lastKey.at > 300) return false;
   const from = lastKey.target;
   if (!(from instanceof Element) || from === el || from.contains(el)) return false;
-  if (lastKey.key === 'Enter' || lastKey.key === ' ' || lastKey.key === 'Escape') return true;
-  if (!lastKey.key.startsWith('Arrow')) return false;
+  if (lastKey.key === 'Tab') return false;
+  if (lastKey.key.length === 1 && lastKey.key !== ' ' && !lastKey.mod) return false;
+  if (!WALK.test(lastKey.key)) return true;
   const group = from.closest(GROUP);
   return !group || !group.contains(el);
 }
@@ -376,7 +379,7 @@ function installDelegate() {
     windowBlurred = false;
     const modifier = event.metaKey || event.ctrlKey || event.altKey || /^(Meta|Control|Alt|Shift)$/.test(event.key);
     if (event.key === 'Tab' || !modifier) modality = 'keyboard';
-    if (!event.repeat) lastKey = {key: event.key, target: event.target, at: performance.now()};
+    if (!event.repeat) lastKey = {key: event.key, target: event.target, at: performance.now(), mod: event.metaKey || event.ctrlKey || event.altKey};
     if (event.key === 'Enter' || event.key === ' ') {
       if (current && current.el.contains(event.target)) close('trigger-press', event);
       // A press from the keyboard counts for the pointer resting on the same control, as a click does.
