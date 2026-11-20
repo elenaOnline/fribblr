@@ -325,11 +325,13 @@ export class ProjectNavigator {
     const delta=rect.top<top?rect.top-top:rect.bottom>bottom?Math.min(rect.bottom-bottom,rect.top-top):0;
     if(delta)this.content.scrollBy({top:delta,behavior:reducedMotion()?'auto':'smooth'});
   }
-  // Recent boards: the Command's suggestions while the field is empty (↑↓ move, ↵ opens, the caret stays put).
+  // Recent boards: the Command's suggestions while the field is empty (↑↓ move, ↵ opens, the caret stays put). Like every
+  // option of the Command they are no Tab stops (command.md: the list is reached from the field), so the field is the
+  // panel's one stop for them.
   recentMarkup(){
     const ids=this.recent.filter(id=>id!==this.boardId&&this.graph.boards.has(id)).slice(0,5);
     if(!ids.length)return '';
-    return `<ui-command-group class="navigator-recent-group"><ui-command-group-label class="tk-eyebrow">Recent</ui-command-group-label><div class="navigator-recent">${ids.map(id=>{const board=this.graph.boards.get(id);return `<ui-command-item value="recent:${esc(id)}" label="${esc(board.title||id)}" as-child><a class="navigator-chip" href="${boardURL(id)}" data-nav-board="${esc(id)}" data-tip="${esc(this.path(id))}"><span class="navigator-chip-window" aria-hidden="true"></span><span>${esc(board.title||id)}</span></a></ui-command-item>`;}).join('')}</div></ui-command-group>`;
+    return `<ui-command-group class="navigator-recent-group"><ui-command-group-label class="tk-eyebrow">Recent</ui-command-group-label><div class="navigator-recent">${ids.map(id=>{const board=this.graph.boards.get(id);return `<ui-command-item value="recent:${esc(id)}" label="${esc(board.title||id)}" as-child><a class="navigator-chip" tabindex="-1" href="${boardURL(id)}" data-nav-board="${esc(id)}" data-tip="${esc(this.path(id))}"><span class="navigator-chip-window" aria-hidden="true"></span><span>${esc(board.title||id)}</span></a></ui-command-item>`;}).join('')}</div></ui-command-group>`;
   }
   // A section band is the root row of its tree: chevron, icon, label and count; → / ← open and close it.
   sectionLabel(id,label,icon,count,extra=''){
@@ -478,7 +480,8 @@ export class ProjectNavigator {
     const seen=new Set(),links=ordered.filter(location=>{if(seen.has(location.boardId))return false;seen.add(location.boardId);return true;});
     const where=id=>`${svg(ICON.board)}<span>${esc(this.path(id))}</span>`;
     const key=`${row.type}:${row.id}`;
-    const command=(value,label,link)=>`<ui-command-item value="${esc(value)}" label="${esc(label)}" as-child>${link}</ui-command-item>`;
+    // Options are reached from the field (↑↓ move the highlight, the caret stays): the links are no Tab stops of their own.
+    const command=(value,label,link)=>`<ui-command-item value="${esc(value)}" label="${esc(label)}" as-child>${link.replace(/^<a /,'<a tabindex="-1" ')}</ui-command-item>`;
     const locationMarkup=board?command(`${key}@${row.id}`,this.path(row.id),`<a href="${boardURL(row.id)}" data-nav-board="${esc(row.id)}">${where(row.id)}</a>`)
       :links.map(location=>command(`${key}@${location.boardId}`,this.path(location.boardId),`<a href="${boardURL(location.boardId)}?reveal=${encodeURIComponent(location.placementId)}" data-nav-board="${esc(location.boardId)}" data-nav-placement="${esc(location.placementId)}">${where(location.boardId)}</a>`)).join('');
     const fallback=command(`${key}@open`,row.childBoardId?'Open board':'Open item',`<a href="${row.childBoardId?boardURL(row.childBoardId):`/app/item.html?item=${encodeURIComponent(row.id)}`}" ${row.childBoardId?`data-nav-board="${esc(row.childBoardId)}"`:''}>${row.childBoardId?'Open board':'Open item (not placed on an active board)'}</a>`);

@@ -105,8 +105,9 @@ export class CommentPins {
     // Armed: hover lights the target; a click drops the pin there.
     window.addEventListener('pointermove', e => { if (this.armed) this.hover(e); }, true);
     window.addEventListener('pointerdown', e => this.drop(e), true);
-    // The Comments panel's "Show pins" option shows or hides this layer (its old pins are off).
-    document.addEventListener('change', e => { if (e.target.matches?.('[data-feedback-pins]')) this.setVisible(e.target.checked); }, true);
+    // The Comments panel's "Show points" option (a checkbox item of its options menu) shows or hides this layer (its old
+    // pins are off); renderBar tells the panel the layer's state, so the option reads the same as ⇧C left it.
+    document.addEventListener('tinka:show-points', e => this.setVisible(!!e.detail?.visible));
     window.addEventListener('hashchange', () => { if (/^#comments\//.test(location.hash)) this.reload().then(() => this.openLinked()); });
     window.addEventListener('click', e => { if (this.swallowClick && Date.now() < this.swallowClick) { e.preventDefault();e.stopImmediatePropagation();this.swallowClick = 0; } }, true);
     window.addEventListener('keydown', e => {
@@ -235,7 +236,7 @@ export class CommentPins {
     count.hidden = !(waiting || open);count.textContent = String(waiting || open);count.classList.toggle('warn', !!waiting);
     layer.setAttribute('aria-label', waiting ? `Comments: ${waiting} waiting on you` : `Comments: ${open} open`);
     layer.setAttribute('aria-pressed', String(this.visible));
-    for (const box of document.querySelectorAll('[data-feedback-pins]')) box.checked = this.visible;
+    document.dispatchEvent(new CustomEvent('tinka:points-shown', {detail: {visible: this.visible}}));
     const unsent = this.unsent().length, badge = send.querySelector('.comment-count');
     // aria-disabled rather than disabled, so the watching tooltip still shows with nothing to send.
     badge.hidden = !unsent;badge.textContent = String(unsent);send.setAttribute('aria-disabled', String(!unsent));

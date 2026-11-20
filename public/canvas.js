@@ -1431,12 +1431,26 @@ addEventListener('pageshow', event => { if (event.persisted) landFromChild(); })
 
 // Escape closes the innermost thing first (feedback, the path, the % menu, the Inspector,
 // the Navigator, notes while typing in them), otherwise goes up to the board.
+// A popup still open inside the opened Tinka's own pages (the document reader's Contents menu or Annotations popover,
+// in a frame inside a frame) is the topmost layer: Escape pressed in the reader's chrome closes it first. A popup with
+// focus inside it takes its own Escape in its frame, so that press never comes here.
+function closeFramePopup(win = $('active-reader')?.contentWindow, depth = 0) {
+  let doc;
+  try { doc = win?.document; } catch { return false; }
+  if (!doc || depth > 3) return false;
+  const open = doc.querySelector('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])');
+  const root = open?.closest('ui-popover,ui-menu,ui-dialog,ui-select');
+  if (root?.api?.close) { root.api.close(); return true; }
+  for (const frame of doc.querySelectorAll('iframe')) if (closeFramePopup(frame.contentWindow, depth + 1)) return true;
+  return false;
+}
 function handleEscape(event) {
   const keyEvent=event||{key:'Escape',defaultPrevented:false,isComposing:false,preventDefault(){},stopImmediatePropagation(){}};
   if(graph?.feedback?.consumeEscape(keyEvent))return true;
   if (!readerInfo.hidden) { setReaderInfoOpen(false, { focus: true }); return true; }
   if (projectNavigator?.isOpen && projectNavigator.hostEl) { projectNavigator.hide(); return true; }
   if (notesOpen && $('notes-panel').contains(document.activeElement)) { setNotesOpen(false); return true; }
+  if (closeFramePopup()) return true;
   closeReader();
   return true;
 }

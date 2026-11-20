@@ -74,6 +74,53 @@ try{
  const restored=page.waitForResponse(r=>r.url().endsWith('/api/operations')&&r.request().postDataJSON()?.type==='restoreMovement'&&r.status()===200);
  await page.locator('#workspace-undo').click();await restored;
  await page.waitForFunction(()=>document.querySelectorAll('.workspace-card[data-placement]').length===2);assert.equal(await active(),count);
+ const focused=()=>page.evaluate(()=>{const a=document.activeElement;return a?.id||a?.dataset?.contextSelect!==undefined&&'select'||a?.className||a?.tagName;});
+ const label=()=>page.evaluate(()=>document.activeElement?.textContent.trim());
+ // 5. Favorites / Last 6 weeks / Archive are one toolbar (as Home's row): one Tab stop, arrows along it.
+ const filters=page.locator('#board-info .inspector-toggles');
+ assert.equal(await filters.getAttribute('role'),'toolbar');
+ await page.locator('#workspace-favorites').focus();
+ assert.equal(await filters.locator('button[tabindex="0"]').count(),1,'one Tab stop');
+ await page.keyboard.press('ArrowRight');assert.equal(await focused(),'workspace-recent');
+ await page.keyboard.press('End');assert.equal(await focused(),'workspace-archive');
+ await page.keyboard.press('Home');assert.equal(await focused(),'workspace-favorites');
+ await page.keyboard.press('Enter');assert.equal(await page.locator('#workspace-favorites').getAttribute('aria-pressed'),'true');
+ await page.keyboard.press('Enter');assert.equal(await page.locator('#workspace-favorites').getAttribute('aria-pressed'),'false');
+ await page.waitForFunction(()=>document.querySelectorAll('.workspace-card[data-placement]').length===2);
+ // 6. Comparison order is a reorderable list: one Tab stop, ↑/↓ move focus, Space picks up / drops, ⌥↑/↓ moves at once.
+ await page.getByRole('button',{name:'Comparison order…'}).click();
+ const list=page.locator('#workspace-order');await list.waitFor();
+ await page.waitForFunction(()=>document.activeElement?.matches('#workspace-order [role=option]'));
+ assert.equal(await list.getAttribute('role'),'listbox');
+ assert.equal(await list.locator('[role=option]').count(),2);assert.equal(await list.locator('[role=option][tabindex="0"]').count(),1,'one Tab stop');
+ assert.equal(await list.locator('button').count(),0,'no per-row buttons');
+ const order=()=>list.locator('.workspace-order-title').allTextContents();
+ assert.deepEqual(await order(),['First idea','Second idea']);
+ await page.keyboard.press('ArrowDown');assert.equal(await label(),'2Second idea');await page.keyboard.press('ArrowUp');
+ await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-selected')),'true','picked up');
+ await page.keyboard.press('ArrowDown');assert.deepEqual(await order(),['Second idea','First idea']);
+ await page.keyboard.press('Escape');assert.deepEqual(await order(),['First idea','Second idea'],'Escape puts it back');
+ assert.equal(await list.isVisible(),true,'Escape on a held row keeps the dialog');
+ await page.keyboard.press('Space');await page.keyboard.press('ArrowDown');await page.keyboard.press('Space');
+ assert.deepEqual(await order(),['Second idea','First idea']);assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-selected')),'false','dropped');
+ assert.equal(await label(),'2First idea','focus stays on the moved row');
+ await page.keyboard.press('Alt+ArrowUp');assert.deepEqual(await order(),['First idea','Second idea'],'⌥↑ moves at once');
+ await page.keyboard.press('Shift+Alt+ArrowDown');assert.deepEqual(await order(),['Second idea','First idea'],'⇧⌥↓ moves to the end');
+ const savedOrder=page.waitForResponse(r=>r.url().endsWith('/api/operations')&&r.request().postDataJSON()?.type==='updateBoard'&&r.status()===200);
+ await page.getByRole('button',{name:'Save order'}).click();await savedOrder;
+ const snapshot=await getBoardSnapshot(config,board.boardId),ids=snapshot.reviewOrder.filter(id=>snapshot.placements.some(p=>p.id===id&&!p.removedAt));
+ assert.equal(snapshot.placements.find(p=>p.id===ids[0]).itemId!==first.itemId,true,'saved order puts Second idea first');
+ // 7. The item Inspector's actions are a vertical toolbar: one Tab stop, ↑/↓ and Home/End along them.
+ await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor({state:'hidden'});
+ await card.locator('[data-item-controls]').click();await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor();
+ await page.locator('#workspace-tile-menu ui-menu-item').filter({hasText:'Details'}).first().click();
+ const acts=page.locator('#workspace-item-controls .inspector-acts');await acts.waitFor();
+ assert.equal(await acts.getAttribute('role'),'toolbar');assert.equal(await acts.getAttribute('aria-orientation'),'vertical');
+ await acts.locator('[data-context-select]').focus();assert.equal(await acts.locator('button[tabindex="0"]').count(),1,'one Tab stop');
+ await page.keyboard.press('ArrowDown');assert.equal(await label(),'Connect');
+ await page.keyboard.press('End');assert.equal(await label(),'Remove from board…');
+ await page.keyboard.press('ArrowDown');assert.match(await label(),/^(De)?select$/i,'wraps');
+ await page.keyboard.press('Escape');await page.locator('#workspace-item-controls').waitFor({state:'detached'});
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:4,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal']}));
+ console.log(JSON.stringify({passed:7,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar']}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

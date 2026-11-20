@@ -2,6 +2,8 @@ import {escape as esc,toast} from './workspace.js';
 import {pointAnchorAt,resolveCommentPoint} from './feedback-geometry.js';
 import {bindForm,restoreFocus,commitShortcutLabel,commitShortcutCap} from './interaction.js';
 import {setTip} from './tips.js';
+import {sharedMenu,sharedPopover,openMenu,menuItem,menuCheckbox,menuSeparator,inPopup} from './popups.js';
+import {choiceHTML,setChoice,onChoose} from './ui-toolbar.js';
 export function voteTotals(votes={}){const result={yes:0,no:0,abstain:0};for(const vote of Object.values(votes||{}))if(Object.hasOwn(result,vote.value))result[vote.value]++;return result;}
 // Vote appears on a tile's hover bar (and in an opened Tinka's Inspector) only once
 // someone has voted on the item; until then it is in Details… and the More menu.
@@ -25,18 +27,15 @@ export class FeedbackController {
     this.toggle=document.createElement('button');this.toggle.type='button';this.toggle.dataset.feedbackToggle='';this.toggle.textContent='Comments';this.toggle.setAttribute('aria-expanded','false');this.toggle.onclick=()=>this.open({returnFocus:this.toggle});toolbar.append(this.toggle);
     this.layer=document.createElement('div');this.layer.className='feedback-pins';this.layer.setAttribute('aria-label','Comment points');
     this.panel=document.createElement('aside');this.panel.className='feedback-panel';this.panel.hidden=true;this.panel.setAttribute('aria-label','Comments');
-    this.panel.innerHTML=`<header class="feedback-head"><div><strong>Comments</strong><p class="feedback-scope"></p></div><button type="button" data-feedback-settings aria-label="Conversation options" aria-expanded="false">⋯</button><button type="button" data-feedback-close aria-label="Close comments">×</button></header><section class="feedback-settings" hidden><label>Your name<input maxlength="120" aria-label="Your comment name" value="${esc(this.actor.label)}"></label><p>Your name is saved in this browser.</p><label><input type="checkbox" data-feedback-unresolved> Unresolved only</label><label><input type="checkbox" data-feedback-pins checked> Show points</label><button type="button" data-feedback-point>Add point</button><button type="button" data-feedback-board>Board discussion</button></section><div class="feedback-history"><p class="feedback-status" role="status"></p><div class="feedback-list"></div><button type="button" data-feedback-more hidden>Load more comments</button></div><form class="feedback-composer"><div class="feedback-compose-context" hidden></div><label class="sr-only" for="feedback-message">Comment</label><textarea id="feedback-message" name="body" rows="2" maxlength="20000" required placeholder="Write a comment…"></textarea><p class="feedback-post-status" role="status"></p><footer><button type="button" class="feedback-posting-as" data-feedback-identity></button><span class="feedback-shortcut"><kbd class="tk-kbd" aria-hidden="true">${esc(commitShortcutCap())}</kbd></span><button type="submit" data-feedback-post>Post</button></footer></form>`;
-    document.body.append(this.panel);this.textarea=this.panel.querySelector('textarea');this.form=this.panel.querySelector('form');this.settings=this.panel.querySelector('.feedback-settings');
+    this.panel.innerHTML=`<header class="feedback-head"><div><strong>Comments</strong><p class="feedback-scope"></p></div><button type="button" data-feedback-settings aria-label="Conversation options" aria-haspopup="menu" aria-expanded="false">⋯</button><button type="button" data-feedback-close aria-label="Close comments">×</button></header><div class="feedback-history"><p class="feedback-status" role="status"></p><div class="feedback-list"></div><button type="button" data-feedback-more hidden>Load more comments</button></div><form class="feedback-composer"><div class="feedback-compose-context" hidden></div><label class="sr-only" for="feedback-message">Comment</label><textarea id="feedback-message" name="body" rows="2" maxlength="20000" required placeholder="Write a comment…"></textarea><p class="feedback-post-status" role="status"></p><footer><button type="button" class="feedback-posting-as" data-feedback-identity aria-haspopup="dialog" aria-expanded="false"></button><span class="feedback-shortcut"><kbd class="tk-kbd" aria-hidden="true">${esc(commitShortcutCap())}</kbd></span><button type="submit" data-feedback-post>Post</button></footer></form>`;
+    document.body.append(this.panel);this.textarea=this.panel.querySelector('textarea');this.form=this.panel.querySelector('form');this.mountPopups();
     this.textarea.addEventListener('input',()=>{this.saveDraft();this.postStatus('');});
     this.formBinding=bindForm(this.form,{submit:()=>this.postDraft(),onError:()=>{},onPendingChange:pending=>{this.textarea.readOnly=pending;}});
     this.panel.querySelector('[data-feedback-close]').onclick=()=>this.close();
-    this.panel.querySelector('[data-feedback-settings]').onclick=()=>this.showSettings(this.settings.hidden);
-    this.panel.querySelector('[data-feedback-identity]').onclick=()=>{this.showSettings(true);this.settings.querySelector('input').focus();};
-    this.settings.querySelector('input[aria-label]').onchange=e=>{this.actor.label=e.target.value.trim()||'You';e.target.value=this.actor.label;this.saveActor();this.renderScope();};
-    this.panel.querySelector('[data-feedback-point]').onclick=()=>this.beginPoint();
-    this.panel.querySelector('[data-feedback-board]').onclick=()=>this.open({mode:this.mode,host:this.panel.parentElement,returnFocus:this.returnFocus});
-    this.panel.querySelector('[data-feedback-pins]').onchange=e=>{this.pinsVisible=e.target.checked;this.syncPins();};
-    this.panel.querySelector('[data-feedback-unresolved]').onchange=e=>{this.onlyUnresolved=e.target.checked;this.reload().catch(error=>this.failure(error));};
+    const settings=this.panel.querySelector('[data-feedback-settings]'),identity=this.panel.querySelector('[data-feedback-identity]');
+    settings.onclick=event=>this.optionsUI.root.api?.isOpen()?this.optionsUI.root.api.close():this.openOptions(event);
+    settings.addEventListener('keydown',event=>{if((event.key==='ArrowDown'||event.key==='ArrowUp')&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){event.preventDefault();event.stopPropagation();this.openOptions(event);}});
+    identity.onclick=()=>this.nameUI.root.api?.isOpen()?this.nameUI.root.api.close():this.openName(identity);
     this.panel.querySelector('[data-feedback-more]').onclick=()=>this.reload({more:true}).catch(error=>this.failure(error));
     this.panel.addEventListener('click',e=>{
       const reply=e.target.closest('[data-feedback-reply]'),resolve=e.target.closest('[data-feedback-resolve]'),scope=e.target.closest('[data-feedback-item-scope]');
@@ -54,17 +53,80 @@ export class FeedbackController {
       this.pointClick={until:Date.now()+700,x:e.clientX,y:e.clientY};this.endPoint();this.compose({itemId,anchor});
     };
     this.clickHandler=e=>{if(this.pointClick&&Date.now()<this.pointClick.until&&Math.hypot(e.clientX-this.pointClick.x,e.clientY-this.pointClick.y)<6&&this.viewport.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();this.pointClick=null;}};
+    // A press outside the board's panel closes it (the ballot and the panel's own menu and name field are popups: the
+    // SDK closes them on an outside press, and a press inside them is not outside the panel).
     this.outsideHandler=e=>{
-      if(this.ballot&&!this.ballot.contains(e.target)&&!this.ballotAnchor?.contains(e.target))this.closeVote({restoreFocus:false});
-      if(this.visible&&this.mode==='board'&&!this.pointMode&&!this.panel.contains(e.target)&&!e.target.closest('[data-item-feedback],[data-feedback-toggle],.feedback-pin'))this.close({restoreFocus:false});
+      if(this.visible&&this.mode==='board'&&!this.pointMode&&!this.panel.contains(e.target)&&!e.target.closest('[data-item-feedback],[data-feedback-toggle],.feedback-pin,.feedback-options-menu,.feedback-name,.feedback-ballot'))this.close({restoreFocus:false});
     };
-    this.keyHandler=e=>{if(e.key==='Escape')this.consumeEscape(e);};this.repositionHandler=()=>{this.positionBallot();this.sizePanel();};
+    this.keyHandler=e=>{if(e.key==='Escape')this.consumeEscape(e);};this.repositionHandler=()=>this.sizePanel();
     window.addEventListener('click',this.clickHandler,true);window.addEventListener('pointerdown',this.pointHandler,true);window.addEventListener('pointerdown',this.outsideHandler,true);window.addEventListener('keydown',this.keyHandler,true);window.addEventListener('resize',this.repositionHandler);window.visualViewport?.addEventListener('resize',this.repositionHandler);this.sync();
   }
   status(message){this.panel.querySelector('.feedback-status').textContent=message;}
   postStatus(message,error=false){const el=this.panel.querySelector('.feedback-post-status');el.textContent=message;el.setAttribute('role',error?'alert':'status');}
   failure(error){this.status(error.message);}
-  showSettings(show){this.settings.hidden=!show;this.panel.querySelector('[data-feedback-settings]').setAttribute('aria-expanded',String(show));}
+  // ---- The panel's popups (ui-sdk.md § Comments panel) ----
+  // ⋯ "Conversation options" is a Menu (two checkbox items that stay open as they toggle, then actions); the name the
+  // panel posts as is a field, so it is a Popover, opened from "As You" (or the menu's "Your name…"). The Vote ballot is a
+  // Popover holding one choice: a single-choice toggle group (one Tab stop, arrows move without voting, Space or Enter
+  // votes), since every vote is saved to the board at once and moving focus must not cast one.
+  // Their roots live beside the panel's host (the page, or the modal reader dialog), never inside the panel.
+  popupHost(anchor=this.panel){return anchor?.closest?.('dialog[open]')||document.body;}
+  host(root,anchor){const where=this.popupHost(anchor);if(root.parentElement!==where)where.append(root);}
+  mountPopups(){
+    const options=this.optionsUI=sharedMenu({id:'feedback-options-menu',label:'Conversation options',className:'feedback-options-menu'});
+    for(const [name,value] of [['align','end'],['side-offset','4'],['collision-padding','8']])options.content.setAttribute(name,value);
+    options.content.addEventListener('checkedchange',e=>{
+      const option=e.target.closest('[value]')?.getAttribute('value');e.target.closest('[value]')?.setAttribute('checked',String(e.detail.value));
+      if(option==='pins'){this.pinsVisible=e.detail.value;this.syncPins();document.dispatchEvent(new CustomEvent('tinka:show-points',{detail:{visible:e.detail.value}}));}
+      if(option==='unresolved'){this.onlyUnresolved=e.detail.value;this.reload().catch(error=>this.failure(error));}
+    },true);
+    // An action runs once the menu has closed and handed focus back, so the focus it moves (the composer, the name
+    // field) stays where it put it.
+    options.root.addEventListener('action',e=>{this.afterOptions=e.detail.value;});
+    options.root.addEventListener('openchange',e=>{if(!e.detail.value)this.panel.querySelector('[data-feedback-settings]').setAttribute('aria-expanded','false');});
+    options.root.addEventListener('openchangecomplete',e=>{
+      if(e.detail.value)return;const action=this.afterOptions;this.afterOptions=null;if(!action)return;
+      requestAnimationFrame(()=>{
+        if(action==='point')this.beginPoint();
+        else if(action==='board')this.open({mode:this.mode,host:this.panel.parentElement,returnFocus:this.returnFocus});
+        else if(action==='name')this.openName(this.panel.querySelector('[data-feedback-settings]'));
+      });
+    });
+    // The board's comment layer (comment-pins.js) says whether its points show (⇧C toggles them too).
+    this.pointsShown=e=>{this.pinsVisible=!!e.detail?.visible;};document.addEventListener('tinka:points-shown',this.pointsShown);
+    const name=this.nameUI=sharedPopover({id:'feedback-name-popover',label:'Your name',className:'feedback-settings feedback-name'});
+    name.content.innerHTML=`<label>Your name<input maxlength="120" aria-label="Your comment name" data-feedback-name></label><p>Your name is saved in this browser.</p>`;
+    name.content.setAttribute('collision-padding','8');name.content.setAttribute('side-offset','6');
+    name.content.tabTrigger=()=>this.nameOpener;
+    const field=name.content.querySelector('input'),save=()=>{this.actor.label=field.value.trim()||'You';field.value=this.actor.label;this.saveActor();this.renderScope();};
+    field.addEventListener('change',save);
+    field.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();save();name.root.api.close();}});
+    name.root.addEventListener('openchange',e=>{
+      // Its opener counts as part of it, as a popover's own trigger does: a press there is not a click-away and focus there
+      // is not focus leaving (the opener's click toggles it shut; Shift+Tab from the field lands there).
+      if(!e.detail.value&&['outside-press','focus-out'].includes(e.detail.reason)&&e.detail.event?.target instanceof Node&&this.nameOpener?.contains(e.detail.event.target)){e.preventDefault();return;}
+      if(!e.detail.value){save();this.nameOpener?.setAttribute('aria-expanded','false');}
+    });
+  }
+  openOptions(event){
+    const {root,content}=this.optionsUI,button=this.panel.querySelector('[data-feedback-settings]');
+    if(root.api?.isOpen())return;this.host(root);
+    const point=this.mode!=='reader'&&this.getMode()==='canvas',board=!!this.itemId&&this.mode!=='reader';
+    content.innerHTML=menuCheckbox('unresolved','Unresolved only',{checked:this.onlyUnresolved})+menuCheckbox('pins','Show points',{checked:this.pinsVisible})+menuSeparator
+      +(point?menuItem('point','Add point'):'')+(board?menuItem('board','Board discussion'):'')+menuItem('name','Your name…');
+    button.setAttribute('aria-expanded','true');
+    openMenu(root,{anchor:button,event,returnTo:'.feedback-panel [data-feedback-settings]'});
+  }
+  openName(opener){
+    const {root,content}=this.nameUI;if(root.api?.isOpen())return;this.host(root,opener);
+    this.nameOpener=opener;opener.setAttribute('aria-expanded','true');
+    // Beside "As You" (at the composer's foot) it opens above; from ⋯ (at the top) below.
+    const below=!opener.matches('[data-feedback-identity]');content.setAttribute('side',below?'bottom':'top');content.setAttribute('align',below?'end':'start');
+    content.querySelector('input').value=this.actor.label;
+    if(document.activeElement!==opener)opener.focus({preventScroll:true});
+    root.api.open({anchor:opener});
+  }
+  showSettings(show){if(!show){if(this.optionsUI?.root.api?.isOpen())this.optionsUI.root.api.close();if(this.nameUI?.root.api?.isOpen())this.nameUI.root.api.close();}else this.openOptions();}
   scopeKey(itemId=this.itemId){return `${this.getBoard().id}/${itemId||'board'}`;}
   persistDrafts(){const saved=[...this.drafts.values()].filter(d=>d.body||d.anchor||d.replyTo).sort((a,b)=>a.updatedAt-b.updatedAt).slice(-20);try{sessionStorage.setItem(this.draftStore,JSON.stringify(saved.map(({pending,...d})=>d)));}catch{}}
   saveDraft(){if(!this.draft)return;if(this.draft.body!==this.textarea.value)this.draft.attempt=null;this.draft.body=this.textarea.value;this.draft.updatedAt=Date.now();this.drafts.set(this.draft.key,this.draft);this.persistDrafts();}
@@ -101,12 +163,14 @@ export class FeedbackController {
   updateReaderContext({selectionId,selectionRect}={}){if(this.visible&&this.mode==='reader'&&selectionId===this.selectionId){this.selectionRect=selectionRect;this.sizePanel();}}
   close({restoreFocus:restore=true}={}){this.saveDraft();this.visible=false;this.panel.hidden=true;this.toggle.setAttribute('aria-expanded','false');this.showSettings(false);this.endPoint();if(restore)restoreFocus(this.returnFocus);this.reload().catch(()=>{});}
   consumeEscape(e){
-    if(e.key!=='Escape'||e.defaultPrevented||e.isComposing||e.keyCode===229)return false;let handled=true;
-    if(this.ballot)this.closeVote();else if(this.pointMode)this.endPoint();else if(this.visible&&!this.settings.hidden){this.showSettings(false);this.panel.querySelector('[data-feedback-settings]').focus();}else if(this.visible)this.close();else handled=false;
+    if(e.key!=='Escape'||e.defaultPrevented||e.isComposing||e.keyCode===229)return false;
+    // An open popup (the options menu, the name field, the ballot, a tooltip) takes its own Escape first.
+    if(e.target&&inPopup(e))return false;let handled=true;
+    if(this.ballot)this.closeVote();else if(this.pointMode)this.endPoint();else if(this.visible)this.close();else handled=false;
     if(handled){e.preventDefault();e.stopImmediatePropagation?.();}return handled;
   }
-  renderScope(){this.panel.querySelector('.feedback-scope').textContent=this.getBoard().items?.[this.itemId]?.title||this.getBoard().title||'This board';this.panel.querySelector('[data-feedback-point]').hidden=this.mode==='reader'||this.getMode()!=='canvas';this.panel.querySelector('[data-feedback-board]').hidden=!this.itemId||this.mode==='reader';this.panel.querySelector('[data-feedback-identity]').textContent=`As ${this.actor.label}`;}
-  beginPoint(){if(this.getMode()!=='canvas'||this.mode==='reader')return;this.saveDraft();this.showSettings(false);this.pointMode=true;this.panel.hidden=true;this.viewport.classList.add('feedback-point-mode');this.onPointMode(true);toast('Click the canvas to place a comment. Escape cancels.');}
+  renderScope(){this.panel.querySelector('.feedback-scope').textContent=this.getBoard().items?.[this.itemId]?.title||this.getBoard().title||'This board';this.panel.querySelector('[data-feedback-identity]').textContent=`As ${this.actor.label}`;}
+  beginPoint(){if(this.getMode()!=='canvas'||this.mode==='reader')return;this.saveDraft();this.pointMode=true;this.panel.hidden=true;this.viewport.classList.add('feedback-point-mode');this.onPointMode(true);toast('Click the canvas to place a comment. Escape cancels.');}
   endPoint(){this.pointMode=false;this.viewport?.classList.remove('feedback-point-mode');this.onPointMode(false);if(this.visible)this.panel.hidden=false;}
   compose({itemId=null,anchor,...options}={}){return this.open({itemId,anchor,...options});}
   commentOnItem(itemId,options={}){return this.open({itemId,...options});}
@@ -136,33 +200,66 @@ export class FeedbackController {
   focusThread(id){const el=[...this.panel.querySelectorAll('[data-feedback-thread]')].find(e=>e.dataset.feedbackThread===id);el?.focus({preventScroll:true});el?.scrollIntoView({block:'nearest'});}
   showsVote(itemId){return hasVotes(this.getBoard().items?.[itemId]?.review?.votes)||!!(this.ballot&&this.ballotId===itemId);}
   voteState(itemId){const votes=this.getBoard().items?.[itemId]?.review?.votes;return{mine:votes?.[this.actor.id]?.value||null,totals:voteTotals(votes),pending:this.voting.has(itemId)};}
+  ballotPopup(){
+    if(this.ballotUI)return this.ballotUI;
+    const ui=this.ballotUI=sharedPopover({id:'feedback-ballot-popover',className:'feedback-ballot'});
+    const {root,content}=ui;content.setAttribute('initial-focus','none');content.setAttribute('final-focus','none');
+    for(const [name,value] of [['side','bottom'],['align','start'],['side-offset','8'],['collision-padding','8']])content.setAttribute(name,value);
+    content.tabTrigger=()=>this.ballotAnchor?.isConnected?this.ballotAnchor:null;
+    content.addEventListener('click',e=>{if(e.target.closest('[data-ballot-close]'))this.closeVote();if(e.target.closest('[data-feedback-vote=clear]'))this.vote(this.ballotId,null).catch(()=>{});});
+    root.addEventListener('openchange',e=>{
+      if(e.detail.value)return;
+      // The Vote button that opened it counts as part of it: a press there toggles it shut through that button's own click.
+      if(['outside-press','focus-out'].includes(e.detail.reason)&&e.detail.event?.target instanceof Node&&this.ballotAnchor?.contains?.(e.detail.event.target)){e.preventDefault();return;}
+      const restore=['escape-key','close-press'].includes(e.detail.reason)||(e.detail.reason==='imperative'&&this.ballotRestore);
+      this.ballotClosed(restore);
+    });
+    // Focus starts on her vote, else on Yes (the group's one Tab stop).
+    root.addEventListener('openchangecomplete',e=>{if(e.detail.value&&this.ballot&&!this.ballot.contains(document.activeElement))this.focusBallot();});
+    return ui;
+  }
+  focusBallot(){const group=this.ballot?.querySelector('.feedback-ballot-choices');if(!group)return;const run=()=>(group.querySelector('button[aria-pressed=true]')||group.querySelector('button'))?.focus({preventScroll:true});if(group.querySelector('ui-toggle[data-slot]'))run();else queueMicrotask(run);}
   openVote({itemId,anchor,host,returnFocus}={}){
+    // Vote pressed again while its ballot is open closes it.
+    if(this.ballot&&this.ballotId===itemId&&this.ballotAnchor===anchor){this.closeVote();return;}
     this.closeVote({restoreFocus:false});if(this.visible)this.close({restoreFocus:false});if(!this.getBoard().items?.[itemId])return;
-    this.ballotId=itemId;this.ballotFocus=null;this.ballotAnchor=anchor;anchor?.setAttribute('aria-expanded','true');this.ballotReturn=returnFocus||anchor;this.ballot=document.createElement('section');this.ballot.className='feedback-ballot';this.ballot.setAttribute('role','dialog');this.ballot.setAttribute('aria-label',`Vote on ${this.getBoard().items[itemId].title}`);(host||anchor?.closest('dialog[open]')||document.body).append(this.ballot);
-    this.ballot.addEventListener('click',e=>{if(e.target.closest('[data-ballot-close]'))this.closeVote();const b=e.target.closest('[data-feedback-vote]');if(b)this.vote(itemId,b.dataset.feedbackVote==='clear'?null:b.dataset.feedbackVote).catch(()=>{});});
-    this.renderBallot();this.positionBallot();this.ballot.querySelector('[data-feedback-vote]')?.focus({preventScroll:true});
+    const ui=this.ballotPopup();this.host(ui.root,host||anchor);
+    this.ballotId=itemId;this.ballotAnchor=anchor;anchor?.setAttribute('aria-expanded','true');this.ballotReturn=returnFocus||anchor;this.ballotRestore=true;this.ballotMessage='';
+    this.ballot=ui.content;this.ballot.setAttribute('aria-label',`Vote on ${this.getBoard().items[itemId].title}`);this.ballot.innerHTML='';this.renderBallot();
+    const selector=`[data-item-vote="${CSS.escape(itemId)}"]`;
+    ui.root.api.open({anchor:{getBoundingClientRect:()=>((anchor?.isConnected&&anchor.getClientRects().length?anchor:null)||document.querySelector(selector)||anchor||document.body).getBoundingClientRect()}});
+    this.focusBallot();
   }
+  // Built once per opening, then updated in place (counts, her vote, pending, status), so focus stays on the choice.
   renderBallot(){
-    if(!this.ballot)return;const{mine,totals,pending}=this.voteState(this.ballotId),item=this.getBoard().items?.[this.ballotId],focused=document.activeElement?.dataset.feedbackVote;this.ballotFocus=focused||this.ballotFocus;
-    this.ballot.innerHTML=`<header><strong>Vote</strong><button type="button" data-ballot-close aria-label="Close vote">×</button></header><p class="feedback-ballot-title">${esc(item?.title||'Item')}</p><div class="feedback-ballot-choices" role="group" aria-label="Your vote">${['yes','no','abstain'].map(v=>`<button type="button" data-feedback-vote="${v}" aria-pressed="${mine===v}" ${pending?'disabled':''}>${capital(v)}<span>${totals[v]}</span></button>`).join('')}</div><footer><span>As ${esc(this.actor.label)}</span><button type="button" data-feedback-vote="clear" ${!mine||pending?'disabled':''}>Clear vote</button></footer><p class="feedback-ballot-status" role="status">${esc(this.ballotMessage||'')}</p>`;
-    if(!pending&&this.ballotFocus){const b=this.ballot.querySelector(`[data-feedback-vote="${this.ballotFocus}"]`);(b&&!b.disabled?b:this.ballot.querySelector('[data-ballot-close]'))?.focus({preventScroll:true});}
+    if(!this.ballot)return;const{mine,totals,pending}=this.voteState(this.ballotId),item=this.getBoard().items?.[this.ballotId];
+    if(!this.ballot.querySelector('.feedback-ballot-choices')){
+      this.ballot.innerHTML=`<header><strong>Vote</strong><button type="button" data-ballot-close aria-label="Close vote">×</button></header><p class="feedback-ballot-title"></p>${choiceHTML({label:'Your vote',className:'feedback-ballot-choices',value:mine||undefined,items:['yes','no','abstain'].map(v=>({value:v,html:`${capital(v)}<span data-vote-count></span>`,attrs:{'data-feedback-vote':v}}))})}<footer><span data-ballot-as></span><button type="button" data-feedback-vote="clear">Clear vote</button></footer><p class="feedback-ballot-status" role="status"></p>`;
+      onChoose(this.ballot.querySelector('.feedback-ballot-choices'),value=>{if(value)this.vote(this.ballotId,value).catch(()=>{});else this.renderBallot();});
+    }
+    this.ballot.querySelector('.feedback-ballot-title').textContent=item?.title||'Item';
+    const group=this.ballot.querySelector('.feedback-ballot-choices');setChoice(group,mine);
+    for(const v of ['yes','no','abstain']){const b=group.querySelector(`[data-feedback-vote="${v}"]`);b.querySelector('[data-vote-count]').textContent=String(totals[v]);b.setAttribute('aria-label',`${capital(v)}, ${totals[v]} ${totals[v]===1?'vote':'votes'}`);}
+    group.setAttribute('aria-busy',String(pending));
+    const clear=this.ballot.querySelector('[data-feedback-vote=clear]'),had=clear===document.activeElement;clear.disabled=!mine||pending;
+    // Clear vote goes inert once there is nothing to clear: focus moves to the choice rather than to the page.
+    if(clear.disabled&&had)this.focusBallot();
+    this.ballot.querySelector('[data-ballot-as]').textContent=`As ${this.actor.label}`;
+    const status=this.ballot.querySelector('.feedback-ballot-status');if(status.textContent!==(this.ballotMessage||''))status.textContent=this.ballotMessage||'';
   }
-  positionBallot(){
-    if(!this.ballot)return;
-    const rect=this.ballotAnchor?.getBoundingClientRect(),v=window.visualViewport,area=(this.ballotAnchor?.closest('dialog[open]')?.querySelector('.reader-area')||this.viewport)?.getBoundingClientRect();
-    const left=Math.max(v?.offsetLeft||0,area?.left||0)+8,right=Math.min((v?.offsetLeft||0)+(v?.width||innerWidth),area?.right||innerWidth)-8;
-    const top=Math.max(v?.offsetTop||0,area?.top||0)+8,bottom=Math.min((v?.offsetTop||0)+(v?.height||innerHeight),area?.bottom||innerHeight)-8;
-    this.ballot.style.left='0px';this.ballot.style.top='0px';
-    const zero=this.ballot.getBoundingClientRect(),scale=this.ballot.offsetWidth?zero.width/this.ballot.offsetWidth:1;
-    const width=Math.min(300,(right-left)/scale);this.ballot.style.width=`${width}px`;this.ballot.style.maxHeight=`${Math.max(80,(bottom-top)/scale)}px`;
-    const box=this.ballot.getBoundingClientRect(),height=box.height,desired=rect?(rect.bottom+height+8>bottom?rect.top-height-8:rect.bottom+8):top;
-    const x=Math.max(left,Math.min(right-box.width,rect?.left||left)),y=Math.max(top,Math.min(bottom-height,desired));
-    this.ballot.style.left=`${(x-zero.left)/scale}px`;this.ballot.style.top=`${(y-zero.top)/scale}px`;
+  positionBallot(){this.ballotUI?.root.api?.reposition?.();}
+  closeVote({restoreFocus:restore=true}={}){if(!this.ballot)return;this.ballotRestore=restore;if(this.ballotUI.root.api?.isOpen())this.ballotUI.root.api.close();else this.ballotClosed(restore);}
+  ballotClosed(restore){
+    if(!this.ballot)return;this.ballot=null;this.ballotAnchor?.setAttribute('aria-expanded','false');this.ballotMessage='';this.wantVote=undefined;this.syncVoteTriggers();
+    if(restore&&(!document.activeElement||document.activeElement===document.body||this.ballotUI.content.contains(document.activeElement)))restoreFocus(this.ballotReturn);
   }
-  closeVote({restoreFocus:restore=true}={}){if(!this.ballot)return;this.ballot.remove();this.ballot=null;this.ballotAnchor?.setAttribute('aria-expanded','false');this.ballotMessage='';this.syncVoteTriggers();if(restore)restoreFocus(this.ballotReturn);}
   async vote(itemId,value){
-    if(this.voting.has(itemId)||this.voteState(itemId).mine===value)return;this.voting.add(itemId);this.ballotMessage='Saving vote…';this.renderBallot();this.syncVoteTriggers();
-    try{await this.client.write('vote',{itemId,actor:{...this.actor},value});await this.refresh();this.ballotMessage='Vote saved';}catch(error){this.ballotMessage=error.message;throw error;}finally{this.voting.delete(itemId);this.renderBallot();this.syncVoteTriggers();this.positionBallot();this.onVotesChanged?.();}
+    // A choice made while the last one saves waits for it; the latest choice wins.
+    if(this.voting.has(itemId)){this.wantVote=value;this.renderBallot();return;}
+    if(this.voteState(itemId).mine===value){this.renderBallot();return;}
+    this.voting.add(itemId);this.wantVote=undefined;this.ballotMessage='Saving vote…';this.renderBallot();this.syncVoteTriggers();
+    try{await this.client.write('vote',{itemId,actor:{...this.actor},value});await this.refresh();this.ballotMessage='Vote saved';}catch(error){this.ballotMessage=error.message;throw error;}finally{this.voting.delete(itemId);this.renderBallot();this.syncVoteTriggers();this.onVotesChanged?.();}
+    if(this.wantVote!==undefined&&this.ballot&&this.ballotId===itemId){const next=this.wantVote;this.wantVote=undefined;return this.vote(itemId,next);}
   }
   syncVoteTriggers(){
     for(const b of document.querySelectorAll('[data-item-vote]')){const itemId=b.dataset.itemVote,item=this.getBoard().items?.[itemId];if(!item)continue;const{mine,totals,pending}=this.voteState(itemId),label=`Vote on ${item.title}${mine?`; your vote: ${mine}`:''}. Yes ${totals.yes}, No ${totals.no}, Abstain ${totals.abstain}`;b.setAttribute('aria-pressed',String(Boolean(mine)));b.setAttribute('aria-label',label);setTip(b,label);b.dataset.voteValue=mine||'';b.disabled=pending;if(b.classList.contains('workspace-vote-trigger'))b.hidden=!this.showsVote(itemId);const text=b.querySelector('[data-vote-summary]');if(text)text.textContent=mine?capital(mine):'Vote';}
@@ -183,5 +280,5 @@ export class FeedbackController {
     for(const pin of this.layer.querySelectorAll('[data-feedback-pin]'))pin.onclick=e=>{e.stopPropagation();this.open({itemId:this.itemId,threadId:pin.dataset.feedbackPin,returnFocus:pin});};
   }
   sync(overrides){this.syncPins(overrides);this.syncVoteTriggers();if(this.visible)this.renderScope();}
-  destroy(){cancelAnimationFrame(this.sizingFrame);this.formBinding?.destroy();window.removeEventListener('click',this.clickHandler,true);window.removeEventListener('pointerdown',this.pointHandler,true);window.removeEventListener('pointerdown',this.outsideHandler,true);window.removeEventListener('keydown',this.keyHandler,true);window.removeEventListener('resize',this.repositionHandler);window.visualViewport?.removeEventListener('resize',this.repositionHandler);this.closeVote({restoreFocus:false});this.panel?.remove();this.layer?.remove();this.toggle?.remove();}
+  destroy(){cancelAnimationFrame(this.sizingFrame);this.formBinding?.destroy();window.removeEventListener('click',this.clickHandler,true);window.removeEventListener('pointerdown',this.pointHandler,true);window.removeEventListener('pointerdown',this.outsideHandler,true);window.removeEventListener('keydown',this.keyHandler,true);window.removeEventListener('resize',this.repositionHandler);window.visualViewport?.removeEventListener('resize',this.repositionHandler);this.closeVote({restoreFocus:false});document.removeEventListener('tinka:points-shown',this.pointsShown);this.optionsUI?.root.remove();this.nameUI?.root.remove();this.ballotUI?.root.remove();this.panel?.remove();this.layer?.remove();this.toggle?.remove();}
 }

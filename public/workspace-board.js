@@ -187,6 +187,16 @@ function resizePlacementBox(p, edge, dx, dy) {
   const height = /[ns]/.test(edge) ? limit(p.height + (shrinkTop ? -dy : dy),p.height,icon ? 90 : 120) : p.height;
   return { x:shrinkLeft ? p.x+p.width-width : p.x, y:shrinkTop ? p.y+p.height-height : p.y, width, height };
 }
+// A toolbar inside a card (board-focus.js § Toolbars inside an item): every control but the first enabled one leaves
+// the Tab order in the markup, so the toolbar is one Tab stop from the start.
+function rovingMarkup(html) {
+  let lead = false;
+  return html.replace(/<(button|a)\b([^>]*)>/g, (tag, name, rest) => {
+    if (/\btabindex=/.test(rest)) return tag;
+    if (!lead && !/\sdisabled\b/.test(rest)) { lead = true; return tag; }
+    return `<${name} tabindex="-1"${rest}>`;
+  });
+}
 export class WorkspaceBoard {
   constructor(config, snapshot, hooks) {
     this.config = config;
@@ -530,7 +540,12 @@ export class WorkspaceBoard {
     image.onclick = () => this.backgroundImageDialog(image);
     // "Pattern", not "Background": Background is the ground in Appearance (fribblr).
     const view = section("View", "", [choice("Layout", segments), choice("Pattern", pattern), boardBackground], "inspector-view");
-    const filter = section("Filter", "", [pick(".workspace-search"), row("inspector-toggles", toggles)], "inspector-filter");
+    // Favorites / Last 6 weeks / Archive: one toolbar (one Tab stop, arrows along it), as the same row on Home.
+    const filterBar = document.createElement("ui-toolbar");
+    filterBar.className = "inspector-row inspector-toggles";
+    filterBar.setAttribute("aria-label", "Filter items");
+    for (const button of toggles.filter(Boolean)) { const part = document.createElement("ui-toolbar-button"); part.append(button); filterBar.append(part); }
+    const filter = section("Filter", "", [pick(".workspace-search"), filterBar], "inspector-filter");
     const order = document.createElement("button"); order.type = "button"; order.className = "tk-btn tk-sm tk-tonal";
     order.textContent = "Comparison order…"; order.onclick = () => this.orderForm();
     const edit = section("Edit", "", [row("inspector-edit-row", [...edits, order])], "inspector-edit");
@@ -622,7 +637,10 @@ export class WorkspaceBoard {
     // The name is a menu button listing every version (versionMenu); the arrows step to the neighbours.
     const choose = previous || next ? `<button type="button" class="workspace-file-version-name" data-file-version-menu="${esc(placementId)}" aria-haspopup="menu" aria-expanded="${this.versionMenuPlacement === placementId}" aria-label="${esc(title)}: choose a version" data-tip="${esc(title)}"><span role="status">${esc(version.name)}</span></button>`
       : `<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" data-tip="${esc(title)}">${esc(version.name)}</span>`;
-    return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${previous || next ? arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5") : ""}${choose}${previous || next ? arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5") : ""}</span>`;
+    // A toolbar (one Tab stop, ←/→ along it; ↓ on the name opens the menu), roving by board-focus.js. With a single
+    // version there is nothing to step and nothing to choose: the name is a status, not a control.
+    if (!previous && !next) return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${choose}</span>`;
+    return rovingMarkup(`<span class="workspace-file-versions" role="toolbar" data-roving aria-label="File versions for ${esc(item.title)}">${arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5")}${choose}${arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5")}</span>`);
   }
   aliasConcept(key) {
     const p = this.snapshot.placements.find(
@@ -1618,7 +1636,7 @@ export class WorkspaceBoard {
       const ticker = version && !unavailable && !this.hooks.viewOnly ? this.fileVersionTicker(item, version, p.id) : "";
       const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${ticker}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize bottom right of ${esc(item.title)}" data-tip="Drag to resize, or focus and use arrow keys" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown">◢</button>` : ""}</footer>`;
       const more = `<button type="button" class="workspace-tile-more" data-item-controls="${esc(p.id)}" data-controls-focus="menu" aria-label="Actions for ${esc(item.title)}" aria-haspopup="menu" aria-expanded="${this.tileMenuPlacement === p.id}" data-tip="Item actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>${review.note ? '<span class="workspace-note-dot" aria-hidden="true"></span>' : ""}</button>`;
-      const toolbar = `<div class="workspace-tile-toolbar" role="toolbar" aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" data-tip="Edit document" aria-keyshortcuts="E">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" data-tip="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" data-tip="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" data-tip="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`;
+      const toolbar = rovingMarkup(`<div class="workspace-tile-toolbar" role="toolbar" data-roving aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" data-tip="Edit document" aria-keyshortcuts="E">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" data-tip="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" data-tip="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" data-tip="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`);
       const visual = unavailable
         ? `<div class="workspace-build-placeholder"><strong>${item.build.state === "building" ? "In progress" : "Reserved"}</strong><span>${esc(item.build.message || "The preview will appear when this work is ready for review.")}</span></div>`
         : live ? `<iframe ${excerpt ? 'class="workspace-document-excerpt"' : ""} src="${esc(preview)}" data-preview-source="${esc(previewSource)}" title="${esc(item.title)} ${panel ? "design" : "live"} preview" tabindex="-1" loading="lazy" inert></iframe>`
@@ -2055,7 +2073,7 @@ export class WorkspaceBoard {
         <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
         <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, tip: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div><div class="inspector-paper">${inspectorColorMarkup("Paper color",paper,"paper")}</div></section>
         <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
-        <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
+        <ui-toolbar orientation="vertical" class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><ui-toolbar-button><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button></ui-toolbar-button>${this.mode === "canvas" ? '<ui-toolbar-button><button type="button" class="tk-mi" data-context-connect>Connect</button></ui-toolbar-button>' : ""}<ui-toolbar-button><button type="button" class="tk-mi" data-context-move>Move to board…</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></ui-toolbar-button></ui-toolbar>
       </div>`;
     // Focus goes back to what had it when the Inspector opened (a card, Details… on the selection bar); opened from a
     // menu, whose item is gone, to the card's ⋯.
@@ -2227,7 +2245,8 @@ export class WorkspaceBoard {
     }
     // A menu button in a toolbar (Arrange in the selection bar) opens on ArrowDown through the toolbar's own listener
     // (popups.js openOnArrowDown), which runs after this capture-phase handler: the board steps aside.
-    if (e.key === "ArrowDown" && !e.shiftKey && e.target.closest?.("[role=toolbar] [aria-haspopup], ui-toolbar [aria-haspopup]")) return true;
+    // (A card's own toolbars rove in board-focus.js; their menu buttons open just below.)
+    if (e.key === "ArrowDown" && !e.shiftKey && e.target.closest?.("[role=toolbar]:not([data-roving]) [aria-haspopup], ui-toolbar [aria-haspopup]")) return true;
     const more = ["ArrowDown","ArrowUp"].includes(e.key) && !e.shiftKey && e.target.closest?.('[data-item-controls][data-controls-focus="menu"], #world [data-file-version-menu]');
     if (!more) return false;
     e.preventDefault(); e.stopImmediatePropagation();
@@ -3979,7 +3998,9 @@ export class WorkspaceBoard {
     // Focus bookkeeping runs on focus events only, never on pointer moves.
     $("world").addEventListener("focusin", e => {
       const item = this.boardFocus.item(e.target);
-      if (item) this.boardFocus.setStop(this.boardFocus.key(item));
+      if (!item) return;
+      this.boardFocus.setStop(this.boardFocus.key(item));
+      if (e.target === item) this.boardFocus.roveReach(item); else this.boardFocus.rove(e.target);
     });
   }
   // Focus follows a press: a press on any board item (card, drawn element, sticker, container member) makes it the
@@ -4077,39 +4098,54 @@ export class WorkspaceBoard {
       form.requestSubmit();
     });
   }
-  orderForm() {
-    const placements = this.snapshot.reviewOrder
+  // Comparison order: a reorderable list (order-list.js; ui-sdk.md § Comparison order). One Tab stop, ↑/↓ move focus;
+  // Space/Enter picks a row up, ↑/↓ carry it, Space/Enter drops it, Escape puts it back; ⌥↑/↓ moves at once (⇧ to an
+  // end), as a container's members move on the board; a pointer drags a row.
+  async orderForm() {
+    await import("./order-list.js");
+    const placements = new Map(this.snapshot.reviewOrder
       .map((id) => this.snapshot.placements.find((p) => p.id === id))
-      .filter((p) => p && !p.removedAt);
+      .filter((p) => p && !p.removedAt)
+      .map((p) => [p.id, p]));
+    const title = id => this.snapshot.items[placements.get(id)?.itemId]?.title || placements.get(id)?.itemId || "Item";
+    const hint = "workspace-order-keys";
     const d = makeDialog(
       "Comparison order",
-      `<p>Set which item opens next in the reader.</p><div id="workspace-order"></div><button type="submit" class="workspace-primary">Save order</button>`,
+      `<p>Set which item opens next in the reader. Drag a row, or press Space to pick it up, ↑ or ↓ to move it and Space to drop it; Escape puts it back.</p><p id="${hint}" class="sr-only">Space picks up the item, the up and down arrows move it, Space drops it, Escape puts it back. Option or Alt with an arrow moves it one place at once.</p><fr-order-list id="workspace-order" class="workspace-order-list" aria-label="Comparison order" aria-describedby="${hint}">${[...placements.keys()].map((id, i) => `<fr-order-item value="${esc(id)}"><div class="workspace-order-row" aria-describedby="${hint}"><svg class="workspace-order-grip" viewBox="0 0 12 16" aria-hidden="true"><circle cx="4" cy="4" r="1.2"/><circle cx="8" cy="4" r="1.2"/><circle cx="4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg><span class="workspace-order-number" aria-hidden="true">${i + 1}</span><span class="workspace-order-title">${esc(title(id))}</span></div></fr-order-item>`).join("")}</fr-order-list><button type="submit" class="workspace-primary">Save order</button>`,
       async () => {
         await this.client.write("updateBoard", {
           boardId: this.snapshot.id,
-          patch: { reviewOrder: placements.map((p) => p.id) },
+          patch: { reviewOrder: list.api.order() },
         });
         await this.refresh();
       },
     );
-    const render = () => {
-      d.querySelector("#workspace-order").innerHTML = placements
-        .map(
-          (p, i) =>
-            `<div class="workspace-order-row"><span>${i + 1}. ${esc(this.snapshot.items[p.itemId]?.title || p.itemId)}</span><button type="button" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move ${esc(this.snapshot.items[p.itemId]?.title)} earlier">↑</button><button type="button" data-down="${i}" ${i === placements.length - 1 ? "disabled" : ""} aria-label="Move ${esc(this.snapshot.items[p.itemId]?.title)} later">↓</button></div>`,
-        )
-        .join("");
-      d.querySelectorAll("[data-up],[data-down]").forEach(
-        (b) =>
-          (b.onclick = () => {
-            const i = Number(b.dataset.up ?? b.dataset.down),
-              j = i + (b.dataset.up !== undefined ? -1 : 1);
-            [placements[i], placements[j]] = [placements[j], placements[i]];
-            render();
-          }),
-      );
-    };
-    render();
+    const list = d.querySelector("#workspace-order");
+    list.label = title;
+    list.value = [...placements.keys()];
+    list.addEventListener("valuechange", event => { list.value = event.detail.value; });
+    // Draw the rows in the list's order (a row still held moves as it is carried). The row being carried, or the
+    // focused one, never moves in the DOM, so it keeps focus and its pointer capture; the others are placed around it.
+    let shown = [...placements.keys()].join();
+    list.api.subscribe(order => {
+      if (order.join() === shown) return;
+      shown = order.join();
+      const nodes = new Map([...list.querySelectorAll("fr-order-item")].map(node => [node.getAttribute("value"), node]));
+      const fixedKey = order.find(key => list.api.held(key)) ?? document.activeElement?.closest?.("fr-order-item")?.getAttribute("value");
+      const fixed = nodes.get(fixedKey) || null, at = fixed ? order.indexOf(fixedKey) : -1;
+      let after = fixed;
+      order.forEach((key, index) => {
+        const node = nodes.get(key);
+        if (!node) return;
+        node.querySelector(".workspace-order-number").textContent = String(index + 1);
+        if (node === fixed) return;
+        if (!fixed) { list.append(node); return; }
+        if (index < at) list.insertBefore(node, fixed);
+        else { after.after(node); after = node; }
+      });
+    });
+    // Focus starts in the list, on its first row (dialog.md: the first control of the body).
+    requestAnimationFrame(() => { if (d.isConnected && d.contains(document.activeElement) && !list.contains(document.activeElement)) list.api.focus(); });
   }
   persistDrafts() {
     try {

@@ -18,36 +18,70 @@ function textRange(index,start,end){
   return null;
 }
 
-// The tooltip's look lives in ui-sdk.css; this page links it only when it needs the tooltip.
-function loadTips(){
+// The full reader's own bar is a UI SDK Toolbar (one Tab stop, arrows along it), Contents is a Menu and Annotations a
+// Popover (ui-sdk.md § Document reader). Their looks (ui-sdk.css, popups.css) and modules load only for the full reader,
+// so card previews stay light. Until the elements are defined, the popups' content stays hidden (media.css).
+function loadSdk(){
   if(!document.querySelector('link[href="/app/ui-sdk.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/app/ui-sdk.css';document.head.prepend(link);}
+  if(!document.querySelector('link[href="/app/popups.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/app/popups.css';document.head.append(link);}
   import('./tips.js').catch(()=>{});
+  return Promise.all([import('./ui-toolbar.js'),import('./popups.js')]).then(([toolbar,popups])=>({...toolbar,...popups}));
 }
+const part=(tag,child)=>{const el=document.createElement(tag);el.append(child);return el;};
 export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,content,showError}){
   const mode=['panel','card'].includes(query.get('mode'))?query.get('mode'):'reader',reader=mode==='reader';
   const itemId=query.get('item')||'',commentBoard=query.get('commentBoard')||'';
   const canAnnotate=reader&&!query.get('variant')&&query.get('annotate')==='1'&&Boolean(resourceRoot&&itemId)&&parent!==window;
   document.documentElement.dataset.documentMode=mode;
-  const tools=document.createElement('nav');tools.className='document-tools';tools.setAttribute('aria-label','Document tools');
-  // Hints on the UI SDK tooltip (tips.js), loaded only for the full reader (card previews stay light). The tools bar is a
-  // tooltip zone: its controls carry data-tip and the page's delegated tooltip serves them.
-  tools.dataset.tipZone='';if(reader)loadTips();
+  const tools=document.createElement('ui-toolbar');tools.className='document-tools';tools.setAttribute('aria-label','Document tools');
+  // Hints on the UI SDK tooltip (tips.js). The tools bar is a tooltip zone: its controls carry data-tip and the page's
+  // delegated tooltip serves them.
+  tools.dataset.tipZone='';const sdk=reader?loadSdk():null;
   const source=document.createElement('a');source.className='document-source';source.href=asset;source.target='_blank';source.rel='noopener noreferrer';source.textContent=resourceRoot?`${resourceRoot} / ${path}`:boardId?`${boardId} / ${path}`:'Original document';source.dataset.tip='Open original source';
-  const outline=document.createElement('select');outline.setAttribute('aria-label','Document contents');
+  // Contents: a menu button listing the headings (typeahead finds one); choosing one scrolls to it.
+  const outline=document.createElement('button');outline.type='button';outline.textContent='Contents';outline.dataset.documentContents='';outline.setAttribute('aria-label','Document contents');outline.dataset.tip='Go to a heading';outline.hidden=true;
+  const contentsMenu=document.createElement('ui-menu');contentsMenu.id='document-contents-menu';contentsMenu.innerHTML='<ui-menu-content class="tk-menu document-contents-menu" aria-label="Contents" align="start" side-offset="4" collision-padding="8"></ui-menu-content>';
+  let chosenHeading='';
   const reload=document.createElement('button');reload.type='button';reload.textContent='Reload';reload.setAttribute('aria-label','Reload source');reload.dataset.tip='Reload source';reload.dataset.documentReload='';
-  const annotations=document.createElement('button');annotations.type='button';annotations.textContent='Annotations';annotations.dataset.documentAnnotations='';annotations.hidden=!canAnnotate;annotations.setAttribute('aria-expanded','false');
+  const annotations=document.createElement('button');annotations.type='button';annotations.textContent='Annotations';annotations.dataset.documentAnnotations='';annotations.hidden=!canAnnotate;
   // Edit makes this page editable in place (document-editor.js); only the current local
   // document can be edited, never a historical variant. While editing it reads Done.
   const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.dataset.tip='Edit this document in place';edit.setAttribute('aria-keyshortcuts','E');edit.setAttribute('aria-label','Edit document');edit.dataset.documentEdit='';edit.hidden=!canAnnotate;
   edit.onclick=()=>editing?editing.end():startEdit({});
   const status=document.createElement('p');status.className='document-status';status.setAttribute('role','status');
-  const selectionTools=document.createElement('div');selectionTools.className='document-selection-tools';selectionTools.hidden=true;selectionTools.setAttribute('role','toolbar');selectionTools.setAttribute('aria-label','Selected passage');
+  const selectionTools=document.createElement('ui-toolbar');selectionTools.className='document-selection-tools';selectionTools.hidden=true;selectionTools.setAttribute('aria-label','Selected passage');
   const highlight=document.createElement('button');highlight.type='button';highlight.textContent='Highlight';highlight.dataset.documentHighlight='';
   const comment=document.createElement('button');comment.type='button';comment.textContent='Comment';comment.dataset.documentComment='';
-  selectionTools.append(highlight,comment);
-  const list=document.createElement('section');list.className='document-annotations';list.hidden=true;list.setAttribute('aria-label','Document annotations');
+  selectionTools.append(part('ui-toolbar-button',highlight),part('ui-toolbar-button',comment));
+  // Annotations: a Popover under its button (focus moves in; Escape, Close or a press outside close it and focus goes
+  // back to the button). Escape closes only the popover: the SDK takes it, so the reader never hears it.
+  const annotationsPopover=document.createElement('ui-popover');annotationsPopover.id='document-annotations-popover';
+  const list=document.createElement('ui-popover-content');list.className='document-annotations';list.dataset.height='float';list.setAttribute('aria-label','Document annotations');
+  for(const [name,value] of [['side','bottom'],['align','end'],['side-offset','6'],['collision-padding','8']])list.setAttribute(name,value);
+  annotationsPopover.append(list);
+  const annotationsOpen=()=>!!annotationsPopover.api?.isOpen();
+  const openAnnotations=()=>{if(!annotationsOpen())annotationsPopover.api?.open();};
   const paintLayer=document.createElement('div');paintLayer.className='document-paint-layer';paintLayer.setAttribute('aria-hidden','true');
-  if(reader){tools.append(source,outline,annotations,edit,reload);content.before(tools);content.before(status);document.body.append(selectionTools,list,paintLayer);}
+  if(reader){
+    const trigger=(tag,id,button)=>{const t=document.createElement(tag);t.setAttribute('for',id);t.append(button);return part('ui-toolbar-button',t);};
+    tools.append(part('ui-toolbar-link',source),trigger('ui-menu-trigger','document-contents-menu',outline),trigger('ui-popover-trigger','document-annotations-popover',annotations),part('ui-toolbar-button',edit),part('ui-toolbar-button',reload));
+    content.before(tools);content.before(status);document.body.append(selectionTools,contentsMenu,annotationsPopover,paintLayer);
+    sdk.then(({followVisibility,openOnArrowDown,menuItem,guardMenu})=>{
+      // Contents and Annotations come and go with the document; a hidden item leaves the arrow order.
+      followVisibility(tools);followVisibility(selectionTools);guardMenu(contentsMenu);
+      // ↓ opens Annotations as it opens Contents (a toolbar's menu buttons open on ↓; a Popover trigger has no ↓ of its own).
+      openOnArrowDown(tools,'[data-document-annotations]',()=>openAnnotations());
+      contentsMenu.addEventListener('openchange',event=>{
+        if(!event.detail.value||!model)return;
+        contentsMenu.querySelector('ui-menu-content').innerHTML=model.headings.map(entry=>menuItem(entry.id,entry.label,{className:`document-contents-level-${Math.min(entry.level,4)}`})).join('');
+      });
+      contentsMenu.addEventListener('action',event=>{chosenHeading=event.detail.value;article?.querySelector(`[id="${CSS.escape(chosenHeading)}"]`)?.scrollIntoView({block:'start'});});
+      annotationsPopover.addEventListener('openchange',event=>{if(event.detail.value)loadAnnotations();});
+    }).catch(()=>{});
+  }
+  // A toolbar item that can't act now (Reload while a load or an edit runs) stays in the arrow order, inert and saying
+  // so (toolbar.md § Disabled), once the toolbar is defined; before that it is plainly disabled.
+  const setOff=(button,on)=>{const item=button.closest('ui-toolbar-button');if(item&&customElements.get('ui-toolbar-button')){button.disabled=false;item.disabled=on;}else button.disabled=on;};
   let sourceText='',editing=null,pendingEdit=null,article,model,revision,generation=0,annotationRequest=0,selectedAnchor,pendingSelection,painted=[],comments=[],highlights=[],composing=false;
   const nativePaint=Boolean(globalThis.CSS?.highlights&&globalThis.Highlight);
   function post(type,detail={}){parent.postMessage({type,...detail},location.origin);}
@@ -102,10 +136,9 @@ export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,conte
     }
     paint();sendSelectionContext();
   }).observe(content);
-  outline.onchange=()=>article?.querySelector(`[id="${CSS.escape(outline.value)}"]`)?.scrollIntoView({block:'start'});
-  annotations.onclick=()=>{list.hidden=!list.hidden;annotations.setAttribute('aria-expanded',String(!list.hidden));if(!list.hidden)loadAnnotations();};
   function renderList(){
-    list.replaceChildren();const header=document.createElement('header'),title=document.createElement('strong'),close=document.createElement('button');title.textContent='Annotations';close.type='button';close.textContent='Close';close.onclick=()=>{list.hidden=true;annotations.setAttribute('aria-expanded','false');annotations.focus({preventScroll:true});};header.append(title,close);list.append(header);
+    const focused=list.contains(document.activeElement)?document.activeElement.closest('[data-annotation-id]')?.dataset.annotationId||'close':null;
+    list.replaceChildren();const header=document.createElement('header'),title=document.createElement('strong'),close=document.createElement('button');title.textContent='Annotations';close.type='button';close.textContent='Close';close.dataset.annotationsClose='';close.onclick=()=>annotationsPopover.api?.close();header.append(title,close);list.append(header);
     const state={matched:'Located',uncertain:'Source changed; review quote',stale:'Quote unlocated or ambiguous',unverified:'Source unavailable',detached:'Item unavailable'};
     for(const [kind,records] of [['highlight',highlights],['comment',comments]]){
       const heading=document.createElement('h2');heading.textContent=kind==='highlight'?'Highlights':'Comments';list.append(heading);
@@ -116,6 +149,8 @@ export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,conte
       }
     }
     annotations.textContent=`Annotations (${comments.length+highlights.length})`;
+    // A re-render (a highlight removed, annotations refreshed) keeps focus in the popover: on the same row, else Close.
+    if(focused&&!list.contains(document.activeElement))(list.querySelector(`[data-annotation-id="${CSS.escape(focused)}"] button`)||close).focus({preventScroll:true});
   }
   function derivePaint(){
     painted=[];const index=rangeIndex(article);
@@ -148,7 +183,7 @@ export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,conte
     if(!article?.contains(event.target)||!getSelection()?.isCollapsed)return;
     const entry=painted.find(mark=>[...mark.range.getClientRects()].some(rect=>event.clientX>=rect.left&&event.clientX<=rect.right&&event.clientY>=rect.top&&event.clientY<=rect.bottom));if(!entry)return;
     if(entry.kind==='comment'){pendingSelection={id:crypto.randomUUID(),anchor:entry.record.anchor,range:entry.range.cloneRange(),scrollTop:content.scrollTop,generation};composing=true;post('tinka-open-comment',{threadId:entry.record.id,selectionId:pendingSelection.id,selectionRect:selectionRect(entry.range)});paint();}
-    else{list.hidden=false;annotations.setAttribute('aria-expanded','true');list.querySelector(`[data-annotation-id="${CSS.escape(entry.record.id)}"] button`)?.focus({preventScroll:true});}
+    else{openAnnotations();requestAnimationFrame(()=>list.querySelector(`[data-annotation-id="${CSS.escape(entry.record.id)}"] button`)?.focus({preventScroll:true}));}
   });
   async function readBytes(response){
     if(!response.ok||Number(response.headers.get('content-length'))>DOCUMENT_BYTE_LIMIT)throw Error();
@@ -157,7 +192,7 @@ export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,conte
     const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}return bytes;
   }
   async function load(){
-    const current=++generation,heading=outline.value;selectionTools.hidden=true;selectedAnchor=null;reload.disabled=true;status.textContent='Loading source…';clearPaint();painted=[];
+    const current=++generation,heading=chosenHeading;selectionTools.hidden=true;selectedAnchor=null;setOff(reload,true);status.textContent='Loading source…';clearPaint();painted=[];
     if(!article){const loading=document.createElement('p');loading.className='document-loading';loading.textContent='Loading document…';content.replaceChildren(loading);}
     try{
       const bytes=await readBytes(await fetch(asset,{cache:'no-store'})),digest=await crypto.subtle.digest('SHA-256',bytes);if(current!==generation)return;
@@ -165,11 +200,11 @@ export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,conte
       const prefix=resourceRoot?`/resources/${encodeURIComponent(resourceRoot)}/`:`/boards/${encodeURIComponent(boardId)}/files/`;
       article=renderMarkdownDocument(document,model,{baseUrl:new URL(asset,location.href),origin:location.origin,resourcePrefix:prefix});article.tabIndex=-1;content.replaceChildren(article);
       previousWidth=article.clientWidth;
-      outline.replaceChildren(new Option('Contents…',''));for(const entry of model.headings)outline.append(new Option('  '.repeat(entry.level-1)+entry.label,entry.id));outline.hidden=!model.headings.length;
-      if(heading&&model.headings.some(entry=>entry.id===heading)){outline.value=heading;article.querySelector(`[id="${CSS.escape(heading)}"]`)?.scrollIntoView({block:'start'});}
+      outline.hidden=!model.headings.length;
+      if(heading&&model.headings.some(entry=>entry.id===heading))article.querySelector(`[id="${CSS.escape(heading)}"]`)?.scrollIntoView({block:'start'});else chosenHeading='';
       status.textContent=query.get('variant')?'Historical version. Open the current document to annotate.':'';if(pendingEdit){startEdit(pendingEdit);return;}await loadAnnotations();
     }catch{if(current===generation){if(mode==='card'){const unavailable=document.createElement('p');unavailable.className='document-loading';unavailable.textContent='Document unavailable. Open to check its source.';content.replaceChildren(unavailable);}else showError('The Markdown source could not be read. It may be unavailable or larger than 2 MiB.');status.textContent='Source unavailable.';}}
-    finally{if(current===generation)reload.disabled=false;}
+    finally{if(current===generation)setOff(reload,false);}
   }
   reload.onclick=()=>{if(!editing)load();};
   // In-place editing. The board (cards) or the Edit button (reader) starts it; a request that
@@ -209,7 +244,7 @@ export function mountMarkdownReader({asset,query,resourceRoot,path,boardId,conte
     if(buffered.cancelled){post('tinka-document-edit-end',{itemId:itemId||request.itemId,saved:false});return;}
     if(editing)return;
     clearPaint();selectionTools.hidden=true;composing=false;
-    edit.textContent='Done';edit.dataset.tip='Finish editing';edit.setAttribute('aria-keyshortcuts','Escape');reload.disabled=true;
+    edit.textContent='Done';edit.dataset.tip='Finish editing';edit.setAttribute('aria-keyshortcuts','Escape');setOff(reload,true);
     editing=startDocumentEditor({content,article,asset,text:fresh.text,revision:fresh.revision,itemId:itemId||request.itemId,point:request.point,source:!!request.source,selectTitle:!!request.selectTitle,pendingKeys:[...buffered.early,...buffered.keys],
       onStatus:({state,message,revision:saved})=>{post('tinka-document-status',{itemId:itemId||request.itemId,state,message,...(saved?{revision:saved}:{})});if(reader)status.textContent=state==='saving'?'Saving…':state==='saved'?'Saved':state==='conflict'?'Changed elsewhere. Reload to continue.':state==='error'?`Not saved. ${message}`:'';},
       onEnd:result=>{editing=null;edit.textContent='Edit';edit.dataset.tip='Edit this document in place';edit.setAttribute('aria-keyshortcuts','E');post('tinka-document-edit-end',{itemId:itemId||request.itemId,saved:result.saved,unsaved:result.unsaved,title:result.title});load().then(()=>{if(reader&&result.unsaved)status.textContent='Some changes were not saved.';});}});

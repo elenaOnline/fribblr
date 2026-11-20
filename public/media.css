@@ -51,8 +51,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--mark-blue); outli
 .document-tools { flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:10px clamp(16px,3vw,28px); border-bottom:1px solid var(--line-seam); background:var(--surface-frame); font:400 12px/1.5 var(--type-sans); }
 .document-source { flex:1; min-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-2); text-decoration:none; text-decoration-thickness:1px; text-underline-offset:3px; }
 .document-source:hover { text-decoration:underline; }
-.document-tools button,.document-tools select,.document-selection-tools button,.document-annotations button { border:0; border-radius:var(--shape-key); color:var(--ink); font:400 12.5px/1.4 var(--type-sans); padding:7px 10px; cursor:pointer; }
-.document-tools select { max-width:220px; }
+.document-tools button,.document-selection-tools button,.document-annotations button { border:0; border-radius:var(--shape-key); color:var(--ink); font:400 12.5px/1.4 var(--type-sans); padding:7px 10px; cursor:pointer; }
 .document-status { flex:0 0 auto; margin:0; padding:5px clamp(16px,3vw,28px); color:var(--ink-2); font:11px/1.5 var(--type-sans); }
 .document-status:empty { display:none; }
 .document-loading { margin:0; padding:18px 14px; color:var(--ink-2); font:13px/1.5 var(--type-sans); }
@@ -60,7 +59,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--mark-blue); outli
 .document-selection-tools { position:fixed; z-index:10; display:flex; gap:0; padding:3px; border:0; border-radius:var(--shape-key); background:var(--surface-frame);  }
 .document-selection-tools button { border:0; padding:8px 12px; background:transparent; border-radius:var(--shape-cell); }
 .document-selection-tools button:hover { background:var(--surface-chosen); }
-.document-selection-tools[hidden],.document-annotations[hidden] { display:none; }
+.document-selection-tools[hidden] { display:none; }
 .document-paint-layer { position:fixed; inset:0; pointer-events:none; z-index:2; overflow:hidden; }
 .document-paint-layer span { position:absolute; border-radius:1px; }
  /* her highlights and comments are her voice: red (a wash for a highlight, an underline for a comment); the selection is blue */
@@ -70,7 +69,13 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--mark-blue); outli
 ::highlight(tinka-document-highlights) { background:color-mix(in srgb,var(--mark-red) 18%,transparent); color:inherit; }
 ::highlight(tinka-document-comments) { background:transparent; text-decoration:underline 2px; text-decoration-color:var(--mark-red); text-underline-offset:3px; }
 ::highlight(tinka-document-selection) { background:color-mix(in srgb,var(--mark-blue) 22%,transparent); color:inherit; }
-.document-annotations { position:fixed; z-index:8; top:52px; right:16px; width:min(340px,calc(100% - 32px)); max-height:calc(100dvh - 72px); overflow:auto; padding:14px; border:0; border-radius:var(--shape-float); background:var(--surface-frame);  font:13px/1.5 var(--type-sans); }
+.document-annotations { width:min(340px,calc(100vw - 32px)); max-height:min(calc(100dvh - 72px), var(--available-height, 100dvh)); overflow:auto; padding:14px; border:0; border-radius:var(--shape-float); background:var(--surface-frame); color:var(--ink); font:13px/1.5 var(--type-sans); }
+/* The reader's popups before UI SDK has defined them (it loads after the bar is drawn): nothing shows. */
+:is(ui-popover-content, ui-menu-content):not([data-slot]) { display:none; }
+.document-contents-menu { min-width:200px; max-width:min(360px, calc(100vw - 16px)); }
+.document-contents-menu .tk-mi.document-contents-level-2 { padding-left:22px; }
+.document-contents-menu .tk-mi.document-contents-level-3 { padding-left:34px; }
+.document-contents-menu .tk-mi.document-contents-level-4 { padding-left:46px; }
 .document-annotations header { display:flex; justify-content:space-between; align-items:center; gap:10px; }
 .document-annotations h2 { margin:18px 0 8px; font:500 13px/1.4 var(--type-sans); }
 .document-annotations article { display:flex; flex-direction:column; gap:7px; padding:10px 0; border-top:1px solid var(--line-hair); }
@@ -102,7 +107,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--mark-blue); outli
 :root[data-document-mode="card"] .markdown img { max-height:100px; object-fit:contain; }
 :root[data-document-mode="panel"] .markdown img { max-height:180px; object-fit:contain; }
 @media(max-width:500px) { #media-header { min-height:36px; padding-inline:14px; } .markdown { width:min(100% - 42px,740px); font-size:calc(17px * var(--scale)); } }
-@media(max-width:500px) { .document-tools { flex-wrap:wrap; padding:8px 14px; gap:6px; } .document-source { flex-basis:100%; } .document-tools button,.document-tools select { padding:7px 8px; font-size:11px; } .document-tools select { max-width:105px; } }
+@media(max-width:500px) { .document-tools { flex-wrap:wrap; padding:8px 14px; gap:6px; } .document-source { flex-basis:100%; } .document-tools button { padding:7px 8px; font-size:11px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
 
 /* In-place editing (document-editor.js): the same paper page, scrolling instead of fading, with a
