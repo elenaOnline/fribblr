@@ -168,8 +168,8 @@ try{
  await page.keyboard.press('Escape');await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(150);
  // Dark: the map stays readable (frame and silhouettes).
  await page.emulateMedia({colorScheme:'dark'});await page.evaluate(()=>{localStorage.setItem(Object.keys(localStorage).find(k=>k.endsWith('/appearance'))||'x','dark');});
- await page.locator('#board-info-toggle').click();const darkButton=page.locator('#board-info [data-appearance="dark"], #board-info button:has-text("Dark")').first();
- if(await darkButton.count())await darkButton.click();await page.keyboard.press('Escape');await page.waitForTimeout(150);
+ await page.locator('#board-info-toggle').click();const darkButton=page.locator('#board-info [data-appearance-set="dark"]');
+ await darkButton.click();await page.keyboard.press('Escape');await page.waitForTimeout(150);
  ok(await page.evaluate(()=>document.documentElement.dataset.appearance)==='dark','Dark appearance is on');
  const pixels=await stage.evaluate(el=>{const c=el.querySelector('canvas'),ctx=c.getContext('2d'),d=ctx.getImageData(0,0,c.width,c.height).data;let painted=0;for(let i=3;i<d.length;i+=4)if(d[i]>0)painted++;return painted/(c.width*c.height);});
  ok(pixels>.05,`The dark map draws its silhouettes: ${pixels}`);
