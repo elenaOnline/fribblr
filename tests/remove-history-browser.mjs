@@ -64,7 +64,8 @@ try {
   const state = async()=>page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)||'{"undo":[],"redo":[]}'),key);
   const ready = async p => {
     await p.waitForFunction(()=>document.getElementById('workspace-paste')?.disabled===false);
-    await p.locator('#live-status[data-connection="live"]').waitFor();
+    // Attached, not visible: fribblr's kind legend takes the status line's place while the board is live (legend.css).
+    await p.locator('#live-status[data-connection="live"]').waitFor({state:'attached'});
   };
   const show = async(p,id)=>{await p.goto(base+`/boards/${id}/`);await p.locator('#workspace-copy').waitFor({state:'attached'});await ready(p);};
   const card = id=>page.locator(`[data-placement="${id}"]`);
