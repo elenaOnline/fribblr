@@ -14,14 +14,14 @@
   <header id="canvas-header" class="canvas-header">
     <nav class="identity" aria-label="Board navigation">
       <a class="brand" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="project-label">Home</span></a>
-      <span id="board-number" class="item-number board-number" hidden></span><h1 id="board-title" class="board-name" aria-current="page">Loading board…</h1>
+      <span id="board-number" class="item-number board-number" hidden></span><h1 id="board-title" class="board-name" aria-current="page" data-tip-truncated>Loading board…</h1>
     </nav>
     <ui-toolbar id="chrome-actions" class="chrome-actions" aria-label="Board actions">
-      <button id="chrome-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" title="Find boards and items (⌘K)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
-      <button id="board-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="board-info" aria-label="Inspector" title="Inspector: board view, filters, details and help (⌘I)"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
+      <button id="chrome-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" data-tip="Find boards and items"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
+      <button id="board-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="board-info" aria-label="Inspector" aria-keyshortcuts="Meta+I Control+I" data-tip="Inspector: board view, filters, details and help"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
     </ui-toolbar>
     <ui-dialog id="board-info-dialog"><ui-dialog-content id="board-info" class="board-info calm-side calm-side-right" inline aria-labelledby="board-info-heading" hidden>
-      <header class="calm-side-head"><span class="tk-eyebrow" id="board-info-title">Board</span><button id="board-info-close" class="tk-btn tk-sm tk-icon" type="button" aria-label="Close inspector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header>
+      <header class="calm-side-head"><span class="tk-eyebrow" id="board-info-title">Board</span><button id="board-info-close" class="tk-btn tk-sm tk-icon" type="button" aria-label="Close inspector" data-tip="Close inspector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header>
       <p class="eyebrow" id="board-info-heading">ABOUT THIS BOARD</p>
       <p id="board-description"></p>
       <p class="info-meta"><span id="experiment-count">Experiments</span><span id="round-count">Explorations</span><span>Notes saved on this Mac</span></p>
@@ -34,7 +34,7 @@
   <div id="board-error" class="board-error" role="alert" hidden></div>
   <main id="viewport" data-canvas-pattern="plain" aria-label="Experiments canvas: drag or scroll to pan, pinch or Control-scroll to zoom" tabindex="0"><div id="plane"><div id="world" data-tip-zone></div></div></main>
   <section id="board-map" class="board-map" aria-label="Board map" hidden>
-    <header class="board-map-head"><span class="tk-eyebrow" aria-hidden="true">Map</span><button class="tk-btn tk-sm" type="button" data-map-fit="selection" title="Fit the selection (F or ⇧2)" hidden>Fit selected</button><button class="tk-btn tk-sm" type="button" data-map-fit="board" title="Fit board (⇧1)">Fit board</button><button class="tk-btn tk-sm tk-icon" type="button" data-map-close aria-label="Close map" title="Close map (M)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header>
+    <header class="board-map-head"><span class="tk-eyebrow" aria-hidden="true">Map</span><button class="tk-btn tk-sm" type="button" data-map-fit="selection" data-tip="Fit the selection" data-tip-keys="F Shift+2" hidden>Fit selected</button><button class="tk-btn tk-sm" type="button" data-map-fit="board" data-tip="Fit the whole board" data-tip-keys="Shift+1">Fit board</button><button class="tk-btn tk-sm tk-icon" type="button" data-map-close aria-label="Close map" aria-keyshortcuts="M" data-tip="Close map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header>
     <div class="board-map-stage" tabindex="0" role="application" aria-roledescription="board map" aria-label="Board map: arrow keys move the view, plus and minus zoom, 0 shows 100%, Escape closes the map"><canvas aria-hidden="true"></canvas><div class="board-map-frame" aria-hidden="true" hidden></div></div>
   </section>
   <footer class="control-footer canvas-footer">
@@ -71,24 +71,24 @@
   <dialog id="reader-dialog" aria-labelledby="reader-name">
     <header id="reader-header" class="reader-header">
       <nav class="identity" aria-label="Where you are">
-        <button id="reader-navigator" class="project-navigator-toggle tk-btn tk-icon" type="button" aria-keyshortcuts="Meta+K Control+K" aria-label="Navigator" aria-controls="project-navigator" aria-expanded="false" title="Navigator (⌘K)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg></button>
+        <button id="reader-navigator" class="project-navigator-toggle tk-btn tk-icon" type="button" aria-keyshortcuts="Meta+K Control+K" aria-label="Navigator" aria-controls="project-navigator" aria-expanded="false" data-tip="Navigator"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg></button>
         <a class="brand" id="reader-home" href="/" aria-label="Tinka home"><svg class="brand-mark" viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" focusable="false"><path class="brand-mark-a" d="M7 8h15v15H7zm19 0h15v15H26zM7 27h15v15H7z"/><path class="brand-mark-b" d="m33.5 25 10 10-10 10-10-10z"/></svg><span id="reader-project">Home</span></a>
-        <a id="close-reader" class="workspace-parent reader-up" href="#" aria-keyshortcuts="Escape Alt+ArrowUp" title="Up to the board (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg><span id="reader-up-label" class="reader-up-label">Board</span></a>
+        <a id="close-reader" class="workspace-parent reader-up" href="#" aria-keyshortcuts="Escape Alt+ArrowUp" data-tip="Up to the board"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg><span id="reader-up-label" class="reader-up-label">Board</span></a>
         <span class="reader-title-row">
-          <ui-menu-trigger for="reader-path-menu"><button id="reader-path" class="reader-path" type="button" title="Where you are: click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button></ui-menu-trigger>
+          <ui-menu-trigger for="reader-path-menu"><button id="reader-path" class="reader-path" type="button" data-tip="Where you are: click for the path"><span id="reader-number" class="item-number reader-number" hidden></span><strong id="reader-name" class="experiment-crumb" aria-current="page"></strong><svg class="reader-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button></ui-menu-trigger>
           <button id="reader-down" class="tk-btn reader-down" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5"/></svg><span id="reader-down-label">Board</span></button>
           <ui-pagination id="reader-stepper" class="reader-stepper" aria-label="Step through this board" page="1" page-count="1" hidden><ui-pagination-list class="reader-stepper-list"><ui-pagination-item><ui-pagination-previous><button id="reader-previous" class="tk-btn tk-icon" type="button" aria-label="Previous Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button></ui-pagination-previous></ui-pagination-item><ui-pagination-item><ui-menu-trigger for="reader-path-menu"><button id="reader-count" class="tk-btn reader-count" type="button">1 / 1</button></ui-menu-trigger></ui-pagination-item><ui-pagination-item><ui-pagination-next><button id="reader-next" class="tk-btn tk-icon" type="button" aria-label="Next Tinka"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></ui-pagination-next></ui-pagination-item></ui-pagination-list></ui-pagination>
         </span>
       </nav>
       <ui-toolbar class="chrome-actions" aria-label="Tinka actions">
-        <span class="item-actions"><button id="reader-star" class="item-star tk-btn tk-icon" type="button" aria-pressed="false" aria-label="Favorite" title="Favorite">☆</button><button id="notes-toggle" class="notes-toggle tk-btn" type="button" aria-expanded="false" aria-controls="notes-panel">Notes<span class="note-dot" aria-hidden="true" hidden></span></button></span>
-        <button id="reader-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" title="Find boards and items (⌘K)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
-        <button id="reader-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="reader-info" aria-label="Inspector" title="Inspector: this Tinka's details and actions (⌘I)"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
+        <span class="item-actions"><button id="reader-star" class="item-star tk-btn tk-icon" type="button" aria-pressed="false" aria-label="Favorite" data-tip="Favorite">☆</button><button id="notes-toggle" class="notes-toggle tk-btn" type="button" aria-expanded="false" aria-controls="notes-panel">Notes<span class="note-dot" aria-hidden="true" hidden></span></button></span>
+        <button id="reader-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" data-tip="Find boards and items"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
+        <button id="reader-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="reader-info" aria-label="Inspector" aria-keyshortcuts="Meta+I Control+I" data-tip="Inspector: this Tinka's details and actions"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
       </ui-toolbar>
     </header>
     <div id="reader-file-versions" role="group" aria-label="File versions" hidden>
       <button id="reader-older-file" class="tk-btn tk-icon" type="button" aria-label="Previous version"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5"/></svg></button>
-      <ui-menu-trigger for="reader-version-menu"><button id="reader-file-version-choose" class="reader-file-version-detail" type="button" title="Choose a version"><span role="status"><strong id="reader-file-version-name"></strong> <time id="reader-file-version-modified"></time></span></button></ui-menu-trigger>
+      <ui-menu-trigger for="reader-version-menu"><button id="reader-file-version-choose" class="reader-file-version-detail" type="button" data-tip="Choose a version"><span role="status"><strong id="reader-file-version-name"></strong> <time id="reader-file-version-modified"></time></span></button></ui-menu-trigger>
       <button id="reader-newer-file" class="tk-btn tk-icon" type="button" aria-label="Next version"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
     </div>
     <ui-menu id="reader-version-menu"><ui-menu-content id="reader-version-list" class="tk-menu file-version-menu" aria-label="Versions" align="center" side-offset="6" collision-padding="8"></ui-menu-content></ui-menu>
@@ -96,7 +96,7 @@
     <ui-dialog id="reader-info-dialog"><ui-dialog-content id="reader-info" class="reader-info calm-side calm-side-right" inline aria-labelledby="reader-info-name" hidden></ui-dialog-content></ui-dialog>
     <div class="reader-area">
       <div class="reader-main">
-        <div id="reader-stage" class="reader-stage" tabindex="-1" aria-label="Tinka canvas: pinch or Control-scroll to zoom, drag the background to pan"><div id="reader-plane" class="reader-plane"><div id="reader-window" title="Drag the lower-right corner to resize"><iframe id="active-reader" title="Experiment viewer"></iframe></div></div></div>
+        <div id="reader-stage" class="reader-stage" tabindex="-1" aria-label="Tinka canvas: pinch or Control-scroll to zoom, drag the background to pan"><div id="reader-plane" class="reader-plane"><div id="reader-window" data-tip="Drag the lower-right corner to resize"><iframe id="active-reader" title="Experiment viewer"></iframe></div></div></div>
         <button id="reader-update" class="reader-update" type="button" hidden>New version available · Reload experiment</button>
         <footer class="reader-footer">
           <ui-toolbar class="view-tools zoom-pill" aria-label="Tinka view controls">
@@ -128,7 +128,7 @@
               <div id="revision-group" class="revision-group" role="group" aria-labelledby="revision-label" hidden><div class="tk-mlabel" id="revision-label">Version</div><div id="revision-options"></div></div>
             </div>
             <div class="tk-msep"></div>
-            <div class="tk-mlabel" id="reader-light-label" title="Light and Type size apply to documents and media Tinka shows; prototypes keep their own look">Light</div>
+            <div class="tk-mlabel" id="reader-light-label" data-tip="Light and Type size apply to documents and media Tinka shows; prototypes keep their own look">Light</div>
             <ui-segmented-control class="tk-seg reader-light" aria-labelledby="reader-light-label" default-value="paper"><ui-segmented-control-item value="paper" data-reader-light="paper">Paper</ui-segmented-control-item><ui-segmented-control-item value="night" id="reader-theme" data-reader-light="night">Night</ui-segmented-control-item></ui-segmented-control>
             <label class="reader-type-row"><span class="tk-mlabel">Type size</span><span class="type-glyph small" aria-hidden="true">A</span><input id="reader-type" class="type-slider" type="range" min="100" max="130" step="15" value="100" aria-label="Type size"><span class="type-glyph large" aria-hidden="true">A</span></label>
             <div class="tk-msep"></div>
@@ -137,7 +137,7 @@
         </ui-popover>
       </div>
       <aside id="notes-panel" class="notes-panel" aria-labelledby="notes-heading" hidden>
-        <div class="notes-head"><div><h2 id="notes-heading">Notes</h2><p id="notes-for"></p></div><button id="notes-close" class="notes-close" type="button" aria-label="Close notes">×</button></div>
+        <div class="notes-head"><div><h2 id="notes-heading">Notes</h2><p id="notes-for"></p></div><button id="notes-close" class="notes-close" type="button" aria-label="Close notes" data-tip="Close notes">×</button></div>
         <p id="reader-hint" class="notes-hint"></p>
         <label class="notes-label">THOUGHTS TO RETURN TO<textarea id="reader-note" placeholder="What feels right? What gets in the way?"></textarea></label>
         <p id="reader-save-status" class="reader-save-status" role="status">Notes saved on this Mac</p>

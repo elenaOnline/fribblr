@@ -173,7 +173,7 @@ async function loadAppTitle() {
   loadCanvasPattern();
   $('project-label').textContent = 'Home';
   $('reader-project').textContent = 'Home';
-  document.querySelectorAll('.brand').forEach(brand => { brand.setAttribute('aria-label', `${appTitle} home`); brand.title = `${appTitle} · all boards`; });
+  document.querySelectorAll('.brand').forEach(brand => { brand.setAttribute('aria-label', `${appTitle} home`); setTip(brand, `${appTitle} · all boards`); });
   if (board) updateMetadata();
 }
 
@@ -187,7 +187,7 @@ function updateMetadata() {
   $('board-title').textContent = title;
   $('board-number').textContent = boardNumber;
   $('board-number').hidden = !boardNumber;
-  $('board-title').title = title;
+  setTip($('board-title'), title);
   if (active) renderReaderChrome();
   $('board-description').textContent = board.description || 'Working experiments and the questions they invite.';
   $('experiment-count').textContent = `${all.length} ${all.length === 1 ? 'experiment' : 'experiments'}`;
@@ -273,7 +273,7 @@ function applyView() {
   const percent = Math.round(zoom * 100);
   slider.value = String(sliderFromZoom(zoom));
   slider.setAttribute('aria-valuetext', `${percent} percent`);
-  slider.title = `Zoom ${percent}%`;
+  setTip(slider, `Zoom ${percent}%`);
   syncViewChrome();
 }
 
@@ -673,6 +673,15 @@ const readerInspector = sidePanel($('reader-info-dialog'), {
 });
 const readerKeysMac = isMacPlatform();
 const MOD = stepModifierLabel(readerKeysMac);
+// The reader's step keys, declared per platform (⌥ on a Mac, Ctrl elsewhere) so the tooltips print this platform's.
+{
+  const step = readerKeysMac ? 'Alt' : 'Control';
+  $('close-reader').setAttribute('aria-keyshortcuts', `Escape ${step}+ArrowUp`);
+  $('reader-previous').setAttribute('aria-keyshortcuts', `${step}+ArrowLeft [`);
+  $('reader-next').setAttribute('aria-keyshortcuts', `${step}+ArrowRight ]`);
+  // Labelled keys print a keycap for aria-keyshortcuts (keycaps.js); Down names its key in the tooltip only.
+  $('reader-down').dataset.tipKeys = `${step}+ArrowDown`;
+}
 const readerCanvas = new ReaderCanvas(readerStage, $('reader-plane'), $('reader-window'), {
   onChange: syncReaderZoom,
   onBack: shown => { $('reader-view-back').hidden = !shown; },
@@ -737,7 +746,7 @@ function setType(value, send = true) {
   const input = $('reader-type');
   input.value = String(readerView.type);
   input.setAttribute('aria-valuetext', `${readerView.type}%`);
-  input.title = `Type size ${readerView.type}%`;
+  setTip(input, `Type size ${readerView.type}%`);
   if (send) sendPreferences();
 }
 
@@ -783,12 +792,12 @@ function renderFileVersionControls() {
   if (time.textContent !== timeLabel) time.textContent = timeLabel;
   time.hidden = !timeLabel;
   time.dateTime = version?.modifiedAt || '';
-  time.title = modified ? `Modified ${modified.exact}` : '';
+  setTip(time, modified ? `Modified ${modified.exact}` : '');
   for (const [id, choice, end] of [['reader-older-file', previous, 'Oldest version'], ['reader-newer-file', next, 'Newest version']]) {
     const button = $(id);
     button.dataset.revisionChoice = choice?.id || '';
     button.setAttribute('aria-disabled', String(!choice));
-    button.title = choice ? `Show ${choice.name}` : end;
+    setTip(button, choice ? `Show ${choice.name}` : end);
   }
 }
 
@@ -809,7 +818,7 @@ function syncReaderNotes() {
   document.querySelector('.note-dot').hidden = !hasNote;
   $('notes-toggle').setAttribute('aria-label', hasNote ? 'Notes (this experiment has a note)' : 'Notes');
   const starred = Boolean(notes[active.key]?.star);
-  $('reader-star').title = starred ? 'Favorite · remove from favorites' : 'Favorite';
+  setTip($('reader-star'), starred ? 'Favorite · remove from favorites' : 'Favorite');
 }
 
 function renderReaderHeader() {
@@ -822,7 +831,7 @@ function renderReaderHeader() {
   $('reader-name').textContent = name;
   // The opened item carries its kind, as its card on the board does.
   markKind(document.querySelector('.reader-title-row'), active.graphItem || null);
-  $('reader-path').title = `${name}${hint ? ` · ${hint}` : ''} · click for where you are`;
+  setTip($('reader-path'), `${name}${hint ? ` · ${hint}` : ''} · click for where you are`);
   const number = shownNumber(active);
   $('reader-number').textContent = number;
   $('reader-number').hidden = !number;
@@ -870,7 +879,7 @@ function renderReaderChrome() {
   if (!active) return;
   const title = readerBoardTitle();
   $('reader-up-label').textContent = title;
-  $('close-reader').title = `Up to ${title} (Esc · ${MOD}↑)`;
+  setTip($('close-reader'), `Up to ${title}`);
   $('close-reader').setAttribute('aria-label', `Up to board ${title}`);
   $('close-reader').href = `${location.pathname}${location.search}${rounds[currentRound] ? `#round-${rounds[currentRound].id}` : ''}`;
   const child = graph?.childInfo(active.graphItem);
@@ -878,7 +887,7 @@ function renderReaderChrome() {
   down.hidden = !child;
   if (child) {
     $('reader-down-label').textContent = child.count == null ? 'Board' : `Board · ${child.count}`;
-    down.title = `Go down into its board, ${child.title} (${MOD}↓)`;
+    setTip(down, `Go down into its board, ${child.title}`);
     down.setAttribute('aria-label', `Open its board ${child.title}${child.count == null ? '' : `, ${child.count} ${child.count === 1 ? 'item' : 'items'}`}`);
   }
   readerPath.refresh();
@@ -894,14 +903,14 @@ function updateReaderNavigation() {
   $('reader-stepper').setAttribute('aria-label', `Step through ${title}`);
   $('reader-count').textContent = index < 0 ? '' : `${index + 1} / ${sequence.length}`;
   $('reader-count').setAttribute('aria-label', index < 0 ? 'Neighbours' : `${index + 1} of ${sequence.length} on ${title}: show them`);
-  $('reader-count').title = `${sequence.length} on ${title} · show them`;
+  setTip($('reader-count'), `${sequence.length} on ${title} · show them`);
   // The stepper is a UI SDK Pagination: at either end its step says it is disabled and keeps focus.
   const stepper = $('reader-stepper');
   if (index >= 0 && 'page' in stepper) { stepper.pageCount = sequence.length; stepper.page = index + 1; }
   for (const [id, offset, label, arrow, bracket] of [['reader-previous', -1, 'Previous', '←', '['], ['reader-next', 1, 'Next', '→', ']']]) {
     const neighbor = index < 0 ? null : sequence[index + offset];
     const button = $(id);
-    button.title = neighbor ? `${label}: ${neighbor.name} (${MOD}${arrow} or ${bracket})` : `No ${label.toLowerCase()} Tinka`;
+    setTip(button, neighbor ? `${label}: ${neighbor.name}` : `No ${label.toLowerCase()} Tinka`);
     button.setAttribute('aria-label', neighbor ? `${label} Tinka: ${neighbor.name}` : `${label} Tinka`);
   }
   if (dialog.open && (document.activeElement === document.body || document.activeElement?.disabled)) focusTinka();

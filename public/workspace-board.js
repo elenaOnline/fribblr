@@ -354,11 +354,11 @@ export class WorkspaceBoard {
     add.className = "tk-btn tk-primary chrome-add";
     add.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg><span class="chrome-add-label">Add</span>';
     add.setAttribute("aria-label", "Add");
-    add.title = "Add text, shapes, arrows, items and boards";
+    add.dataset.tip = "Add text, shapes, arrows, items and boards";
     const actions = $("chrome-actions");
     const quick = document.createElement("span");
     quick.className = "chrome-history";
-    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
+    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" data-tip="Undo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" data-tip="Redo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
     // Beside the Inspector toggle's outermost wrapper (toolbar part, tooltip trigger), never inside it.
     tipOuter($("board-info-toggle")).before(quick);
     // Add opens the shared Add menu (popups.js): an item of the "Board actions" toolbar whose button is the menu's
@@ -369,6 +369,7 @@ export class WorkspaceBoard {
     addTrigger.append(add);
     addPart.append(addTrigger);
     actions.append(addPart);
+    tips(actions);
     this.addMenuElement();
     this.installEditTools();
     const history = document.createElement("div");
@@ -690,14 +691,14 @@ export class WorkspaceBoard {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parent"}));
         crumb.href = `/boards/${encodeURIComponent(parent.id)}/`;
         crumb.setAttribute("aria-label", "Return to parent board " + parent.title);
-        crumb.title = "Return to " + parent.title +
-          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : "");
+        setTip(crumb, "Return to " + parent.title +
+          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : ""));
       } else if (parents.length > 1) {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parents"}));
         crumb.href = "#parents";
         crumb.setAttribute("role", "button");
         crumb.setAttribute("aria-label", "Choose a parent board");
-        crumb.title = "Choose from " + parents.length + " parent boards";
+        setTip(crumb, "Choose from " + parents.length + " parent boards");
         crumb.onclick = event => {
           event.preventDefault();
           makeDialog("This board appears on", parents.map(p =>
@@ -1457,9 +1458,9 @@ export class WorkspaceBoard {
       const verb = direction === "undo" ? "Undo" : "Redo", label = this.history?.label(direction);
       button.textContent = label ? `${verb} ${label.toLowerCase()}` : verb;
       button.disabled = !!busy || !this.history?.available(direction);
-      button.title = direction === "undo" ? "Undo movement, paste or removal (⌘/Ctrl Z)" : "Redo movement, paste or removal (⌘/Ctrl Shift Z)";
+      setTip(button, direction === "undo" ? "Undo movement, paste or removal" : "Redo movement, paste or removal");
       const quick = $("chrome-" + direction);
-      if (quick) { setItemDisabled(quick, button.disabled); quick.title = `${label ? `${verb} ${label.toLowerCase()}` : verb} (${direction === "undo" ? "⌘Z" : "⇧⌘Z"})`; }
+      if (quick) { setItemDisabled(quick, button.disabled); setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     const hasDrawings = this.mode === "canvas" && (this.activeDecoration || this.decorationSelection.size);
