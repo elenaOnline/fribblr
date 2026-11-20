@@ -109,7 +109,7 @@ try{
  assert.equal(reversed.bend,-initial);
  // The board shows the reversed arrow (its end now on Plan) before the next gesture.
  await page.waitForFunction(()=>{const h=document.querySelector('[data-decoration=flow] [data-endpoint=to]')?.getBoundingClientRect(),p=document.querySelector('[data-decoration=plan]').getBoundingClientRect();return h&&Math.abs(h.x+h.width/2-p.right)<4;});
- assert.equal(await page.locator('dialog[open]').count(),0);
+ assert.equal(await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count(),0);
 
  // Dragging an end over a different shape highlights it and snaps to its nearest side.
  await idle();const handle=await box('[data-decoration=flow] [data-endpoint=to]'),ship=await box('[data-decoration=ship]');

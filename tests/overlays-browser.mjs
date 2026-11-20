@@ -83,6 +83,12 @@ try{
  await page.waitForFunction(()=>document.querySelectorAll('.workspace-card').length===2);
  assert.equal((await getBoardSnapshot(config,'graph')).placements.filter(p=>!p.removedAt).length,2);
  ok('alert dialog');
+ await page.locator('.workspace-toast').filter({hasText:'Removed 1 Tinka'}).first().waitFor();
+ await page.locator('.workspace-toast-action').click();
+ await page.waitForFunction(()=>document.querySelectorAll('.workspace-card').length===3);
+ assert.equal((await getBoardSnapshot(config,'graph')).placements.filter(p=>!p.removedAt).length,3,'the Remove toast has an Undo action that restores the placement');
+ ok('remove toast undo');
+ await page.evaluate(async()=>{const {dismissToast}=await import('/app/toasts.js');dismissToast();});
 
  // ---- Tile notes popover: in the body, not in the card; Escape keeps the draft and returns focus; outside press closes
  const control=page.locator(`[data-placement="${placements.a}"] [data-item-controls]`);

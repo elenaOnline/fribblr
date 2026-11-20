@@ -1657,7 +1657,7 @@ let pendingDocumentOpen = 0;
 document.addEventListener('click', event => {
   const fileStep = event.target.closest('#world [data-file-version-step]');
   if (fileStep && graph) { graph.stepFileVersion(fileStep); return; }
-  const open = event.target.closest('[data-open]');
+  const open = event.target.closest('[data-open]:not([data-slot])');
   const star = event.target.closest('[data-star]');
   const remove = event.target.closest('[data-remove-experiment]');
   if (remove && appConfig) {

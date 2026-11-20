@@ -226,7 +226,10 @@ export function makeDialog(title, body, onSubmit, {
   });
   root.addEventListener('openchangecomplete', event => {
     if (event.detail.value) return;
-    finish(); root.remove(); restoreFocus(opener);
+    // Our opener first, then the "close" listeners: a caller that wants focus elsewhere has the last word.
+    root.remove();
+    // After the SDK has put focus back (it runs after this event), so a caller's "close" listener has the last word.
+    requestAnimationFrame(() => { restoreFocus(opener); finish(); });
   });
   controller = bindForm(form, {
     submit: async data => { await onSubmit?.(data, d); },
