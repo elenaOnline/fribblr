@@ -23,11 +23,20 @@ export function segmentedHTML({ label, labelledby, className = '', id, attrs = {
 // Check an option from code. Fires no event, so writing our own model back never echoes.
 export function setSegmented(el, value) {
   if (!el) return;
-  if (el.api) el.value = value;
+  if (el.api) el.value = value ?? null;
+  else if (value == null) { el.removeAttribute('default-value'); el.removeAttribute('value'); }
   else { el.setAttribute('default-value', value); el.setAttribute('value', value); }
 }
 
 // Run `fn(value, event)` when she chooses an option (pointer or arrow keys).
 export function onSegmented(el, fn) {
   el.addEventListener('valuechange', event => { if (event.detail.value != null) fn(event.detail.value, event); });
+}
+
+// Focus the checked option (the control's Tab stop). The SDK gives its items their role and tabindex a microtask after
+// they are inserted, so a control just rendered is focused after that.
+export function focusSegmented(el, options = { preventScroll: true }) {
+  if (!el) return;
+  const run = () => (el.querySelector('ui-segmented-control-item[aria-checked="true"]:not([disabled])') || el.querySelector('ui-segmented-control-item:not([disabled])'))?.focus(options);
+  if (el.querySelector('ui-segmented-control-item[role]')) run(); else queueMicrotask(run);
 }

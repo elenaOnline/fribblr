@@ -45,7 +45,7 @@ try{
  const context=await browser.newContext({viewport:{width:1244,height:820},colorScheme:'light',reducedMotion:'reduce'});
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  const open=async id=>{await page.goto(base+`/boards/${id}/`,{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
   await page.waitForTimeout(150);};
  const selected=()=>page.evaluate(()=>[...document.querySelectorAll('#world .workspace-card.selected')].map(c=>c.dataset.placement));
  const zoom=()=>page.evaluate(()=>new DOMMatrix(getComputedStyle(document.getElementById('world')).transform).a);
@@ -115,13 +115,13 @@ try{
  let pat=await pattern();
  ok(pat.value==='plain'&&pat.image==='none',`A fresh board has no dots: ${JSON.stringify(pat)}`);
  await page.locator('#zoom-menu-toggle').click();
- ok(await page.locator('#zoom-menu [data-canvas-pattern="plain"]').getAttribute('aria-pressed')==='true','The zoom menu shows Plain chosen');
+ ok(await page.locator('#zoom-menu [data-canvas-pattern="plain"]').getAttribute('aria-checked')==='true','The zoom menu shows Plain chosen');
  await page.locator('#zoom-menu [data-canvas-pattern="dots"]').click();await page.keyboard.press('Escape');
  await open('plain');
  pat=await pattern();
  ok(pat.value==='dots'&&pat.image.includes('radial-gradient'),`An explicit Dots choice is kept: ${JSON.stringify(pat)}`);
  await page.locator('#board-info-toggle').click();
- ok(await page.locator('#board-info [data-canvas-pattern="dots"]').getAttribute('aria-pressed')==='true','The Inspector shows Dots chosen');
+ ok(await page.locator('#board-info [data-canvas-pattern="dots"]').getAttribute('aria-checked')==='true','The Inspector shows Dots chosen');
  await page.keyboard.press('Escape');await page.waitForTimeout(100);
  await page.screenshot({path:path.join(evidence,'board-dots-1244-light.png')});
 

@@ -152,6 +152,8 @@ try {
   });
   const page = await context.newPage();
   const boardTool = async selector => {
+    // Right after a navigation the page's script may not have wired the Inspector toggle yet; the board title is set by it.
+    await page.waitForFunction(() => { const title = document.getElementById("board-title"); return title && title.textContent && title.textContent !== "Loading board…"; });
     const control = page.locator(selector);
     if (!(await control.isVisible())) await page.locator("#board-info-toggle").click();
     await control.click();
@@ -335,8 +337,10 @@ try {
   );
   await page.locator("#reader-note").fill("Immediate child navigation draft");
   await page.locator("#notes-close").click();
+  const parentPath = new URL(page.url()).pathname;
   await page.locator("#reader-down").click();
-  await page.waitForURL(/\/boards\//);
+  // The old board's URL already matches /boards/: wait for the child board's own page.
+  await page.waitForURL(url => url.pathname !== parentPath);
   await boardTool("#workspace-owner");
   await page.locator("#reader-dialog[open]").waitFor();
   assert.equal(await page.locator("#reader-name").textContent(), "One");
@@ -1336,7 +1340,7 @@ try {
   for (const [mode, className] of [["card", "workspace-compact"], ["icon", "workspace-icon"], ["panel", "workspace-panel"]]) {
     await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).click();
     await page.waitForFunction(className => document.querySelector(".workspace-card").classList.contains(className), className);
-    assert.equal(await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).getAttribute("aria-pressed"), "true", "Attached appearance popup changes " + mode);
+    assert.equal(await page.locator(`#workspace-item-controls [data-presentation="${mode}"]`).getAttribute("aria-checked"), "true", "Attached appearance popup changes " + mode);
   }
   await page.keyboard.press("Escape");
 
