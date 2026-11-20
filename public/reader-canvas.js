@@ -44,6 +44,11 @@ export function contentScrolls(target, dx, dy, top = window) {
   return false;
 }
 
+// The stage's pattern offset changes on every pan frame and only the stage's own background reads it: registered as
+// non-inherited, a pan restyles the stage alone instead of everything in the opened item (see canvas.js).
+for (const name of ['--reader-pattern-x', '--reader-pattern-y']) {
+  try { CSS.registerProperty({ name, syntax: '*', inherits: false }); } catch {}
+}
 export class ReaderCanvas {
   constructor(stage, plane, sheet, { onChange = () => {}, onBack = () => {}, reserveBottom = () => 0 } = {}) {
     Object.assign(this, { stage, plane, sheet, onChange, onBack, reserveBottom });

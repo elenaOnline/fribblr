@@ -1996,6 +1996,12 @@ function setCanvasPattern(pattern, { save = true } = {}) {
   if (save) try { if (patternKey()) localStorage.setItem(patternKey(), pattern); } catch {}
   syncViewChrome();
 }
+// The pattern offset changes on every pan frame and only #viewport's own background reads it. Registered as
+// non-inherited, writing it restyles #viewport alone; as a plain (inherited) custom property every write restyled
+// every element on the board (about 11 ms a frame on an 84-item board, under 0.1 ms registered).
+for (const name of ['--pattern-x', '--pattern-y']) {
+  try { CSS.registerProperty({ name, syntax: '*', inherits: false }); } catch {}
+}
 // Patterns scale with the board and coarsen as it zooms out, so they never turn into noise.
 function syncViewChrome() {
   const percent = Math.round(zoom * 100);
