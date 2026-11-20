@@ -2086,6 +2086,13 @@ export class WorkspaceBoard {
     tips(popover);
     this.context = popover;
     const invoker = () => document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`);
+    // Tab past the panel's last control continues from what opened it (popups.js, the SDK's non-modal dialog rule): the
+    // control that opened it while it is on screen, else the card's ⋯, else the card.
+    popover.tabTrigger = () => {
+      const shown = el => el?.isConnected && el.getClientRects().length ? el : null;
+      const card = document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`);
+      return shown(invoker()) || shown(card?.querySelector(".workspace-tile-more")) || shown(card) || $("viewport");
+    };
     this.contextPanel = sidePanel(panelRoot, {
       openers: () => [...document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`)],
       keepOpen: target => !!target.closest?.('.workspace-dialog,dialog[open],[aria-modal="true"],.feedback-panel,.feedback-ballot,.workspace-popover,.workspace-tile-menu,[data-slot$="-content"]:not([data-slot="dialog-content"])'),

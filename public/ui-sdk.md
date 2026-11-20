@@ -711,7 +711,12 @@ Files: `side-panel.js` (new: `sidePanel`, `closePanel`), `canvas.js` (`boardInsp
   board's and the reader's Escape ladders still close an open Inspector in their turn (focus stays put). Escape on an
   open Inspector's toggle closes it.
 - **Tab** leaves the panel like any part of the page and the panel stays open (popups.md § Focus: "A non-modal dialog
-  stays open"). Order: toggle (in the top bar's toolbar) → panel → the board. This is the SDK's documented non-modal
+  stays open"). Order: toggle (in the top bar's toolbar) → panel → the board. The item Inspector and the Comments panel
+  sit at the end of `<body>`, so past their last control the browser had nothing (focus fell to `<body>`): they take
+  the non-modal Tab-out rule the popovers use (popups.js) and continue from what opened them. The item Inspector names
+  it with `content.tabTrigger` (the control that opened it while on screen, else the card's ⋯, else the card); the
+  Comments panel (an `aside`) calls `tabOutOfPanel` with its opener (else the item's Comments button or card, else the
+  canvas). Shift+Tab from their first control goes back to that opener. This is the SDK's documented non-modal
   behaviour, so last round's audit note ("Tab walks out into the canvas with the panel still open") is the norm, not
   a fault.
 - **Outside press** closes it; a press on one of its openers is theirs (they toggle), and presses in what the panel

@@ -114,6 +114,13 @@ try{
  eq(await page.evaluate(()=>{const panel=document.getElementById('workspace-item-controls'),body=panel.querySelector('.calm-side-body'),left=el=>Math.round(el.getBoundingClientRect().left);
    const rows=[...panel.querySelectorAll('.inspector-sec,.inspector-paper,.inspector-props dt,.inspector-acts .tk-mi')];
    return {outside:rows.filter(el=>!body.contains(el)).length,insets:[...new Set(rows.map(left))].length};}),{outside:0,insets:1},'The item Inspector\'s rows (Paper color, Details, actions) share one inset inside its body');
+ // 11. Tab past the Inspector's last control continues from what opened it (the card), never off the page; the panel
+ // stays open (the SDK's non-modal dialog rule, popups.js).
+ await page.evaluate(()=>{const p=document.getElementById('workspace-item-controls');const stops=[...p.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].filter(e=>e.tabIndex>=0&&!e.disabled&&e.getClientRects().length);stops.at(-1).focus();});
+ await page.keyboard.press('Tab');
+ ok(await page.evaluate(()=>document.activeElement!==document.body&&!!document.activeElement.closest('#world [data-placement]')),`Tab past the item Inspector goes on into the card, not to <body>: ${await focused()}`);
+ ok(await page.locator('#workspace-item-controls[data-open]').count(),'and the Inspector stays open');
+ await page.locator('#workspace-item-controls textarea').focus();
  await page.keyboard.press('Escape');
  ok(await until(async()=>(await focused())==='card:Card B'),`Escape from those Details returns focus to the card: ${await focused()}`);
  {const n=await cardCount();await focusCard(c.b);await page.keyboard.press(`${mod}+d`);

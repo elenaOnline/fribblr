@@ -2,7 +2,7 @@ import {escape as esc,toast} from './workspace.js';
 import {pointAnchorAt,resolveCommentPoint} from './feedback-geometry.js';
 import {bindForm,restoreFocus,commitShortcutLabel,commitShortcutCap} from './interaction.js';
 import {setTip} from './tips.js';
-import {sharedMenu,sharedPopover,openMenu,menuItem,menuCheckbox,menuSeparator,inPopup,menuOpen} from './popups.js';
+import {sharedMenu,sharedPopover,openMenu,menuItem,menuCheckbox,menuSeparator,inPopup,menuOpen,tabOutOfPanel} from './popups.js';
 import {choiceHTML,setChoice,onChoose} from './ui-toolbar.js';
 export function voteTotals(votes={}){const result={yes:0,no:0,abstain:0};for(const vote of Object.values(votes||{}))if(Object.hasOwn(result,vote.value))result[vote.value]++;return result;}
 // Vote appears on a tile's hover bar (and in an opened Tinka's Inspector) only once
@@ -61,6 +61,10 @@ export class FeedbackController {
       if(menuOpen())return;
       if(this.visible&&this.mode==='board'&&!this.pointMode&&!this.panel.contains(e.target)&&!e.target.closest('[data-item-feedback],[data-feedback-toggle],.feedback-pin,.feedback-options-menu,.feedback-name,.feedback-ballot'))this.close({restoreFocus:false});
     };
+    // A non-modal panel at the end of <body>: Tab past its last control continues from what opened it (the card's
+    // Comments, the top bar's toggle), and Shift+Tab from its first goes back there, as the SDK's non-modal dialogs
+    // do (popups.js), instead of falling off the page.
+    this.panel.addEventListener('keydown',e=>{if(e.key==='Tab'&&this.visible)tabOutOfPanel(e,this.panel,this.tabAnchor(),null);});
     this.keyHandler=e=>{if(e.key==='Escape')this.consumeEscape(e);};this.repositionHandler=()=>this.sizePanel();
     window.addEventListener('click',this.clickHandler,true);window.addEventListener('pointerdown',this.pointHandler,true);window.addEventListener('pointerdown',this.outsideHandler,true);window.addEventListener('keydown',this.keyHandler,true);window.addEventListener('resize',this.repositionHandler);window.visualViewport?.addEventListener('resize',this.repositionHandler);this.sync();
   }
@@ -199,6 +203,12 @@ export class FeedbackController {
     const list=this.panel.querySelector('.feedback-list'),history=this.panel.querySelector('.feedback-history'),scroll=history.scrollTop,active=document.activeElement,id=active?.closest('[data-feedback-thread]')?.dataset.feedbackThread,action=active?.dataset.feedbackReply?'data-feedback-reply':active?.dataset.feedbackResolve?'data-feedback-resolve':null;
     const html=this.threads.length?this.threads.map((t,i)=>`<article tabindex="-1" data-feedback-thread="${esc(t.id)}" class="feedback-thread ${t.resolved?'resolved':''}"><header><strong>${esc(t.author.label)}</strong><small>${new Date(t.createdAt).toLocaleDateString()}</small></header>${!this.itemId&&t.itemId?`<button type="button" class="feedback-context" data-feedback-item-scope="${esc(t.itemId)}">${esc(this.getBoard().items?.[t.itemId]?.title||'Item unavailable')}</button>`:''}${t.anchor?`<div class="feedback-anchor">${t.anchor.kind==='point'?`Point ${i+1}`:'Selected text'} · ${esc(this.anchorLabel(t))}${t.anchor.kind==='text'?`<q>${esc(t.anchor.quote)}</q>`:''}</div>`:''}<p class="feedback-body">${esc(t.body||t.excerpt)}</p>${(t.replies||[]).map(r=>`<div class="feedback-reply"><strong>${esc(r.author.label)}</strong><p class="feedback-body">${esc(r.body)}</p></div>`).join('')}<footer><button type="button" data-feedback-reply="${esc(t.id)}">Reply</button><button type="button" data-feedback-resolve="${esc(t.id)}" data-resolved="${t.resolved}">${t.resolved?'Reopen':'Resolve'}</button>${t.resolved?'<span>Resolved</span>':''}</footer></article>`).join(''):`<p class="feedback-empty">${this.onlyUnresolved?'No unresolved comments.':`Start the conversation about ${esc(this.getBoard().items?.[this.itemId]?.title||'this board')}.`}</p>`;
     this.panel.dataset.empty=String(this.threads.length===0);this.panel.dataset.short=String(!this.nextCursor&&list.scrollHeight<260);if(list.innerHTML!==html)list.innerHTML=html;this.queueSizing();this.panel.querySelector('[data-feedback-more]').hidden=!this.nextCursor;history.scrollTop=scroll;if(id&&action)list.querySelector(`[${action}="${CSS.escape(id)}"]`)?.focus({preventScroll:true});
+  }
+  // Where Tab out of the panel continues: its opener, else the item's Comments button or card, else the canvas.
+  tabAnchor(){
+    const shown=el=>el?.isConnected&&el.getClientRects().length&&!this.panel.contains(el)?el:null;
+    const card=this.itemId?document.querySelector(`#world [data-item-feedback="${CSS.escape(this.itemId)}"]`):null;
+    return shown(this.returnFocus)||shown(card)||shown(card?.closest('.workspace-card'))||shown(this.toggle)||document.getElementById('viewport');
   }
   focusThread(id){const el=[...this.panel.querySelectorAll('[data-feedback-thread]')].find(e=>e.dataset.feedbackThread===id);el?.focus({preventScroll:true});el?.scrollIntoView({block:'nearest'});}
   showsVote(itemId){return hasVotes(this.getBoard().items?.[itemId]?.review?.votes)||!!(this.ballot&&this.ballotId===itemId);}

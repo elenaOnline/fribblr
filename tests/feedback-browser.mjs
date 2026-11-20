@@ -180,6 +180,16 @@ try{
  await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-name]'));assert.equal(await identity.getAttribute('aria-expanded'),'true');
  await page.locator('[data-feedback-name]').fill('Reviewer');await page.keyboard.press('Enter');
  await page.waitForFunction(()=>document.activeElement?.matches('[data-feedback-identity]'));assert.equal(await identity.textContent(),'As Reviewer');
+ // Tab past the panel's last control continues from what opened it (the card's Comments), never off the page; the
+ // panel stays open. Shift+Tab from its first control goes back there too.
+ await page.evaluate(()=>{const stops=[...document.querySelectorAll('.feedback-panel button,.feedback-panel textarea,.feedback-panel [tabindex]')].filter(e=>e.tabIndex>=0&&!e.disabled&&e.getClientRects().length);stops.at(-1).focus();});
+ await page.keyboard.press('Tab');
+ assert.equal(await page.evaluate(()=>document.activeElement!==document.body&&!document.activeElement.closest('.feedback-panel')&&!!document.activeElement.closest('#world')),true,'Tab past the panel goes on into the board, not to <body>');
+ assert.equal(await page.locator('.feedback-panel').isVisible(),true,'the panel stays open (a non-modal dialog)');
+ await page.evaluate(()=>[...document.querySelectorAll('.feedback-panel button,.feedback-panel textarea,.feedback-panel [tabindex]')].find(e=>e.tabIndex>=0&&!e.disabled&&e.getClientRects().length).focus());
+ await page.keyboard.press('Shift+Tab');
+ assert.equal(await page.evaluate(id=>document.activeElement?.dataset.itemFeedback===id,item.itemId),true,'Shift+Tab from its first control goes back to the card\'s Comments');
+ await identity.focus();
  await page.keyboard.press('Escape');await page.locator('.feedback-panel').waitFor({state:'hidden'});
  const voteButton=page.locator(`[data-item-vote="${item.itemId}"]`);await voteButton.evaluate(el=>el.focus());await page.waitForTimeout(150);await page.keyboard.press('Enter');
  await page.waitForFunction(()=>document.activeElement?.dataset.feedbackVote==='yes','focus starts on the choice');
