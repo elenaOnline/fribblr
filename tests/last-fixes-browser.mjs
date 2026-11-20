@@ -12,6 +12,7 @@
 //   the Comments panel's field focuses the canvas, and the second Escape in Home's Find goes back to the boards;
 // - Home's confirmations have plain titles, not questions;
 // - J / K with a focused, unselected card step on from that card;
+// - disabled Undo and Redo dim their icons, as main does;
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -58,6 +59,14 @@ try{
   ok(p,`${sel} has a point to press`);await page.mouse.click(p.x,p.y);await page.waitForTimeout(300);};
  const clickOn=async sel=>{const b=await page.locator(sel).boundingBox();await page.mouse.click(b.x+b.width/2,b.y+b.height/2);await page.waitForTimeout(300);};
  await open();
+
+ // ---- 8. Disabled Undo and Redo: flat, and the icon dimmed to 40 % of the machinery ink over the frame. ----
+ {const ink=sel=>page.evaluate(sel=>{const e=document.querySelector(sel),probe=document.createElement('span');probe.style.color='color-mix(in srgb, var(--ink-2) 40%, var(--surface-frame))';document.body.append(probe);
+   const want=getComputedStyle(probe).color;probe.remove();return {disabled:e.getAttribute('aria-disabled'),color:getComputedStyle(e).color,icon:getComputedStyle(e.querySelector('svg')).stroke,want};},sel);
+  const undo=await ink('#chrome-undo'),redo=await ink('#chrome-redo'),key=await ink('#board-info-toggle');
+  eq([undo.disabled,redo.disabled],['true','true'],'Undo and Redo start aria-disabled');
+  eq([undo.color,redo.color],[undo.want,undo.want],'Their ink is the machinery ink at 40 % over the frame');
+  ok(undo.icon===undo.color&&undo.icon!==key.icon,`and their icons are drawn in it, unlike an enabled key's: ${undo.icon} vs ${key.icon}`);}
 
  // ---- 1. A popup closed by a press away: focus goes where the press would have put it. ----
  {const empty=await emptyPoint(),bar=await barPoint();ok(empty&&bar,'Points on the empty canvas and the bare top bar');

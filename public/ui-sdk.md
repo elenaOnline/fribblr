@@ -251,7 +251,8 @@ setPressed(mapToggle, mapIsOpen);                     // property write, no even
   on a toolbar item takes it out of focus entirely. Outside a `headerToolbar`, `setItemDisabled` writes
   `button.disabled`. Elsewhere, an `aria-disabled` button inside a `ui-toolbar-button` behaves the same way (Fit
   height once, Reload while busy). It looks disabled too: a rule at the end of `calm.css` lays an `aria-disabled`
-  top-bar key flat in the frame with a hairline, as `depth.css` draws `:disabled` (Undo and Redo with nothing to undo).
+  top-bar key flat in the frame with a hairline, as `depth.css` draws `:disabled`, and dims its icon to 40 % of
+  `--ink-2` over `--surface-frame`, as main dims a disabled top-bar key (Undo and Redo with nothing to undo).
   The depth model has no `[aria-disabled]` rule of its own yet; the theme is asked for one, which would replace this.
 - **Buttons the app disables.** The SDK owns a toolbar button's `disabled` attribute and writes it from its part; a
   natively disabled button behind an enabled part is an arrow stop focus can't land on, so the arrows stop there.
