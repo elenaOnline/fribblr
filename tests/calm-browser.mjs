@@ -46,9 +46,10 @@ try{
  // Built like the opened Tinka's Inspector: the board's name first, every section on one 16px edge, nothing wider than the panel.
  const layout=await page.locator('#board-info').evaluate(p=>{const r=p.getBoundingClientRect();const shown=[...p.querySelectorAll('h2,h3,.inspector-choice,.workspace-search input,.inspector-row,.inspector-row-btn,#board-description')].filter(e=>e.getClientRects().length);return {name:p.querySelector('.board-info-body h2')?.id,lefts:[...new Set(shown.map(e=>Math.round(e.getBoundingClientRect().left-r.left)))],overflow:p.scrollWidth>p.clientWidth,sections:[...p.querySelectorAll('.inspector-sec > h3')].map(h=>h.firstChild.textContent.trim()),appearanceWide:Math.round(p.querySelector('.inspector-appearance .appearance-control').getBoundingClientRect().width)>=Math.round(r.width-32)};});
  assert.deepEqual(layout,{name:'board-info-heading',lefts:[16],overflow:false,sections:['View','Filter','Edit','Feedback','Appearance','Help'],appearanceWide:true},'Board Inspector layout');
- await clickBlank();assert.equal(await page.locator('#board-info').isVisible(),false,'Click-away closes the board Inspector');
+ // A UI SDK dialog hides a frame after it closes (it first looks for an exit animation), so wait for it.
+ await clickBlank();await page.locator('#board-info').waitFor({state:'hidden',timeout:2000});assert.equal(await page.locator('#board-info').isVisible(),false,'Click-away closes the board Inspector');
  await page.locator('#board-info-toggle').click();await page.keyboard.press('Escape');
- assert.equal(await page.locator('#board-info').isVisible(),false);assert.equal(await page.evaluate(()=>document.activeElement.id),'board-info-toggle');
+ await page.locator('#board-info').waitFor({state:'hidden',timeout:2000});assert.equal(await page.locator('#board-info').isVisible(),false);assert.equal(await page.evaluate(()=>document.activeElement.id),'board-info-toggle');
  // Item Inspector replaces the attached ⋯ popup; click-away and Escape dismiss it.
  await card(a).hover();await openItemDetails(card(a).locator('[data-item-controls]'));
  const inspector=page.locator('#workspace-item-controls');await inspector.waitFor();

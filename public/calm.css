@@ -615,6 +615,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill .board-map-toggle[aria-press
 @keyframes calm-map-in { from { opacity: 0; transform: translateY(6px); } }
 .board-map-head { display: flex; align-items: center; gap: 2px; padding: 0 0 6px 6px; }
 .board-map-head .tk-eyebrow { margin-right: auto; }
+.board-map-head .board-map-tools { display: contents; }  /* the head's buttons stay its flex items (header-toolbar.js) */
 .board-map-head .tk-btn.tk-sm { height: 26px; min-height: 0; font-size: 11px; padding: 0 8px; }
 .board-map-head .tk-btn.tk-sm.tk-icon { width: 26px; min-width: 26px; padding: 0; }
 .board-map-head .tk-btn[hidden] { display: none; }

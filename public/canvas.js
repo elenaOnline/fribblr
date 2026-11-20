@@ -14,6 +14,10 @@ import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {ReaderCanvas, contentScrolls} from './reader-canvas.js';
 import {ReaderPath} from './reader-path.js';
+import {trapTab, rememberOpener, openerToReturnTo} from './reader-dialog.js';
+import {sidePanel} from './side-panel.js';
+import {headerToolbar} from './header-toolbar.js';
+import './vendor/ui-sdk/web/pagination.js';
 import {isMacPlatform, readerCommand, stepModifierLabel} from './reader-keys.js';
 import {boardStepCommand, boardStepTarget, isSteppable} from './board-step.js';
 import {quietPointerFocus} from './pointer-focus.js';
@@ -28,6 +32,8 @@ import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './ver
 
 const $ = id => document.getElementById(id);
 mountAppearance($('board-info'));
+// The top bars' command buttons: one Toolbar each (header-toolbar.js).
+for (const bar of document.querySelectorAll('#canvas-header > .chrome-actions, #reader-header > .chrome-actions')) headerToolbar(bar);
 const viewport = $('viewport');
 const world = $('world');
 const plane = $('plane');
@@ -623,6 +629,23 @@ function activeSourceKey() {
 // ---- The opened Tinka: the board's header pattern, its own canvas and the same zoom pill ----
 const readerStage = $('reader-stage');
 const readerInfo = $('reader-info');
+// The board's Inspector: a UI SDK non-modal Dialog (side-panel.js). Presses in the dialogs, menus and panels it opens
+// are not a click-away.
+const PANEL_KEEPS = '.workspace-dialog, dialog[open], [aria-modal="true"], .workspace-add-menu, .workspace-popover, .feedback-panel, .feedback-ballot, [data-slot$="-content"]:not([data-slot="dialog-content"])';
+const panelKeeps = target => { const hit = target.closest?.(PANEL_KEEPS); return !!hit && hit !== dialog; };
+const boardInspector = sidePanel($('board-info-dialog'), {
+  openers: () => [$('board-info-toggle')],
+  keepOpen: panelKeeps,
+  body: content => content.querySelector('.calm-side-body') || content,
+  onClosed: () => $('board-info-toggle').setAttribute('aria-expanded', 'false'),
+});
+// The opened Tinka's Inspector: a UI SDK non-modal Dialog inside the reader (side-panel.js), as the board's is.
+const readerInspector = sidePanel($('reader-info-dialog'), {
+  openers: () => [$('reader-info-toggle')],
+  keepOpen: panelKeeps,
+  body: content => content.querySelector('.calm-side-body') || content,
+  onClosed: () => $('reader-info-toggle').setAttribute('aria-expanded', 'false'),
+});
 const readerKeysMac = isMacPlatform();
 const MOD = stepModifierLabel(readerKeysMac);
 const readerCanvas = new ReaderCanvas(readerStage, $('reader-plane'), $('reader-window'), {
@@ -847,10 +870,12 @@ function updateReaderNavigation() {
   $('reader-count').textContent = index < 0 ? '' : `${index + 1} / ${sequence.length}`;
   $('reader-count').setAttribute('aria-label', index < 0 ? 'Neighbours' : `${index + 1} of ${sequence.length} on ${title}: show them`);
   $('reader-count').title = `${sequence.length} on ${title} · show them`;
+  // The stepper is a UI SDK Pagination: at either end its step says it is disabled and keeps focus.
+  const stepper = $('reader-stepper');
+  if (index >= 0 && 'page' in stepper) { stepper.pageCount = sequence.length; stepper.page = index + 1; }
   for (const [id, offset, label, arrow, bracket] of [['reader-previous', -1, 'Previous', '←', '['], ['reader-next', 1, 'Next', '→', ']']]) {
     const neighbor = index < 0 ? null : sequence[index + offset];
     const button = $(id);
-    button.disabled = !neighbor;
     button.title = neighbor ? `${label}: ${neighbor.name} (${MOD}${arrow} or ${bracket})` : `No ${label.toLowerCase()} Tinka`;
     button.setAttribute('aria-label', neighbor ? `${label} Tinka: ${neighbor.name}` : `${label} Tinka`);
   }
@@ -897,6 +922,9 @@ function openReader(key, revision = null, { history: mode = 'push', focus = 'tin
     return true;
   }
   const opening = !dialog.open;
+  // Where focus goes back to on close (UI SDK Dialog: the element that opened it). Opened from a card on the board,
+  // focus goes back to the board's cards: to the card last viewed, after any stepping.
+  if (opening) readerFromBoardItem = !!rememberOpener(dialog)?.closest?.('#world');
   setInfoOpen(false);
   active = concept;
   activeVariantId = variantId;
@@ -943,12 +971,29 @@ function closeReader({ history: mode = 'push' } = {}) {
   active = null;
   commitHistory({ view: 'board', round: rounds[currentRound]?.id || null }, mode);
   if (board) updateMetadata();
-  viewport.focus({ preventScroll: true });
+  // Focus returns where it came from (UI SDK Dialog): the card last viewed when the reader was opened from the board's
+  // cards, else the control that opened it while it is still there, else the canvas. It never scrolls the board.
+  const toItem = readerFromBoardItem, opener = openerToReturnTo();
+  readerFromBoardItem = false;
+  (toItem || !opener ? viewport : opener).focus({ preventScroll: true });
   settleCushion();
   Object.assign(view, left);
   applyView();
   // Land on the tile last viewed (after any arrowing between siblings).
-  if (returnKey) requestAnimationFrame(() => returnToTile(returnKey));
+  if (returnKey) requestAnimationFrame(() => {
+    if (!returnToTile(returnKey) || !toItem || document.activeElement !== viewport) return;
+    focusBoardItem(returnKey);
+  });
+}
+var readerFromBoardItem = false;  // var: openReader may run before this line during start-up
+// The card of a Tinka on the board takes focus without moving the board: the board's roving card when the canvas
+// keeps one (graph.focusPlacement), else the card's own Open control.
+function focusBoardItem(key) {
+  const card = world.querySelector(`[data-key="${CSS.escape(key)}"]`);
+  if (!card) return;
+  if (card.dataset.placement && graph?.focusPlacement) { graph.focusPlacement(card.dataset.placement, { reveal: false }); return; }
+  const target = card.matches('[tabindex]') ? card : card.querySelector('[data-open]:not([data-slot]):not(:disabled)');
+  target?.focus({ preventScroll: true });
 }
 
 // ---- The path: click the title (or the count) for where you are and what sits beside it ----
@@ -1043,8 +1088,11 @@ function renderReaderInfo() {
   const act = (name, label, extra = '') => `<button type="button" class="tk-btn tk-sm" data-reader-act="${name}"${extra}>${label}</button>`;
   $('reader-info-kind').textContent = kind;
   // A re-render (a step or a live update) keeps keyboard focus on the same action.
+  const keyOf = element => element && (element.dataset.readerAct ? `[data-reader-act="${element.dataset.readerAct}"]` : element.dataset.revisionChoice ? `[data-revision-choice="${CSS.escape(element.dataset.revisionChoice)}"]` : element.dataset.readerGo ? `[data-reader-go="${CSS.escape(element.dataset.readerGo)}"]` : element.matches('[data-reader-standalone]') ? '[data-reader-standalone]' : null);
   const focused = readerInfo.contains(document.activeElement) ? document.activeElement : null;
-  const focusKey = focused && (focused.dataset.readerAct ? `[data-reader-act="${focused.dataset.readerAct}"]` : focused.dataset.revisionChoice ? `[data-revision-choice="${CSS.escape(focused.dataset.revisionChoice)}"]` : focused.dataset.readerGo ? `[data-reader-go="${CSS.escape(focused.dataset.readerGo)}"]` : null);
+  const focusKey = keyOf(focused);
+  // Where the Inspector's opening focus is to land (side-panel.js marks it) survives the re-render too.
+  const initialKey = keyOf(readerInfo.querySelector('#reader-info-body [data-initial-focus]'));
 
   // Where it lives: a browser tab (needs Tinka), the file itself (no server) and the boards that show it.
   const rows = [];
@@ -1093,6 +1141,7 @@ function renderReaderInfo() {
   $('reader-info-body').innerHTML = `<div class="inspector-title"><h2 id="reader-info-name">${esc(descriptor(active, variant).name)}</h2><p>${esc(kind)} · on ${esc(readerBoardTitle())}${index >= 0 ? ` · ${index + 1} of ${sequence.length}` : ''}</p></div>
     ${description ? `<p class="inspector-desc">${esc(description)}</p>` : ''}
     ${whereSection}${feedback}${versionSection}${organize}${help}`;
+  if (initialKey) readerInfo.querySelector(`#reader-info-body ${initialKey}`)?.setAttribute('data-initial-focus', '');
   if (focusKey) {
     const back = readerInfo.querySelector(focusKey);
     // A segmented control just rendered gets its roles a moment later: focus its checked option then.
@@ -1100,12 +1149,10 @@ function renderReaderInfo() {
     else back?.focus({ preventScroll: true });
   }
 }
-function setReaderInfoOpen(open, { focus = false } = {}) {
+function setReaderInfoOpen(open, { focus = false, opener = null } = {}) {
   if (open) { readerLookups.clear(); renderReaderInfo(); }
-  readerInfo.hidden = !open;
   $('reader-info-toggle').setAttribute('aria-expanded', String(open));
-  if (open && focus) readerInfo.querySelector('[data-reader-act="close"]')?.focus({ preventScroll: true });
-  else if (!open && focus) $('reader-info-toggle').focus({ preventScroll: true });
+  if (open) readerInspector.open({ opener, focus }); else readerInspector.close();
 }
 async function readerCopy(text, done) {
   let message = done;
@@ -1183,7 +1230,7 @@ document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key?.toLowerCase() === 'i') {
     if (readerEditable(event.target) || event.repeat) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    setReaderInfoOpen(readerInfo.hidden, { focus: true });
+    setReaderInfoOpen(!readerInspector.isOpen, { focus: true });
     return;
   }
   if (event.key === ' ' && event.target === readerStage) { event.preventDefault(); if (!event.repeat) readerCanvas.setSpacePan(true); return; }
@@ -1692,22 +1739,19 @@ function showError(message) {
   setSaveStatus('Board unavailable', 'error');
 }
 
-function setInfoOpen(open, { focus = false } = {}) {
+// `focus`: opening moves focus to the Inspector's first control; closing sends focus back to what opened it (the
+// SDK does that only when focus was inside). `opener`: the control focus goes back to.
+function setInfoOpen(open, { focus = false, opener = null } = {}) {
   if (open) graph?.closeContext?.();
-  $('board-info').hidden = !open;
   $('board-info-toggle').setAttribute('aria-expanded', String(open));
-  if (focus) (open ? $('board-info').querySelector('button,input,a') : $('board-info-toggle'))?.focus({ preventScroll: true });
+  if (open) boardInspector.open({ opener, focus }); else boardInspector.close();
 }
 
 // Controls are bound once; board content is replaced only after a manifest update.
 document.addEventListener('pointerdown', event => {
   const remove = event.target.closest('[data-remove-experiment]:not([data-slot])');
   if (remove && event.button === 0) { event.preventDefault(); remove.focus({ preventScroll: true }); }
-  if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
 });
-document.addEventListener('pointerdown', event => {
-  if (!$('board-info').hidden && !event.target.closest('#board-info, #board-info-toggle, .workspace-dialog, dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open], .workspace-add-menu, .workspace-popover, .feedback-panel')) setInfoOpen(false);
-}, true);
 let pendingDocumentOpen = 0;
 document.addEventListener('click', event => {
   const fileStep = event.target.closest('#world [data-file-version-step]');
@@ -1765,11 +1809,15 @@ const readerNoteHint=document.createElement('small');readerNoteHint.className='w
 document.addEventListener('keydown', event => {
   // The document editor (board-document.js) handles its own Escape: save and close it, keep the reader open.
   if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode===229 || event.repeat || document.querySelector('.workspace-dialog:is([open],[data-open]),dialog.tinka-doc-editor[open]')) return;
-  // An open UI SDK menu or popover takes its own Escape (it closes one layer and returns focus).
-  if (inPopup(event)) return;
   if (tileNotes.element) {event.preventDefault();event.stopImmediatePropagation();tileNotes.close({focus:true});return;}
+  // Escape on an Inspector's own toggle closes that Inspector (inPopup counts an open panel's toggle as inside it).
+  const panelToggle = event.target?.closest?.('#board-info-toggle, #reader-info-toggle');
+  if (panelToggle?.getAttribute('aria-expanded') === 'true') { event.preventDefault(); event.stopImmediatePropagation(); if (panelToggle.id === 'board-info-toggle') setInfoOpen(false); else setReaderInfoOpen(false); return; }
+  // An open UI SDK popup (menu, popover, tooltip, nested dialog, an Inspector with focus inside) takes its own Escape:
+  // it closes one layer and sends focus back.
+  if (inPopup(event)) return;
   if (dialog.open) { if (projectNavigator?.panel?.contains(event.target)) return; handleEscape(event); event.preventDefault(); return; }
-  if (!$('board-info').hidden) { event.preventDefault(); setInfoOpen(false, { focus: true }); }
+  if (boardInspector.isOpen) { event.preventDefault(); setInfoOpen(false); }
 }, true);
 
 function bindZoomSlider(input, apply) {
@@ -1785,7 +1833,7 @@ function bindZoomSlider(input, apply) {
 bindZoomSlider(slider,value=>{if(graph)graph.revealedPlacement=null;changeZoom(value);});
 $('fit').onclick = event => runFit(event.altKey ? 'board' : smartFitTarget());
 $('view-back').onclick = goBack;
-$('board-info-toggle').onclick = () => setInfoOpen($('board-info').hidden, { focus: true });
+$('board-info-toggle').onclick = () => setInfoOpen(!boardInspector.isOpen, { focus: true, opener: $('board-info-toggle') });
 $('board-info-close').onclick = () => setInfoOpen(false, { focus: true });
 $('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('chrome-search') } }));
 // ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
@@ -1796,7 +1844,7 @@ document.addEventListener('keydown', event => {
   const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : null;
   if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes'); return; }
   if (graph?.context) { graph.closeContext(true); return; }
-  setInfoOpen($('board-info').hidden, { focus: true });
+  setInfoOpen(!boardInspector.isOpen, { focus: true });
 }, true);
 // The floating view pill: − · percent popover · + · Fit. Each pill is a ui-toolbar: one Tab stop, arrows along it.
 for (const pill of document.querySelectorAll('.zoom-pill')) followVisibility(pill);
@@ -1961,7 +2009,8 @@ function ensureBoardMap() {
     panBy: (dx, dy) => moveView(view.x - dx * zoom, view.y - dy * zoom),
     panScreen: (fx, fy) => moveView(view.x + fx * viewport.clientWidth, view.y + fy * viewport.clientHeight),
     zoomAt: (factor, wx, wy) => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor, view.x + wx * zoom, view.y + wy * zoom); },
-    zoomBy: factor => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor); },
+    zoomBy: factor => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor); announceView(`Zoom ${Math.round(zoom * 100)}%`); },
+    actualSize: () => { if (graph) graph.revealedPlacement = null; changeZoom(1); announceView('Zoom 100%'); },
     close: () => setMapOpen(false, { remember: true, focus: true }),
   });
   const el = boardMapElement();
@@ -2107,13 +2156,15 @@ $('close-reader').addEventListener('click', event => {
 });
 $('reader-previous').onclick = () => stepReader(-1);
 $('reader-next').onclick = () => stepReader(1);
+// The Pagination's own page change is ours to make: the presses above step, and updateReaderNavigation writes the page.
+$('reader-stepper').addEventListener('pagechange', event => event.preventDefault());
 $('reader-down').onclick = () => goDown();
 $('notes-toggle').onclick = () => setNotesOpen(!notesOpen);
 $('notes-close').onclick = () => setNotesOpen(false);
 $('reader-type').addEventListener('input', () => setType($('reader-type').value));
 $('reader-navigator').onclick = () => { if (!projectNavigator) return; if (projectNavigator.isOpen) projectNavigator.hide(); else projectNavigator.open({ opener: $('reader-navigator') }); };
 $('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('reader-search') } }));
-$('reader-info-toggle').onclick = () => setReaderInfoOpen(readerInfo.hidden, { focus: true });
+$('reader-info-toggle').onclick = () => setReaderInfoOpen(!readerInspector.isOpen, { focus: true, opener: $('reader-info-toggle') });
 // The pill: − · % menu (zoom, window and version, light, type size, standalone) · + · Back · Fit.
 $('reader-zoom-minus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25);
 $('reader-zoom-plus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25);
@@ -2143,6 +2194,8 @@ dialog.addEventListener('click', event => {
   if (choice?.dataset.revisionChoice && !choice.closest('ui-segmented-control') && choice.getAttribute('aria-disabled') !== 'true' && active) { setReaderMenuOpen(false); openReader(active.key, choice.dataset.revisionChoice, { focus: 'keep' }); if (!readerInfo.hidden) renderReaderInfo(); }
 });
 dialog.addEventListener('cancel', event => { event.preventDefault(); });
+// Tab stays inside the opened item, as in UI SDK's modal Dialog.
+trapTab(dialog);
 // A native close (not through closeReader) still returns to the board. The close event arrives
 // asynchronously, so ignore it if the reader has been reopened in the meantime.
 dialog.addEventListener('close', () => { if (active && !dialog.open) closeReader(); });

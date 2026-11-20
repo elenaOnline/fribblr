@@ -173,6 +173,7 @@ try{
   assert((await a.page.locator('#help-panel').textContent()).includes('Escape returns here'));
   await a.page.screenshot({path:path.join(evidence,'board-info-wide.png')});
   await a.page.keyboard.press('Escape');
+  await a.page.locator('#board-info').waitFor({state:'hidden',timeout:2000});
   assert.equal(await a.page.locator('#board-info').isVisible(),false);
   assert.equal(await a.page.evaluate(()=>document.activeElement.id),'board-info-toggle');
   await a.page.setViewportSize({width:400,height:800});
