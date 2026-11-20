@@ -56,14 +56,14 @@ try{
  assert.equal(await page.locator('.whiteboard-menu [data-color-swatches]').count(),0);
  assert.equal(await option('route').count(),0);
  assert.equal(await option('heads','end').getAttribute('aria-pressed'),'true');
- for(const b of await page.locator('.whiteboard-arrow-bar button').all())assert.ok(await b.getAttribute('title'),'every bar control has a tooltip');
+ for(const b of await page.locator('.whiteboard-arrow-bar button').all()){assert.ok(await b.getAttribute('data-tip'),'every bar control has a tooltip');assert.equal(await b.getAttribute('title'),null,'on the UI SDK tooltip, not a native title');}
 
  // Each control saves one field and marks itself current.
  await bar('drawing-color').click();
  assert.equal(await bar('drawing-color').getAttribute('aria-label'),'Stroke color');
  const blue=page.locator('.whiteboard-menu [data-swatch="palette:blue"]');
  await blue.click();assert.equal(await eventually(async()=>(await find('flow')).color,v=>v==='palette:blue'),'palette:blue');
- assert.equal(await eventually(()=>blue.getAttribute('aria-pressed'),v=>v==='true'),'true');
+ assert.equal(await eventually(()=>blue.getAttribute('aria-checked'),v=>v==='true'),'true');
  await idle();await page.screenshot({path:path.join(evidence,'arrow-stroke-palette-light.png')});
  await format();
  await option('heads','both').click();const heads=await eventually(()=>find('flow'),d=>d.startArrow===true);assert.equal(heads.endArrow,true);
@@ -71,16 +71,17 @@ try{
  await option('heads','none').click();const none=await eventually(()=>find('flow'),d=>d.startArrow===false&&d.endArrow===false);assert.equal(none.endArrow,false);
  assert.equal(await eventually(()=>stroke('flow').getAttribute('marker-end'),v=>v===null),null);
  await option('heads','end').click();await eventually(()=>find('flow'),d=>d.endArrow===true);
- await idle();await page.locator('[data-arrow-weight]').getByRole('button',{name:'Thick line'}).click();assert.equal(await eventually(async()=>(await find('flow')).thickness,v=>v==='thick'),'thick');
+ await idle();await page.locator('[data-arrow-weight]').getByRole('radio',{name:'Thick line'}).click();assert.equal(await eventually(async()=>(await find('flow')).thickness,v=>v==='thick'),'thick');
  assert.equal(await eventually(()=>stroke('flow').getAttribute('stroke-width'),v=>v==='3.5'),'3.5');
  await option('dashed','true').click();assert.equal(await eventually(async()=>(await find('flow')).dashed,v=>v===true),true);
  assert.ok(await eventually(()=>stroke('flow').getAttribute('stroke-dasharray'),Boolean));
  await idle();await page.keyboard.press('Escape');
  await bar('route','elbow').click();assert.equal(await eventually(async()=>(await find('flow')).route,v=>v==='elbow'),'elbow');
  assert.ok(await eventually(async()=>(await stroke('flow').getAttribute('d')).split('L').length>=4,Boolean),'elbow path bends');
- // Tab and Enter choose a primary route and keep it focused.
- await idle();await bar('route','elbow').focus();await page.keyboard.press('Tab');
+ // The bar is one Tab stop: an arrow moves to the next route without choosing it, Enter chooses it and keeps it focused.
+ await idle();await bar('route','elbow').focus();await page.waitForTimeout(300);await page.keyboard.press('ArrowRight');
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'curved');
+ assert.equal((await find('flow')).route,'elbow','moving focus along the bar chooses nothing');
  await page.keyboard.press('Enter');assert.equal(await eventually(async()=>(await find('flow')).route,v=>v==='curved'),'curved');
  assert.match(await eventually(()=>stroke('flow').getAttribute('d'),v=>/C/.test(v)),/C/);
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.value),'curved');
@@ -109,7 +110,7 @@ try{
  assert.equal(reversed.bend,-initial);
  // The board shows the reversed arrow (its end now on Plan) before the next gesture.
  await page.waitForFunction(()=>{const h=document.querySelector('[data-decoration=flow] [data-endpoint=to]')?.getBoundingClientRect(),p=document.querySelector('[data-decoration=plan]').getBoundingClientRect();return h&&Math.abs(h.x+h.width/2-p.right)<4;});
- assert.equal(await page.locator('dialog[open]').count(),0);
+ assert.equal(await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count(),0);
 
  // Dragging an end over a different shape highlights it and snaps to its nearest side.
  await idle();const handle=await box('[data-decoration=flow] [data-endpoint=to]'),ship=await box('[data-decoration=ship]');
@@ -201,6 +202,12 @@ try{
    assert.equal(await eventually(async()=>(await find('wide')).thickness,v=>v===expected),expected);await idle();
    assert.equal((await snapshot()).revision,beforeKey+1);
  }
+ // Keyboard focus on the scrub shows its SDK tooltip, which takes the first Escape (tooltip.md § Keyboard). Tab away and
+ // back, so the scrub is entered by keyboard whether or not the save above rebuilt the panel under focus.
+ await page.keyboard.press('Shift+Tab');await page.keyboard.press('Tab');
+ assert.equal(await custom.evaluate(el=>el===document.activeElement),true,'Tab comes back to the weight scrub');
+ await page.locator('ui-tooltip-content[data-open]').waitFor();
+ await page.keyboard.press('Escape');await page.locator('ui-tooltip-content[data-open]').waitFor({state:'detached'}).catch(()=>{});assert.equal(await page.locator('ui-tooltip-content[data-open]').count(),0,'Escape closes only the hint');
  await page.keyboard.press('Escape');
  await page.keyboard.press(process.platform==='darwin'?'Meta+z':'Control+z');
  assert.equal(await eventually(async()=>(await find('wide')).thickness,v=>v===30),30);

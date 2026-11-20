@@ -1,17 +1,24 @@
-// ⌥← / ⌥→ on a board (Ctrl+← / Ctrl+→ on Windows and Linux) select the previous or
-// next Tinka, in the same order and with the same skips as an opened Tinka's stepper,
+// J / K on a board (also Ctrl+← / Ctrl+→ on Windows and Linux) select the next or
+// previous Tinka, in the same order and with the same skips as an opened Tinka's stepper,
 // so the keys mean the same thing on a board and inside a Tinka. No DOM, so tests can
 // share it.
-import {readerCommand} from './reader-keys.js';
+import {readerCommand, stepLetter} from './reader-keys.js';
 
 // The stepper skips reserved and building slots, and board-only Tinkas (those open their board).
 export function isSteppable(item) {
   return !!item && !['reserved', 'building'].includes(item.build?.state) && !(item.childBoardId && !item.content);
 }
 
-// The step chord alone: ⌥←/→ on a Mac, Ctrl+←/→ elsewhere. Never inside a text field.
+// The step keys on a board: J (next) and K (previous) everywhere, the list-review keys of Gmail, GitHub, Feedly and
+// Reddit, and Ctrl+←/→ off a Mac. Never inside a text field, and never while a menu has focus (it owns typed letters).
+// On a Mac ⌥←/→ moves the focused item instead (UI SDK canvas norm: Option/Alt with an arrow moves the object). ] and [
+// are 1.4's Bring to front / Send to back on a board, as in drawing tools; inside an opened Tinka, where nothing
+// stacks, [ and ] still step.
 export function boardStepCommand(event, { mac = false, editable = false } = {}) {
-  if (!event || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return null;
+  if (!event) return null;
+  if (stepLetter(event)) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
+  } else if (mac || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return null;
   const command = readerCommand(event, { mac, editable });
   return command === 'previous' || command === 'next' ? command : null;
 }

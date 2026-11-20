@@ -85,7 +85,7 @@ try {
   assert.equal(await tile(second).evaluate(el=>el.classList.contains('selected')),false);
 
   await page.locator('#viewport').focus();
-  await action('translatePlacements',()=>page.keyboard.press('Shift+ArrowRight'));
+  await action('translatePlacements',()=>page.keyboard.press('Alt+Shift+ArrowRight'));
   const moved=await snapshot();
   assert.equal(moved.placements.find(p=>p.id===first).x,110);
   assert.equal(moved.decorations.find(d=>d.id==='caption').x,420);
@@ -94,7 +94,8 @@ try {
   assert.deepEqual(moved.groups,grouped.groups);
   await action('restoreMovement',()=>page.keyboard.press(`${mod}+z`));
   await groupButton.filter({hasText:/^Ungroup/}).waitFor();
-  await page.waitForFunction(()=>!document.querySelector('#chrome-redo').disabled);
+  // Redo is a top-bar toolbar item: disabled, it keeps focus and says so with aria-disabled (header-toolbar.js).
+  await page.waitForFunction(()=>{const redo=document.querySelector('#chrome-redo');return !redo.disabled&&redo.getAttribute('aria-disabled')!=='true';});
 
   const start=await center(draw('caption'));
   await page.mouse.move(start.x,start.y);

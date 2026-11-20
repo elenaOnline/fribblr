@@ -31,7 +31,7 @@
   padding: 3px;
   flex: none;
 }
-.workspace-segments button {
+.workspace-segments :is(button, ui-segmented-control-item) {
   border-color: transparent;
   border-radius: var(--shape-cell);
   background: transparent;
@@ -40,7 +40,7 @@
   padding: 6px 12px;
 }
 /* the chosen segment is a raised cell on the sunken track (depth.css), not a blue key */
-.workspace-segments button[aria-pressed="true"] { color: var(--ink); }
+.workspace-segments :is(button, ui-segmented-control-item):is([aria-pressed="true"], [data-checked]) { color: var(--ink); }
 .workspace-toolbar button[aria-pressed="true"] { border-color: transparent; }
 .workspace-search {
   flex: 1;
@@ -412,23 +412,69 @@
   color: var(--ink-2);
   padding: 35px;
 }
-.workspace-toast {
+/* Toasts: a UI SDK toast region sits where the status node used to (bottom centre); each toast is an ink float. */
+.workspace-toasts {
   position: fixed;
   bottom: 25px;
   left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 24px);
-  width: max-content;
+  translate: -50% 0;
+  width: min(420px, calc(100vw - 24px));
+  height: var(--toast-front-height, 0px);
   z-index: 100;
-  padding: 13px 20px;
+  pointer-events: none;
+}
+.workspace-toasts[data-expanded] {
+  height: calc(var(--toast-stack-height, 0px) + (var(--toast-count, 1) - 1) * 8px);
+}
+.workspace-toast {
+  --y: calc(var(--toast-index) * -10px);
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: calc(100 - var(--toast-index));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--toast-height);
+  padding: 13px 8px 13px 20px;
+  overflow: hidden;
   background: var(--ink);
   color: var(--surface-paper);
   border-radius: var(--shape-key);
   box-shadow: var(--cast-float);
   font:
     12px/1.5 var(--type-sans);
+  pointer-events: auto;
+  user-select: none;
+  translate: var(--toast-swipe-x, 0px) calc(var(--y) + var(--toast-swipe-y, 0px));
+  scale: calc(1 - var(--toast-index) * 0.04);
+  transition: translate .3s ease, scale .3s ease, opacity .3s ease, height .3s ease;
 }
+.workspace-toast:not([data-front], [data-expanded]) { height: var(--toast-front-height); }
+.workspace-toast[data-expanded] { --y: calc(-1 * (var(--toast-offset) + var(--toast-index) * 8px)); scale: 1; }
+.workspace-toast[data-starting-style] { transition: none; }
+.workspace-toast[data-starting-style][data-front] { --y: 100%; }
+.workspace-toast:is([data-starting-style]:not([data-front]), [data-ending-style]) { opacity: 0; }
+.workspace-toast[data-swiping] { transition: none; }
+@media (prefers-reduced-motion: reduce) { .workspace-toast { transition-property: opacity; } }
+.workspace-toast ui-toast-title { flex: 1; min-width: 0; display: block; text-align: start; }
+.workspace-toast-action, .workspace-toast-close {
+  flex: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: 600 12px/1 var(--type-sans);
+}
+.workspace-toast-action { min-height: 28px; padding: 0 10px; border-radius: var(--shape-key); background: rgb(from var(--surface-paper) r g b / .16); }
+.workspace-toast-close { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: var(--shape-key); background: transparent; opacity: .75; }
+.workspace-toast-close:hover { opacity: 1; background: rgb(from var(--surface-paper) r g b / .16); }
+.workspace-toast :is(.workspace-toast-action, .workspace-toast-close):focus-visible { outline: 2px solid var(--surface-paper); outline-offset: 1px; }
 .workspace-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
   box-sizing: border-box;
   width: min(480px, calc(100vw - 24px));
   max-height: calc(100dvh - 24px);
@@ -444,6 +490,10 @@
 .workspace-dialog::backdrop {
   background: rgb(from var(--ground-cast) r g b / .22);
 }
+ui-dialog-backdrop, ui-alert-dialog-backdrop { position: fixed; inset: 0; background: rgb(from var(--ground-cast) r g b / .22); }
+.workspace-dialog.workspace-alert { width: min(440px, calc(100vw - 28px)); }
+.workspace-alert-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.workspace-dialog .workspace-alert-actions .workspace-primary { margin-top: 0; }
 .workspace-dialog form {
   margin: 0;
 }
@@ -571,17 +621,8 @@
   accent-color: var(--mark-blue);
 }
 .workspace-item-sections { display: flex; gap: 4px; padding: 3px; border-radius: var(--shape-key); }   /* a segmented track: sunken (depth.css) */
-.workspace-dialog .workspace-item-sections button {
-  flex: 1;
-  padding: 5px 8px;
-  min-height: 39px;
-  border: 0;
-  border-radius: var(--shape-cell);
-  color: var(--ink-2);
-  background: transparent;
-  font: 400 var(--type-meta)/1 var(--type-sans);
-}
-.workspace-dialog .workspace-item-sections button[aria-pressed="true"] { color: var(--ink); }   /* the chosen segment (depth.css) */
+.workspace-item-sections { display: flex; }
+.workspace-item-sections > [data-slot=segmented-control-item] { flex: 1; min-height: 39px; font-size: var(--type-meta); }
 .workspace-choice-pills { display: flex; flex-wrap: wrap; gap: 5px; }
 .workspace-choice-pills legend { margin-bottom: 5px; padding: 0; color: var(--ink-2); font-size: var(--type-meta); }
 .workspace-dialog .workspace-choice-pills label { position: relative; margin: 0; cursor: pointer; }
@@ -602,6 +643,9 @@
   border-radius:var(--shape-key);
 }
 .inspector-color-palette[hidden] { display:none; }
+/* Remove color, under the swatches (the board's palette): shown only while a colour is set */
+.inspector-color-palette .inspector-color-clear { justify-self:start; align-self:start; width:auto; margin-top:7px; }
+.inspector-color-palette .inspector-color-clear[hidden] { display:none; }
 .workspace-dialog details {
   margin-top: 22px;
   border-top: 1px solid var(--line-hair);
@@ -637,21 +681,56 @@
   box-shadow: inset 0 0 0 1px var(--line-seam);
   color: var(--ink);
 }
+/* Comparison order: a reorderable list (order-list.js). The row is the option: focus ring on it; a held row shows on
+   the chosen surface where it will drop; a pointer drags a floating copy of it. */
+.workspace-order-list {
+  display: block;
+  margin: 4px 0 12px;
+}
 .workspace-order-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   border-top: 1px solid var(--line-hair);
-  padding: 8px 0;
+  padding: 8px 6px;
+  border-radius: var(--shape-cell);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
-.workspace-order-row span {
+.workspace-order-row:focus { outline: none; }
+.workspace-order-row:focus-visible { outline: 2px solid var(--mark-blue); outline-offset: -2px; }
+.workspace-order-row[data-grabbed] {
+  border-top-color: transparent;
+  background: var(--surface-chosen);
+  cursor: grabbing;
+}
+/* The copy a pointer drags (createReorder's preview, in the top layer): a floating row. */
+.workspace-order-row[data-drag-preview] {
+  border: 0;
+  background: var(--surface-frame);
+  box-shadow: 0 0 0 1px var(--line-seam), 0 6px 18px color-mix(in srgb, var(--ink) 16%, transparent);
+  color: var(--ink);
+  font: var(--type-ui)/1.3 var(--type-sans);
+  cursor: grabbing;
+}
+.workspace-order-row[data-drag-preview] .workspace-order-number { visibility: hidden; }
+.workspace-order-grip {
+  flex: none;
+  width: 12px;
+  height: 16px;
+  fill: var(--ink-2);
+}
+.workspace-order-number {
+  flex: none;
+  min-width: 2ch;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.workspace-order-title {
   flex: 1;
   min-width: 0;
-}
-.workspace-order-row button {
-  min-width: 44px;
-  padding: 0;
-  font-size: 18px;
 }
 .workspace-home-toolbar {
   margin-bottom: 22px;
@@ -1444,6 +1523,8 @@ body.navigator-docked .edit-tools { left:calc((100vw + var(--navigator-dock-widt
 .workspace-item-footer .workspace-file-versions > button:hover:not([aria-disabled="true"]) { background:var(--hover); color:var(--ink); }
 .workspace-file-versions > button[aria-disabled="true"] { opacity:.42; cursor:default; }
 .workspace-file-versions > button svg { width:14px; height:14px; }
+/* the name opens the list of versions (a menu button), so it is a quiet key too, as wide as its name */
+.workspace-item-footer .workspace-file-versions > button.workspace-file-version-name { width:auto; padding:0 4px; color:var(--ink); font:inherit; }
 @container tinka-card (max-width:122px) {
   .workspace-file-versions { margin-inline:2px; }
   .workspace-item-footer .workspace-file-versions > button { width:21px; }

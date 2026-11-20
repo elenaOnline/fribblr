@@ -18,7 +18,10 @@ try{
  };
  const zoom=async value=>{await page.locator('#zoom-menu-toggle').click();await page.locator('#zoom-slider').evaluate((el,value)=>{el.value=String(value);el.dispatchEvent(new Event('input',{bubbles:true}));},sliderFromZoom(value/100));await page.keyboard.press('Escape');};
  const position=async(control,side,bottom=false)=>{
-  const v=await page.locator('#viewport').boundingBox(),target={x:side==='right'?v.x+v.width-65:v.x+65,y:bottom?v.y+v.height-65:v.y+115};
+  // A bottom-edge invoker sits just above the canvas tools rail (Tinka 1.4), which spans a phone's width near the
+  // bottom: under it, the press would land on the rail.
+  const v=await page.locator('#viewport').boundingBox(),rail=await page.locator('#edit-tools:not([hidden])').boundingBox().catch(()=>null);
+  const target={x:side==='right'?v.x+v.width-65:v.x+65,y:bottom?Math.min(v.y+v.height-65,rail?rail.y-30:Infinity):v.y+115};
   for(let i=0;i<3;i++){const r=await rect(control),dx=r.x+r.width/2-target.x,dy=r.y+r.height/2-target.y;if(Math.abs(dx)<2&&Math.abs(dy)<2)break;await page.mouse.move(v.x+v.width-2,v.y+v.height/2);await page.mouse.wheel(dx,dy);await page.waitForTimeout(80);}
  };
  const runCanvas=async(schema,id,side,scale,width,bottom=false)=>{
@@ -38,9 +41,9 @@ try{
  // Direct legacy Notes keeps its own invoker, while menu Notes keeps ⋯.
  await page.goto(base+'/boards/legacy/');await zoom(100);const direct=page.locator('[data-tile-notes="one/right"]');await position(direct,'right');await direct.click();await assertPopup('legacy-direct-notes',direct,page.locator('.tile-notes'));await page.keyboard.press('Escape');assert.equal(await direct.evaluate(el=>document.activeElement===el),true);
  // A view move dismisses the temporary surface instead of leaving it detached.
- await page.goto(base+'/boards/graph/');await zoom(100);const action=page.locator(`[data-placement="${ids.right}"] [data-item-controls]`);await position(action,'right');await action.click();await page.mouse.move(1438,500);await page.mouse.wheel(35,20);await page.locator('.workspace-tile-menu').waitFor({state:'detached'});
+ await page.goto(base+'/boards/graph/');await zoom(100);const action=page.locator(`[data-placement="${ids.right}"] [data-item-controls]`);await position(action,'right');await action.click();await page.mouse.move(1438,500);await page.mouse.wheel(35,20);await page.locator('.workspace-tile-menu').waitFor({state:'hidden'});
  await action.click();await page.locator('[data-tile-menu="notes"]').click();await page.locator('.tile-notes textarea').fill('A spatial draft to retain');await page.mouse.move(1438,500);await page.mouse.wheel(-35,-20);await page.locator('.tile-notes').waitFor({state:'detached'});await action.click();await page.locator('[data-tile-menu="notes"]').click();assert.equal(await page.locator('.tile-notes textarea').inputValue(),'A spatial draft to retain');await page.locator('[data-note-cancel]').click();await page.locator('.tile-notes').waitFor({state:'detached'});
- await action.click();await page.setViewportSize({width:390,height:844});await page.locator('.workspace-tile-menu').waitFor({state:'detached'});
+ await action.click();await page.setViewportSize({width:390,height:844});await page.locator('.workspace-tile-menu').waitFor({state:'hidden'});
  assert.equal((await getBoardSnapshot(config,'graph')).items.right.review.note,'Keep the reader legible.');
  assert.deepEqual((await getBoardSnapshot(config,'graph')).placements,before);assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);await writeFile(path.join(evidence,'report.json'),JSON.stringify({passed:true,version,cases,writes,errors},null,2));console.log(JSON.stringify({passed:true,version,evidence,cases:cases.length,writes,errors}));
 }catch(error){await writeFile(path.join(evidence,'report.json'),JSON.stringify({passed:false,version,cases,writes,errors,error:error.message},null,2));console.error(JSON.stringify({passed:false,version,evidence,error:error.message,cases}));throw error;}

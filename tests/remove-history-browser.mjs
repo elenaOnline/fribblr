@@ -64,7 +64,8 @@ try {
   const state = async()=>page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)||'{"undo":[],"redo":[]}'),key);
   const ready = async p => {
     await p.waitForFunction(()=>document.getElementById('workspace-paste')?.disabled===false);
-    await p.locator('#live-status[data-connection="live"]').waitFor();
+    // Attached, not visible: fribblr's kind legend takes the status line's place while the board is live (legend.css).
+    await p.locator('#live-status[data-connection="live"]').waitFor({state:'attached'});
   };
   const show = async(p,id)=>{await p.goto(base+`/boards/${id}/`);await p.locator('#workspace-copy').waitFor({state:'attached'});await ready(p);};
   const card = id=>page.locator(`[data-placement="${id}"]`);
@@ -96,7 +97,7 @@ try {
   await select(ids);const pending=await cut();assert.equal(pending.prevented,true);assert(await cutValue());
   await page.screenshot({path:path.join(evidence,'remove-selected-1440.png')});
   const removed=await commit(()=>page.keyboard.press('Delete'));
-  assert.equal(await page.locator('dialog[open]').count(),0,'Keyboard removal is immediate');assert.equal(await cutValue(),null,'Successful removal clears the captured pending cut');
+  assert.equal(await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count(),0,'Keyboard removal is immediate');assert.equal(await cutValue(),null,'Successful removal clears the captured pending cut');
   assert.deepEqual(removed.after.items,removed.before.items,'Remove preserves every canonical item');
   assert.deepEqual(board(removed.after,other.boardId),board(removed.before,other.boardId));
   assert.deepEqual(board(removed.after,collection.boardId),board(removed.before,collection.boardId));
@@ -111,7 +112,7 @@ try {
   await replay(true);assert.deepEqual(arrange(await snapshot(),source.boardId),arrange(removed.after,source.boardId));assert.deepEqual((await snapshot()).items,currentItems);
   assert.equal(await page.evaluate(()=>window.keptFrame.isConnected&&window.keptLoads===0),true,'Surviving native preview stays mounted across remove/undo/redo');
   assert.equal(await readFile(path.join(boards,'resources/prototype.html'),'utf8'),resource);
-  await page.waitForFunction(()=>document.getElementById('live-status')?.textContent==='Live · 1 items');
+  await page.waitForFunction(()=>document.getElementById('live-status')?.textContent==='Live · 1 item');
   await page.screenshot({path:path.join(evidence,'remove-undone-redone-1440.png')});
   await replay(false);await select([ids[0]]);const backspace=await commit(()=>page.keyboard.press('Backspace'));await replay(false);assert.deepEqual(arrange(await snapshot(),source.boardId),arrange(backspace.before,source.boardId));
   // Editing, reader, arbitrary modal, iframe focus, modifiers and repeats keep ownership.
@@ -131,7 +132,7 @@ try {
   await select([ids[0],ids[1]]);assert.equal((await cut()).prevented,true);const beforeFailure=await snapshot(),historyFailure=await state(),pendingFailure=await cutValue();
   await page.route('**/api/operations',route=>route.request().postDataJSON()?.type==='remove'?route.fulfill({status:409,contentType:'application/json',body:'{"error":"QA stale removal"}'}):route.continue());
   let response=page.waitForResponse(r=>r.request().postDataJSON()?.type==='remove');await page.keyboard.press('Delete');assert.equal((await response).status(),409);await ready(page);
-  assert.deepEqual(arrange(await snapshot(),source.boardId),arrange(beforeFailure,source.boardId));assert.deepEqual(await state(),historyFailure);assert.equal(await cutValue(),pendingFailure);await page.locator('dialog.workspace-dialog[open]').waitFor();await page.keyboard.press('Escape');await page.locator('dialog.workspace-dialog[open]').waitFor({state:'detached'});await page.unroute('**/api/operations');
+  assert.deepEqual(arrange(await snapshot(),source.boardId),arrange(beforeFailure,source.boardId));assert.deepEqual(await state(),historyFailure);assert.equal(await cutValue(),pendingFailure);await page.locator('.workspace-dialog:is([open],[data-open])').waitFor();await page.keyboard.press('Escape');await page.locator('.workspace-dialog:is([open],[data-open])').waitFor({state:'detached'});await page.unroute('**/api/operations');
   for(const data of [{placementIds:[ids[0],'missing-placement']},{placementIds:[ids[0]],expectedRevision:0}]){const before=await snapshot(),result=await post({type:'remove',boardId:source.boardId,expectedRevision:before.revision,operationId:crypto.randomUUID(),...data});assert(result.status>=400);assert.deepEqual(await snapshot(),before,'Rejected batch changes no metadata');}
   // While one removal is blocked in flight, a second key cannot submit another write.
   // A newer cut from another tab must survive completion of the captured older intent.
@@ -142,7 +143,7 @@ try {
   // Cancel the newer intent explicitly so Undo addresses this completed removal.
   await page.keyboard.press('Escape');await replay(false);
   // Toolbar confirmation calls the same undoable action, including cancellation.
-  await select([ids[0]]);await noWrite('toolbar opens confirmation only',()=>page.locator('[data-bulk="remove"]').click());await page.locator('dialog.workspace-dialog[open]').waitFor();await page.keyboard.press('Escape');
+  await select([ids[0]]);await noWrite('toolbar opens confirmation only',()=>page.locator('[data-bulk="remove"]').click());await page.locator('.workspace-dialog:is([open],[data-open])').waitFor();await page.keyboard.press('Escape');
   await page.locator('[data-bulk="remove"]').click();await commit(()=>page.getByRole('button',{name:'Remove from this board',exact:true}).click());await replay(false);
   assert.equal(await readFile(path.join(boards,'resources/prototype.html'),'utf8'),resource);assert.equal(errors.length,0,errors.join('\n'));
   const receipt={passed:true,fixture,evidence,operations:receipts,guards,exactIdentityGeometryReviewOrder:true,canonicalEditsRetained:true,aliasesChildrenReferencesResourcesRetained:true,collectionCoversLive:true,survivingFrameMounted:true,failedAndStaleAtomic:true,pendingCutUndoAndNewerTabIntent:true,toolbarConfirmedUndo:true,syntheticClipboardOnly:true,errors};

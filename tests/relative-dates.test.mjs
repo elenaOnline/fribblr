@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {classify, relDate, inline, exactDate, timeHTML, toDate, calendarDaysBetween} from '../public/relative-dates.js';
+import {classify, relDate, inline, exactDate, exactShortDate, exactTimeHTML, timeHTML, toDate, calendarDaysBetween} from '../public/relative-dates.js';
 
 // Fixed local times keep every case independent of the machine's clock and zone.
 const en = {locale: 'en-US'};
@@ -76,7 +76,7 @@ test('12/24-hour preference and other locales', () => {
 test('timeHTML markup, escaping and invalid input', () => {
   const created = new Date(NOW - 2 * H);
   const html = timeHTML(created, {prefix: 'Created ', verb: 'Created', now: NOW, ...en});
-  assert.equal(html, `<time data-rel datetime="${created.toISOString()}" data-prefix="Created " data-verb="Created" title="Created Tuesday, November 3, 2026 at 2:02 PM">Created 2 hours ago</time>`);
+  assert.equal(html, `<time data-rel datetime="${created.toISOString()}" data-prefix="Created " data-verb="Created" data-tip="Created Tuesday, November 3, 2026 at 2:02 PM">Created 2 hours ago</time>`);
   assert.match(timeHTML(at(2026, 10, 2, 15, 40), {prefix: 'Created ', now: NOW, ...en}), />Created yesterday, 3:40 PM<\/time>$/);
   assert.match(timeHTML(created, {now: NOW, focusable: true, ...en}), / tabindex="0">2 hours ago</);
   assert.match(timeHTML(created, {prefix: '<b>"', now: NOW, ...en}), /data-prefix="&lt;b&gt;&quot;"/);
@@ -84,4 +84,12 @@ test('timeHTML markup, escaping and invalid input', () => {
   for (const bad of [undefined, null, '', 'invalid', NaN, new Date(NaN), true]) assert.equal(timeHTML(bad), '');
   assert.equal(toDate('2026-11-03T21:02:00.000Z').toISOString(), '2026-11-03T21:02:00.000Z');
   assert.equal(classify('nope', NOW, en).rule, 'invalid');
+});
+
+test('exactTimeHTML: the exact date as text, no tooltip, no Tab stop', () => {
+  const created = at(2026, 10, 3, 14, 2);
+  assert.equal(exactShortDate(created, en), 'Nov 3, 2026, 2:02 PM');
+  assert.equal(exactTimeHTML(created, en), `<time datetime="${created.toISOString()}">Nov 3, 2026, 2:02 PM</time>`);
+  assert.equal(exactShortDate(created, {locale: 'en-US', hour12: false}), 'Nov 3, 2026, 14:02');
+  for (const bad of [undefined, null, '', 'invalid']) assert.equal(exactTimeHTML(bad), '');
 });

@@ -50,7 +50,7 @@ try {
  await page.getByRole('menuitem',{name:'Item…',exact:true}).click();
  const form=page.getByRole('dialog',{name:'Add an idea'});await form.locator('[name=title]').fill('Created through Add');
  assert.equal(await form.locator('[name=rootId]').isVisible(),false);
- await form.getByRole('button',{name:'Content',exact:true}).click();
+ await form.getByRole('radio',{name:'Content',exact:true}).click();
  await form.getByRole('radio',{name:'HTML',exact:true}).check();
  await form.locator('[name=rootId]').fill('assets');await form.locator('[name=path]').fill('design.html');await form.getByRole('button',{name:'Add idea',exact:true}).click();await form.waitFor({state:'hidden'});
  const added=(await getBoardSnapshot(config,'comparison'));const uiItem=Object.values(added.items).find(i=>i.title==='Created through Add');assert.ok(uiItem);assert.equal(added.placements.find(p=>p.itemId===uiItem.id).presentation.mode,'panel');

@@ -62,7 +62,7 @@ try{
  browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
  const page=await browser.newPage({viewport:{width:1700,height:1900},colorScheme:'light',reducedMotion:'reduce'});page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+'/boards/layers/',{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
- if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+ if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
  await page.locator(`[data-comment-pin="${thread}"]`).waitFor();await page.waitForTimeout(150);
  // What the pointer meets at a point inside an element (its centre, or a fraction of its box).
  const topAt=(selector,fx=.5,fy=.5)=>page.evaluate(([selector,fx,fy])=>{const el=document.querySelector(selector),r=el.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width*fx,r.top+r.height*fy);

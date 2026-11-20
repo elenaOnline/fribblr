@@ -9,9 +9,9 @@
 .appearance-choice { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px; }
 .appearance-choice-label { color: var(--ink-2); font-size: var(--type-meta); }
 .appearance-choice .tk-seg { display: flex; width: 100%; }
-.appearance-choice .tk-seg > button { flex: 1; }
-.appearance-choice .tk-seg > button:disabled { cursor: default; color: var(--ink-2); }
-.appearance-choice .tk-seg > button[aria-pressed="true"]:disabled { background: transparent; box-shadow: inset 0 0 0 1px var(--line-seam); }
+.appearance-choice .tk-seg > :is(button, ui-segmented-control-item) { flex: 1; }
+.appearance-choice .tk-seg > :is(button, ui-segmented-control-item):is(:disabled, [data-disabled]) { cursor: default; color: var(--ink-2); }
+.appearance-choice .tk-seg > :is(button, ui-segmented-control-item):is([aria-pressed="true"], [data-checked]):is(:disabled, [data-disabled]) { background: transparent; box-shadow: inset 0 0 0 1px var(--line-seam); }
 
 /* Home: one quiet button in the masthead opens the rows */
 .appearance-menu { position: relative; display: inline-flex; flex: none; }

@@ -21,7 +21,8 @@
    so a longer or shorter title (which truncates) or the ↓ chip never moves it. */
 #reader-header .reader-stepper { display: inline-flex; align-items: center; flex: none; margin: 0 4px 0 auto; padding-left: 8px; }
 #reader-header .reader-stepper svg, #reader-header .reader-down svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-#reader-header .reader-stepper .tk-btn:disabled { opacity: .35; }
+#reader-header .reader-stepper .tk-btn:is(:disabled, [aria-disabled="true"]) { opacity: .35; cursor: default; }
+#reader-header .reader-stepper-list { display: contents; }
 #reader-header .reader-count { min-width: 64px; padding: 0 6px; color: var(--ink-2); font: 400 12px/1 var(--type-mono); font-variant-numeric: tabular-nums; }
 #reader-header .reader-count[aria-expanded="true"] { background-color: color-mix(in srgb, var(--ink) 5%, transparent); }
 #reader-header .reader-down { flex: none; gap: 4px; padding: 0 8px; background-color: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink-2); font: 400 var(--type-meta)/1 var(--type-sans); white-space: nowrap; }
@@ -54,6 +55,10 @@
 }
 .reader-file-version-detail strong { color: var(--ink); font-size: var(--type-meta); font-weight: 500; }
 .reader-file-version-detail time { white-space: nowrap; }
+/* the name and time are one button that lists every version (a menu button, canvas.js): a quiet key, no frame of its own */
+button.reader-file-version-detail { margin: 0; padding: 5px 8px; border: 0; border-radius: var(--shape-cell); background: transparent; cursor: pointer; }
+button.reader-file-version-detail:hover, button.reader-file-version-detail[aria-expanded="true"] { background: var(--hover); }
+button.reader-file-version-detail > span { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 8px; }
 /* A changed source offers a reload at the top of the canvas, never crowding the header. */
 #reader-dialog #reader-update.reader-update {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 7; max-width: calc(100% - 24px);
@@ -161,7 +166,7 @@
 #reader-info .reader-where-path { margin-top: 4px; font: 11px/1.4 var(--type-mono); color: var(--ink-2); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
 #reader-info .reader-where-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 #reader-info .reader-where-acts a.tk-btn { text-decoration: none; }
-#reader-info .reader-where-acts .tk-btn:not(.tk-primary), #reader-info .reader-organize > .tk-btn { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+#reader-info .reader-where-acts .tk-btn:not(.tk-primary), #reader-info .reader-organize > .tk-btn, #reader-info .reader-organize > ui-toolbar-button > .tk-btn { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 #reader-info .reader-where-acts .tk-btn:not(.tk-primary):hover, #reader-info .reader-organize .tk-btn:hover { background: var(--line-hair); }
 #reader-info .reader-where-boards { display: grid; gap: 1px; margin: 6px 0 0; padding: 0; list-style: none; }
 #reader-info .reader-where-boards button { display: flex; align-items: baseline; gap: 8px; width: calc(100% + 12px); margin: 0 -6px; padding: 5px 6px; border: 0; border-radius: var(--shape-cell); background: transparent; color: var(--ink); font: 12px/1.3 var(--type-sans); text-align: left; cursor: pointer; }
@@ -169,7 +174,8 @@
 #reader-info .reader-where-boards button[aria-current="true"] { cursor: default; }
 #reader-info .reader-where-boards button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #reader-info .reader-where-boards button small { flex: none; max-width: 55%; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-size: 11px; }
-/* Feedback: one row per kind, with what it holds. */
+/* Feedback: one row per kind, with what it holds; the rows are one vertical toolbar (canvas.js). */
+#reader-info .reader-feedback-rows { gap: 8px; }
 #reader-info .reader-feedback-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 0 12px; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); text-align: left; }
 #reader-info .reader-feedback-row small { grid-column: 3; justify-self: end; color: var(--ink-2); font-size: 11px; font-weight: 400; }
 #reader-info .reader-count { min-width: 18px; padding: 1px 6px; border-radius: var(--shape-cap); background: transparent; color: var(--ink-2); font: 400 12px/1.4 var(--type-mono); text-align: center; }
@@ -179,7 +185,7 @@
 #reader-info .reader-organize .tk-btn { justify-content: space-between; height: auto; min-height: 38px; padding-block: 6px; text-align: start; white-space: normal; }
 #reader-info .appearance-control { display: flex; width: 100%; }
 #reader-info .appearance-control .tk-seg { display: flex; width: 100%; }
-#reader-info .appearance-control .tk-seg > button { flex: 1; }
+#reader-info .appearance-control .tk-seg > :is(button, ui-segmented-control-item) { flex: 1; }
 #reader-info .reader-info-status { position: sticky; bottom: 0; justify-self: center; margin: 0; padding: 7px 12px; border-radius: var(--shape-key); background: var(--ink); color: var(--surface-frame); font-size: 11px; }
 #reader-info .reader-info-status[hidden] { display: none; }
 

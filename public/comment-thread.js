@@ -5,6 +5,9 @@
 // (⌘↵ posts). Escape closes and keeps the draft; board keys never fire while typing here.
 // On a narrow screen the card is a bottom sheet. API: lib/feedback.mjs (addComment,
 // replyComment, setCommentStatus, editComment, deleteComment; GET /api/feedback).
+import "./vendor/ui-sdk/web/popover.js";
+import {defined} from "./ui-sdk.js";
+import "./tips.js"; // the comment card is a tooltip zone: its hints use the delegate
 import {esc, attachPicker, bindChips, chipElement, chipLabel, composerEmpty, composerValue, renderBody, setComposerValue, decorationLabel, itemLabel, refState} from "./comment-refs.js";
 
 const STATUS = {open:"Open", sent:"Sent to agent", working:"Agent working", addressed:"Addressed · check it", question:"Agent asks you", resolved:"Resolved"};
@@ -31,8 +34,8 @@ const when = iso => {
   return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(t).toLocaleDateString(undefined, {month:"short", day:"numeric"});
 };
 const avatar = author => author?.kind === "agent"
-  ? `<span class="ct-avatar agent" title="${esc(author.label)} (agent)">${ICON.agent}</span>`
-  : `<span class="ct-avatar" title="${esc(author?.label || "")}">${esc((author?.label || "?").trim()[0] || "?").toUpperCase()}</span>`;
+  ? `<span class="ct-avatar agent" data-tip="${esc(author.label)} (agent)">${ICON.agent}</span>`
+  : `<span class="ct-avatar" data-tip="${esc(author?.label || "")}">${esc((author?.label || "?").trim()[0] || "?").toUpperCase()}</span>`;
 const sameActor = (a, b) => !!a && !!b && a.id === b.id && (a.kind || "human") === (b.kind || "human");
 
 // Drafts survive Escape, closing and reloading the tab (session only).
@@ -95,32 +98,11 @@ function liveRect(board, thread, anchor) {
   }
   return null;
 }
-const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-/** Beside the pin: right, then left, below, above; the first side with room, never over the pin. */
-function place(card, rect) {
-  if (innerWidth <= 760) { card.classList.add("ct-sheet"); card.style.left = card.style.top = ""; return; }
-  card.classList.remove("ct-sheet");
-  const width = card.offsetWidth || 340, height = card.offsetHeight || 300, gap = 12, m = 8, minTop = 60, maxBottom = innerHeight - 12;
-  const pin = pinBox(rect);
-  if (!pin) { card.style.left = `${Math.round(innerWidth - width - 16)}px`; card.style.top = `${minTop + 12}px`; return; }
-  const clampX = x => Math.max(m, Math.min(innerWidth - width - m, x)), clampY = y => Math.max(minTop, Math.min(maxBottom - height, y));
-  const midY = clampY(pin.top - 40), midX = clampX(pin.left - 24);
-  const sides = [
-    {room:innerWidth - m - (pin.right + gap), need:width, left:pin.right + gap, top:midY},
-    {room:pin.left - gap - m, need:width, left:pin.left - gap - width, top:midY},
-    {room:maxBottom - (pin.bottom + gap), need:height, left:midX, top:pin.bottom + gap},
-    {room:pin.top - gap - minTop, need:height, left:midX, top:pin.top - gap - height},
-  ];
-  let pick = sides.find(side => side.room >= side.need);
-  if (!pick) pick = [...sides].sort((a, b) => b.room / b.need - a.room / a.need)[0];
-  let left = clampX(pick.left), top = clampY(pick.top);
-  // Clamping must not slide the card back over the pin.
-  if (overlaps({left, top, right:left + width, bottom:top + height}, pin)) {
-    if (pick === sides[0] || pick === sides[1]) top = pin.bottom + gap + height <= maxBottom ? pin.bottom + gap : Math.max(minTop, pin.top - gap - height);
-    else left = pin.right + gap + width <= innerWidth - m ? pin.right + gap : Math.max(m, pin.left - gap - width);
-  }
-  card.style.left = `${Math.round(left)}px`; card.style.top = `${Math.round(top)}px`;
-}
+// Narrow windows get a bottom sheet (the SDK's sheet presentation, styled by .ct-sheet); wider ones a popover beside
+// the pin. The SDK places the popover against the anchor rect, on the right when it fits, else the left, below, above,
+// and never over the anchor (it flips; it only shifts along the anchor's edge).
+const isSheet = () => innerWidth <= 760;
+const toRect = box => box ? new DOMRect(box.left, box.top, box.right - box.left, box.bottom - box.top) : new DOMRect(innerWidth - 16, 112, 0, 0);
 
 /** Close the open card (its draft is kept). */
 export function closeThreadCard() { current?.close(false); }
@@ -141,27 +123,33 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   current?.close(false);
   ensureStyle();
   const actor = actorOf(board);
-  const card = document.createElement("section");
-  card.className = "ct-card"; card.setAttribute("role", "dialog"); card.setAttribute("aria-label", threadId ? "Comment thread" : "New comment");
+  // A non-modal ui-popover anchored to the pin. It lives in <body>, never inside a board card (popup events bubble).
+  const pop = document.createElement("ui-popover");
+  pop.setAttribute("modal", "false"); pop.setAttribute("presentation", isSheet() ? "sheet" : "popover");
+  const card = document.createElement("ui-popover-content");
+  card.className = "ct-card"; card.dataset.tipZone = ""; card.setAttribute("hidden", ""); card.setAttribute("aria-label", threadId ? "Comment thread" : "New comment");
+  for (const [name, value] of [["side", "right"], ["align", "start"], ["side-offset", "12"], ["align-offset", "-40"], ["collision-padding", "8"], ["initial-focus", "none"]]) card.setAttribute(name, value);
   card.dataset.commentCard = threadId || "new";
-  document.body.append(card);
+  card.classList.toggle("ct-sheet", isSheet());
+  pop.append(card); document.body.append(pop);
   let thread = null, closed = false, settle, created = null, editing = null, confirmDelete = null, picker = null, rect = anchorRect, busy = false;
   const done = new Promise(resolve => { settle = resolve; });
   const draftKey = () => thread ? `thread:${thread.id}` : `new:${board.snapshot?.id}:${JSON.stringify(anchor || {})}:${itemId || ""}`;
   let composer = null;
   // The pin's rect as given, or (when none, or not laid out) the live pin or target on the board.
   const currentRect = () => { const t = thread || (threadId ? {id:threadId} : null); return livePin(t) || pinBox(rect) || liveRect(board, t, anchor); };
-  // Opened from a list or a link, the board may still be panning to the pin: follow it until it
-  // stops moving (a few frames), then stay put.
-  let settling = 0;
+  // Opened from a list or a link, the board may still be panning to the pin: the anchor follows it until it stops
+  // moving (a few frames), then stays put, so the card does not trail the board once she pans.
+  let settling = 0, frozen = null;
+  const anchor_ = {getBoundingClientRect: () => toRect(frozen || currentRect())};
   function settlePlace() {
-    const run = ++settling; let last = "", still = 0, frames = 0;
+    const run = ++settling; let last = "", still = 0, frames = 0; frozen = null;
     const step = () => {
       if (closed || run !== settling) return;
       const r = currentRect(), key = r ? `${Math.round(r.left)},${Math.round(r.top)}` : "none";
-      place(card, r);
       still = key === last ? still + 1 : 0; last = key;
-      if (still < 3 && ++frames < 90) requestAnimationFrame(step);
+      if (still < 3 && ++frames < 90) requestAnimationFrame(step); else frozen = r;
+      card.dispatchEvent(new Event("ct-anchor"));
     };
     requestAnimationFrame(step);
   }
@@ -192,6 +180,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     } catch (error) { status(error.message, true); return null; }
     finally { busy = false; card.removeAttribute("aria-busy"); }
   }
+  // Focus the control a message's action opened from (its Edit or Delete), else the composer.
+  function focusAct(act, id) { (card.querySelector(`[data-act="${act}"][data-id="${CSS.escape(id || "")}"]`) || composer)?.focus({preventScroll:true}); }
   function status(message, error = false) { const el = card.querySelector(".ct-status"); if (el) { el.textContent = message; el.setAttribute("role", error ? "alert" : "status"); } }
 
   function messageHTML(m, root) {
@@ -205,6 +195,9 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   function render() {
     if (closed) return;
     picker?.close(); persist();
+    // The render replaces every control: remember which one had focus so it can go to its new copy (never to <body>).
+    const had = card.contains(document.activeElement) ? document.activeElement : null;
+    const hadAct = had?.closest?.("[data-act]"), hadKey = hadAct && {act:hadAct.dataset.act, id:hadAct.dataset.id};
     const isNew = !thread, st = thread?.status || (thread?.resolved ? "resolved" : "open");
     const target = thread ? targetOf(board, thread) : targetOf(board, {anchor, itemId, targetLabel, boardId:board.snapshot?.id});
     const on = target.gone ? `Was on <b>${esc(target.label)}</b> · deleted` : target.ref ? `On <button type="button" class="ct-on-target" data-act="target">${esc(target.label)}</button>` : "On the board";
@@ -217,8 +210,8 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     const forAgent = isNew ? `<label class="ct-for-agent"><input type="checkbox" data-for-agent ${anchor?.forAgent === false ? "" : "checked"}> For the agent</label>` : "";
     card.dataset.status = isNew ? "draft" : st;
     card.innerHTML = `<header class="ct-head">${isNew ? '<b class="ct-title">New comment</b>' : `<span class="ct-state" data-state="${esc(st)}">${esc(STATUS[st] || st)}</span>`}
-        ${!isNew ? `<button type="button" class="tk-btn tk-icon ct-icon" data-act="toggle" aria-label="${st === "resolved" ? "Reopen" : "Resolve"}" title="${st === "resolved" ? "Reopen" : "Resolve"}">${st === "resolved" ? ICON.reopen : ICON.check}</button>` : ""}
-        <button type="button" class="tk-btn tk-icon ct-icon" data-act="close" aria-label="Close" title="Close (Esc)">${ICON.close}</button>
+        ${!isNew ? `<button type="button" class="tk-btn tk-icon ct-icon" data-act="toggle" aria-label="${st === "resolved" ? "Reopen" : "Resolve"}" data-tip="${st === "resolved" ? "Reopen" : "Resolve"}">${st === "resolved" ? ICON.reopen : ICON.check}</button>` : ""}
+        <button type="button" class="tk-btn tk-icon ct-icon" data-act="close" aria-label="Close" aria-keyshortcuts="Escape" data-tip="Close">${ICON.close}</button>
         <span class="ct-on">${on}</span></header>
       <div class="ct-scroll">${target.gone ? '<p class="ct-detached">The thing this was pinned to is gone. The pin stays where it was.</p>' : ""}${activity}${messages.map(m => messageHTML(m, !!m.root)).join("")}${decide}</div>
       <footer class="ct-foot"><div class="ct-composer" contenteditable="true" role="textbox" aria-multiline="true" aria-label="${isNew ? "Comment" : "Reply"}" data-placeholder="${isNew ? "Comment… type @ to reference" : addressedMine ? "Reply… goes back to the agent" : "Reply… @ to reference"}"></div>
@@ -242,6 +235,10 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (saved) setComposerValue(composer, board, saved.text, saved.refs);
     picker = attachPicker(composer, board, {onChange:persist});
     composer.addEventListener("input", persist);
+    if (had && !card.contains(document.activeElement)) {
+      const same = hadKey && [...card.querySelectorAll("[data-act]")].find(el => el.dataset.act === hadKey.act && el.dataset.id === hadKey.id && !el.disabled);
+      (same || composer)?.focus({preventScroll:true});
+    }
     settlePlace();
   }
   async function post() {
@@ -282,10 +279,10 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (act === "looks-good") { await setStatus("resolved"); return; }
     if (act === "not-yet") { await setStatus("open"); composer?.focus(); return; }
     if (act === "edit") { editing = id; confirmDelete = null; render(); const box = card.querySelector(".ct-edit"); box?.focus(); caretToEnd(box); return; }
-    if (act === "edit-cancel") { editing = null; render(); return; }
+    if (act === "edit-cancel") { const was = editing; editing = null; render(); focusAct("edit", was); return; }
     if (act === "edit-save") return saveEdit(id);
     if (act === "delete") { confirmDelete = id; editing = null; render(); card.querySelector('[data-act="delete-yes"]')?.focus(); return; }
-    if (act === "delete-no") { confirmDelete = null; render(); return; }
+    if (act === "delete-no") { const was = confirmDelete; confirmDelete = null; render(); focusAct("delete", was); return; }
     if (act === "delete-yes") {
       const result = await write("deleteComment", {threadId:thread.id, ...(id !== thread.id ? {messageId:id} : {}), actor});
       if (!result) return;
@@ -301,19 +298,13 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     if (!result) return;
     editing = null; await reload();
   }
-  // Keys: ⌘↵ posts or saves, Escape cancels an edit or closes the card (keeping the draft).
-  // Nothing typed here reaches the board's shortcuts.
+  // Keys: ⌘↵ posts or saves. Nothing typed here reaches the board's shortcuts (the board's own handlers also step
+  // aside for role=dialog); Escape is left to the popover, which peels one layer at a time (see openchange below).
   card.addEventListener("keydown", event => {
-    event.stopPropagation();
+    if (event.key !== "Escape") event.stopPropagation();
     if (event.isComposing) return;
     const inEdit = event.target.closest?.(".ct-edit");
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (inEdit) saveEdit(editing); else if (event.target.closest?.(".ct-composer")) post(); return; }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (inEdit) { editing = null; render(); composer?.focus(); return; }
-      if (confirmDelete) { confirmDelete = null; render(); return; }
-      close(false);
-    }
   });
   for (const type of ["keyup", "keypress"]) card.addEventListener(type, event => event.stopPropagation());
   card.addEventListener("paste", event => {
@@ -323,29 +314,62 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   });
   for (const type of ["copy", "cut"]) card.addEventListener(type, event => event.stopPropagation());
   bindChips(card, board);
-  // A press outside closes the card (the draft stays); pins and the palette open their own.
-  const outside = event => { if (!card.contains(event.target) && !event.target.closest?.(".cref-picker")) close(false); };
-  const onResize = () => place(card, currentRect());
-  setTimeout(() => document.addEventListener("pointerdown", outside, true), 0);
+  const onResize = () => { card.classList.toggle("ct-sheet", isSheet()); settlePlace(); };
   addEventListener("resize", onResize);
+  // Focus goes back to the pin the card came from when it closes (the popover's rule: the trigger, else whatever had
+  // focus before it opened). Done here because the pin is not a ui-popover-trigger, and the SDK's final-focus takes
+  // only a selector it reads before the card is gone. Only when focus is lost: a press on another control keeps it.
+  const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+  card.setAttribute("final-focus", "none");
+  // Tab out of the card (popups.js, "Tab out of a popup at the end of <body>"): the trigger is the pin.
+  card.tabTrigger = () => threadId && document.querySelector(`.comment-pins [data-comment-pin="${CSS.escape(threadId)}"]`);
+  const returnFocus = () => requestAnimationFrame(() => {
+    const now = document.activeElement, lost = !now || now === document.body || pop.contains(now);
+    pop.remove();
+    if (!lost || current) return; // another card has opened meanwhile: it owns focus
+    const pin = threadId && document.querySelector(`.comment-pins [data-comment-pin="${CSS.escape(threadId)}"]`);
+    const target = opener?.isConnected ? opener : pin?.isConnected ? pin : null;
+    target?.focus({preventScroll:true});
+  });
 
-  function close() {
+  // Escape peels one layer: the @ list first (the Trigger Menu takes that Escape itself), then an edit or a delete
+  // confirm, then the card (its draft is kept). Anything else that closes it (a press outside, focus leaving) goes through.
+  let pickerEscape = null; // the Escape keydown the @ list took
+  pop.addEventListener("openchange", event => {
+    if (event.detail.value) return;
+    if (event.detail.reason === "escape-key") {
+      if (picker?.open || (pickerEscape && event.detail.event === pickerEscape)) { event.preventDefault(); return; }
+      if (editing) { event.preventDefault(); const was = editing; editing = null; render(); focusAct("edit", was); return; }
+      if (confirmDelete) { event.preventDefault(); const id = confirmDelete; confirmDelete = null; render(); focusAct("delete", id); return; }
+    }
+    finish();
+  });
+  card.addEventListener("keydown", event => { if (event.key === "Escape" && picker?.open) pickerEscape = event; }, true);
+
+  function finish() {
     if (closed) return; closed = true;
     persist(); picker?.close();
-    document.removeEventListener("pointerdown", outside, true); removeEventListener("resize", onResize);
-    card.remove(); if (current?.card === card) current = null;
+    removeEventListener("resize", onResize);
+    if (current?.card === card) current = null;
+    returnFocus(); setTimeout(() => pop.remove(), 600);
     settle({created, threadId});
   }
-  current = {card, close, move(next) { rect = next; place(card, currentRect()); }, get threadId() { return threadId; }};
+  function close() { if (closed) return; pop.api?.close?.({reason:"imperative"}); finish(); }
+  current = {card, close, get threadId() { return threadId; }};
 
-  if (threadId) {
-    card.innerHTML = '<p class="ct-loading">Loading comment…</p>'; place(card, currentRect());
-    load().then(() => { render(); composer?.focus({preventScroll:true}); }).catch(error => { card.innerHTML = `<p class="ct-loading" role="alert">${esc(error.message)}</p>`; });
-  } else { render(); composer.focus({preventScroll:true}); }
+  // The popover shows a frame after open(); focus the composer as soon as it can take it.
+  const focusFirst = (tries = 0) => { if (closed) return; composer?.focus({preventScroll:true}); if (document.activeElement !== composer && tries < 30) requestAnimationFrame(() => focusFirst(tries + 1)); };
+  (async () => {
+    await defined("ui-popover");
+    if (closed) return;
+    pop.api.open({anchor:anchor_}).then(() => finish());
+    if (threadId) {
+      card.innerHTML = '<p class="ct-loading">Loading comment…</p>';
+      load().then(() => { render(); focusFirst(); }).catch(error => { card.innerHTML = `<p class="ct-loading" role="alert">${esc(error.message)}</p>`; });
+    } else { render(); focusFirst(); }
+  })();
   return done;
 }
-/** Keep the open card beside its pin as the board pans or zooms. */
-export function moveThreadCard(anchorRect) { current?.move(anchorRect); }
 export function openThreadId() { return current?.threadId || null; }
 
 function cleanAnchor(anchor) { const {forAgent, ...rest} = anchor || {}; return rest; }

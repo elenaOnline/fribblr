@@ -51,6 +51,8 @@ export async function createBoardDocument(board, point) {
   board.selection = new Set(data.result.placementIds || []);
   try { await board.refresh({saveReview:false}); } catch {}
   board.hooks?.revealPlacements?.(board.snapshot.placements.filter(p => board.selection.has(p.id)));
+  // The new card holds focus under the editor, so closing the editor comes back to it (focusCreated).
+  board.focusCreated?.({placementIds:data.result.placementIds || []});
   const itemId = data.result.itemIds[0];
   await editBoardDocument(board, itemId, {selectTitle:true, placementId:data.result.placementIds?.[0]});
   return itemId;
@@ -165,16 +167,30 @@ function apply(session) {
   if (!hint) { hint = document.createElement("span"); hint.className = "doc-edit-state"; hint.setAttribute("role", "status"); hint.setAttribute("aria-live", "polite"); card.querySelector(".workspace-card-preview")?.append(hint); }
   const labels = {editing:"Editing", saving:"Saving…", saved:"Saved", error:"Not saved", conflict:"Changed elsewhere", idle:"Editing"};
   hint.textContent = labels[session.state] || "Editing"; hint.dataset.state = session.state;
-  if (session.message) hint.title = session.message; else hint.removeAttribute("title");
+  if (session.message) hint.dataset.tip = session.message; else delete hint.dataset.tip;
 }
 function finish(board, session, result) {
   if (editing.get(board) !== session) return;
   editing.delete(board); board.documentEditing = null;
   const card = currentCard(session);
+  // Focus that was in the page being edited (Escape, ⌘Enter) comes back to its card, which held it under the editor
+  // (ui-sdk.md § Board canvas): the frame goes inert below, which would drop focus to <body>, and the refresh after a
+  // save may rebuild the card. Focus that went elsewhere (a press outside ended the edit) stays there.
+  const active = document.activeElement;
+  const ours = active === session.frame || !active || active === document.body || !!card?.contains(active);
   card?.classList.remove("doc-editing"); card?.querySelector(".doc-edit-state")?.remove();
   session.frame.setAttribute("inert", ""); session.frame.tabIndex = -1;
+  const refocus = () => {
+    const now = document.activeElement;
+    if (!ours || (now && now !== document.body && now !== session.frame)) return;
+    const target = currentCard(session);
+    if (!target) return;
+    board.boardFocus?.setStop(`placement:${session.placementId}`);
+    target.focus({preventScroll: true});
+  };
+  refocus();
   session.done?.();
-  afterEdit(board, session.itemId, result, session.frame);
+  Promise.resolve(afterEdit(board, session.itemId, result, session.frame)).finally(refocus);
 }
 // After a save: title from the first heading while it is still the default, then the board and
 // any other card or open reader of the same document catch up.
@@ -214,7 +230,7 @@ function install(board) {
   document.addEventListener("pointerdown", event => {
     const session = editing.get(board); if (!session) return;
     const card = currentCard(session);
-    if (card && card.contains(event.target) && !event.target.closest("[data-open],.workspace-tile-toolbar,.workspace-card-menu,[data-placement-select]")) return;
+    if (card && card.contains(event.target) && !event.target.closest("[data-open]:not([data-slot]),.workspace-tile-toolbar,.workspace-card-menu,[data-placement-select]")) return;
     stopEditing(board);
   }, true);
 }

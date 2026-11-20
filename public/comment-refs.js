@@ -2,6 +2,7 @@
 // grouped and filterable), reference chips in the composer and in posted messages, and the
 // body <-> {text, refs} conversion the comments API stores. A chip click shows the target on
 // the board (board.revealRef); ⌘-click or its small ↗ opens it (board.openRef).
+import "./vendor/ui-sdk/web/trigger-menu.js";
 const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"})[ch]);
 const ICON = {
   item:'<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5 6.5h6M5 9.5h4"/></svg>',
@@ -75,8 +76,10 @@ export function chipElement(ref, {state = "active", editable = false} = {}) {
   chip.dataset.ref = JSON.stringify(cleanRef(ref));
   chip.dataset.kind = ref.kind;
   const icon = ICON[ref.kind === "placement" ? "item" : ref.kind] || ICON.item;
-  chip.innerHTML = `${icon}<span class="cref-label">${esc(ref.label)}</span>${!editable && ref.kind !== "board" && state !== "deleted" ? `<button type="button" class="cref-open" tabindex="-1" aria-label="Open ${esc(ref.label)}" title="Open">${ICON.open}</button>` : ""}`;
-  chip.title = state === "deleted" ? "Deleted" : ref.kind === "board" ? "Open board" : "Show on board · ⌘-click or ↗ opens it";
+  chip.innerHTML = `${icon}<span class="cref-label">${esc(ref.label)}</span>${!editable && ref.kind !== "board" && state !== "deleted" ? `<button type="button" class="cref-open" tabindex="-1" aria-label="Open ${esc(ref.label)}" data-tip="Open">${ICON.open}</button>` : ""}`;
+  // A hint on the shared tooltip, served by its delegate (tips.js): the comment card is a tooltip zone, so a chip in
+  // editable text gets no wrapper element.
+  chip.dataset.tip = state === "deleted" ? "Deleted" : ref.kind === "board" ? "Open board" : "Show on board · ⌘-click or ↗ opens it";
   if (!editable) { chip.setAttribute("role", "link"); chip.tabIndex = 0; }
   return chip;
 }
@@ -162,47 +165,124 @@ export function setComposerValue(el, board, text = "", refs = []) {
 }
 export const composerEmpty = el => !el.textContent.replace(/​/g, "").trim() && !el.querySelector(".cref");
 
-/** The @ picker for a contenteditable composer. Returns {close, open: () => bool}. */
+/** The @ picker for a contenteditable composer: a UI SDK Trigger Menu bound to the composer through an editor
+ *  adapter. Chips count as one character (U+FFFC) in the adapter's text, as the SDK reads a token.
+ *  Returns {close, open}. */
 export function attachPicker(el, board, {onChange = () => {}} = {}) {
-  let picker = null, at = null, index = 0, flat = [];
-  const caretText = () => {
-    const s = getSelection(); if (!s.rangeCount || !s.isCollapsed || !el.contains(s.anchorNode) || s.anchorNode.nodeType !== 3) return null;
-    const before = s.anchorNode.nodeValue.slice(0, s.anchorOffset), m = /(^|[\s(])@([^\s@]{0,40})$/.exec(before);
-    return m ? {node:s.anchorNode, start:s.anchorOffset - m[2].length - 1, end:s.anchorOffset, query:m[2]} : null;
+  const menu = document.createElement("ui-trigger-menu");
+  const content = document.createElement("ui-trigger-menu-content");
+  content.className = "cref-picker"; content.setAttribute("aria-label", "Reference");
+  content.setAttribute("side", "bottom"); content.setAttribute("align", "start"); content.setAttribute("side-offset", "6"); content.setAttribute("collision-padding", "8");
+  menu.append(content);
+  el.before(menu); menu.append(el); // content first: a menu connected without one makes its own
+  let flat = [], opened = false;
+  const fill = () => {
+    const groups = refCandidates(board);
+    flat = [];
+    const group = (name, list) => list.length ? `<ui-trigger-menu-group><ui-trigger-menu-group-label>${name}</ui-trigger-menu-group-label>${list.map(r => `<ui-trigger-menu-item value="${flat.push(r) - 1}" label="${esc(r.label)}"><ui-trigger-menu-item-icon>${ICON[r.kind] || ICON.item}</ui-trigger-menu-item-icon><span>${esc(r.label)}</span></ui-trigger-menu-item>`).join("")}</ui-trigger-menu-group>` : "";
+    content.innerHTML = `<ui-trigger-menu-empty class="cref-empty">No match</ui-trigger-menu-empty><ui-trigger-menu-list>${group("Items", groups.items)}${group("Drawn", groups.drawn)}${group("Boards", groups.boards)}</ui-trigger-menu-list>`;
   };
-  function close() { picker?.remove(); picker = null; at = null; }
-  function render() {
-    const q = at.query.toLowerCase(), groups = refCandidates(board), match = r => !q || r.label.toLowerCase().includes(q);
-    const shown = [["Items", groups.items.filter(match)], ["Drawn", groups.drawn.filter(match)], ["Boards", groups.boards.filter(match)]].filter(([, list]) => list.length).map(([name, list]) => [name, list.slice(0, 30)]);
-    flat = shown.flatMap(([, list]) => list); index = Math.min(index, Math.max(0, flat.length - 1));
-    if (!picker) { picker = document.createElement("div"); picker.className = "cref-picker"; picker.setAttribute("role", "listbox"); picker.setAttribute("aria-label", "Reference"); document.body.append(picker);
-      picker.addEventListener("mousedown", e => { e.preventDefault(); const b = e.target.closest("[data-i]"); if (b) choose(flat[+b.dataset.i]); }); }
-    let i = 0;
-    picker.innerHTML = shown.length ? shown.map(([name, list]) => `<h6>${name}</h6>` + list.map(r => `<button type="button" role="option" data-i="${i}" aria-selected="${i++ === index}">${ICON[r.kind] || ICON.item}<span>${esc(r.label)}</span></button>`).join("")).join("")
-      : `<p class="cref-empty">No match for “${esc(at.query)}”</p>`;
-    const r = document.createRange(); r.setStart(at.node, at.start); r.setEnd(at.node, at.end);
-    const rect = r.getBoundingClientRect(), width = Math.min(280, innerWidth - 16);
-    picker.style.width = `${width}px`;
-    picker.style.left = `${Math.max(8, Math.min(innerWidth - width - 8, rect.left))}px`;
-    const below = rect.bottom + 6, height = picker.offsetHeight;
-    picker.style.top = `${below + height > innerHeight - 8 ? Math.max(8, rect.top - height - 6) : below}px`;
-    picker.querySelector('[aria-selected="true"]')?.scrollIntoView({block:"nearest"});
-  }
+  // ---- the editor adapter: the composer as text, chips as one character each
+  const CHIP = "\uFFFC";
+  const isChip = node => node.nodeType === 1 && node.classList.contains("cref");
+  const parts = () => { // [{node, start, end}] in document order; text nodes, chips and <br>
+    const out = []; let at = 0;
+    const walk = parent => { for (const node of parent.childNodes) {
+      if (node.nodeType === 3) { out.push({node, start:at, end:at += node.nodeValue.length}); }
+      else if (isChip(node) || node.tagName === "BR") out.push({node, start:at, end:at += 1});
+      else if (node.nodeType === 1) walk(node);
+    } };
+    walk(el); return out;
+  };
+  const textOf = () => parts().map(p => p.node.nodeType === 3 ? p.node.nodeValue : p.node.tagName === "BR" ? "\n" : CHIP).join("");
+  const offsetOf = (node, offset) => { // a DOM position as a text offset
+    const list = parts();
+    if (node.nodeType === 3) { const p = list.find(x => x.node === node); return p ? p.start + offset : null; }
+    const child = node.childNodes[offset];
+    if (child) { const first = list.find(p => p.node === child || child.contains?.(p.node)); if (first) return first.start; }
+    const last = [...list].reverse().find(p => node.contains(p.node)); return last ? last.end : (list.at(-1)?.end ?? 0);
+  };
+  const positionOf = offset => { // a text offset as a DOM position
+    const list = parts();
+    for (const p of list) {
+      if (offset < p.start || offset > p.end) continue;
+      if (p.node.nodeType === 3) return {node:p.node, offset:offset - p.start};
+      const parent = p.node.parentNode, i = [...parent.childNodes].indexOf(p.node);
+      return {node:parent, offset:offset === p.start ? i : i + 1};
+    }
+    return {node:el, offset:el.childNodes.length};
+  };
+  const range = () => { const s = getSelection(); return s.rangeCount && el.contains(s.anchorNode) ? s : null; };
+  let internal = false;
+  const adapter = {
+    element: el,
+    textBefore(length) {
+      const s = range(); if (!s || document.activeElement !== el) return null;
+      const caret = offsetOf(s.focusNode, s.focusOffset); if (caret == null) return null;
+      const start = Math.max(0, caret - length); return {text:textOf().slice(start, caret), offset:start};
+    },
+    selection() {
+      const s = range(); if (!s || document.activeElement !== el) return null;
+      const a = offsetOf(s.anchorNode, s.anchorOffset), b = offsetOf(s.focusNode, s.focusOffset); if (a == null || b == null) return null;
+      return {start:Math.min(a, b), end:Math.max(a, b)};
+    },
+    rectAt(offset) {
+      const p = positionOf(offset), r = document.createRange(); r.setStart(p.node, p.offset); r.collapse(true);
+      let b = r.getBoundingClientRect();
+      if (!b.height && !b.width && !b.left && !b.top) b = el.getBoundingClientRect();
+      return {x:b.left, y:b.top, width:0, height:b.height};
+    },
+    replace(rng, content) {
+      const text = typeof content === "string" ? content : content.label || "";
+      internal = true;
+      try {
+        const a = positionOf(rng.start), b = positionOf(rng.end), r = document.createRange(); r.setStart(a.node, a.offset); r.setEnd(b.node, b.offset);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        if (el.ownerDocument.activeElement !== el) el.focus({preventScroll:true});
+        if (!(text === "" ? document.execCommand("delete") : document.execCommand("insertText", false, text))) { r.deleteContents(); if (text) r.insertNode(document.createTextNode(text)); el.dispatchEvent(new InputEvent("input", {bubbles:true, inputType:"insertText", data:text})); }
+      } finally { internal = false; }
+      last = textOf();
+    },
+    composing: () => composing,
+    subscribe(listener) {
+      listeners.add(listener); if (listeners.size === 1) bind();
+      return () => { listeners.delete(listener); if (!listeners.size) unbind(); };
+    },
+  };
+  const listeners = new Set(); let last = textOf(), composing = false, lastSel = "";
+  const emit = change => listeners.forEach(fn => fn(change));
+  const diff = (a, b) => { let n = 0; const m = Math.min(a.length, b.length); while (n < m && a[n] === b[n]) n++; let i = 0; while (i < m - n && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return {range:{start:n, end:a.length - i}, inserted:b.slice(n, b.length - i)}; };
+  const onSelection = () => { if (document.activeElement !== el) return; const s = adapter.selection(), key = s ? `${s.start}:${s.end}` : ""; if (key !== lastSel) { lastSel = key; emit({type:"selection"}); } };
+  const onInput = event => {
+    if (event.isComposing) return;
+    const now = textOf(), {range:r, inserted} = diff(last, now); last = now;
+    emit({type:"input", range:r, inserted, user:!internal}); onSelection();
+  };
+  const onCompStart = () => { composing = true; last = textOf(); emit({type:"compositionstart"}); };
+  const onCompEnd = () => { composing = false; const now = textOf(), {range:r, inserted} = diff(last, now); last = now; emit({type:"compositionend"}); if (r.start !== r.end || inserted) emit({type:"input", range:r, inserted, user:true}); };
+  const onBlur = () => { composing = false; lastSel = ""; emit({type:"selection"}); };
+  const onBefore = () => { if (!composing) last = textOf(); };
+  const bind = () => { el.addEventListener("beforeinput", onBefore); el.addEventListener("input", onInput); el.addEventListener("compositionstart", onCompStart); el.addEventListener("compositionend", onCompEnd); el.addEventListener("blur", onBlur); for (const t of ["keyup", "pointerup", "focus"]) el.addEventListener(t, onSelection); document.addEventListener("selectionchange", onSelection); };
+  const unbind = () => { el.removeEventListener("beforeinput", onBefore); el.removeEventListener("input", onInput); el.removeEventListener("compositionstart", onCompStart); el.removeEventListener("compositionend", onCompEnd); el.removeEventListener("blur", onBlur); for (const t of ["keyup", "pointerup", "focus"]) el.removeEventListener(t, onSelection); document.removeEventListener("selectionchange", onSelection); };
+  // the @query before the caret, as a DOM range
+  const typed = () => {
+    const s = adapter.selection(); if (!s || s.start !== s.end) return null;
+    const before = textOf().slice(0, s.start), m = /(^|[\s(\uFFFC])@([^\s@\uFFFC]{0,40})$/.exec(before); if (!m) return null;
+    return {start:s.start - m[2].length - 1, end:s.start};
+  };
   function choose(ref) {
-    if (!ref || !at) return close();
-    const r = document.createRange(); r.setStart(at.node, at.start); r.setEnd(at.node, at.end); r.deleteContents();
-    const chip = chipElement(ref, {editable:true}), space = document.createTextNode(" ");
+    const found = typed(); if (!ref || !found) return;
+    const a = positionOf(found.start), b = positionOf(found.end), r = document.createRange(); r.setStart(a.node, a.offset); r.setEnd(b.node, b.offset); r.deleteContents();
+    const chip = chipElement(ref, {editable:true}), space = document.createTextNode(" ");
     r.insertNode(space); r.insertNode(chip);
     const c = document.createRange(); c.setStart(space, 1); c.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(c);
-    close(); onChange();
+    last = textOf(); onChange();
   }
-  el.addEventListener("input", () => { const found = caretText(); if (!found) return close(); at = found; if (!picker) index = 0; render(); });
-  el.addEventListener("keydown", e => {
-    if (!picker) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); index = (index + (e.key === "ArrowDown" ? 1 : -1) + flat.length) % Math.max(1, flat.length); render(); }
-    else if ((e.key === "Enter" && !e.metaKey && !e.ctrlKey) || e.key === "Tab") { if (flat.length) { e.preventDefault(); choose(flat[index]); } }
-    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
-  });
-  el.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== el) close(); }, 120));
-  return {close, get open() { return !!picker; }};
+  menu.editor = adapter;
+  menu.triggers = [{char:"@", maxLength:40, pattern:/[^\s@]/, type:"reference"}];
+  menu.addEventListener("openchange", event => { opened = !!event.detail.value; if (opened) fill(); });
+  menu.addEventListener("querychange", event => { const empty = content.querySelector("ui-trigger-menu-empty"); if (empty) empty.textContent = `No match for \u201C${event.detail.value}\u201D`; });
+  menu.addEventListener("itemselect", event => { event.preventDefault(); choose(flat[+event.detail.value]); });
+  fill();
+  return {close() { menu.api?.close?.({reason:"imperative"}); }, get open() { return opened; }};
 }

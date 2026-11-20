@@ -45,7 +45,7 @@ try {
   await graphRequest;
   const masthead = page.getByRole('button',{name:'New board',exact:true});
   await masthead.click();
-  assert.equal(await page.locator('#new-dialog[open]').count(),0,'Early New Board waits for graph Home.');
+  assert.equal(await page.locator('#new-dialog[data-open]').count(),0,'Early New Board waits for graph Home.');
   resumeHome();
   await dialog.waitFor();
   await page.unroute('**/api/workspace?view=home');
@@ -90,7 +90,7 @@ try {
   assert.ok(actionBox.x - (hintBox.x + hintBox.width) >= 16,'The shared footer separates the hint and action.');
   await page.mouse.click(7,8); await detached(idea);
 
-  await open('Tinka / Board…');
+  await open('New board…');
   assert.ok(await focused(name));
   const compact = await dialog.boundingBox();
   assert.ok(compact.x >= 10 && compact.width <= 360 && compact.height < 220);
@@ -98,7 +98,7 @@ try {
   await shot('new-board-canvas-390.png');
   await dialog.getByRole('button',{name:'Close dialog'}).click(); await detached(dialog);
   assert.ok(await focused(add));
-  await open('Tinka / Board…');
+  await open('New board…');
   assert.equal(await name.inputValue(),'Child reading lab');
 
   let release, arrived;
@@ -120,7 +120,7 @@ try {
   await page.getByRole('heading',{name:'Child reading lab',exact:true}).waitFor();
   assert.equal(writes.at(-1).operationId,writes.at(-2).operationId);
   assert.equal(writes.at(-1).parentBoardId,boardId);
-  await open('Tinka / Board…');
+  await open('New board…');
   assert.equal(await name.inputValue(),'','Reopen after a successful creation starts a fresh name.');
   await page.keyboard.press('Escape'); await detached(dialog);
   const inspector = page.locator('#board-info-toggle');
@@ -128,7 +128,7 @@ try {
   await page.locator('#board-info [data-appearance-set="dark"]').click();
   await inspector.click();
   await page.waitForFunction(() => document.documentElement.dataset.appearance === 'dark');
-  await open('Tinka / Board…');
+  await open('New board…');
   await name.fill('Evening studies');
   await shot('new-board-canvas-dark-390.png');
   assert.deepEqual(errors,[]);

@@ -38,6 +38,14 @@ test('brackets and plain arrows are the fallback', () => {
   assert.equal(readerCommand(key('[')), 'previous');
   assert.equal(readerCommand(key('[', {altKey: true}), {mac: true}), 'previous', 'Layouts that type [ with ⌥ still step');
   assert.equal(readerCommand(key(']'), {editable: true}), null);
+  // J / K step inside an opened Tinka too, as they do on a board (there is no stacking here, so [ / ] keep stepping).
+  assert.equal(readerCommand(key('j')), 'next');
+  assert.equal(readerCommand(key('k')), 'previous');
+  assert.equal(readerCommand(key('K')), 'previous', 'either case');
+  assert.equal(readerCommand(key('j'), {editable: true}), null, 'text fields keep their letters');
+  assert.equal(readerCommand(key('j'), {fromFrame: true}), null, 'letters inside content belong to the content');
+  assert.equal(readerCommand(key('j', {shiftKey: true})), null);
+  assert.equal(readerCommand(key('k', {ctrlKey: true})), null);
   assert.equal(readerCommand(key('ArrowRight'), {tinkaFocus: true}), 'next');
   assert.equal(readerCommand(key('ArrowLeft'), {tinkaFocus: true}), 'previous');
   assert.equal(readerCommand(key('ArrowRight'), {tinkaFocus: false}), null, 'Plain arrows stay with other focus');
@@ -48,6 +56,9 @@ test('view keys', () => {
   assert.equal(readerCommand(key('f')), 'fit');
   assert.equal(readerCommand(key('!', {shiftKey: true, code: 'Digit1'})), 'fit');
   assert.equal(readerCommand(key(')', {shiftKey: true, code: 'Digit0'})), 'actual-size');
+  assert.equal(readerCommand(key('0')), 'actual-size', '0 shows 100%, as on the board (UI SDK viewport keys)');
+  assert.equal(readerCommand(key('0'), {editable: true}), null);
+  assert.equal(readerCommand(key('0'), {fromFrame: true}), null);
   assert.equal(readerCommand(key('=', {shiftKey: false})), 'zoom-in');
   assert.equal(readerCommand(key('-')), 'zoom-out');
   assert.equal(readerCommand(key('?', {shiftKey: true, code: 'Slash'})), 'shortcuts');

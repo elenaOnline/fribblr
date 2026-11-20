@@ -117,11 +117,17 @@ try {
   await boxPanel.getByRole("button",{name:"Fit height once",exact:true}).click();
   const fittedOnce=await waitSaved(id,d=>d.height<fixed.height);
   assert.equal(fittedOnce.textSizing,"fixed");
-  await boxPanel.getByRole("button",{name:"Enable auto height"}).click();
+  // fribblr: Auto height is a toggle with one name in both states (UI SDK toggle); its pressed state says which.
+  const autoHeight=boxPanel.getByRole("button",{name:"Auto height",exact:true});
+  assert.equal(await autoHeight.getAttribute("aria-pressed"),"false");
+  await autoHeight.click();
   const restored=await waitSaved(id,d=>d.textSizing==="auto");
+  await page.waitForFunction(()=>document.querySelector(".whiteboard-menu [data-auto-height]")?.getAttribute("aria-pressed")==="true");
   assert.ok(restored.height<fixed.height);
   assert.equal(restored.width,fixed.width);
-  await page.keyboard.press("Escape");
+  // The panel keeps a popover's Tab (popups.js tabOutOfPanel): Tab from its last control closes it and moves on from Text box.
+  await autoHeight.focus();await page.keyboard.press("Tab");
+  await boxPanel.waitFor({state:"hidden"});
 
   await idle();
   assert.equal(await more.count(),0,"a loose Text block has no empty overflow");

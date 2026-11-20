@@ -92,16 +92,26 @@ try {
   await pop.getByRole('button', {name: 'Copy a request for your agent'}).click();
   ok((await page.evaluate(() => window.__copied)).includes('node tinka/app/cli.mjs update --config tinka/local/config.json now'), 'The agent request carries the command');
   await shot(page, 'compatible-1440-light');
+  // The popover is a UI SDK popover: Escape returns to the chip, a press outside closes it, Tab leaves it and goes on from the chip.
+  await page.keyboard.press('Escape'); await pop.waitFor({state: 'hidden'});
+  ok(await page.evaluate(() => document.activeElement?.classList.contains('update-chip')), 'Escape returns focus to the chip');
+  await chip(page).click(); await pop.waitFor();
+  ok(await page.evaluate(() => document.activeElement?.closest('.update-pop') !== null), 'The popover takes focus when it opens');
+  await page.mouse.click(700, 26); await pop.waitFor({state: 'hidden'}); ok(true, 'A press outside closes the popover');
+  await chip(page).focus(); await page.keyboard.press('Enter'); await pop.waitFor();
+  for (let i = 0; i < 12 && await pop.isVisible(); i++) await page.keyboard.press('Tab');
+  ok(!await pop.isVisible() && !await page.evaluate(() => document.activeElement?.closest('.update-pop')), 'Tab leaves the popover (it closes) and goes on from the chip');
+  await chip(page).click(); await pop.waitFor();
   await pop.getByLabel('Install compatible updates automatically').check();
   await page.waitForFunction(() => document.querySelector('.update-pop .update-status')?.textContent.includes('as Tinka starts'));
   eq(S.posts.at(-1), ['preference', {action: 'policy', policy: 'auto'}], 'Automatic is the auto update policy');
-  await page.keyboard.press('Escape'); ok(!await pop.count(), 'Escape closes the popover');
+  await page.keyboard.press('Escape'); await pop.waitFor({state: 'hidden'}); ok(!await pop.isVisible(), 'Escape closes the popover');
   ok(!await chip(page).count(), 'With Automatic, a compatible update goes quiet');
   await page.locator('#board-info-toggle').click();
   const about = page.locator('.update-about'); await about.waitFor();
   ok((await about.textContent()).includes(`${display(COMPATIBLE)} installs next time Tinka starts`), 'The Inspector says when it installs');
-  eq(await about.locator('[data-policy]').evaluateAll(buttons => buttons.map(b => [b.textContent, b.getAttribute('aria-pressed')])), [['Ask first', 'false'], ['Automatic', 'true'], ['Off', 'false']], 'Ask first / Automatic / Off show the policy');
-  await about.getByRole('button', {name: 'Ask first'}).click();
+  eq(await about.locator('[data-policy]').evaluateAll(buttons => buttons.map(b => [b.textContent, b.getAttribute('aria-checked')])), [['Ask first', 'false'], ['Automatic', 'true'], ['Off', 'false']], 'Ask first / Automatic / Off show the policy');
+  await about.getByRole('radio', {name: 'Ask first'}).click();
   await page.locator('.update-chip').waitFor();
   eq(S.posts.at(-1), ['preference', {action: 'policy', policy: 'notify'}], 'Ask first is the notify policy');
   await page.locator('#board-info-close').click();
@@ -116,8 +126,8 @@ try {
   await chip(page).waitFor();
   eq(await chip(page).evaluate(b => [b.dataset.kind, b.textContent.trim(), getComputedStyle(b, '::before').width]), ['major', `Tinka ${display(MAJOR)} available`, '6px'], 'A major update has the accent and a dot');
   await chip(page).click();
-  const dialog = page.locator('dialog.update-dialog[open]'); await dialog.waitFor();
-  eq(await dialog.locator('h2').textContent(), `Update to Tinka ${display(MAJOR)}?`, 'The consent question');
+  const dialog = page.locator('.update-dialog[data-open]'); await dialog.waitFor();
+  eq(await dialog.locator('h2').textContent(), `Update to Tinka ${display(MAJOR)}`, 'The consent title, plain (no question-style titles)');
   eq(await dialog.locator('.update-facts li').count(), 4, 'Four facts');
   ok(await dialog.getByRole('link', {name: `What's new in ${display(MAJOR)}`}).isVisible(), "What's new");
   eq(await page.evaluate(() => document.activeElement?.dataset.update), 'later', 'Focus starts on Later');
@@ -175,7 +185,7 @@ try {
   await page.locator('.update-pop').getByRole('button', {name: 'Copy request for your agent'}).click();
   ok((await page.evaluate(() => window.__copied)).includes('local changes'), 'The request says why');
   await page.keyboard.press('Escape');
-  await page.locator('#board-info-toggle').click(); await page.locator('.update-about').getByRole('button', {name: 'Off'}).click();
+  await page.locator('#board-info-toggle').click(); await page.locator('.update-about').getByRole('radio', {name: 'Off'}).click();
   await page.waitForFunction(() => !document.querySelector('.update-chip'));
   eq(S.posts.at(-1), ['preference', {action: 'policy', policy: 'off'}], 'Off is the off policy');
   ok((await page.locator('.update-about').textContent()).includes('updates are off'), 'The Inspector says updates are off');
@@ -186,10 +196,10 @@ try {
   ({context, page} = await open(1440, 'light', `${base}/`));
   await chip(page).waitFor();
   ok(await chip(page).evaluate(b => b.closest('.masthead .live') !== null), "Home shows it on the live line");
-  await chip(page).click(); await page.locator('dialog.update-dialog[open]').waitFor();
+  await chip(page).click(); await page.locator('.update-dialog[data-open]').waitFor();
   eq(await page.evaluate(() => document.activeElement?.dataset.update), 'later', 'Home: focus starts on Later');
   await shot(page, 'home-major-consent-1440-light');
-  await page.locator('dialog.update-dialog').getByRole('button', {name: `Update to ${display(MAJOR)}`}).click();
+  await page.locator('.update-dialog').getByRole('button', {name: `Update to ${display(MAJOR)}`}).click();
   await page.locator('.masthead .live .update-chip[data-kind="busy"]').waitFor();
   finish(); await page.locator('.masthead .live .update-refresh').waitFor({timeout: 5000});
   eq(await page.locator('.update-refresh').textContent(), `Tinka ${display(MAJOR)} is ready · Refresh`, 'Home: ready · Refresh');
@@ -199,7 +209,7 @@ try {
   // (7) Every state at 1440 and 390, light and dark.
   const states = {
     compatible: async page => { await chip(page).click(); await page.locator('.update-pop').waitFor(); },
-    'major-consent': async page => { await chip(page).click(); await page.locator('dialog.update-dialog[open]').waitFor(); },
+    'major-consent': async page => { await chip(page).click(); await page.locator('.update-dialog[data-open]').waitFor(); },
     updating: async page => { await page.locator('.update-chip[data-kind="busy"]').waitFor(); },
     ready: async page => { finish(); await page.locator('#live-refresh:not([hidden])').waitFor({timeout: 5000}); },
     failed: async page => { await chip(page).click(); await page.locator('.update-pop').waitFor(); },
@@ -217,7 +227,7 @@ try {
       ({context, page} = await open(width, scheme));
       if (name !== 'ready' && name !== 'updating') await chip(page).waitFor();
       await act(page);
-      if (width === 390 && name !== 'ready') ok(await page.locator('.update-chip, dialog.update-dialog[open]').first().isVisible(), `Phone ${scheme} ${name}: visible`);
+      if (width === 390 && name !== 'ready') ok(await page.locator('.update-chip, .update-dialog[data-open]').first().isVisible(), `Phone ${scheme} ${name}: visible`);
       if (width === 390 && ['compatible', 'failed'].includes(name)) ok(await page.locator('.update-pop').evaluate(element => { const box = element.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth && box.top >= 0; }), `Phone ${scheme} ${name}: the popover fits`);
       await shot(page, `${name}-${width}-${scheme}`);
       await context.close();

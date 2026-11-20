@@ -1,11 +1,14 @@
 // The board's Comment tool: C arms a comment cursor, a click drops a pin on empty
-// canvas, a card or a drawn element, and pins show who wrote each thread and where
-// it stands. The bottom bar holds the layer menu (show/hide, resolved, "Waiting on
+// canvas, a card or a drawn element (or, by keyboard, Enter on the focused item or
+// the focused canvas), and pins show who wrote each thread and where it stands. The bottom bar holds the layer menu (show/hide, resolved, "Waiting on
 // you") and "Send to agent", which marks open threads sent and copies a prompt.
 // Thread cards (reading, replying, new threads) live in comment-thread.js.
 import {pointAnchorAt, resolveCommentPoint, alongAnchorAt} from './feedback-geometry.js';
-import {toast, escape as esc} from './workspace.js';
+import {toast, dismissToast, makeDialog, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
+import {tips, setTip} from './tips.js';
+import {sharedMenu, openMenu, menuCheckbox, menuGroup, menuItem, inPopup, openOnArrowDown} from './popups.js';
+import {sdkCore, ARROWS} from './board-focus.js';
 
 // ---- API adapter (comment API, Tinka 1.1). Field and operation names live only here.
 export const commentApi = {
@@ -64,20 +67,29 @@ export class CommentPins {
   mount() {
     this.world = document.getElementById('world');this.viewport = document.getElementById('viewport');
     this.layer = document.createElement('div');this.layer.className = 'comment-pins';this.layer.setAttribute('aria-label', 'Comments');
+    // The pins are one Tab stop, like the board's items: the pin focused last holds it (else the first in reading
+    // order), arrows move to the nearest pin that way (UI SDK nearestInDirection on screen boxes), Home and End reach the
+    // first and last, and Enter or Space opens the focused pin (a cluster, its list).
+    this.layer.setAttribute('role', 'group');
+    this.layer.addEventListener('focusin', e => {
+      const key = this.pinKey(e.target.closest?.('[data-comment-pin],[data-comment-cluster]'));
+      if (key && key !== this.pinStop) { this.pinStop = key; for (const pin of this.layer.querySelectorAll('[data-comment-pin],[data-comment-cluster]')) pin.tabIndex = this.pinKey(pin) === key ? 0 : -1; }
+    });
+    this.layer.addEventListener('keydown', e => this.pinKeys(e));
     this.world.append(this.layer);
     // feedback.js stops drawing its numbered canvas pins once this layer exists.
     this.board.feedback?.syncPins?.();
     const pill = document.querySelector('.canvas-footer .zoom-pill');
     if (pill && !document.getElementById('comment-layer-toggle')) {
       const group = document.createElement('span');group.className = 'comment-bar';
-      group.innerHTML = `<button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-haspopup="menu" aria-expanded="false" aria-label="Comments" title="Comments (⇧C)">${ICON.comment}<span class="comment-count" hidden></span></button><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" title="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button><span class="tk-divider" aria-hidden="true"></span>`;
+      group.innerHTML = `<ui-toolbar-button><ui-menu-trigger for="comment-layer-menu"><button type="button" id="comment-layer-toggle" class="tk-btn comment-layer" aria-label="Comments" data-tip="Comments" data-tip-keys="Shift+C">${ICON.comment}<span class="comment-count" hidden></span></button></ui-menu-trigger></ui-toolbar-button><ui-toolbar-button><button type="button" id="comment-send" class="tk-btn comment-send" aria-label="Send to agent" data-tip="Send open comments to your agent">${ICON.send}<span class="comment-send-label">Send to agent</span><span class="comment-count" hidden></span></button></ui-toolbar-button><span class="tk-divider" aria-hidden="true"></span>`;
       pill.prepend(group);
-      group.querySelector('#comment-layer-toggle').onclick = e => { e.stopPropagation();this.menu ? this.closeMenu() : this.openMenu(); };
+      tips(group);
       group.querySelector('#comment-send').onclick = () => this.sendToAgent();
     }
     this.layer.addEventListener('click', e => {
       const cluster = e.target.closest('[data-comment-cluster]');
-      if (cluster) { e.preventDefault();e.stopPropagation();this.openCluster(cluster);return; }
+      if (cluster) { e.preventDefault();e.stopPropagation();this.openCluster(cluster, e);return; }
       const pin = e.target.closest('[data-comment-pin]');if (!pin) return;
       e.preventDefault();e.stopPropagation();
       if (this.draggedAt && Date.now() - this.draggedAt < 400) return;
@@ -103,24 +115,55 @@ export class CommentPins {
     // Armed: hover lights the target; a click drops the pin there.
     window.addEventListener('pointermove', e => { if (this.armed) this.hover(e); }, true);
     window.addEventListener('pointerdown', e => this.drop(e), true);
-    // The Comments panel's "Show pins" option shows or hides this layer (its old pins are off).
-    document.addEventListener('change', e => { if (e.target.matches?.('[data-feedback-pins]')) this.setVisible(e.target.checked); }, true);
+    // The Comments panel's "Show points" option (a checkbox item of its options menu) shows or hides this layer (its old
+    // pins are off); renderBar tells the panel the layer's state, so the option reads the same as ⇧C left it.
+    document.addEventListener('tinka:show-points', e => this.setVisible(!!e.detail?.visible));
     window.addEventListener('hashchange', () => { if (/^#comments\//.test(location.hash)) this.reload().then(() => this.openLinked()); });
     window.addEventListener('click', e => { if (this.swallowClick && Date.now() < this.swallowClick) { e.preventDefault();e.stopImmediatePropagation();this.swallowClick = 0; } }, true);
     window.addEventListener('keydown', e => {
-      if (e.key !== 'Escape') return;
-      if (this.menu) { e.preventDefault();e.stopImmediatePropagation();this.closeMenu(true); }
-      else if (this.armed) { e.preventDefault();e.stopImmediatePropagation();this.arm(false); }
+      if (!this.armed || inPopup(e) || e.isComposing) return;
+      // An open menu takes its own Escape (it closes one layer and returns focus).
+      if (e.key === 'Escape') { e.preventDefault();e.stopImmediatePropagation();this.arm(false);return; }
+      // The keyboard's click: Enter (or Space) on the focused board item drops the pin on it; Enter on the focused
+      // canvas drops it on the board, at the middle of the view (Space there still pans).
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.repeat || !(e.key === 'Enter' || e.key === ' ')) return;
+      const item = e.target.closest?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]');
+      if (item === e.target || (e.key === 'Enter' && e.target === this.viewport)) {
+        e.preventDefault();e.stopImmediatePropagation();
+        this.dropOn(item === e.target ? item : null);
+      }
     }, true);
-    document.addEventListener('pointerdown', e => { if (this.menu && !this.menu.contains(e.target) && !e.target.closest('#comment-layer-toggle')) this.closeMenu(); }, true);
+    // Armed, focus moving onto an item marks it as the pointer's hover does, so the keyboard sees the target too.
+    window.addEventListener('focusin', e => { if (this.armed) this.hover(e.target.matches?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]') ? {target:e.target} : null); }, true);
+    this.mountMenus();
     this.sync();this.renderBar();
+  }
+  pinKey(el) { return el?.dataset?.commentPin ? `pin:${el.dataset.commentPin}` : el?.dataset?.commentCluster ? `cluster:${el.dataset.commentCluster}` : null; }
+  pinKeys(e) {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+    const from = e.target.closest?.('[data-comment-pin],[data-comment-cluster]');
+    const direction = ARROWS[e.key];
+    if (!from || (!direction && e.key !== 'Home' && e.key !== 'End')) return;
+    e.preventDefault(); e.stopPropagation();
+    const pins = [...this.layer.querySelectorAll('[data-comment-pin],[data-comment-cluster]')].map(el => ({el, key:this.pinKey(el), rect:el.getBoundingClientRect()}));
+    if (!direction) {
+      const order = [...pins].sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+      (e.key === 'Home' ? order[0] : order.at(-1))?.el.focus({preventScroll:true});
+      return;
+    }
+    const here = pins.find(pin => pin.el === from);
+    sdkCore().then(core => {
+      if (document.activeElement !== from) return;
+      const key = core.nearestInDirection(here.rect, pins.filter(pin => pin !== here), direction);
+      pins.find(pin => pin.key === key)?.el.focus({preventScroll:true});
+    });
   }
   // ---- data
   async reload() {
     const boardId = this.snapshot.id;
     try { const threads = await commentApi.list(this.client, boardId);if (boardId !== this.snapshot.id) return;this.threads = threads; }
     catch (error) { console.warn('Comments unavailable:', error.message); }
-    this.sync();this.renderBar();if (this.menu) this.renderMenu();
+    this.sync();this.renderBar();if (this.layerMenu?.root.open) this.renderMenu();
     if (!this.linkHandled) { this.linkHandled = true;this.openLinked(); }
   }
   // A thread link (…/boards/BOARD/#comments/ID, from the inbox and the agent prompt) pans to
@@ -153,14 +196,37 @@ export class CommentPins {
       const near = groups.find(g => g[0].t.id !== this.dragging?.id && Math.hypot((g[0].p.x - entry.p.x) * zoom, (g[0].p.y - entry.p.y) * zoom) < CLUSTER_PX);
       near ? near.push(entry) : groups.push([entry]);
     }
-    const html = groups.map(group => group.length === 1 ? this.pinMarkup(group[0].t, group[0].p, origin) : this.clusterMarkup(group, origin, zoom)).join('');
-    if (this.layer.innerHTML !== html) this.layer.innerHTML = html;
+    // One Tab stop: the pin focused last, else the first in reading order (by board position).
+    const keyOf = group => group.length === 1 ? `pin:${group[0].t.id}` : `cluster:${group.map(g => g.t.id).join(' ')}`;
+    const first = [...groups].sort((a, b) => a[0].p.y - b[0].p.y || a[0].p.x - b[0].p.x)[0];
+    const stop = groups.some(group => keyOf(group) === this.pinStop) ? this.pinStop : first && keyOf(first);
+    const html = groups.map(group => (group.length === 1 ? this.pinMarkup(group[0].t, group[0].p, origin) : this.clusterMarkup(group, origin, zoom))
+      .replace('<button type="button"', `<button type="button" tabindex="${keyOf(group) === stop ? 0 : -1}"`)).join('');
+    if (this.layer.innerHTML !== html) {
+      // The pins are rebuilt as a string: a pin that has focus (Escape from its card sends focus here) gets it back on
+      // its new copy in the same turn, so focus never falls to <body> between renders.
+      const token = this.focusToken();
+      this.layer.innerHTML = html;
+      this.restoreFocus(token);
+    }
+  }
+  // Which pin or cluster has focus (a token for restoreFocus), so a re-render of the layer or of the world around it can
+  // hand focus to the new copy in the same turn instead of letting it fall to <body>.
+  focusToken() {
+    const had = this.layer?.contains(document.activeElement) ? document.activeElement.closest('[data-comment-pin],[data-comment-cluster]') : null;
+    return had ? (had.dataset.commentPin ? ['data-comment-pin', had.dataset.commentPin] : ['data-comment-cluster', had.dataset.commentCluster]) : null;
+  }
+  restoreFocus(token) {
+    if (!token || !this.layer) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return; // focus went somewhere on purpose
+    [...this.layer.querySelectorAll(`[${token[0]}]`)].find(el => el.getAttribute(token[0]) === token[1])?.focus({preventScroll:true});
   }
   pinMarkup(t, p, origin) {
     const status = this.status(t), agent = commentApi.isAgent(t);
     const who = agent ? 'Agent' : t.author?.label || 'Someone', label = commentApi.targetLabel(t);
     const gone = p.detached ? `<span class="comment-pin-gone">Was on ${esc(label || 'something')} · deleted</span>` : '';
-    return `<button type="button" class="comment-pin${p.detached ? ' detached' : ''}${this.active === t.id ? ' active' : ''}${this.dragging?.id === t.id ? ' dragging' : ''}" data-comment-pin="${esc(t.id)}" data-status="${status}" data-author="${agent ? 'agent' : 'human'}" style="left:${p.x + origin.x}px;top:${p.y + origin.y}px" aria-label="${esc(`${who} · ${STATUS_LABEL[status] || status}${p.detached ? ` · was on ${label || 'something'}, deleted` : ''}: ${(t.body || t.excerpt || '').slice(0, 80)}`)}" title="${p.detached ? 'Drag onto a card, drawn element or arrow to re-pin' : 'Open · drag to move'}">${agent ? ICON.agent : esc((t.author?.label || '?').trim()[0]?.toUpperCase() || '?')}<span class="comment-pin-badge" aria-hidden="true"></span>${gone}</button>`;
+    return `<button type="button" class="comment-pin${p.detached ? ' detached' : ''}${this.active === t.id ? ' active' : ''}${this.dragging?.id === t.id ? ' dragging' : ''}" data-comment-pin="${esc(t.id)}" data-status="${status}" data-author="${agent ? 'agent' : 'human'}" style="left:${p.x + origin.x}px;top:${p.y + origin.y}px" aria-label="${esc(`${who} · ${STATUS_LABEL[status] || status}${p.detached ? ` · was on ${label || 'something'}, deleted` : ''}: ${(t.body || t.excerpt || '').slice(0, 80)}`)}" data-tip="${p.detached ? 'Drag onto a card, drawn element or arrow to re-pin' : 'Open · drag to move'}">${agent ? ICON.agent : esc((t.author?.label || '?').trim()[0]?.toUpperCase() || '?')}<span class="comment-pin-badge" aria-hidden="true"></span>${gone}</button>`;
   }
   clusterMarkup(group, origin, zoom) {
     const status = group.map(g => this.status(g.t)).sort((a, b) => URGENCY[b] - URGENCY[a])[0];
@@ -170,36 +236,39 @@ export class CommentPins {
     const view = this.viewport?.getBoundingClientRect(), world = this.world.getBoundingClientRect(), margin = 22 / zoom;
     if (view?.width) {
       const left = (view.left - world.left) / zoom - origin.x, top = (view.top - world.top) / zoom - origin.y, right = left + view.width / zoom, bottom = top + view.height / zoom;
-      if (x >= left && x <= right && y >= top && y <= bottom) { x = Math.min(Math.max(x, left + margin), right - margin);y = Math.min(Math.max(y, top + margin), bottom - margin); }
+      if (x >= left && x <= right && y >= top && y <= bottom) {
+        x = Math.min(Math.max(x, left + margin), right - margin);y = Math.min(Math.max(y, top + margin), bottom - margin);
+        // The floating footer's bars and the edit tools rail sit over the canvas's bottom edge (across all of it at phone
+        // width): a cluster under one of them moves up, clear of it, as revealBox keeps revealed items clear (canvas.js).
+        const sx = world.left + (x + origin.x) * zoom;
+        for (const bar of document.querySelectorAll('.canvas-footer .zoom-pill, #edit-tools')) {
+          const r = bar.hidden || !bar.getClientRects().length ? null : bar.getBoundingClientRect();
+          if (!r || sx < r.left - 22 || sx > r.right + 22) continue;
+          y = Math.min(y, (r.top - world.top) / zoom - origin.y - margin);
+        }
+      }
     }
     return `<button type="button" class="comment-pin comment-cluster" data-comment-cluster="${esc(group.map(g => g.t.id).join(' '))}" data-status="${status}" style="left:${x + origin.x}px;top:${y + origin.y}px" aria-haspopup="menu" aria-label="${group.length} comments here · ${STATUS_LABEL[status] || status}">${group.length}<span class="comment-pin-badge" aria-hidden="true"></span></button>`;
   }
-  // A cluster opens a small list of its threads to pick from.
-  openCluster(button) {
-    this.closeMenu();
+  // A cluster opens a small list of its threads to pick from: a UI SDK menu (popups.js) beside the pin, which flips to
+  // the other side or shifts when there is no room, clear of the bottom bar. The cluster button is rebuilt as pins
+  // regroup, so the menu opens from code against the pressed button.
+  openCluster(button, event) {
     const ids = button.dataset.commentCluster.split(' '), threads = ids.map(id => this.threads.find(t => t.id === id)).filter(Boolean);
-    this.menu = document.createElement('div');this.menu.className = 'tk-menu comment-menu comment-cluster-menu';this.menu.setAttribute('role', 'menu');this.menu.setAttribute('aria-label', `${threads.length} comments here`);
-    this.menu.innerHTML = `<h6 class="comment-menu-head">${threads.length} comments here</h6>` + threads.map(t => `<button type="button" role="menuitem" class="tk-mi comment-waiting" data-comment-pick="${esc(t.id)}" data-status="${this.status(t)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${esc(commentApi.isAgent(t) ? 'Agent' : t.author?.label || 'Someone')} · ${STATUS_LABEL[this.status(t)]}</b>${esc((t.body || t.excerpt || '').slice(0, 70))}</span></button>`).join('');
-    document.body.append(this.menu);
-    this.menu.addEventListener('click', e => { const pick = e.target.closest('[data-comment-pick]');if (!pick) return;this.closeMenu();this.open(pick.dataset.commentPick, button); });
-    // Beside the pin (right, else left, else below or above it), clear of the bottom bar.
-    Object.assign(this.menu.style, {position:'fixed', left:'0px', top:'0px'});// measure at its real (fixed) size
-    const r = button.getBoundingClientRect(), w = this.menu.offsetWidth, h = this.menu.offsetHeight, gap = 8;
-    const floor = Math.min(innerHeight, document.querySelector('.canvas-footer .zoom-pill')?.getBoundingClientRect().top ?? innerHeight) - gap, ceiling = (document.getElementById('viewport')?.getBoundingClientRect().top ?? 0) + gap;
-    let left, top;
-    if (r.right + gap + w <= innerWidth - gap) left = r.right + gap;
-    else if (r.left - gap - w >= gap) left = r.left - gap - w;
-    if (left !== undefined) top = Math.max(ceiling, Math.min(floor - h, r.top + r.height / 2 - h / 2));
-    else {
-      left = Math.max(gap, Math.min(innerWidth - w - gap, r.left + r.width / 2 - w / 2));
-      top = r.bottom + gap + h <= floor ? r.bottom + gap : Math.max(ceiling, r.top - gap - h);
-    }
-    Object.assign(this.menu.style, {position:'fixed', left:`${left}px`, top:`${top}px`});
-    this.menu.querySelector('button')?.focus({preventScroll:true});
+    const {root, content} = this.clusterMenu;
+    content.setAttribute('aria-label', `${threads.length} comments here`);
+    content.innerHTML = menuGroup(`${threads.length} comments here`, threads.map(t => this.threadItem(t, `${commentApi.isAgent(t) ? 'Agent' : t.author?.label || 'Someone'} · ${STATUS_LABEL[this.status(t)]}`, (t.body || t.excerpt || '').slice(0, 70), 'data-comment-pick')).join(''));
+    // Clear of the bottom bar, as before: keep the list that far from every window edge (the SDK takes one padding).
+    const pill = document.querySelector('.canvas-footer .zoom-pill')?.getBoundingClientRect();
+    content.setAttribute('collision-padding', String(Math.max(8, Math.round(pill ? innerHeight - pill.top + 8 : 8))));
+    openMenu(root, {anchor: button, event, payload: button.dataset.commentCluster, returnTo: `[data-comment-cluster="${CSS.escape(button.dataset.commentCluster)}"]`});
+  }
+  threadItem(t, head, text, attr = 'data-comment-waiting') {
+    return `<ui-menu-item class="tk-mi comment-waiting" value="${esc(t.id)}" ${attr}="${esc(t.id)}" data-status="${this.status(t)}" label="${esc(`${head} ${text}`)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${esc(head)}</b>${esc(text)}</span></ui-menu-item>`;
   }
   setVisible(visible) {
     this.visible = visible;try { localStorage.setItem(this.key, visible ? 'shown' : 'hidden'); } catch {}
-    this.sync();this.renderBar();if (this.menu) this.renderMenu();
+    this.sync();this.renderBar();if (this.layerMenu?.root.open) this.renderMenu();
   }
   toggleVisible() { this.setVisible(!this.visible);toast(this.visible ? 'Comments shown.' : 'Comments hidden. ⇧C shows them.'); }
   renderBar() {
@@ -212,14 +281,14 @@ export class CommentPins {
     count.hidden = !(waiting || open);count.textContent = String(waiting || open);count.classList.toggle('warn', !!waiting);
     layer.setAttribute('aria-label', waiting ? `Comments: ${waiting} waiting on you` : `Comments: ${open} open`);
     layer.setAttribute('aria-pressed', String(this.visible));
-    for (const box of document.querySelectorAll('[data-feedback-pins]')) box.checked = this.visible;
+    document.dispatchEvent(new CustomEvent('tinka:points-shown', {detail: {visible: this.visible}}));
     const unsent = this.unsent().length, badge = send.querySelector('.comment-count');
     // aria-disabled rather than disabled, so the watching tooltip still shows with nothing to send.
     badge.hidden = !unsent;badge.textContent = String(unsent);send.setAttribute('aria-disabled', String(!unsent));
     // Calm at rest: with nothing to send, Send is just its icon.
     send.classList.toggle('comment-send-idle', !unsent);
     send.classList.toggle('agent-watching', watching);
-    send.title = watching ? 'Agent is watching: comments you send are picked up right away' : 'Send open comments to your agent';
+    setTip(send, watching ? 'Agent is watching: comments you send are picked up right away' : 'Send open comments to your agent');
     const label = unsent ? `Send ${unsent} open comment${unsent === 1 ? '' : 's'} to your agent` : 'Send to agent: nothing open to send';
     send.setAttribute('aria-label', watching ? `${label} · Agent is watching` : label);
   }
@@ -229,7 +298,11 @@ export class CommentPins {
     this.armed = on;this.viewport?.classList.toggle('comment-armed', on);
     this.board.syncEditTools?.();
     if (!on) this.hover(null);
-    else toast('Click the board, a card or a drawn element to comment. Escape cancels.');
+    else {
+      this.armHint = toast('Click the board, a card or a drawn element to comment, or press Enter on the focused one. Escape cancels.');
+      const focused = document.activeElement;
+      if (focused?.matches?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]')) this.hover({target:focused});
+    }
   }
   target(e) {
     const card = e.target.closest?.('#world .workspace-card[data-placement]'), drawn = e.target.closest?.('#world [data-decoration]');
@@ -304,10 +377,30 @@ export class CommentPins {
   async drop(e) {
     if (!this.armed || e.button !== 0 || !this.viewport?.contains(e.target) || e.target.closest('.comment-pins,.workspace-tile-toolbar,.whiteboard-toolbar')) return;
     e.preventDefault();e.stopImmediatePropagation();this.swallowClick = Date.now() + 700;
-    const hit = this.target(e), anchor = this.anchorFor(e.clientX, e.clientY, hit);
+    return this.place(e.clientX, e.clientY, this.target(e));
+  }
+  // The keyboard's drop: on a focused item, near its top-right corner (an arrow: at its middle, on the line); with no
+  // item, on the board at the middle of the view. The thread card opens as it does for a click; closing it returns
+  // focus to the item.
+  dropOn(element) {
+    const hit = element ? this.target({target:element}) : null;
+    let x, y;
+    const line = element?.querySelector('.whiteboard-line-hit');
+    if (line) {
+      const m = line.getScreenCTM(), q = line.getPointAtLength(line.getTotalLength() / 2);
+      x = q.x * m.a + q.y * m.c + m.e;y = q.x * m.b + q.y * m.d + m.f;
+    } else {
+      const r = (element || this.viewport).getBoundingClientRect();
+      if (element) { x = Math.max(r.left, r.right - Math.min(24, r.width / 2));y = Math.min(r.bottom, r.top + Math.min(24, r.height / 2)); }
+      else { x = r.left + r.width / 2;y = r.top + r.height / 2; }
+    }
+    return this.place(x, y, hit);
+  }
+  async place(clientX, clientY, hit) {
+    const anchor = this.anchorFor(clientX, clientY, hit), e = {clientX, clientY};
     this.arm(false);
     // The arming hint has done its job once the composer opens.
-    const hint = document.getElementById('workspace-toast');if (hint && /^Click the board, a card/.test(hint.textContent)) hint.hidden = true;
+    if (this.armHint) { dismissToast(this.armHint);this.armHint = null; }
     const rect = {left:e.clientX, top:e.clientY, right:e.clientX, bottom:e.clientY, width:0, height:0};
     const cards = await threadCards();
     try {
@@ -335,30 +428,54 @@ export class CommentPins {
     return this.open(threadId, this.layer?.querySelector(`[data-comment-pin="${CSS.escape(threadId)}"]`));
   }
   // ---- layer menu and "Waiting on you"
-  openMenu() {
-    this.menu = document.createElement('div');this.menu.className = 'tk-menu comment-menu';this.menu.setAttribute('role', 'menu');this.menu.setAttribute('aria-label', 'Comments');
-    document.body.append(this.menu);document.getElementById('comment-layer-toggle')?.setAttribute('aria-expanded', 'true');
-    this.menu.addEventListener('change', e => {
-      if (e.target.dataset.commentOption === 'visible') this.setVisible(e.target.checked);
-      if (e.target.dataset.commentOption === 'resolved') { this.showResolved = e.target.checked;this.sync(); }
+  // The Comments button in the view pill opens a UI SDK menu (popups.js): two checkbox items that stay open as they
+  // toggle, then the threads waiting on you. The cluster menu is a second shared menu of the same kind.
+  mountMenus() {
+    if (this.layerMenu) return;
+    const layer = sharedMenu({id:'comment-layer-menu', label:'Comments', className:'comment-menu'});
+    layer.content.setAttribute('side', 'top');
+    layer.content.setAttribute('align', 'start');
+    layer.content.setAttribute('side-offset', '8');
+    layer.content.setAttribute('collision-padding', '8');
+    layer.root.addEventListener('openchange', e => { if (e.detail.value) this.renderMenu(); });
+    layer.content.addEventListener('checkedchange', e => {
+      const option = e.target.closest('[value]')?.getAttribute('value');
+      if (option === 'visible') this.setVisible(e.detail.value);
+      if (option === 'resolved') { this.showResolved = e.detail.value; this.sync(); }
+    }, true);
+    layer.root.addEventListener('action', e => this.reveal(e.detail.value));
+    this.layerMenu = layer;
+    // The Comments button is an item of the view pill's toolbar: ArrowDown opens its menu at the first item.
+    openOnArrowDown(document.querySelector('.canvas-footer .zoom-pill'), '#comment-layer-toggle', () => { if (!layer.root.open) layer.root.api.open({focus:'first'}); });
+    const cluster = this.clusterMenu = sharedMenu({id:'comment-cluster-menu', className:'comment-menu comment-cluster-menu'});
+    cluster.content.setAttribute('side', 'right');
+    cluster.content.setAttribute('align', 'center');
+    cluster.content.setAttribute('side-offset', '8');
+    cluster.root.addEventListener('action', e => {
+      const ids = cluster.root.api.getPayload(), button = this.layer.querySelector(`[data-comment-cluster="${CSS.escape(ids || '')}"]`);
+      this.open(e.detail.value, button);
     });
-    this.menu.addEventListener('click', e => {
-      const item = e.target.closest('[data-comment-waiting]');if (!item) return;
-      this.closeMenu();this.reveal(item.dataset.commentWaiting);
-    });
-    this.renderMenu();this.menu.querySelector('input,button')?.focus({preventScroll:true});
   }
+  get menu() { return !!(this.layerMenu?.root.open || this.clusterMenu?.root.open); }
+  openMenu() { this.layerMenu?.root.api.open({anchor: document.getElementById('comment-layer-toggle')}); }
+  // While the menu is open, its checkboxes follow the model (⇧C, the Comments panel) and the waiting list is rebuilt;
+  // a rebuild never takes the checkbox rows away from under the pointer or the keys.
   renderMenu() {
-    const waiting = this.waiting();
-    this.menu.innerHTML = `<h6 class="comment-menu-head">Comments</h6><label class="tk-mi"><input type="checkbox" data-comment-option="visible" ${this.visible ? 'checked' : ''}> Show comments <kbd class="tk-kbd" aria-hidden="true">⇧C</kbd></label><label class="tk-mi"><input type="checkbox" data-comment-option="resolved" ${this.showResolved ? 'checked' : ''}> Show resolved</label><h6 class="comment-menu-head">Waiting on you</h6>${waiting.length ? waiting.map(t => `<button type="button" role="menuitem" class="tk-mi comment-waiting" data-comment-waiting="${esc(t.id)}" data-status="${this.status(t)}"><span class="comment-dot" aria-hidden="true"></span><span class="comment-waiting-text"><b>${STATUS_LABEL[this.status(t)]}</b>${esc(commentApi.targetLabel(t) || (t.body || t.excerpt || '').slice(0, 60))}</span></button>`).join('') : '<p class="comment-menu-empty">Nothing right now.</p>'}`;
-    Object.assign(this.menu.style, {position:'fixed', left:'0px', top:'0px'});
-    const anchor = document.getElementById('comment-layer-toggle')?.getBoundingClientRect();
-    if (anchor) Object.assign(this.menu.style, {position:'fixed', left:`${Math.max(8, Math.min(innerWidth - this.menu.offsetWidth - 8, anchor.left))}px`, top:`${Math.max(8, anchor.top - this.menu.offsetHeight - 8)}px`});
+    const {content} = this.layerMenu, waiting = this.waiting();
+    const options = content.querySelector('ui-menu-group[data-comment-options]');
+    if (options) {
+      for (const [value, checked] of [['visible', this.visible], ['resolved', this.showResolved]]) { const item = options.querySelector(`[value="${value}"]`); if (item && item.getAttribute('checked') !== String(checked)) item.setAttribute('checked', String(checked)); }
+    } else {
+      content.innerHTML = menuGroup('Comments', menuCheckbox('visible', 'Show comments', {checked:this.visible, shortcut:'shift+c'}) + menuCheckbox('resolved', 'Show resolved', {checked:this.showResolved})).replace('<ui-menu-group>', '<ui-menu-group data-comment-options>')
+        + '<ui-menu-group data-comment-waiting-list></ui-menu-group>';
+    }
+    const list = content.querySelector('[data-comment-waiting-list]');
+    const html = '<ui-menu-group-label class="tk-mlabel">Waiting on you</ui-menu-group-label>' + (waiting.length
+      ? waiting.map(t => this.threadItem(t, STATUS_LABEL[this.status(t)], commentApi.targetLabel(t) || (t.body || t.excerpt || '').slice(0, 60))).join('')
+      : menuItem('none', 'Nothing right now', {disabled:true, className:'comment-menu-empty'}));
+    if (list.rendered !== html) { list.innerHTML = html; list.rendered = html; }
   }
-  closeMenu(focus = false) {
-    this.menu?.remove();this.menu = null;
-    const toggle = document.getElementById('comment-layer-toggle');toggle?.setAttribute('aria-expanded', 'false');if (focus) toggle?.focus({preventScroll:true});
-  }
+  closeMenu() { for (const menu of [this.layerMenu, this.clusterMenu]) if (menu?.root.open) menu.root.api.close({reason:'imperative'}); }
   // ---- Send to agent: mark open threads sent, then copy a prompt naming them.
   async sendToAgent() {
     const threads = this.unsent();if (!threads.length) { if (commentApi.watching(this.presence)) toast('Agent is watching: comments you send are picked up right away.');return; }
@@ -384,10 +501,9 @@ export function commentPrompt(config, board, threads) {
 }
 
 function showPromptFallback(prompt, marked) {
-  const dialog = document.createElement('dialog');dialog.className = 'workspace-dialog comment-prompt';
-  dialog.innerHTML = `<form method="dialog"><h2>Send to your agent</h2><p>Marked ${marked} comment${marked === 1 ? '' : 's'} sent. Copy this prompt into your agent.</p><textarea readonly rows="10">${esc(prompt)}</textarea><button class="workspace-primary">Done</button></form>`;
-  document.body.append(dialog);dialog.addEventListener('close', () => dialog.remove());dialog.showModal();
-  const area = dialog.querySelector('textarea');area.focus();area.select();
+  const dialog = makeDialog('Send to your agent', `<p>Marked ${marked} comment${marked === 1 ? '' : 's'} sent. Copy this prompt into your agent.</p><textarea readonly rows="10" autofocus>${esc(prompt)}</textarea><button type="button" class="workspace-primary" data-done>Done</button>`, null, {className: 'comment-prompt'});
+  dialog.querySelector('[data-done]').onclick = () => dialog.close();
+    requestAnimationFrame(() => dialog.querySelector('textarea')?.select());
 }
 
 /** Where a ref sits on this board, in board units, or null. */

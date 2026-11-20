@@ -66,6 +66,25 @@ try{
  const fitted=await plane();await page.mouse.move(cx,cy);await wheel(0,120);
  assert.deepEqual(await plane(),fitted,'A fitted image remains centered at its bounds');checks++;
  ok(await page.locator('#reader-window').evaluate(e=>getComputedStyle(e).paddingBottom)==='0px','The resource surface has no nested card padding');
+ // (3b) Keyboard pan, as in Preview and Photos: at fit, ← / → step to another Tinka; zoomed in past fit, the arrows pan
+ // (Shift a screenful) and never step, even at the edge; [ ] still step; F gives ←/→ back their step.
+ const count=()=>page.locator('#reader-count').textContent().then(t=>t.trim());
+ await page.locator('#reader-stage').focus();
+ const startCount=await count();
+ for(let i=0;i<4;i++)await page.keyboard.press('+');await page.waitForTimeout(60);
+ const z=await plane();ok(z.zoom>fitted.zoom,'+ zooms in past fit');
+ await page.keyboard.press('ArrowRight');let k=await plane();
+ ok(k.x===z.x-80&&k.y===z.y&&await count()===startCount,`Zoomed in, → pans 80 px right and does not step: ${z.x} → ${k.x}`);
+ await page.keyboard.press('ArrowDown');ok((await plane()).y===k.y-80,'↓ pans down');
+ k=await plane();await page.keyboard.press('Shift+ArrowRight');
+ ok((await plane()).x<k.x-200,'Shift+→ pans a screenful');
+ for(let i=0;i<40;i++)await page.keyboard.press('Shift+ArrowRight');
+ const edge=await plane();await page.keyboard.press('ArrowRight');
+ ok((await plane()).x===edge.x&&await count()===startCount,'At the right edge, → stays on this Tinka');
+ await page.keyboard.press('ArrowLeft');ok((await plane()).x===edge.x+80,'← pans back');
+ await page.keyboard.press('f');await page.waitForTimeout(60);
+ await page.keyboard.press('ArrowRight');await page.waitForFunction(c=>document.querySelector('#reader-count').textContent.trim()!==c,startCount);checks++;
+ await page.keyboard.press('ArrowLeft');await page.waitForFunction(c=>document.querySelector('#reader-count').textContent.trim()===c,startCount);checks++;
 
  // (4) A long Markdown document scrolls itself; the canvas stays still.
  await open(doc.placementIds[0],new Function(`return ${inner}?.querySelector('.markdown p')`));

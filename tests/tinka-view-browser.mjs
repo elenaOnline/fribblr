@@ -59,7 +59,7 @@ try{
  const waitName=title=>page.waitForFunction(t=>document.querySelector('#reader-name')?.textContent===t,title,{timeout:5000});
  const plane=()=>page.evaluate(()=>{const m=new DOMMatrix(getComputedStyle(document.getElementById('reader-plane')).transform);return {zoom:m.a,x:m.e,y:m.f};});
  const openLab=async()=>{await page.goto(base+'/boards/lab/?from=product',{waitUntil:'load'});await page.locator('.workspace-card').first().waitFor();
-  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}};
+  if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}};
  const openItem=async placementId=>{await page.locator(`[data-placement="${placementId}"] [data-open]`).first().click();await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(150);};
  const pill=['#reader-zoom-minus','#reader-zoom-toggle','#reader-zoom-plus','#reader-fit'];
  const visible=async selector=>page.locator(selector).isVisible();
@@ -122,18 +122,18 @@ try{
  await page.keyboard.press('Shift+Digit0');eq((await plane()).zoom,1,'Shift-0 is 100%');
  await page.keyboard.press('=');ok((await plane()).zoom>1.2,'+ zooms in');await page.keyboard.press('Shift+Digit1');eq((await plane()).zoom,1,'Shift-1 fits');
 
- // (3) The path: hover (after a delay) shows where you are and the neighbours; leaving closes it; click pins.
- await page.locator('#reader-path').hover();
+ // (3) The path (a UI SDK menu): a press shows where you are and the neighbours; Escape closes it; it stays open while the pointer leaves.
+ await page.locator('#reader-path').click();
  await page.locator('#reader-path-pop').waitFor({state:'visible',timeout:2000});
  const rows=await page.locator('#reader-path-pop .reader-path-ladder .reader-path-title').allTextContents();
  eq(rows,['Home','Product','Design Lab','01 · Quiet opening'],'The ladder runs Home → Product → Design Lab → this Tinka');
  eq(await page.locator('#reader-path-pop .reader-path-sibs .tk-eyebrow').textContent(),'On Design Lab · 4');
  eq(await page.locator('#reader-path-pop .reader-path-sibs .reader-path-title').allTextContents(),['01 · Quiet opening','02 · Bold opening','A plain idea','Starter kit'],'Numbered neighbours in board order');
- ok(await page.locator('#reader-path-pop [aria-label="Also on"]').getByText('Product').isVisible(),'A Tinka placed on several boards lists where else it appears');
- await page.mouse.move(700,500);await page.locator('#reader-path-pop').waitFor({state:'hidden',timeout:2000});checks++;
- await page.locator('#reader-path').click();await page.locator('#reader-path-pop').waitFor({state:'visible'});
+ ok(await page.locator('#reader-path-pop').getByRole('group',{name:'Also on'}).getByText('Product').isVisible(),'A Tinka placed on several boards lists where else it appears');
+ await page.keyboard.press('Escape');await page.locator('#reader-path-pop').waitFor({state:'hidden',timeout:2000});checks++;
+ await page.waitForTimeout(100);await page.locator('#reader-path').click();await page.locator('#reader-path-pop').waitFor({state:'visible'});
  await page.mouse.move(700,500);await page.waitForTimeout(500);
- ok(await visible('#reader-path-pop'),'Click pins the path open');
+ ok(await visible('#reader-path-pop'),'The path stays open while the pointer leaves');
  const h0=await historyLength();
  await page.locator('#reader-path-pop .reader-path-sibs [data-path-go]').nth(1).click();await waitName('Bold opening');checks++;
  ok(await page.locator('#reader-path-pop').isHidden(),'Choosing a neighbour closes the path');
@@ -179,7 +179,7 @@ try{
  await page.locator('#reader-zoom-menu [data-size="compact"]').click();
  eq(await page.locator('#reader-window').getAttribute('data-size'),'compact');
  eq(Math.round((await page.locator('#reader-window').boundingBox()).width),440,'Compact is a true 440-wide window at 100%');
- await page.locator('#reader-theme').click();eq(await page.locator('#reader-theme').getAttribute('aria-pressed'),'true','Night');
+ await page.locator('#reader-theme').click();eq(await page.locator('#reader-theme').getAttribute('aria-checked'),'true','Night');
  await page.locator('[data-reader-light="paper"]').click();
  await page.locator('#reader-type').fill('115');eq(await page.locator('#reader-type').getAttribute('aria-valuetext'),'115%');
  await page.locator('#revision-options').getByText('Second version').click();await waitName('Bold opening · Second version');checks++;
@@ -192,18 +192,18 @@ try{
  for(const label of ['Open standalone ↗','Copy link','Copy path'])ok(await info.getByRole('button',{name:label,exact:true}).or(info.getByRole('link',{name:label,exact:true})).first().isVisible(),`Inspector offers ${label}`);
  ok(await info.getByRole('button',{name:/^Comments/}).isVisible(),'Inspector offers Comments');
  ok(await info.locator('[data-revision-choice]').count()===2,'Versions are in the Inspector too');
- ok(await info.getByRole('group',{name:'Appearance'}).isVisible(),'Appearance is in the Inspector');
+ ok(await info.getByRole('radiogroup',{name:'Appearance'}).isVisible(),'Appearance is in the Inspector');
  await page.screenshot({path:path.join(evidence,'tinka-view-1440-light-inspector.png')});
  eq(await info.getByRole('button',{name:'More…',exact:true}).count(),0,'Inspector does not nest its actions');
  const action=label=>info.getByRole('button',{name:label});
  for(const label of ['Add board…','Edit details…','Move to another board…','Also show on another board…','Feature on Product…','Vote…','Copy for an agent','Reload content','Keyboard shortcuts'])ok(await action(label).isVisible(),`Inspector offers ${label}`);
  await action('Move to another board…').click();
- await page.locator('dialog.workspace-dialog[open]').waitFor();ok(true,'Move to board… opens its dialog');
- await page.locator('dialog.workspace-dialog[open] .workspace-close').click();
- await action('Edit details…').click();await page.locator('dialog.workspace-dialog[open]').waitFor();checks++;
- await page.locator('dialog.workspace-dialog[open] .workspace-close').click();
+ await page.locator('.workspace-dialog:is([open],[data-open])').waitFor();ok(true,'Move to board… opens its dialog');
+ await page.locator('.workspace-dialog:is([open],[data-open]) .workspace-close').click();
+ await action('Edit details…').click();await page.locator('.workspace-dialog:is([open],[data-open])').waitFor();checks++;
+ await page.locator('.workspace-dialog:is([open],[data-open]) .workspace-close').click();
  await action('Keyboard shortcuts').click();
- const sheet=page.locator('dialog.workspace-dialog[open]');await sheet.waitFor();
+ const sheet=page.locator('.workspace-dialog:is([open],[data-open])');await sheet.waitFor();
  ok((await sheet.textContent()).includes(`${mac?'⌥':'Ctrl+'}← · ${mac?'⌥':'Ctrl+'}→`),'The shortcut sheet names this platform\'s step keys');
  await sheet.locator('.workspace-close').click();
  await page.keyboard.press('Escape');await page.locator('#reader-info').waitFor({state:'hidden'});checks++;
@@ -244,15 +244,15 @@ try{
  await wp.keyboard.press('Control+ArrowRight');await wp.waitForFunction(()=>document.querySelector('#reader-name').textContent==='Bold opening');checks++;
  await wp.keyboard.press('Alt+ArrowLeft');await wp.waitForTimeout(150);
  ok(await wp.locator('#reader-name').textContent()!=='Quiet opening'||!(await wp.locator('#reader-dialog').evaluate(d=>d.open)),'Alt+← is not a step on Windows');
- ok((await wp.locator('#reader-next').getAttribute('title')).includes('Ctrl+→'),'Windows titles name Ctrl+→');
+ ok((await wp.locator('#reader-next').getAttribute('aria-keyshortcuts')).split(' ').includes('Control+ArrowRight'),'Windows: Next declares Ctrl+→, which its tooltip prints');
  await win.close();
 
  // (10) Dark, and a phone: the title row wraps, the stepper and path still work, no sideways scroll.
  await page.emulateMedia({colorScheme:'dark'});
  await openLab();await openItem(kit.placementIds[0]);
- await page.locator('#reader-path').hover();await page.locator('#reader-path-pop').waitFor({state:'visible'});
+ await page.locator('#reader-path').click();await page.locator('#reader-path-pop').waitFor({state:'visible'});
  await page.screenshot({path:path.join(evidence,'tinka-view-1440-dark-path.png')});
- await page.mouse.move(700,600);await page.locator('#reader-path-pop').waitFor({state:'hidden'});
+ await page.keyboard.press('Escape');await page.locator('#reader-path-pop').waitFor({state:'hidden'});
  await page.emulateMedia({colorScheme:'light'});
  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
  const phone=await page.evaluate(()=>{const h=document.getElementById('reader-header').getBoundingClientRect(),t=document.querySelector('.reader-title-row').getBoundingClientRect(),n=document.getElementById('reader-navigator').getBoundingClientRect();return {scroll:document.documentElement.scrollWidth,dialog:document.getElementById('reader-dialog').scrollWidth,header:document.getElementById('reader-header').scrollWidth,width:innerWidth,wrapped:t.top>=n.bottom-1,titleWidth:t.width};});
@@ -289,7 +289,7 @@ try{
  eq(await name(),titleOf(0),'Five plain ← presses step back five Tinkas without a click');
  await page.locator('#reader-next').click();at++;await settle();
  for(let n=0;n<5;n++){await page.keyboard.press('ArrowRight');at++;await settle();if(at<6){eq(await page.evaluate(()=>document.activeElement?.id),'reader-next',`Focus stays on Next after → #${n+1}`);ok(!(await ring("#reader-next")),`The clicked Next button shows no ring after → #${n+1}: ${await page.evaluate(()=>{const e=document.getElementById("reader-next");return JSON.stringify({attr:e.hasAttribute("data-pointer-focus"),fv:e.matches(":focus-visible"),o:getComputedStyle(e).outlineStyle,b:getComputedStyle(e).boxShadow})})}`);}}
- eq([await name(),await page.evaluate(()=>document.activeElement?.id)],[titleOf(6),'reader-stage'],'After clicking Next, five plain → presses keep stepping; at the end (Next disabled) focus is on Tinka');
+ eq([await name(),await page.evaluate(()=>document.activeElement?.id),await page.locator('#reader-next').getAttribute('aria-disabled')],[titleOf(6),'reader-next','true'],'After clicking Next, five plain → presses keep stepping; at the end Next keeps focus and says it is disabled (UI SDK Pagination)');
  await page.keyboard.press('[');at--;await settle();await page.keyboard.press('[');at--;await settle();await page.keyboard.press(']');at++;await settle();
  eq(await name(),titleOf(5),'[ and ] keep stepping too');
  // A click on the header's background lands on Tinka's canvas, so the plain keys still work.
@@ -323,8 +323,8 @@ try{
  ok(!(await ring('#reader-count')),'…without lighting a ring on the clicked trigger');
  await page.keyboard.press(`${chord}+ArrowRight`);at++;await settle();
  ok(await page.locator('#reader-path-pop').isHidden(),'Stepping with the path closed keeps it closed');
- await page.locator('#reader-path').click();await page.keyboard.press(`${chord}+ArrowLeft`);at--;await settle();
- ok(await popOpen(),'Stepping while the path is open (and the new content grabs focus) keeps it open');
+ {const count=await page.locator('#reader-count').textContent();await page.locator('#reader-path').click();await page.keyboard.press(`${chord}+ArrowLeft`);await page.waitForTimeout(200);
+ ok(await popOpen()&&await page.locator('#reader-count').textContent()===count,'While the path (a menu) is open its keys stay with it: the step chord does not step');}
  await page.keyboard.press('Escape');
  ok(!(await ring('#reader-stage'))&&!(await ring('#reader-path')),'No ring on the canvas or title after the path closes');
  // A board given Dots shows the same quiet dots in its opened Tinka.

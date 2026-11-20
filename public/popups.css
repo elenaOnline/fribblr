@@ -1,0 +1,74 @@
+/* fribblr's popups on UI SDK Menu and Popover (popups.js; ui-sdk.md § Popups). Linked last, after depth.css.
+   The SDK supplies behaviour; the look is the theme's: .tk-menu gives the menu face and joins the float height
+   (depth.css), items keep .tk-mi, separators .tk-msep, group labels .tk-mlabel (tokens.css). This file only
+   (1) replaces the UA popover box that Menu content keeps (SPEC A4), (2) maps the SDK's state attributes onto the
+   theme's existing looks, and (3) sizes content to the room the SDK reports. */
+
+/* (1) The UA [popover] box: border, padding, Canvas colours, auto margin. Placement is the SDK's (inline left/top). */
+:is(ui-menu-content, ui-menu-sub-content, ui-popover-content) { margin: 0; border: 0; box-sizing: border-box; }
+:is(ui-menu-content, ui-menu-sub-content).tk-menu { max-height: var(--available-height, calc(100dvh - 16px)); max-width: calc(100vw - 16px); overflow: auto; overscroll-behavior: contain; }
+:is(ui-menu-content, ui-menu-sub-content).tk-menu:focus { outline: none; }
+ui-popover-content { padding: 12px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-float); max-height: var(--available-height, calc(100dvh - 16px)); max-width: calc(100vw - 16px); overflow: auto; }
+ui-popover-content:focus { outline: none; }
+
+/* (2) Items. The highlighted item (keyboard focus or under the pointer) takes the theme's chosen fill; :hover alone
+   no longer does, so the pointer and the keys never light two items at once. */
+.tk-menu :is(ui-menu-item, ui-menu-checkbox-item, ui-menu-radio-item, ui-menu-sub-trigger).tk-mi,
+.tk-menu ui-menu-item > a.tk-mi { cursor: default; user-select: none; text-decoration: none; }
+:is(ui-menu-content, ui-menu-sub-content) .tk-mi:is(:hover, :focus-visible):not([data-highlighted]) { background: transparent; }
+.tk-menu .tk-mi[data-highlighted] { background: var(--surface-chosen); outline: none; }
+/* The fill is the focus indicator in a menu (as in native menus): no ring on top of it. The theme's ring
+   (tokens.css: html[data-appearance] :is(…, [tabindex]):focus-visible, 0-3-1) is outweighed by naming the content's
+   data-slot and the item's role under :root (0-4-1), for every kind of item, links and the path rows included. */
+:root :is(ui-menu-content, ui-menu-sub-content)[data-slot] :is([role^=menuitem], .tk-mi, .reader-path-row):focus-visible { outline: none; box-shadow: none; }
+.tk-menu .tk-mi[data-disabled] { color: var(--ink-2); }
+.tk-menu .tk-mi[data-disabled][data-highlighted] { background: color-mix(in srgb, var(--surface-chosen) 55%, transparent); }
+.tk-menu .tk-mi[data-pending] { color: var(--ink-2); cursor: progress; }
+.tk-menu .tk-mi-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-menu .tk-mi > ui-menu-shortcut { display: inline-flex; margin-left: auto; flex: none; }
+.tk-menu ui-menu-item-icon { display: inline-grid; place-items: center; width: 18px; flex: none; color: var(--ink-2); }
+.tk-menu ui-menu-item-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* Checkbox and radio items: a check in a fixed column, shown when chosen. */
+.tk-menu .tk-mi-check { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: none; }
+.tk-menu .tk-mi-check svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; visibility: hidden; }
+.tk-menu .tk-mi-check[data-checked] svg { visibility: visible; }
+.tk-menu ui-menu-group-label.tk-mlabel { display: block; }
+.tk-menu ui-menu-separator.tk-msep { display: block; }
+/* An item with a quiet second line (a version's modified time). */
+.tk-menu .tk-mi.tk-mi2 { height: auto; min-height: 40px; padding-top: 5px; padding-bottom: 5px; }
+.tk-menu .tk-mi2 .tk-mi-label { display: grid; gap: 1px; white-space: normal; }
+.tk-menu .tk-mi2 .tk-mi-label small { color: var(--ink-2); font: 400 11px/1.2 var(--type-sans); }
+
+/* (3) Surfaces. Old classes stay on the content (tests and the depth list know them); where an old rule set a display
+   or a fixed size for the hand-rolled popup, the SDK's own display comes back (revert-layer) so a closed popup stays
+   hidden, and the old fixed placement gives way to the SDK's. */
+ui-menu-content.arrange-menu { display: revert-layer; padding: 6px; min-width: 220px; }
+ui-menu-content.workspace-add-menu { position: revert-layer; width: auto; min-width: 215px; }
+.workspace-add-menu .add-glyph { font-size: 17px; line-height: 1; }
+ui-popover-content.zoom-menu { position: revert-layer; right: auto; bottom: auto; width: 244px; }
+ui-menu-content.whiteboard-menu { position: revert-layer; width: auto; min-width: 220px; }
+/* The system colour picker the whiteboard menu's colour item opens: placed beside the bar, never seen itself. */
+.whiteboard-color-input { position: fixed; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+/* The opened item's More… (canvas.js) and the path menu (reader-path.js): both live in the reader dialog. */
+ui-menu-content.reader-more-menu { width: max-content; min-width: 260px; max-width: min(320px, calc(100vw - 16px)); }
+.reader-more-menu .reader-mi2 { display: grid; gap: 1px; height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
+.reader-more-menu .reader-mi2 small { color: var(--ink-2); font-size: 11px; font-weight: 400; }
+ui-menu-content.reader-path-pop { position: revert-layer; animation: none; width: min(380px, calc(100vw - 16px)); font: 400 var(--type-ui)/1.35 var(--type-sans); }
+.reader-path-pop ui-menu-group-label.tk-eyebrow { display: block; }
+.reader-path-pop .reader-path-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.reader-path-pop .reader-path-row { cursor: default; user-select: none; }
+.reader-path-pop .reader-path-row:hover:not([data-highlighted], .is-current) { background: transparent; }
+.reader-path-pop .reader-path-row[data-highlighted] { background: var(--surface-chosen); }
+/* Where you are is marked by aria-current, quietly and unlike the highlight: the highlighted row is the only filled one.
+   The current place keeps its medium weight and "here", and gains a short straight mark-blue rule at its leading edge
+   (the colour of the ladder's current dot), clear of the row's corners. Highlighted, it is filled as well. */
+.reader-path-pop .reader-path-row[aria-current="true"] {
+  background-color: transparent; background-image: linear-gradient(var(--mark-blue), var(--mark-blue));
+  background-repeat: no-repeat; background-position: 0 8px; background-size: 2px calc(100% - 16px);
+}
+.reader-path-pop .reader-path-row[aria-current="true"][data-highlighted] { background-color: var(--surface-chosen); }
+/* The comment layer and cluster menus keep their own width limit (workspace.css .comment-menu). */
+ui-menu-content.comment-menu { max-width: min(340px, calc(100vw - 16px)); }
+ui-menu-content.appearance-menu-content { min-width: 200px; }
+/* A version stack's list of versions (workspace-board.js versionMenu, canvas.js reader strip). */
+ui-menu-content.file-version-menu { min-width: 200px; max-width: min(320px, calc(100vw - 16px)); }

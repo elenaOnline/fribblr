@@ -50,8 +50,52 @@ try {
   await card('plain').locator('[data-placement-select]').click({force:true,modifiers:['Shift']});await page.waitForTimeout(200);
   const [manySel,plainSel]=[await read('many'),await read('plain')];
   assert.ok(Math.abs(manySel.outlineOffset-plainSel.outlineOffset-many.under)<.5,`selection offset ${manySel.outlineOffset} vs ${plainSel.outlineOffset}`);
+  // A card's own toolbars (the hover strip, a stack's ‹ name › ticker) are one Tab stop each, with arrows along them.
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('#world .workspace-card.selected'));
+  const focusedIn=()=>page.evaluate(()=>{const a=document.activeElement,bar=a?.closest('[data-roving]');return {bar:bar?.className.split(' ')[0]||null,label:a?.getAttribute('aria-label')||a?.textContent.trim()};});
+  const tabTo=async(id,match)=>{await card(id).focus();for(let i=0;i<12;i++){await page.keyboard.press('Tab');const f=await focusedIn();if(match(f))return f;}throw new Error(`no ${id} stop matched`);};
+  let f=await tabTo('plain',f=>f.bar==='workspace-tile-toolbar');
+  assert.match(f.label,/^Open plain$/,'Tab enters the strip on its first control');
+  assert.equal(await card('plain').locator('.workspace-tile-toolbar').getAttribute('role'),'toolbar');
+  assert.equal(await card('plain').locator('.workspace-tile-toolbar :is(button,a)[tabindex="0"], .workspace-tile-toolbar :is(button,a):not([tabindex])').count(),1,'one Tab stop');
+  await page.keyboard.press('ArrowRight');assert.match((await focusedIn()).label,/^Comments on plain/);
+  await page.keyboard.press('End');assert.match((await focusedIn()).label,/^Favorite plain/);
+  await page.keyboard.press('ArrowRight');assert.match((await focusedIn()).label,/^Open plain/,'wraps');
+  await page.keyboard.press('ArrowLeft');await page.keyboard.press('Tab');assert.notEqual((await focusedIn()).bar,'workspace-tile-toolbar','Tab leaves the strip');
+  await page.keyboard.press('Shift+Tab');assert.match((await focusedIn()).label,/^Favorite plain/,'Shift+Tab comes back to the control focused last');
+  f=await tabTo('many',f=>f.bar==='workspace-file-versions');
+  const ticker=card('many').locator('.workspace-file-versions');
+  assert.equal(await ticker.getAttribute('role'),'toolbar');assert.equal(await ticker.locator('button[tabindex="0"], button:not([tabindex])').count(),1,'one Tab stop');
+  assert.equal(f.label,'Previous version');
+  await page.keyboard.press('ArrowRight');assert.match((await focusedIn()).label,/choose a version$/);
+  await page.keyboard.press('End');assert.equal((await focusedIn()).label,'Next version');
+  assert.equal(await ticker.locator('[data-file-version-step=next]').getAttribute('aria-disabled'),'true','the newest version: Next stays reachable, disabled');
+  await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');
+  await page.locator('#file-version-menu ui-menu-content[data-open]').waitFor();
+  // The menu opens on the checked version, as a select does; the highlight is its fill, with no focus ring on top.
+  await page.waitForFunction(()=>document.activeElement?.matches('#file-version-menu [role=menuitemradio][aria-checked=true]'));
+  const highlight=await page.evaluate(()=>{const a=document.activeElement,cs=getComputedStyle(a);return {highlighted:a.hasAttribute('data-highlighted'),outline:cs.outlineStyle,shadow:cs.boxShadow};});
+  assert.deepEqual(highlight,{highlighted:true,outline:'none',shadow:'none'},'the checked version is highlighted by its fill alone');
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-file-version-menu]'));
+  await card('many').locator('[data-file-version-menu]').click();await page.locator('#file-version-menu ui-menu-content[data-open]').waitFor();
+  await page.waitForFunction(()=>document.activeElement?.matches('#file-version-menu [role=menuitemradio][aria-checked=true]'));
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.activeElement?.matches('[data-file-version-menu]'));
+  await page.keyboard.press('Home');await page.keyboard.press('Enter');
+  await page.waitForFunction(()=>/V04|v04/.test(document.querySelector('#world .workspace-file-version-name [role=status]')?.textContent||'')||[...document.querySelectorAll('#world [data-file-version-menu]')].some(b=>/04/.test(b.textContent)));
+  assert.equal((await focusedIn()).label,'Previous version','focus stays on Previous as the version steps');
+  // The reader's version strip is a toolbar too.
+  await card('many').locator('.workspace-tool-open').evaluate(el=>el.click());await page.locator('#reader-dialog[open]').waitFor();
+  const strip=page.locator('#reader-file-versions');await strip.waitFor();
+  assert.equal(await strip.getAttribute('role'),'toolbar');
+  await page.locator('#reader-older-file').focus();await page.keyboard.press('ArrowRight');
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'reader-file-version-choose');
+  await page.keyboard.press('ArrowRight');assert.equal(await page.evaluate(()=>document.activeElement?.id),'reader-newer-file');
+  assert.equal(await strip.locator('button[tabindex="0"]').count(),1,'one Tab stop');
+  await page.keyboard.press('ArrowLeft');await page.keyboard.press('Enter');await page.locator('#reader-version-list[data-open]').waitFor();
+  await page.waitForFunction(()=>document.activeElement?.matches('#reader-version-list [role=menuitemradio][aria-checked=true]'));
+  await page.keyboard.press('Escape');
   assert.deepEqual(errors,[]);
-  console.log('Version stacks stand on one sheet per other version (at most three), and the cast and selection follow.');
+  console.log('Version stacks stand on one sheet per other version (at most three), and the cast and selection follow. A card\'s hover strip and version ticker, and the reader\'s strip, are one toolbar stop each.');
 } finally {
   await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});
 }

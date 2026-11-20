@@ -57,12 +57,12 @@ try {
   await sizeButton.click();
   const sizePanel=page.getByRole("dialog",{name:"Text size",exact:true});
   const fontSize=sizePanel.getByRole("slider",{name:"Adjust text size",exact:true});
-  const sizePreset=name=>sizePanel.getByRole("button",{name,exact:true});
+  const sizePreset=name=>sizePanel.getByRole("radio",{name,exact:true});
   assert.equal(await sizePanel.locator("[data-scrub-value]").count(),1);
   assert.equal(await fontSize.getAttribute("aria-valuemax"),"144");
   assert.equal(await sizePanel.locator("[data-padding-scrub],[data-swatch],input").count(),0);
   assert.equal(await sizePanel.locator("[data-auto-height],[data-fit-height],[data-face]").count(),0);
-  assert.equal(await sizePreset("Medium").getAttribute("aria-pressed"),"true");
+  assert.equal(await sizePreset("Medium").getAttribute("aria-checked"),"true");
   await sizePreset("Large").click();
   await waitFor(async()=>(await saved("copy")).textSize==="large");
   assert.equal(await fontSize.getAttribute("aria-valuenow"),"36");
@@ -70,7 +70,7 @@ try {
   await fontSize.press("PageUp");
   await fontSize.press("ArrowRight");
   await waitFor(async()=>(await saved("copy")).textSize===21);
-  assert.equal(await sizePreset("Medium").getAttribute("aria-pressed"),"false");
+  assert.equal(await sizePreset("Medium").getAttribute("aria-checked"),"false");
   assert.equal(await sizePanel.locator(".preset-scrub-custom").getAttribute("data-active"),"true");
   await sizePreset("Large").click();
   await fontSize.press("ArrowRight");
@@ -97,12 +97,12 @@ try {
   assert.equal(await appearance.locator('[data-auto-height]').getAttribute("aria-pressed"),"false");
   assert.equal(await appearance.getByRole("button",{name:"Fit height once",exact:true}).isVisible(),true);
   const padding=appearance.getByRole("slider",{name:"Adjust padding",exact:true});
-  const paddingPreset=name=>appearance.getByRole("button",{name,exact:true});
+  const paddingPreset=name=>appearance.getByRole("radio",{name,exact:true});
   assert.equal(await padding.isVisible(),true);
   assert.equal(await appearance.locator("[data-scrub-value]").count(),1);
   assert.equal(await padding.getAttribute("aria-valuemin"),"0");
   assert.equal(await padding.getAttribute("aria-valuemax"),"64");
-  assert.equal(await paddingPreset("Medium").getAttribute("aria-pressed"),"true");
+  assert.equal(await paddingPreset("Medium").getAttribute("aria-checked"),"true");
   await paddingPreset("Large").click();
   await waitFor(async()=>(await saved("copy")).textPadding===24);
   assert.equal(await padding.getAttribute("aria-valuenow"),"24");
@@ -158,12 +158,13 @@ try {
   await page.locator('[data-decoration="section"]').click({position:{x:36,y:3}});
   await toolbar.getByRole("button",{name:"Region options"}).click();
   await page.getByRole("button",{name:"Select section contents"}).click();
-  await page.keyboard.press("ArrowRight");
+  // fribblr: Option/Alt+arrow moves the selection (UI SDK canvas norm); plain arrows move focus between items.
+  await page.keyboard.press("Alt+ArrowRight");
   await waitFor(async()=>(await saved("section")).x===1);
   assert.equal((await saved("copy")).x,37);
   assert.equal((await state()).placements.find(p=>p.id===placementId).x,371);
   assert.equal((await saved("outside")).x,730);
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await waitFor(async()=>(await saved("section")).x===0);
   assert.equal((await saved("copy")).x,36);
   assert.deepEqual(errors,[]);

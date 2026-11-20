@@ -263,7 +263,7 @@ the right end of the title row whatever the title, steps through the board in re
 skipping reserved, building and board-only Tinkas; the count opens the same list,
 and **↓ Board · N** goes down into the Tinka's own board. Keys: ⌥← / ⌥→ on a Mac or
 Ctrl+← / Ctrl+→ on Windows and Linux step, also while Tinka's own local content has
-focus but never inside a text field; [ and ] step too, and plain ← / → step while
+focus but never inside a text field; [ and ] and K and J step too, and plain ← / → step while
 Tinka rather than the content has focus (opening a Tinka leaves focus there, and
 content that grabs focus as it loads hands it back until you click into it or press Tab).
 ⌥↑ / Ctrl+↑ or Escape goes up to the board, and ⌥↓ / Ctrl+↓ goes down. Stepping
@@ -391,9 +391,9 @@ originals. They become selected and are one Undo/Redo step. ⌘A / Ctrl-A select
 all rendered cards; Enter opens the sole selected item; ⌘/Ctrl-K or / opens
 Navigator; ⌘/Ctrl-I opens the Inspector; F fits the selection, then the board;
 Shift-1 fits the board, Shift-2 fits the selection (by physical key, on any
-layout) and Shift-0 zooms to 100%; M shows or hides the board map. ⌥← / ⌥→ (Ctrl+← / Ctrl+→ on Windows and
+layout) and Shift-0 zooms to 100%; M shows or hides the board map. K / J (also Ctrl+← / Ctrl+→ on Windows and
 Linux) select the previous or next Tinka in the same order an opened Tinka steps through,
-and bring it into view. With nothing selected they continue from the board's current
+and bring it into view; ⌥← / ⌥→ moves the focused item. With nothing selected they continue from the board's current
 Tinka: the one you last opened or stepped to inside it, stepped to on the board or
 selected on its own (remembered per board in this tab). T, S and D add Text, a Sticky note or a Markdown
 Document at the pointer, N opens Quick jot, A shows or hides the edit tools, E

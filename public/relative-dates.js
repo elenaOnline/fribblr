@@ -83,7 +83,23 @@ export function timeHTML(value, { prefix = '', verb = '', now = new Date(), focu
   const d = toDate(value);
   if (!d) return '';
   const title = titled(verb, exactDate(d, opts));
-  return `<time data-rel datetime="${escapeHTML(d.toISOString())}"${prefix ? ` data-prefix="${escapeHTML(prefix)}"` : ''}${verb ? ` data-verb="${escapeHTML(verb)}"` : ''} title="${escapeHTML(title)}"${focusable ? ' tabindex="0"' : ''}>${escapeHTML(prefixed(prefix, relDate(d, now, opts)))}</time>`;
+  return `<time data-rel datetime="${escapeHTML(d.toISOString())}"${prefix ? ` data-prefix="${escapeHTML(prefix)}"` : ''}${verb ? ` data-verb="${escapeHTML(verb)}"` : ''} data-tip="${escapeHTML(title)}"${focusable ? ' tabindex="0"' : ''}>${escapeHTML(prefixed(prefix, relDate(d, now, opts)))}</time>`;
+}
+
+/** "Nov 3, 2026, 3:58 PM": the exact date in one short line, for a details list; '' for an invalid date. */
+export function exactShortDate(date, opts = {}) {
+  const d = toDate(date);
+  if (!d) return '';
+  const { locale, hc } = settings(opts);
+  return clean(fmt('dt', locale, { dateStyle: 'medium', timeStyle: 'short', ...hc }).format(d));
+}
+
+/** Escaped <time> markup that shows the exact date as its text (exactShortDate), with no tooltip and no Tab stop: where
+ *  the date is the information (an Inspector's Details), as Finder's Get Info shows it. '' when missing or invalid. */
+export function exactTimeHTML(value, opts = {}) {
+  const d = toDate(value);
+  if (!d) return '';
+  return `<time datetime="${escapeHTML(d.toISOString())}">${escapeHTML(exactShortDate(d, opts))}</time>`;
 }
 
 /** Refresh every time[data-rel] under root. */
@@ -95,8 +111,7 @@ export function renderTimes(root, now = new Date(), opts = {}) {
     const label = prefixed(t.dataset.prefix || '', relDate(d, now, opts));
     if (t.textContent !== label) t.textContent = label;
     const exact = titled(t.dataset.verb || '', exactDate(d, opts));
-    t.dataset.exact = exact;
-    if (!t.dataset.tipActive && t.getAttribute('title') !== exact) t.setAttribute('title', exact);
+    if (t.dataset.tip !== exact) t.dataset.tip = exact;
   }
 }
 
@@ -120,40 +135,3 @@ export function startLiveDates(root = typeof document !== 'undefined' ? document
   return { refresh: live.refresh };
 }
 
-/** A styled exact-time tooltip for time[data-rel] on hover or focus. The native
- *  title is parked while it shows so the two never appear together. Idempotent. */
-export function installDateTooltip() {
-  if (typeof document === 'undefined' || document.querySelector('.tk-date-tip')) return;
-  const tip = document.createElement('div');
-  tip.className = 'tk-date-tip'; tip.id = 'tk-date-tip'; tip.setAttribute('role', 'tooltip');
-  document.body.append(tip);
-  let current = null;
-  const hide = () => {
-    if (!current) return;
-    if (current.dataset.exact) current.setAttribute('title', current.dataset.exact);
-    delete current.dataset.tipActive;
-    current = null;
-    tip.classList.remove('on');
-  };
-  const show = t => {
-    if (t === current) return;
-    hide();
-    const exact = t.dataset.exact || t.getAttribute('title');
-    if (!exact) return;
-    t.dataset.exact = exact; t.dataset.tipActive = '1'; t.removeAttribute('title');
-    current = t;
-    tip.textContent = exact;
-    const r = t.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
-    tip.style.left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8)) + 'px';
-    tip.style.top = (r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8) + 'px';
-    tip.classList.add('on');
-  };
-  const target = e => e.target?.closest?.('time[data-rel]') || null;
-  document.addEventListener('pointerover', e => { const t = target(e); if (t) show(t); else if (current && document.activeElement !== current) hide(); });
-  document.addEventListener('pointerout', e => { if (current && !e.relatedTarget && document.activeElement !== current) hide(); });
-  document.addEventListener('focusin', e => { const t = target(e); if (t) show(t); else hide(); });
-  document.addEventListener('focusout', e => { if (target(e) === current) hide(); });
-  document.addEventListener('pointerdown', hide, true);
-  addEventListener('scroll', hide, true);
-  addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
-}

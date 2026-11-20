@@ -31,7 +31,7 @@ try{
  const blank=()=>page.evaluate(()=>{const v=document.querySelector('#viewport').getBoundingClientRect();for(let y=v.top+30;y<v.bottom-90;y+=20)for(let x=v.left+30;x<v.left+v.width/2;x+=20){const el=document.elementFromPoint(x,y);if(el&&el.matches('#viewport,#plane,#world'))return {x,y};}return null;});
  const clickBlank=async()=>{const p=await blank();await page.mouse.click(p.x,p.y);};
  await page.goto(base+'/boards/studio/');await card(a).waitFor();
- if(await page.locator('[data-mode="canvas"]').getAttribute('aria-pressed')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
+ if(await page.locator('[data-mode="canvas"]').getAttribute('aria-checked')!=='true'){await page.locator('#board-info-toggle').click();await page.locator('[data-mode="canvas"]').click();await page.keyboard.press('Escape');}
  await page.locator('#fit').click();
  // Left is where (Navigator), right is what (Inspector, then the single primary Add).
  const order=await page.locator('#canvas-header').evaluate(el=>[...el.querySelectorAll('#project-navigator-toggle,.brand,#chrome-search,#board-info-toggle,#workspace-add')].map(n=>n.id||'brand'));
@@ -46,15 +46,17 @@ try{
  // Built like the opened Tinka's Inspector: the board's name first, every section on one 16px edge, nothing wider than the panel.
  const layout=await page.locator('#board-info').evaluate(p=>{const r=p.getBoundingClientRect();const shown=[...p.querySelectorAll('h2,h3,.inspector-choice,.workspace-search input,.inspector-row,.inspector-row-btn,#board-description')].filter(e=>e.getClientRects().length);return {name:p.querySelector('.board-info-body h2')?.id,lefts:[...new Set(shown.map(e=>Math.round(e.getBoundingClientRect().left-r.left)))],overflow:p.scrollWidth>p.clientWidth,sections:[...p.querySelectorAll('.inspector-sec > h3')].map(h=>h.firstChild.textContent.trim()),appearanceWide:Math.round(p.querySelector('.inspector-appearance .appearance-control').getBoundingClientRect().width)>=Math.round(r.width-32)};});
  assert.deepEqual(layout,{name:'board-info-heading',lefts:[16],overflow:false,sections:['View','Filter','Edit','Feedback','Appearance','Help'],appearanceWide:true},'Board Inspector layout');
- await clickBlank();assert.equal(await page.locator('#board-info').isVisible(),false,'Click-away closes the board Inspector');
+ // A UI SDK dialog hides a frame after it closes (it first looks for an exit animation), so wait for it.
+ await clickBlank();await page.locator('#board-info').waitFor({state:'hidden',timeout:2000});assert.equal(await page.locator('#board-info').isVisible(),false,'Click-away closes the board Inspector');
  await page.locator('#board-info-toggle').click();await page.keyboard.press('Escape');
- assert.equal(await page.locator('#board-info').isVisible(),false);assert.equal(await page.evaluate(()=>document.activeElement.id),'board-info-toggle');
+ await page.locator('#board-info').waitFor({state:'hidden',timeout:2000});assert.equal(await page.locator('#board-info').isVisible(),false);assert.equal(await page.evaluate(()=>document.activeElement.id),'board-info-toggle');
  // Item Inspector replaces the attached ⋯ popup; click-away and Escape dismiss it.
  await card(a).hover();await openItemDetails(card(a).locator('[data-item-controls]'));
  const inspector=page.locator('#workspace-item-controls');await inspector.waitFor();
  const box=await inspector.boundingBox();assert.ok(box.x+box.width>1440-12&&box.width>=300,'Item Inspector is the right-side panel');
  assert.ok(await inspector.locator('textarea[data-note]').count());assert.equal(await inspector.locator('[data-presentation]').count(),3);
- assert.match(await inspector.locator('.inspector-props').innerText(),/Created\s+just now/);
+ // Details shows the exact date as text ("Nov 20, 2026, 9:10 AM"), not a relative one behind a tooltip.
+ assert.match(await inspector.locator('.inspector-props').innerText(),/Created\s+[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}/);
  await clickBlank();assert.equal(await inspector.count(),0,'Click-away closes the item Inspector');
  await openItemDetails(card(a).locator('[data-item-controls]'));await inspector.waitFor();await page.keyboard.press('Escape');assert.equal(await inspector.count(),0);
  // The action menu selects its target; start this separate selection case empty.
@@ -80,7 +82,7 @@ try{
  // Board-tiles are places with a serif name, a window and a readable edited date.
  const tile=page.locator('.workspace-board-tile.workspace-place-only');assert.equal(await tile.count(),1);
  assert.match(await tile.locator('.workspace-place-meta').innerText(),/Board · 1 item · edited just now/);
- assert.ok(await tile.locator('.workspace-place-meta time[data-rel][datetime][title]').count());
+ assert.ok(await tile.locator('.workspace-place-meta time[data-rel][datetime][data-tip]').count());
  assert.match(await tile.locator('h3').evaluate(el=>getComputedStyle(el).fontFamily),/serif/);
  // The view pill: − · % · + · Fit, and a browser-local Dots / Grid / Plain choice per board.
  const pct=async()=>Number((await page.locator('#zoom-menu-toggle').innerText()).replace('%',''));

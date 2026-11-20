@@ -103,7 +103,7 @@ html[data-appearance="dark"] .workspace-decoration { --decoration-color:var(--de
 .whiteboard-draft-state button { min-height:32px; font-size:12px; padding:4px 8px; }
 .whiteboard-connect-hint { position:fixed; bottom:52px; left:50%; transform:translateX(-50%); padding:8px 14px; background:var(--ink); color:var(--ink-on-mark); border-radius:var(--shape-key);  font:var(--type-ui)/1.4 var(--type-sans); z-index:100021; pointer-events:none; max-width:calc(100vw - 32px); }
 .workspace-add-menu { max-height:calc(100vh - 20px); overflow-y:auto; }
-body:has(.workspace-add-menu) > :is(.whiteboard-toolbar,.whiteboard-menu) { visibility:hidden; }
+body:has(.workspace-add-menu[data-open]) > :is(.whiteboard-toolbar,.whiteboard-menu) { visibility:hidden; }
 @media(max-width:600px) { .whiteboard-toolbar { flex-wrap:wrap; } .whiteboard-toolbar button,.whiteboard-menu button { min-height:44px; } .whiteboard-edit-hint { flex-basis:100%; } }
 /* Formatted Markdown body for Text and Sticky decorations (deco-format.js). */
 .deco-body{display:block;max-width:100%;white-space:normal}.deco-body ul,.deco-body ol{margin:0;padding-left:1.3em;text-align:left}.deco-heading{font-size:1.3em;font-weight:600}.deco-body code{font-family:ui-monospace,monospace;font-size:.9em}
@@ -233,30 +233,24 @@ html[data-appearance="dark"] .whiteboard-markdown-editor { outline-color:color-m
 }
 .whiteboard-menu.whiteboard-container-layout { width:min(292px,calc(100vw - 16px)); padding:6px; }
 .whiteboard-toolbar [data-whiteboard-action=container-layout][aria-expanded=true] { background:var(--surface-chosen); color:var(--ink); }
-.container-layout-metrics { display:flex; gap:3px; }
-.whiteboard-container-layout [data-layout-metric] {
-  display:flex; flex:1; align-items:center; justify-content:center; gap:5px;
-  min-width:0; min-height:36px; margin:0; padding:4px 6px; border-radius:var(--shape-cell); white-space:nowrap;
-}
+.container-layout-metrics { display:flex; width:100%; box-sizing:border-box; }
+.container-layout-metrics > [data-slot=segmented-control-item] { flex:1; min-width:0; padding:0 6px; font-size:12px; white-space:nowrap; }
 .whiteboard-toolbar [data-whiteboard-action=container-mode] svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.3; }
-.whiteboard-container-layout [data-layout-metric] { font-size:12px; color:var(--ink-2); }
-.whiteboard-container-layout [data-layout-metric][aria-pressed=true] { background:var(--surface-chosen); }
 .container-layout-adjust { padding:4px 0; }
-.container-column-options { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:2px; }
-.whiteboard-container-layout .container-column-options button { padding:0; text-align:center; }
-.whiteboard-container-layout .container-column-options button[aria-pressed=true] { background:var(--surface-chosen); color:var(--ink); }
+.container-column-options { display:flex; width:100%; box-sizing:border-box; }
+.container-column-options > [data-slot=segmented-control-item] { flex:1; min-width:0; padding:0; text-align:center; }
 .container-layout-status { margin:4px 5px; font-size:12px; }
 .whiteboard-container-layout [hidden] { display:none; }
 .container-layout-status:empty { display:none; }
 @media(max-width:600px) {
-  .whiteboard-container-layout [data-layout-metric] { min-height:44px; }
+  .container-layout-metrics > [data-slot=segmented-control-item], .container-column-options > [data-slot=segmented-control-item] { height:40px; }
 }
 .container-object-actions { display:flex; border-top:1px solid var(--line-hair); margin-top:4px; }
 .whiteboard-container-layout .container-object-actions button { width:auto; flex:1; padding-inline:6px; white-space:nowrap; font-size:12px; }
 .text-align-center .whiteboard-text-preview { text-align:center; }
 .text-align-right .whiteboard-text-preview { text-align:right; }
 .whiteboard-format-section { min-width:0; margin:0; border:0; padding:0; }
-.whiteboard-format-section > legend { padding:0; margin-bottom:4px; font-size:12px; color:var(--ink-2); }
+.whiteboard-format-section > :is(legend, .whiteboard-format-legend) { display:block; padding:0; margin-bottom:4px; font-size:12px; color:var(--ink-2); }
 .whiteboard-format-options { display:flex; align-items:center; gap:4px; }
 .whiteboard-menu .whiteboard-format-options button { width:35px; min-width:35px; }
 .whiteboard-format-status { color:var(--ink); }   /* danger has no colour */

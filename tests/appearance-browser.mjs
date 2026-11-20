@@ -45,12 +45,14 @@ try{
   await page.goto(base+'/');await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   // Home's Appearance is a menu (fribblr): one button opening the Mode and Background rows.
-  const homeMode=async name=>{const menu=page.getByRole('button',{name:'Appearance',exact:true});if(await menu.getAttribute('aria-expanded')!=='true')await menu.click();return page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name,exact:true});};
-  assert.equal(await (await homeMode('Light')).getAttribute('aria-pressed'),'true');
+  const homeMode=async name=>{const menu=page.getByRole('button',{name:'Appearance',exact:true});if(await menu.getAttribute('aria-expanded')!=='true')await menu.click();return page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name,exact:true});};
+  // Home's Appearance is a UI SDK menu: Mode is a group of radio items (aria-checked).
+  assert.equal(await (await homeMode('Light')).getAttribute('aria-checked'),'true');
   await (await homeMode('Dark')).click();
   await page.reload();await page.locator('.board-card').first().waitFor();
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'dark');
-  assert.equal(await (await homeMode('Dark')).getAttribute('aria-pressed'),'true');
+  assert.equal(await (await homeMode('Dark')).getAttribute('aria-checked'),'true');
+  await page.keyboard.press('Escape');
   await page.screenshot({path:path.join(evidence,'home-dark.png')});
   // Preview launch buttons cover the artwork. Their hover backgrounds must
   // remain translucent in both appearances, including the legacy viewer.
@@ -100,8 +102,8 @@ try{
   await check('#reader-name','.reader-header');await check('#reader-note',null);
   await page.screenshot({path:path.join(evidence,'reader-dark.png')});await page.locator('#close-reader').click();
   await page.locator('#board-info-toggle').click();
-  const appearanceGroup=page.locator('#board-info').getByRole('group',{name:'Appearance'});
-  const appearance={selectOption:async value=>{if(!await appearanceGroup.isVisible())await page.locator('#board-info-toggle').click();await appearanceGroup.getByRole('button',{name:value[0].toUpperCase()+value.slice(1),exact:true}).click();}};
+  const appearanceGroup=page.locator('#board-info').getByRole('radiogroup',{name:'Appearance'});
+  const appearance={selectOption:async value=>{if(!await appearanceGroup.isVisible())await page.locator('#board-info-toggle').click();await appearanceGroup.getByRole('radio',{name:value[0].toUpperCase()+value.slice(1),exact:true}).click();}};
   await appearance.selectOption('light');
   assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   await check(`[data-placement="${placements.white}"] h3 button`,'.workspace-card');
@@ -112,12 +114,12 @@ try{
   await appearance.selectOption('system');assert.equal(await page.locator('html').getAttribute('data-appearance'),'light');
   await page.emulateMedia({colorScheme:'dark'});await page.waitForFunction(()=>document.documentElement.dataset.appearance==='dark');
   await page.locator('#board-info-toggle').click();
-  await page.setViewportSize({width:390,height:844});await page.goto(base+`/boards/round/?reveal=${placements.town}`);await page.locator(`[data-placement="${placements.town}"]`).waitFor();await page.waitForFunction(half=>Number(document.querySelector('#zoom-slider').value)>half,sliderFromZoom(.5));await page.locator('#workspace-toast').waitFor({state:'hidden'});
+  await page.setViewportSize({width:390,height:844});await page.goto(base+`/boards/round/?reveal=${placements.town}`);await page.locator(`[data-placement="${placements.town}"]`).waitFor();await page.waitForFunction(half=>Number(document.querySelector('#zoom-slider').value)>half,sliderFromZoom(.5));await page.locator('.workspace-toast').first().waitFor({state:'hidden'});
   await page.screenshot({path:path.join(evidence,'mixed-dark-narrow.png')});
   await openItemDetails(page.locator(`[data-placement="${placements.town}"] [data-item-controls]`));await page.screenshot({path:path.join(evidence,'item-popup-dark-narrow.png')});await page.locator('[data-context-close]').click();
   await page.getByRole('button',{name:'Navigator',exact:true}).click();await page.locator('#project-navigator').waitFor({state:'visible'});await page.getByText('Loading project boards…',{exact:true}).waitFor({state:'hidden'});await check('.navigator-status','#project-navigator');
   await page.screenshot({path:path.join(evidence,'navigator-dark-narrow.png')});await page.keyboard.press('Escape');
-  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name:'System'}).getAttribute('aria-pressed'),'true');
+  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name:'System'}).getAttribute('aria-checked'),'true');
   assert.deepEqual(errors,[]);
   await writeFile(path.join(evidence,'appearance-report.json'),JSON.stringify({passed:true,contrasts,checks:['system/light/dark persistence','mixed building and review cards','explicit white and dark paper','popup field text and boundary','authored media retains source colors','home and navigator','normal and narrow'],errors},null,2));
   console.log(JSON.stringify({passed:true,evidence,contrasts,errors}));

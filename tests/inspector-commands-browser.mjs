@@ -45,7 +45,11 @@ try{
  await page.getByRole('button',{name:'Keyboard shortcuts',exact:true}).click();
  await page.getByRole('dialog',{name:'Keyboard shortcuts'}).waitFor();
  assert.match(await page.getByRole('dialog',{name:'Keyboard shortcuts'}).textContent(),/Duplicate selection/);
+ assert.equal(await page.locator('#board-info').isVisible(),true,'the Inspector stays open behind the sheet');
  await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Keyboard shortcuts'}).waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.activeElement?.id==='workspace-keyboard-shortcuts');
+ assert.equal(await page.locator('#board-info').isVisible(),true,'Escape closes only the sheet; focus is back on Keyboard shortcuts');
+ await page.keyboard.press('Escape');await page.locator('#board-info').waitFor({state:'hidden'});
  // 2. Inspector → Copy selection puts the selection on the clipboard without a graph write.
  await card.locator('[data-placement-select]').click();assert.equal(await selected(),1);
  await openInspector();assert.equal(await page.locator('#workspace-copy').isEnabled(),true);
@@ -55,7 +59,7 @@ try{
  assert.ok(copies[0].types.includes('application/x-tinka-placements+json'),JSON.stringify(copies[0].types));
  const envelope=JSON.parse(copies[0].text.slice(copies[0].text.indexOf('\n')+1));
  assert.equal(envelope.placements.length,1);assert.equal(envelope.placements[0].id,first.placementIds[0]);
- await page.locator('#workspace-toast').filter({hasText:'Copied 1 Tinka'}).waitFor();
+ await page.locator('.workspace-toast').filter({hasText:'Copied selection.'}).first().waitFor();
  assert.equal(writes.length,before);
  // 3. Board keys pressed while focus sits on an Inspector button do not act on the board.
  const count=await active();
@@ -74,6 +78,98 @@ try{
  const restored=page.waitForResponse(r=>r.url().endsWith('/api/operations')&&r.request().postDataJSON()?.type==='restoreMovement'&&r.status()===200);
  await page.locator('#workspace-undo').click();await restored;
  await page.waitForFunction(()=>document.querySelectorAll('.workspace-card[data-placement]').length===2);assert.equal(await active(),count);
+ const focused=()=>page.evaluate(()=>{const a=document.activeElement;return a?.id||a?.dataset?.contextSelect!==undefined&&'select'||a?.className||a?.tagName;});
+ const label=()=>page.evaluate(()=>document.activeElement?.textContent.trim());
+ // 5. Favorites / Last 6 weeks / Archive are one toolbar (as Home's row): one Tab stop, arrows along it.
+ const filters=page.locator('#board-info .inspector-toggles');
+ assert.equal(await filters.getAttribute('role'),'toolbar');
+ await page.locator('#workspace-favorites').focus();
+ assert.equal(await filters.locator('button[tabindex="0"]').count(),1,'one Tab stop');
+ await page.keyboard.press('ArrowRight');assert.equal(await focused(),'workspace-recent');
+ await page.keyboard.press('End');assert.equal(await focused(),'workspace-archive');
+ await page.keyboard.press('Home');assert.equal(await focused(),'workspace-favorites');
+ await page.keyboard.press('Enter');assert.equal(await page.locator('#workspace-favorites').getAttribute('aria-pressed'),'true');
+ await page.keyboard.press('Enter');assert.equal(await page.locator('#workspace-favorites').getAttribute('aria-pressed'),'false');
+ await page.waitForFunction(()=>document.querySelectorAll('.workspace-card[data-placement]').length===2);
+ // 6. Comparison order is a reorderable list: one Tab stop, ↑/↓ move focus, Space picks up / drops, ⌥↑/↓ moves at once.
+ await page.getByRole('button',{name:'Comparison order…'}).click();
+ const list=page.locator('#workspace-order');await list.waitFor();
+ await page.waitForFunction(()=>document.activeElement?.matches('#workspace-order [role=option]'));
+ assert.equal(await list.getAttribute('role'),'listbox');
+ assert.equal(await list.locator('[role=option]').count(),2);assert.equal(await list.locator('[role=option][tabindex="0"]').count(),1,'one Tab stop');
+ assert.equal(await list.locator('button').count(),0,'no per-row buttons');
+ const order=()=>list.locator('.workspace-order-title').allTextContents();
+ assert.deepEqual(await order(),['First idea','Second idea']);
+ await page.keyboard.press('ArrowDown');assert.equal(await label(),'2Second idea');await page.keyboard.press('ArrowUp');
+ await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-selected')),'true','picked up');
+ await page.keyboard.press('ArrowDown');assert.deepEqual(await order(),['Second idea','First idea']);
+ await page.keyboard.press('Escape');assert.deepEqual(await order(),['First idea','Second idea'],'Escape puts it back');
+ assert.equal(await list.isVisible(),true,'Escape on a held row keeps the dialog');
+ await page.keyboard.press('Space');await page.keyboard.press('ArrowDown');await page.keyboard.press('Space');
+ assert.deepEqual(await order(),['Second idea','First idea']);assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-selected')),'false','dropped');
+ assert.equal(await label(),'2First idea','focus stays on the moved row');
+ await page.keyboard.press('Alt+ArrowUp');assert.deepEqual(await order(),['First idea','Second idea'],'⌥↑ moves at once');
+ await page.keyboard.press('Shift+Alt+ArrowDown');assert.deepEqual(await order(),['Second idea','First idea'],'⇧⌥↓ moves to the end');
+ const savedOrder=page.waitForResponse(r=>r.url().endsWith('/api/operations')&&r.request().postDataJSON()?.type==='updateBoard'&&r.status()===200);
+ await page.getByRole('button',{name:'Save order'}).click();await savedOrder;
+ const snapshot=await getBoardSnapshot(config,board.boardId),ids=snapshot.reviewOrder.filter(id=>snapshot.placements.some(p=>p.id===id&&!p.removedAt));
+ assert.equal(snapshot.placements.find(p=>p.id===ids[0]).itemId!==first.itemId,true,'saved order puts Second idea first');
+ // 7. The item Inspector's actions are a vertical toolbar: one Tab stop, ↑/↓ and Home/End along them.
+ await page.locator('#board-info-toggle').click();await page.locator('#board-info').waitFor({state:'hidden'});
+ await card.locator('[data-item-controls]').click();await page.locator('#workspace-tile-menu ui-menu-content[data-open]').waitFor();
+ await page.locator('#workspace-tile-menu ui-menu-item').filter({hasText:'Details'}).first().click();
+ const acts=page.locator('#workspace-item-controls .inspector-acts');await acts.waitFor();
+ assert.equal(await acts.getAttribute('role'),'toolbar');assert.equal(await acts.getAttribute('aria-orientation'),'vertical');
+ await acts.locator('[data-context-select]').focus();assert.equal(await acts.locator('button[tabindex="0"]').count(),1,'one Tab stop');
+ await page.keyboard.press('ArrowDown');assert.equal(await label(),'Connect');
+ await page.keyboard.press('End');assert.equal(await label(),'Remove from board…');
+ await page.keyboard.press('ArrowDown');assert.match(await label(),/^(De)?select$/i,'wraps');
+ // 8. Feedback (Favorite, Comments, Vote) is one toolbar, as on the card's strip; ↓ on Vote opens the ballot. The
+ // Details dates are text, not Tab stops: they show the exact date.
+ const feedbackRow=page.locator('#workspace-item-controls .inspector-feedback');
+ assert.equal(await feedbackRow.getAttribute('role'),'toolbar');assert.equal(await feedbackRow.getAttribute('aria-orientation'),'horizontal');
+ assert.equal(await feedbackRow.locator('button[tabindex="0"]').count(),1,'Feedback is one Tab stop');
+ await feedbackRow.locator('[data-context-star]').focus();await page.keyboard.press('ArrowRight');assert.equal(await label(),'Comments');
+ await page.keyboard.press('End');assert.equal(await label(),'Vote');await page.keyboard.press('ArrowRight');assert.match(await label(),/^(Un)?favorite$/i,'Feedback wraps');
+ const times=await page.evaluate(()=>[...document.querySelectorAll('#workspace-item-controls .inspector-props time')].map(t=>({tab:t.tabIndex,tip:t.hasAttribute('data-tip'),text:t.textContent})));
+ assert.ok(times.length>=2&&times.every(t=>t.tab<0&&!t.tip&&/\d{4}/.test(t.text)),'Created and Edited show the exact date and take no Tab stop: '+JSON.stringify(times));
+ // Edit item… opens over the Inspector, which stays open; Escape comes back to Edit item…; a save rebuilds the Inspector
+ // with the new title, focus still on Edit item….
+ const editButton=page.locator('#workspace-item-controls [data-context-edit]');
+ await editButton.focus();await page.keyboard.press('Enter');await page.getByRole('dialog',{name:'Edit item'}).waitFor();
+ assert.equal(await page.locator('#workspace-item-controls').isVisible(),true,'the item Inspector stays open behind Edit item');
+ await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Edit item'}).waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.activeElement?.matches('#workspace-item-controls [data-context-edit]'));
+ const title0=await page.locator('#workspace-item-controls h2').textContent();
+ await page.keyboard.press('Enter');await page.getByRole('dialog',{name:'Edit item'}).waitFor();
+ await page.keyboard.press('End');await page.keyboard.type(' edited');await page.keyboard.press('ControlOrMeta+Enter');
+ await page.getByRole('dialog',{name:'Edit item'}).waitFor({state:'detached'});
+ await page.waitForFunction(t=>document.querySelector('#workspace-item-controls h2')?.textContent===t+' edited'&&document.activeElement?.matches('#workspace-item-controls [data-context-edit]'),title0);
+ await page.locator('#workspace-item-controls .inspector-feedback [data-context-vote]').focus();
+ await page.keyboard.press('ArrowDown');
+ await page.locator('.feedback-ballot[data-open]').waitFor();
+ await page.keyboard.press('Escape');await page.locator('.feedback-ballot[data-open]').waitFor({state:'detached'}).catch(()=>{});
+ if(await page.locator('#workspace-item-controls').count()){await page.locator('#workspace-item-controls [data-context-close]').click();}
+ await page.locator('#workspace-item-controls').waitFor({state:'detached'});
+ // 9. A board colour can be removed from its palette ("Remove color", shown only while one is set), as the background
+ // image has "Remove image"; the board goes back to the ground, and focus to Board color.
+ await openInspector();
+ const colorTrigger=page.locator('#board-info [data-inspector-color]'),removeColor=page.locator('#board-info [data-inspector-clear]');
+ await colorTrigger.focus();await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>document.activeElement?.matches('#board-info [data-swatch]'));
+ assert.equal(await removeColor.isHidden(),true,'no Remove color while the board has no colour');
+ await page.keyboard.press('ArrowRight');
+ const colored=async()=>(await getBoardSnapshot(config,board.boardId)).background?.color;
+ for(let i=0;i<50&&!await colored();i++)await page.waitForTimeout(60);
+ assert.ok(await colored(),'an arrow chooses a board colour');
+ await removeColor.waitFor({state:'visible'});
+ await page.keyboard.press('Tab');await page.keyboard.press('Tab');
+ assert.equal(await page.evaluate(()=>document.activeElement?.textContent.trim()),'Remove color','Tab reaches Remove color after the custom colour');
+ await page.keyboard.press('Enter');
+ for(let i=0;i<50&&await colored();i++)await page.waitForTimeout(60);
+ assert.equal(await colored(),undefined,'Remove color clears the board colour');
+ await page.waitForFunction(()=>document.activeElement?.matches('#board-info [data-inspector-color]'));
+ assert.equal(await page.locator('#board-info [data-inspector-palette]').isHidden(),true,'the palette closes and focus is back on Board color');
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:4,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal']}));
+ console.log(JSON.stringify({passed:10,checks:['Inspector Keyboard shortcuts opens the sheet','Inspector Copy selection writes the clipboard envelope','Delete/Backspace/Select-all/Duplicate ignored with Inspector focus','Inspector Undo restores a removal','Filter row is one toolbar','Comparison order is a reorderable list','Item actions are a vertical toolbar','Item Feedback is one toolbar; dates are text','Edit item and Keyboard shortcuts open over their Inspector','Remove color clears the board colour']}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}

@@ -65,5 +65,6 @@ export function syncTextInkPreview(button, decorations, board) {
   for (const theme of appearanceThemes) dot.style.setProperty(`--dot-${theme}`,preview[theme].color ?? mixed);
   dot.dataset.inkMixed = String(!current.color);
   button.setAttribute("aria-description",description);
-  button.title = `Ink color · ${description}`;
+  // The bar's hints are UI SDK tooltips (tips.js reads data-tip when it shows), not native titles.
+  button.dataset.tip = `Ink color · ${description}`;
 }

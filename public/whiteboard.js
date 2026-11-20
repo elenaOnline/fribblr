@@ -16,6 +16,10 @@ import {isMacPlatform} from './reader-keys.js';
 import {canContain,containerDropLabel,containerFor,containerPlacementIds,expandContainerSelection,previewContainerMove,previewContainerLayout} from './containers.js';
 import {containerLayouts,mountContainerLayout} from './container-layout.js';
 import {mountPresetScrub} from './preset-scrub.js';
+import {announce, decorationLabel, sdkCore} from './board-focus.js';
+import {followVisibility} from './ui-toolbar.js';
+import {tips} from './tips.js';
+import {sharedMenu, sharedPopover, openMenu, menuItem, inPopup, openOnArrowDown, tabOutOfPanel, reportPanel} from './popups.js';
 
 const sides = ['top', 'right', 'bottom', 'left'];
 const shapeNames = {rectangle:'Sticky note', rounded:'Process', diamond:'Decision', ellipse:'Start / end'};
@@ -53,9 +57,18 @@ const icons = {
   rotate:'<path d="M13 6a5.3 5.3 0 1 0 .1 4M13 2v4h-4"/>',
   more:'<circle cx="3.5" cy="8" r=".8" fill="currentColor"/><circle cx="8" cy="8" r=".8" fill="currentColor"/><circle cx="12.5" cy="8" r=".8" fill="currentColor"/>',
 };
+// The object bar is a ui-toolbar: one Tab stop, arrows move along it (toolbar.md). A plain action is a ui-toolbar-button;
+// a set of which one is chosen (arrow route, text alignment, container layout) is a single-choice ui-toggle-group that
+// joins the toolbar's arrow order; a button that stays down (Preview) is a ui-toggle. The bar owns what is pressed (it
+// is drawn from the object), so the SDK's own flip of a toggle is cancelled in mount() and the next render shows the answer.
+const barButton=(action,label,body,{value,pressed,extra=''}={})=>`<button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" data-tip="${esc(label)}"${extra}>${body}</button>`;
 const barParts = {
-  button:(action,label,body,{value,pressed,extra=''}={})=>`<button type="button" class="whiteboard-bar-button" data-whiteboard-action="${action}"${value!==undefined?` data-value="${value}"`:''} aria-label="${esc(label)}" title="${esc(label)}"${pressed!==undefined?` aria-pressed="${pressed}"`:''}${extra}>${body}</button>`,
-  group:(label,body)=>`<div class="whiteboard-bar-group" role="group" aria-label="${label}">${body}</div>`,
+  button:(action,label,body,opts={})=>opts.pressed!==undefined
+    ?`<ui-toggle${opts.pressed?' default-pressed':''}>${barButton(action,label,body,opts)}</ui-toggle>`
+    :`<ui-toolbar-button>${barButton(action,label,body,opts)}</ui-toolbar-button>`,
+  group:(label,body)=>`<ui-toolbar-group class="whiteboard-bar-group" aria-label="${label}">${body}</ui-toolbar-group>`,
+  // items: [value, label, body]; current: the pressed value (or undefined when the objects differ).
+  choice:(label,action,current,items,className='whiteboard-bar-group')=>`<ui-toggle-group class="${className}" aria-label="${label}" deselectable="false" data-bar-choice${current!==undefined&&current!==null?` default-value="${esc(String(current))}"`:''}>${items.map(([value,name,body])=>`<ui-toggle value="${esc(String(value))}">${barButton(action,name,body,{value})}</ui-toggle>`).join('')}</ui-toggle-group>`,
 };
 const defaultAlign = d => d.shape && d.shape !== 'rectangle' ? 'center' : 'left';
 const captionPresets = d => d.type==='text' ? {small:18,medium:21,large:36} :
@@ -74,6 +87,10 @@ const resizeEdges = resizeDirections.map(direction=>
 const stickerCorners = resizeDirections.filter(direction=>direction.length===2).map(direction=>
   `<span class="workspace-decoration-resize" data-decoration-resize="${direction}" aria-hidden="true"></span>`
 ).join('');
+// The bottom-right corner is also a keyboard handle (UI SDK createResize: a focusable button named for its corner;
+// arrows move that corner, Shift for 10). The other handles stay pointer-only.
+const keyboardCorner = (handles, label) => handles.replace('data-decoration-resize="se" aria-hidden="true"',
+  `data-decoration-resize="se" role="button" tabindex="0" aria-label="Resize bottom right of ${esc(label||'Untitled')}" data-tip="Drag to resize, or focus and use the arrow keys"`);
 const headsOf = d => d.startArrow ? d.endArrow ? 'both' : 'start' : d.endArrow ? 'end' : 'none';
 const sameTarget = (a,b) => !!a && !!b && (a.placementId ? a.placementId === b.placementId : !!a.decorationId && a.decorationId === b.decorationId);
 const isAttachment = endpoint => !!(endpoint?.placementId || endpoint?.decorationId);
@@ -151,7 +168,7 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
   const color = authoredColor(current.color), w = Math.max(1,box.width), h = Math.max(1,box.height);
   if(current.sticker){
     const angle=Number.isFinite(current.rotation)?current.rotation:0;
-    const handles=selected===true?`${stickerCorners}<button type="button" class="whiteboard-sticker-rotation" data-sticker-rotate aria-label="Rotate sticker" title="Drag to rotate, or use the arrow keys">${icon(icons.rotate)}</button>`:'';
+    const handles=selected===true?`${keyboardCorner(stickerCorners,`sticker ${current.text}`)}<button type="button" class="whiteboard-sticker-rotation" data-sticker-rotate aria-label="Rotate sticker" data-tip="Drag to rotate, or use the arrow keys">${icon(icons.rotate)}</button>`:'';
     return `<div tabindex="0" role="group" aria-label="${esc(`Sticker: ${current.text}`)}" class="workspace-decoration whiteboard-sticker${selected?' selected':''}" data-decoration="${esc(d.id)}" data-sticker style="left:${box.x+origin.x}px;top:${box.y+origin.y}px;width:${w}px;height:${h}px;z-index:${stackRank(board,'decoration',d.id)};--sticker-size:${Math.min(w,h)*.82}px;--sticker-angle:${angle}deg"><span class="whiteboard-sticker-glyph" aria-hidden="true">${esc(current.text)}</span>${handles}</div>`;
   }
   const path = line ? linePath(resolved, current.route, current.bend) : null;
@@ -167,8 +184,8 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
       `<svg class="workspace-decoration-line" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="arrow-${esc(d.id)}" markerWidth="${12*k}" markerHeight="${12*k}" refX="${10*k}" refY="${6*k}" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M${2*k} ${2*k}L${10*k} ${6*k}L${2*k} ${10*k}" fill="none" stroke="var(--decoration-color)" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/></marker></defs><g transform="translate(${-box.x} ${-box.y})"><path class="whiteboard-line-hit" d="${path.d}"/><path class="whiteboard-line-stroke" d="${path.d}" fill="none" stroke="var(--decoration-color)" stroke-width="${sw}" stroke-linejoin="round" vector-effect="non-scaling-stroke" ${dash} ${current.startArrow?`marker-start="${head}"`:''} ${current.endArrow?`marker-end="${head}"`:''}/></g></svg>`;
     mark += `<span class="workspace-decoration-label whiteboard-line-label" data-decoration-label style="left:${path.mid.x-box.x}px;top:${path.mid.y-box.y}px">${esc(current.text||'')}</span>${r.detached?'<span class="whiteboard-detached">Detached</span>':''}`;
     if (selected === true) {
-      handles = `<button type="button" class="workspace-endpoint endpoint-tail" data-endpoint="from" aria-label="Arrow start: drag to move or attach" title="Drag to move or attach the start" style="left:${x1}px;top:${y1}px"></button><button type="button" class="workspace-endpoint endpoint-head" data-endpoint="to" aria-label="Arrow end: drag to move or attach" title="Drag to move or attach the end" style="left:${x2}px;top:${y2}px"></button>`;
-      if (path.bendPoint) handles += `<button type="button" class="workspace-bend" data-arrow-bend aria-label="Adjust arrow bend" title="Drag to bend the arrow" style="left:${path.bendPoint.x-box.x}px;top:${path.bendPoint.y-box.y}px"></button>`;
+      handles = `<button type="button" class="workspace-endpoint endpoint-tail" data-endpoint="from" aria-label="Arrow start: drag to move or attach" data-tip="Drag to move or attach the start" style="left:${x1}px;top:${y1}px"></button><button type="button" class="workspace-endpoint endpoint-head" data-endpoint="to" aria-label="Arrow end: drag to move or attach" data-tip="Drag to move or attach the end" style="left:${x2}px;top:${y2}px"></button>`;
+      if (path.bendPoint) handles += `<button type="button" class="workspace-bend" data-arrow-bend aria-label="Adjust arrow bend" data-tip="Drag to bend the arrow" style="left:${path.bendPoint.x-box.x}px;top:${path.bendPoint.y-box.y}px"></button>`;
     }
   } else {
     const shape = current.shape;
@@ -183,6 +200,7 @@ export function decorationMarkup(d, board, origin, selected=false, overrides, in
     if (selected === true && !container) handles = resizeEdges;
   }
   const label=d.type==='text'?(current.text||'').split(/\r?\n/).find(line=>line.trim())?.replace(/^#{1,6} /,'').slice(0,120):current.text;
+  if(handles===resizeEdges)handles=keyboardCorner(handles,label);
   const nativeText=d.type==='text';
   const face=nativeText&&['sans','serif','mono'].includes(current.textFace)?` data-text-face="${current.textFace}"`:'';
   const labelSize=d.type==='region'&&!container&&current.textSize!==undefined?captionSize(current):null;
@@ -211,12 +229,36 @@ export class Whiteboard {
       document.head.append(format);
     }
     this.ports=document.createElement('div'); this.ports.className='whiteboard-ports';
-    this.toolbar=document.createElement('div'); this.toolbar.className='whiteboard-toolbar';
-    this.toolbar.setAttribute('role','toolbar'); this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
+    // The connection points are one Tab stop, as the comment pins and the board's items are: the point focused last
+    // holds it (else the first), an arrow goes to that side's point of the same object and, from a point already on
+    // that side, to the nearest point that way (UI SDK nearestInDirection on screen boxes: the destinations of a
+    // connection); Home and End reach the first and last. Enter or Space presses the focused point.
+    this.ports.setAttribute('role','group');this.ports.setAttribute('aria-label','Connection points');
+    this.portStop=null;
+    this.ports.addEventListener('focusin',e=>{
+      const port=e.target.closest?.('[data-port]');
+      if(!port||port.dataset.port===this.portStop)return;
+      this.portStop=port.dataset.port;
+      for(const el of this.ports.querySelectorAll('[data-port]'))el.tabIndex=el===port?0:-1;
+    });
+    this.ports.addEventListener('keydown',e=>this.portKeys(e));
+    this.toolbar=document.createElement('ui-toolbar'); this.toolbar.className='whiteboard-toolbar';
+    this.toolbar.setAttribute('aria-label','Selected object'); this.toolbar.hidden=true;
     this.menu=document.createElement('div'); this.menu.className='whiteboard-menu'; this.menu.hidden=true;
     this.menu.setAttribute('role','menu'); this.menu.setAttribute('aria-label','Object actions');
     this.hint=document.createElement('div'); this.hint.className='whiteboard-connect-hint'; this.hint.hidden=true;
     this.hint.setAttribute('role','status'); document.body.append(this.toolbar,this.menu,this.hint);
+    // The bar floats (fixed), but its place in the page is right after the board: Tab goes from the object's own
+    // controls (label, resize corner, ports) to the bar, then on to what follows the board (the kind legend, the zoom
+    // pill, the tools rail), and Shift+Tab back the same way, as from a card to its toolbar and on.
+    document.getElementById('viewport')?.after(this.toolbar);
+    this.mountPopups();
+    followVisibility(this.toolbar);
+    // The bar draws what is pressed from the object itself: cancel a toggle's own flip (the SDK reports it in the capture
+    // phase, the events don't bubble) and let the action's save re-render the bar.
+    for(const type of ['pressedchange','valuechange'])this.toolbar.addEventListener(type,e=>e.preventDefault(),true);
+    // A button that opens a menu or panel opens it on ArrowDown, as a toolbar's menu button does; Left and Right keep moving.
+    openOnArrowDown(this.toolbar,'[aria-haspopup]',(event,button)=>{if(button.getAttribute('aria-expanded')!=='true')button.click();});
     if(this.host.hooks.viewOnly)return;
     this.inkAppearanceObserver=new MutationObserver(()=>this.refreshTextInkPreview());
     this.inkAppearanceObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-appearance']});
@@ -281,16 +323,40 @@ export class Whiteboard {
     const own=ownTarget&&!ownTarget.sticker&&!this.drag&&(ownTarget.type==='text'||ownTarget.shape) ? [source] : [];
     const refs=this.drag?.endpoint||this.pendingFrom ? this.targets() : this.connectMode&&source ? [source] : own;
     const origin=this.host.origin||{x:0,y:0},snap=this.drag?.snap;
-    const markup=refs.flatMap(ref=>sides.map(side=>{
+    const ports=refs.flatMap(ref=>sides.map(side=>{
       const end={...ref,side},p=resolveEndpoint(end,this.host.snapshot,this.overrides);
+      return p.detached?null:{ref,side,p,key:JSON.stringify(end)};
+    })).filter(Boolean);
+    const stop=ports.some(port=>port.key===this.portStop)?this.portStop:ports[0]?.key;
+    const markup=ports.map(({ref,side,p,key})=>{
       const state=sameTarget(snap?.ref,ref)?snap.endpoint.side===side&&(snap.endpoint.offset??.5)===.5?' near snapped':' near':'';
-      return p.detached?'':`<button type="button" class="whiteboard-port${state}" data-port-side="${side}" data-port="${esc(JSON.stringify(end))}" aria-label="Connect ${esc(this.name(ref))} ${side}" title="${esc(this.name(ref))}: ${side}" style="left:${p.x+origin.x}px;top:${p.y+origin.y}px"></button>`;
-    })).join('');
+      return `<button type="button" class="whiteboard-port${state}" data-port-side="${side}" data-port="${esc(key)}" tabindex="${key===stop?0:-1}" aria-label="Connect ${esc(this.name(ref))} ${side}" data-tip="${esc(this.name(ref))}: ${side}" style="left:${p.x+origin.x}px;top:${p.y+origin.y}px"></button>`;
+    }).join('');
     if(this.ports.innerHTML!==markup)this.ports.innerHTML=markup;
     this.ports.classList.toggle('snapping',!!snap);
     // Decoration patches rewrite class attributes, so the target mark follows each render.
     if(this.drag?.endpoint)this.highlight(snap?.ref);
     document.getElementById('world').append(this.ports);
+  }
+  portKeys(e) {
+    if(e.altKey||e.ctrlKey||e.metaKey||e.isComposing)return;
+    const from=e.target.closest?.('[data-port]');
+    const direction={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+    if(!from||(!direction&&e.key!=='Home'&&e.key!=='End'))return;
+    e.preventDefault();e.stopPropagation();
+    const all=[...this.ports.querySelectorAll('[data-port]')];
+    if(!direction){(e.key==='Home'?all[0]:all.at(-1))?.focus({preventScroll:true});return;}
+    // That side of the same object first: ↑ top, → right, ↓ bottom, ← left.
+    const side={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'top',ArrowDown:'bottom'}[e.key];
+    const target=port=>{try{const {side:_,...ref}=JSON.parse(port.dataset.port);return JSON.stringify(ref);}catch{return '';}};
+    const own=from.dataset.portSide!==side&&all.find(port=>port.dataset.portSide===side&&target(port)===target(from));
+    if(own){own.focus({preventScroll:true});return;}
+    const boxes=all.map((el,index)=>({el,key:String(index),rect:el.getBoundingClientRect()})),here=boxes.find(box=>box.el===from);
+    sdkCore().then(core=>{
+      if(document.activeElement!==from)return;
+      const key=core.nearestInDirection(here.rect,boxes.filter(box=>box!==here),direction);
+      boxes.find(box=>box.key===key)?.el.focus({preventScroll:true});
+    });
   }
   markup(d) {
     const held=this.drafts.get(d.id),draft=d.sticker||held?.nativeText&&d.type!=='text'?null:held;
@@ -300,7 +366,8 @@ export class Whiteboard {
     // A host keyed build that was already in flight must retain this native form.
     // Its live value/selection remain properties of the existing textarea node.
     if(this.editor?.id===d.id)rendered=rendered.replace(' data-decoration="', ' data-editing="" data-decoration="').replace(/<\/div>$/,this.editor.form.outerHTML+'</div>');
-    return rendered;
+    // One Tab stop for the board's items: only the roving stop keeps tabindex 0 (board-focus.js).
+    return this.host.boardFocus?this.host.boardFocus.decorationMarkup(rendered,d.id,{inner:this.editor?.id!==d.id}):rendered;
   }
   patch(d) {
     const el=document.querySelector(selector(d.id)); if(!el)return;
@@ -374,8 +441,9 @@ export class Whiteboard {
       this.toolbar.setAttribute('aria-label',this.groupName(list));
       this.toolbar.innerHTML=this.editor
         ? this.editor.rich?this.textEditorBar(this.editor)
-        : `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><button type="button" data-whiteboard-action="done">Done</button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button>`
-        : this.bar(list,draft)+(grouping?barParts.group('Grouping',`<button type="button" class="whiteboard-action-caption" data-whiteboard-action="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping}</button>`):'');
+        : `<span class="whiteboard-edit-hint"><kbd class="tk-kbd" aria-hidden="true">${esc(line?'↩':commitShortcutCap())}</kbd> to finish</span><ui-toolbar-button><button type="button" data-whiteboard-action="done">Done</button></ui-toolbar-button><ui-toolbar-button><button type="button" data-whiteboard-action="cancel-edit">Cancel</button></ui-toolbar-button>`
+        : this.bar(list,draft)+(grouping?barParts.group('Grouping',`<ui-toolbar-button><button type="button" class="whiteboard-action-caption" data-whiteboard-action="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping}</button></ui-toolbar-button>`):'');
+      tips(this.toolbar);
       if(focusKey)[...this.toolbar.querySelectorAll('button')].find(b=>b.dataset.whiteboardAction===focusKey[0]&&b.dataset.value===focusKey[1])?.focus({preventScroll:true});
     }
     this.positionToolbar();
@@ -391,7 +459,7 @@ export class Whiteboard {
     const controls=session.previewing?'':group('Formatting',textFormatControls.map(([value,label,mark])=>button('format-text',label,mark,{value})).join(''));
     return controls+group('Editing',button('text-preview',session.previewing?'Continue editing':'Preview text',session.previewing?'Edit':'Preview',
       {pressed:session.previewing}))
-      +group('Finish editing',`<button class="whiteboard-action-caption" type="button" data-whiteboard-action="done" title="${esc(commitShortcutLabel())}">Done</button><button class="whiteboard-action-caption" type="button" data-whiteboard-action="cancel-edit">Cancel</button>`);
+      +group('Finish editing',`<ui-toolbar-button><button class="whiteboard-action-caption" type="button" data-whiteboard-action="done" data-tip="${esc(commitShortcutLabel())}">Done</button></ui-toolbar-button><ui-toolbar-button><button class="whiteboard-action-caption" type="button" data-whiteboard-action="cancel-edit">Cancel</button></ui-toolbar-button>`);
   }
   kindName(d) { return d.sticker?'Sticker':d.container?'Container':d.type==='line'?'Arrow':d.type==='text'?'Text':shapeNames[d.shape]||'Area'; }
   groupName(list) {
@@ -400,8 +468,8 @@ export class Whiteboard {
     return kinds.size===1?`${list.length} ${name==='text'?'text boxes':name+'s'}`:`${list.length} objects`;
   }
   bar(list,draft) {
-    const {button,group}=barParts,multi=list.length>1,first=list[0];
-    const action=(key,label)=>`<button type="button" class="whiteboard-action-caption" data-whiteboard-action="${key}">${label}</button>`;
+    const {button,group,choice}=barParts,multi=list.length>1,first=list[0];
+    const action=(key,label)=>`<ui-toolbar-button><button type="button" class="whiteboard-action-caption" data-whiteboard-action="${key}">${label}</button></ui-toolbar-button>`;
     const popup=key=>` aria-haspopup="dialog" aria-expanded="${this.appearance?.trigger===key}"`;
     const colorRole=commonDrawingRole(list);
     const colorValue=list.every(d=>d.color===first.color)?authoredColor(first.color):undefined;
@@ -415,24 +483,22 @@ export class Whiteboard {
     // The bar shows More only for an object's own actions; when it does, its menu adds
     // the stacking commands (] and [ work for every selection).
     const more=this.objectMenuActions(list).length?button('more','More options',icon(icons.more),{
-      extra:` aria-haspopup="menu" aria-expanded="${!this.menu.hidden&&!this.appearance&&!this.containerLayout}"`,
+      extra:` aria-haspopup="menu" aria-expanded="${this.moreOpen}"`,
     }):'';
     const pending=draft?.pending?'<span class="whiteboard-bar-status" role="status">Saving…</span>':'';
     if(!multi&&first.container){
       const layout=this.containerLayoutDrafts?.get(first.id)?.pending.layout??first.container.layout;
-      const modes=containerLayouts.map(([value,label,path])=>button('container-mode',label,
-        `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${path}"/></svg>`,{value,pressed:value===layout})).join('');
-      return group('Container color',color)+group('Container layout',modes)+
+      const modes=choice('Container layout','container-mode',layout,containerLayouts.map(([value,label,path])=>[value,label,
+        `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${path}"/></svg>`]));
+      return group('Container color',color)+modes+
         group('Container options',button('container-layout','More container options',icon(icons.more),{
           extra:` aria-haspopup="dialog" aria-expanded="${!!this.containerLayout}"`,
         }));
     }
     if(!multi&&first.sticker)return group('Sticker actions',more);
     if(!multi&&first.type==='text'){
-      const align=['left','center','right'].map(value=>button('align',`Align ${value}`,icon(icons['align-'+value]),{
-        value,pressed:value===(first.textAlign||'left'),
-      })).join('');
-      return group('Text appearance',color+size('text-size'))+group('Alignment',align)+
+      const align=choice('Alignment','align',first.textAlign||'left',['left','center','right'].map(value=>[value,`Align ${value}`,icon(icons['align-'+value])]));
+      return group('Text appearance',color+size('text-size'))+align+
         group('Text actions',button('text-appearance','Typeface','<b class="whiteboard-size-letter">Aa</b>',{
           extra:popup('text-appearance'),
         })+button('text-box','Text box',icon('<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M5 5.5h6M5 8h6M5 10.5h4"/>'),{
@@ -441,12 +507,11 @@ export class Whiteboard {
     }
     const arrange=multi&&this.host.arrangeObjects().length>1?button('arrange','Arrange: align, distribute, tidy',icon(icons.arrange),{extra:' aria-haspopup="dialog" aria-expanded="false"'}):'';
     if(list.every(d=>d.type==='line')) {
-      const routes=[['straight','Straight'],['elbow','Elbow'],['curved','Curve']]
-        .map(([value,label])=>button('route',label,icon(icons[value]),{value,pressed:list.every(d=>(d.route||'straight')===value)})).join('');
+      const routes=choice('Arrow route','route',list.every(d=>(d.route||'straight')===(first.route||'straight'))?first.route||'straight':undefined,[['straight','Straight'],['elbow','Elbow'],['curved','Curve']].map(([value,label])=>[value,label,icon(icons[value])]));
       const edit=!multi?button('edit','Edit arrow label',icon(icons.label)):'';
       const reverse=button('reverse',multi?'Reverse directions':'Reverse direction',icon(icons.reverse));
       const style=button('text-appearance','Line options',icon(icons.medium),{extra:popup('text-appearance')});
-      return group('Stroke color',color)+group('Arrow route',routes)+group('Arrow actions',edit+reverse+style+arrange);
+      return group('Stroke color',color)+routes+group('Arrow actions',edit+reverse+style+arrange);
     }
     const textOptions=list.every(d=>d.type!=='line'&&!d.sticker&&!d.container);
     const free=list.filter(d=>canContain(d)&&!containerFor(this.host.snapshot.decorations,d.id));
@@ -558,23 +623,65 @@ export class Whiteboard {
     }
     return actions;
   }
-  // The More menu adds the stacking commands to the object's own actions.
+  // The bar's More and the container's More options are UI SDK popups at the end of <body> (popups.js), opened from
+  // code: the bar is rebuilt as the selection saves, so they anchor to whatever button or bar is current and return
+  // focus to it. More holds actions only, so it is a Menu (typeahead, arrows, Escape returns to More); the container's
+  // options hold spacing fields and column choices, so they are a Popover (Tab walks through them and out).
+  mountPopups() {
+    const more=this.moreUI=sharedMenu({id:'whiteboard-more-menu',label:'Object actions',className:'whiteboard-more-menu'});
+    more.content.setAttribute('align','end');more.content.setAttribute('side-offset','7');more.content.setAttribute('collision-padding','8');
+    more.root.addEventListener('openchange',e=>this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded',String(e.detail.value)));
+    more.root.addEventListener('action',e=>this.runMore(e.detail.value,more.root.api.getPayload()));
+    const layout=this.layoutUI=sharedPopover({id:'whiteboard-container-popover',label:'Container options',className:'whiteboard-menu whiteboard-container-layout'});
+    layout.content.setAttribute('align','center');layout.content.setAttribute('side-offset','7');layout.content.setAttribute('collision-padding','8');
+    // Tab from its last control goes on from the More options button (popups.js), which the bar may have rebuilt.
+    layout.content.tabTrigger=()=>this.toolbar.querySelector('[data-whiteboard-action=container-layout]');
+    layout.root.addEventListener('openchange',e=>{
+      if(e.detail.value)return;
+      // Closing completes a valid in-progress numeric edit (container-layout.js), whatever closed it.
+      const held=this.containerLayout;this.containerLayout=null;held?.destroy({commit:true});
+      this.toolbar.querySelector('[data-whiteboard-action=container-layout]')?.setAttribute('aria-expanded','false');
+    });
+    layout.root.addEventListener('openchangecomplete',e=>{
+      if(e.detail.value)return;
+      layout.content.replaceChildren();
+      // Escape or Tab back: focus returns to the button that opened it, as rebuilt by the bar.
+      if(document.activeElement===document.body||!document.activeElement)this.toolbar.querySelector('[data-whiteboard-action=container-layout]')?.focus({preventScroll:true});
+    });
+  }
+  get moreOpen() { return !!this.moreUI?.root.open; }
+  // The bar's popups stay on the canvas, below the header, as upstream's placement kept them (the SDK takes one
+  // padding for every window edge, so the canvas's top sets it).
+  popupPadding() { return String(Math.max(8,Math.round((document.getElementById('viewport')?.getBoundingClientRect().top||0)+8))); }
+  // More adds the stacking commands (1.4) to the object's own actions; ] and [ are printed on their rows.
   menuActions(list) {
     return [...this.objectMenuActions(list),...(this.host.hooks.viewOnly?[]:[['stack-front','Bring to front'],['stack-back','Send to back']])];
   }
-  openMenu() {
-    const actions=this.menuActions(this.selectedDecorations());
+  openMenu(event) {
+    const list=this.selectedDecorations(),actions=this.menuActions(list);
     if(!actions.length)return false;
-    this.menu.innerHTML=actions.map(([action,label])=>`<button type="button" role="menuitem" data-whiteboard-action="${action}"${stackKeys[action]?` aria-keyshortcuts="${stackKeys[action]}"`:''}>${label}</button>`).join('');
-    this.menu.hidden=false;
-    this.toolbar.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','true');
-    this.positionMenu();
-    this.menu.querySelector('button')?.focus({preventScroll:true});
+    const more='.whiteboard-toolbar [data-whiteboard-action="more"]';
+    this.moreUI.content.innerHTML=actions.map(([action,label])=>menuItem(action,label,{shortcut:stackKeys[action],attrs:`data-whiteboard-more="${action}"`})).join('');
+    // Away from the object, as the bar is: above a bar that sits above it, else below.
+    this.moreUI.content.setAttribute('side',this.toolbarSide==='top'?'top':'bottom');
+    this.moreUI.content.setAttribute('collision-padding',this.popupPadding());
+    const anchor={getBoundingClientRect:()=>(document.querySelector(more)||this.toolbar).getBoundingClientRect()};
+    openMenu(this.moreUI.root,{anchor,event,payload:list.map(d=>d.id),returnTo:more});
     return true;
   }
+  closeMore() { if(this.moreOpen)this.moreUI.root.api.close({reason:'imperative'}); }
+  async runMore(action,ids=[]) {
+    const id=ids[0];if(!id)return;
+    if(action==='edit'){this.edit(id);return;}
+    if(action==='select-section'){this.host.selectSection(id);return;}
+    if(action==='stack-front'||action==='stack-back'){await this.host.restackSelection(action==='stack-front'?'front':'back');return;}
+    if(action==='container-detach'){this.commitEdit({focus:false});try{await this.detachContainerChild(id);}catch(error){showFailure(error);}}
+  }
   renderObjectFormat(session) {
-    const formatActions=actions=>actions.length?`<div class="whiteboard-format-actions">${actions.map(([id,label])=>
-      `<button type="button" data-whiteboard-action="${id}"${stackKeys[id]?` aria-keyshortcuts="${stackKeys[id]}"`:''}>${label}</button>`).join('')}</div>`:'';
+    // The action rows (Bring to front, Send to back …) look like menu rows, so they are one vertical toolbar, as the %
+    // popover's zoom rows and the item Inspector's actions are: one Tab stop, ↑/↓ with wrap, Home/End.
+    const formatActions=actions=>actions.length?`<ui-toolbar orientation="vertical" class="whiteboard-format-actions" aria-label="Actions">${actions.map(([id,label])=>
+      `<ui-toolbar-button><button type="button" data-whiteboard-action="${id}"${stackKeys[id]?` aria-keyshortcuts="${stackKeys[id]}"`:''}>${label}</button></ui-toolbar-button>`).join('')}</ui-toolbar>`:'';
     if(this.appearance!==session)return;
     if(session.weightControl?.editing||session.captionControl?.editing)return;
     const objects=session.ids.map(id=>this.find(id)).filter(Boolean);
@@ -582,13 +689,12 @@ export class Whiteboard {
     const active=this.menu.contains(document.activeElement)?document.activeElement:null;
     const focused=active?{action:active.dataset.whiteboardAction,value:active.dataset.value,custom:active.type==='color',swatch:active.dataset.swatch,
       weight:active.closest('[data-arrow-weight]'),caption:active.closest('[data-caption-size]'),scrub:active.hasAttribute('data-scrub-value')}:null;
-    const {button}=barParts;
     const common=read=>{const values=objects.map(read);return values.every(value=>value===values[0])?values[0]:undefined;};
     const all=predicate=>objects.every(predicate);
     const role=commonDrawingRole(objects),channel=role==='stroke'?'border':role;
-    const choices=(name,action,current,options)=>`<fieldset class="whiteboard-format-section"><legend>${name}</legend><div class="whiteboard-format-options">
-      ${options.map(([value,label,mark])=>button(action,label,mark,{value,pressed:value===current})).join('')}
-    </div></fieldset>`;
+    // One choice among keys: a single-choice toggle group of buttons (arrows move, Space or Enter chooses).
+    const choices=(name,action,current,options)=>`<div class="whiteboard-format-section"><span class="whiteboard-format-legend" aria-hidden="true">${name}</span>${
+      barParts.choice(name,action,current,options,'whiteboard-format-options')}</div>`;
     const pick=(value,label=value)=>[value,label,icon(icons[value])];
     const sections=[];
     if(session.mode==='color'){
@@ -615,8 +721,10 @@ export class Whiteboard {
     this.menu.innerHTML=`<div class="text-format-controls whiteboard-object-format">
       ${sections.join('')}<span class="whiteboard-format-status" role="status">${esc(session.error||'')}</span>
     </div>`;
+    tips(this.menu);
     const custom=this.menu.querySelector('input[type=color]');
     const palette=this.menu.querySelector('[data-color-swatches]');
+    palette?.setAttribute('data-autofocus','');
     if(palette)bindDrawingPalette(palette,{channel,label:session.label,value:common(d=>d.color),
       choose:value=>this.applyObjectFormat(session,'color',value,{finishAfterClose:true})});
     const caption=this.menu.querySelector('[data-caption-size]');
@@ -651,10 +759,12 @@ export class Whiteboard {
     }
     this.positionMenu();
     const controls=[...this.menu.querySelectorAll('button')];
-    if(focused?.scrub)restoreFocus(this.menu.querySelector('[data-scrub-value]'));
+    // The palette's radios get their roles and tab stop a moment after they are inserted: focus the chosen one then.
+    if(focused?.swatch&&!focused.custom)queueMicrotask(()=>this.menu.querySelector(`[data-swatch="${CSS.escape(focused.swatch)}"]`)?.focus({preventScroll:true}));
+    else if(focused?.scrub)restoreFocus(this.menu.querySelector('[data-scrub-value]'));
     else if(focused?.caption)session.captionControl?.focus();
     else if(focused?.weight)session.weightControl?.focus();
-    else if(focused)restoreFocus(focused.custom?custom:focused.swatch?controls.find(control=>control.dataset.swatch===focused.swatch):
+    else if(focused)restoreFocus(focused.custom?custom:
       controls.find(control=>control.dataset.whiteboardAction===focused.action&&control.dataset.value===focused.value));
   }
   mountCaptionSize(session,element,objects,common) {
@@ -691,10 +801,29 @@ export class Whiteboard {
     this.menu.classList.add('whiteboard-text-appearance');
     this.menu.setAttribute('role','dialog');
     this.menu.setAttribute('aria-label',label);
-    this.menu.hidden=false;
+    this.menu.hidden=false;reportPanel(this.menu,true);
     this.toolbar.querySelector(`[data-whiteboard-action="${trigger}"]`)?.setAttribute('aria-expanded','true');
     this.renderObjectFormat(session);
-    restoreFocus(this.menu.querySelector('button'));
+    this.focusPanelStart();
+  }
+  // Where a bar panel starts, by the SDK's one rule (popover.md, popups.md § Focus): its first control, unless one is
+  // marked [data-autofocus]; a group of choices is entered on its checked or pressed option (radio.md, toggle.md,
+  // segmented-control.md). A colour panel marks its palette: its × closes the panel and is not where the work starts,
+  // so the palette's checked swatch takes focus. The SDK gives a group's items their tab stops a microtask after they
+  // are inserted, so this waits for that and then takes the first control in Tab order.
+  focusPanelStart() {
+    const panel=this.menu,session=this.appearance;
+    queueMicrotask(()=>{
+      if(this.appearance!==session||panel.hidden||panel.contains(document.activeElement))return;
+      // A size panel's one control is a preset scrub: it is entered on its checked preset, or on its handle when the
+      // size is a custom value (preset-scrub.js focus()).
+      if(session?.mode==='size'&&session.captionControl){session.captionControl.focus();return;}
+      const stops=root=>[...root.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')]
+        .filter(el=>el.tabIndex>=0&&!el.disabled&&!el.closest('[hidden]')&&el.getClientRects().length);
+      const auto=panel.querySelector('[data-autofocus]');
+      const target=(auto&&(auto.querySelector('[data-checked]')||stops(auto)[0]||(auto.tabIndex>=0?auto:null)))||stops(panel)[0];
+      restoreFocus(target||panel.querySelector('button'));
+    });
   }
   applyObjectFormat(session,action,value,{finishAfterClose=false}={}) {
     const boardId=this.host.snapshot.id;
@@ -713,7 +842,7 @@ export class Whiteboard {
     this.menu.classList.add('whiteboard-text-appearance');
     this.menu.setAttribute('role','dialog');
     this.menu.setAttribute('aria-label',({size:'Text size',ink:'Ink',face:'Typeface',box:'Text box'})[mode]);
-    this.menu.hidden=false;
+    this.menu.hidden=false;reportPanel(this.menu,true);
     this.appearance=mountTextAppearance(this.menu,text,{
       mode,
       save:patch=>{
@@ -733,17 +862,26 @@ export class Whiteboard {
     this.appearance.focus();
   }
   closeMenu({focus=false,commit=true}={}) {
-    const appearance=this.appearance, layout=this.containerLayout;
-    const trigger=appearance?.trigger||(layout?'container-layout':'more');
-    if(appearance||layout){
-      this.appearance=this.containerLayout=null;
-      if(appearance)appearance.destroy({commit});else layout.destroy({commit});
-      this.menu.classList.remove('whiteboard-text-appearance','whiteboard-container-layout');
+    this.closeMore();
+    if(this.layoutUI?.root.open){
+      const held=this.containerLayout;this.containerLayout=null;held?.destroy({commit});
+      this.layoutUI.root.api.close({reason:'imperative'});
+      if(focus)this.toolbar?.querySelector('[data-whiteboard-action=container-layout]')?.focus({preventScroll:true});
+      return;
+    }
+    const appearance=this.appearance;
+    const trigger=appearance?.trigger||'more';
+    if(appearance){
+      this.appearance=null;
+      appearance.destroy({commit});
+      this.menu.classList.remove('whiteboard-text-appearance');
       this.menu.setAttribute('role','menu');
       this.menu.setAttribute('aria-label','Object actions');
       this.menu.replaceChildren();
     }
+    const wasOpen=!this.menu.hidden;
     this.menu.hidden=true;this.toolbar?.querySelector('[data-whiteboard-action=more]')?.setAttribute('aria-expanded','false');
+    if(wasOpen)reportPanel(this.menu,false);
     const opener=this.toolbar?.querySelector(`[data-whiteboard-action=${trigger}]`);
     opener?.setAttribute('aria-expanded','false');
     if(focus)opener?.focus({preventScroll:true});
@@ -759,19 +897,22 @@ export class Whiteboard {
     const task=e.target.closest('[data-deco-task]');
     if(task) {
       e.preventDefault();e.stopPropagation();
-      if(this.host.hooks.viewOnly||this.host.mode!=='canvas'||this.editor||this.host.pointerGesture||document.querySelector('dialog[open]'))return;
+      if(this.host.hooks.viewOnly||this.host.mode!=='canvas'||this.editor||this.host.pointerGesture||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]'))return;
       await this.toggleTask(task);return;
     }
     const port=e.target.closest('[data-port]');
-    if(port&&e.detail===0){e.preventDefault();await this.choosePort(JSON.parse(port.dataset.port));return;}
+    // Enter or Space on a point. The click stops here: choosing redraws the points, so the pressed one has left the page
+    // by the time the canvas's own click handler reads it, and that handler cleared the selection (and the connection
+    // just begun) for a click it took to be on empty canvas.
+    if(port&&e.detail===0){e.preventDefault();e.stopPropagation();await this.choosePort(JSON.parse(port.dataset.port));return;}
     const control=e.target.closest('[data-whiteboard-action]'),action=control?.dataset.whiteboardAction;if(!action)return;
     e.preventDefault();e.stopPropagation();
     if(action==='more'){
-      if(this.appearance||this.containerLayout){this.closeMenu();this.openMenu();}
-      else this.menu.hidden?this.openMenu():this.closeMenu({focus:true});
+      if(this.moreOpen){this.closeMore();return;}
+      this.closeMenu();this.openMenu(e);
       return;
     }
-    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control);return;}
+    if(action==='arrange'){this.closeMenu();this.host.arrangeMenu?.(control,e);return;}
     if(action==='close-format'){this.closeMenu({focus:true});return;}
     if(action==='drawing-color'||action==='caption-size'){
       const objects=this.selectedDecorations(), open=this.appearance?.trigger===action;
@@ -795,8 +936,8 @@ export class Whiteboard {
       return;
     }
     if(action==='container-layout'){
-      if(this.containerLayout)this.closeMenu({focus:true});
-      else this.configureContainer(this.find());
+      if(this.layoutUI?.root.open)this.closeMenu({focus:true});
+      else this.configureContainer(this.find(),e);
       return;
     }
     if(action==='container-mode'){
@@ -830,12 +971,12 @@ export class Whiteboard {
     this.commitEdit({focus:false});this.connectMode=!this.connectMode;this.pendingFrom=null;this.closeMenu();
     this.hint.textContent=this.connectMode?'Choose a connection point, then its destination. Dragging also works.':'';
     this.hint.hidden=!this.connectMode;this.renderPorts();this.renderToolbar();
-    this.ports.querySelector('button')?.focus({preventScroll:true});
+    (this.ports.querySelector('button[tabindex="0"]')||this.ports.querySelector('button'))?.focus({preventScroll:true});
   }
   async choosePort(endpoint) {
     if(!this.pendingFrom) {
       this.pendingFrom=endpoint;this.connectMode=true;this.renderPorts();this.hint.hidden=false;this.hint.textContent='Choose the destination connection point.';
-      this.ports.querySelector('button')?.focus({preventScroll:true});return;
+      (this.ports.querySelector('button[tabindex="0"]')||this.ports.querySelector('button'))?.focus({preventScroll:true});return;
     }
     const from=this.pendingFrom;this.pendingFrom=null;
     if(JSON.stringify(from)===JSON.stringify(endpoint)){this.renderPorts();return;}
@@ -977,24 +1118,25 @@ export class Whiteboard {
     await this.saveMany(this.host.snapshot.decorations.map(entry=>entry.id===id?{...entry,x}:
       entry.id===parent.id?{...entry,container:{...parent.container,children}}:entry));
   }
-  configureContainer(parent) {
+  configureContainer(parent,event) {
     if(!parent?.container)return;
     this.closeMenu();
     const trigger=this.toolbar.querySelector('[data-whiteboard-action=container-layout]');
-    this.menu.classList.add('whiteboard-container-layout');
-    this.menu.setAttribute('role','dialog');
-    this.menu.setAttribute('aria-label','Container options');
-    this.menu.hidden=false;
+    const {root,content}=this.layoutUI;
     const draft=this.containerLayoutDrafts?.get(parent.id);
-    this.containerLayout=mountContainerLayout(this.menu,parent.container,{
+    this.containerLayout=mountContainerLayout(content,parent.container,{
       draft:draft?.pending,failedDraft:draft?.failed,
       save:fields=>this.saveContainerLayout(parent.id,fields),
       preview:patch=>this.previewLayoutSpacing(parent.id,patch),
-      reposition:()=>this.positionMenu(),
+      reposition:()=>{},
       report:error=>toast(`Container layout could not be saved. Open More to retry. ${error.message}`),
     });
+    // Centred on the bar, away from the container, as the bar's other panels are.
+    content.setAttribute('side',this.toolbarSide==='top'?'top':'bottom');
+    content.setAttribute('collision-padding',this.popupPadding());
     trigger?.setAttribute('aria-expanded','true');
-    this.containerLayout.focus();
+    root.api.open({anchor:{getBoundingClientRect:()=>this.toolbar.getBoundingClientRect()}});
+    requestAnimationFrame(()=>{if(root.open&&this.containerLayout&&!content.contains(document.activeElement))this.containerLayout.focus();});
   }
   previewLayoutSpacing(id,patch) {
     if(patch===null){
@@ -1042,6 +1184,7 @@ export class Whiteboard {
     await this.host.writeArrangement('createDecoration',{boardId:this.host.snapshot.id,decoration:d},endpointsUnchanged(d,this.host.snapshot));
     this.host.activeDecoration=d.id;this.connectMode=false;this.pendingFrom=null;this.hint.hidden=true;
     await this.host.refresh({saveReview:false});this.sync();
+    this.host.focusCreated?.({decorationIds:[d.id]});
   }
   async remove() {
     const many=this.selectedDecorations();
@@ -1136,7 +1279,8 @@ export class Whiteboard {
     },onError:()=>{}});
     form.addEventListener('keydown',event=>{
       if(rich&&event.key==='Tab'&&!event.shiftKey&&!this.toolbar.hidden){
-        event.preventDefault();restoreFocus(this.toolbar.querySelector('button'));
+        // Tab from the editor goes to the bar's tab stop (the item focused last), as it does for any toolbar.
+        event.preventDefault();if(this.toolbar.api?.focus)this.toolbar.api.focus();else restoreFocus(this.toolbar.querySelector('button'));
       }
       if(event.key!=='Escape')event.stopPropagation();
     });
@@ -1259,10 +1403,10 @@ export class Whiteboard {
   down(e) {
     this.suppressClick=false;
     if(this.host.panTool&&e.target.closest('#viewport'))return;
-    const own=e.target.closest('.whiteboard-toolbar,.whiteboard-menu,.whiteboard-editor,.whiteboard-draft-state');
+    const own=e.target.closest('.whiteboard-toolbar,.whiteboard-menu,.whiteboard-more-menu,.whiteboard-editor,.whiteboard-draft-state');
     if(this.editor&&!own&&!e.target.closest(selector(this.editor.id)))this.commitEdit({focus:false});
     const menuLauncher=e.target.closest('[data-whiteboard-action]')?.dataset.whiteboardAction;
-    if(!e.target.closest('.whiteboard-menu')&&!['more','text-appearance','text-size','text-ink','text-box','drawing-color','caption-size','container-layout'].includes(menuLauncher))this.closeMenu();
+    if(!e.target.closest('.whiteboard-menu,.whiteboard-more-menu')&&!['more','text-appearance','text-size','text-ink','text-box','drawing-color','caption-size','container-layout'].includes(menuLauncher))this.closeMenu();
     if(this.drag){if(e.pointerId!==this.drag.pointerId)this.cancel();return;}
     if(own)return;
     const port=e.target.closest('[data-port]'),element=e.target.closest('[data-decoration]');
@@ -1271,7 +1415,7 @@ export class Whiteboard {
       if(e.target.closest('#viewport')&&!e.target.closest('.whiteboard-ports'))this.clearSelection({finishEdit:true,focus:false});
       return;
     }
-    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open]')||this.host.pointerGesture||this.host.movePending)return;
+    if(this.host.mode!=='canvas'||e.button!==0||e.isPrimary===false||document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')||this.host.pointerGesture||this.host.movePending)return;
     const task=e.target.closest('[data-deco-task]');
     if(task){this.captureTask(task);return;}
     if(e.target.closest('input,textarea,[contenteditable]'))return;
@@ -1407,13 +1551,43 @@ export class Whiteboard {
   }
   handleEscape(e) {
     if(e.key!=='Escape')return false;
-    if(this.drag||this.pendingFrom||this.connectMode){this.cancel();return true;}
+    if(this.drag||this.pendingFrom||this.connectMode){
+      // From the keyboard, the connection points re-render under focus: focus goes back to the point the connection
+      // started from, else to its object.
+      const from=this.pendingFrom,onPort=this.ports.contains(document.activeElement);
+      if(onPort&&from)this.portStop=JSON.stringify(from);
+      this.cancel();
+      if(onPort)this.refocusSource(from);
+      return true;
+    }
     // Escape keeps what was typed (as in Figma or Miro): it commits and leaves edit mode.
     // Discarding stays an explicit choice (the toolbar's cancel-edit action).
     if(this.editor){if(e.isComposing||e.keyCode===229||this.editor.composing)return false;this.commitEdit({focus:true});return true;}
     if(!this.menu.hidden){this.closeMenu({focus:true,commit:false});return true;}
+    // Escape on the bar goes back to the object it edits, selection kept, as Escape from an editor's toolbar returns
+    // to the text; the next Escape there clears the selection.
+    if(this.toolbar.contains(e.target)&&!this.toolbar.hidden&&!e.target.closest('[data-slot$="-content"][data-open]')){
+      const d=this.selectedDecorations()[0],el=d&&document.querySelector(`#world ${selector(d.id)}`);
+      if(el){el.focus({preventScroll:true});return true;}
+    }
+    // Escape on a connection point (nothing pending) goes back to its object, selection kept, as from the bar.
+    if(this.ports.contains(e.target)&&this.focusRef(this.selectedRef()))return true;
     if(this.host.decorationSelection?.size>1){this.clearSelection();return true;}
     return false;
+  }
+  // After the connection points re-render: the point `from` names (else the tab stop), else the selected object.
+  refocusSource(from) {
+    if(this.ports.contains(document.activeElement))return;
+    const key=from&&JSON.stringify(from),ports=[...this.ports.querySelectorAll('[data-port]')];
+    const port=ports.find(el=>el.dataset.port===key)||(!from&&this.ports.querySelector('[data-port][tabindex="0"]'));
+    if(port?.isConnected){port.focus({preventScroll:true});return;}
+    this.focusRef(from||this.selectedRef());
+  }
+  focusRef(ref) {
+    const el=ref?.decorationId?document.querySelector(`#world ${selector(ref.decorationId)}`)
+      :ref?.placementId?document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(ref.placementId)}"]`):null;
+    el?.focus({preventScroll:true});
+    return !!el;
   }
   arrowHandleKey(e) {
     const handle=e.target.closest('[data-endpoint],[data-arrow-bend]');
@@ -1444,10 +1618,51 @@ export class Whiteboard {
     this.save(d.id,patch,undefined,decorationUnchanged(d)).then(()=>{
       if(document.activeElement===document.body||document.activeElement===handle)
         restoreFocus(document.querySelector(selector(d.id))?.querySelector(endpoint?`[data-endpoint="${endpoint}"]`:'[data-arrow-bend]'));
+      const point=endpoint&&resolveLine(this.find(d.id)||d,this.host.snapshot)[endpoint];
+      announce(endpoint?`Arrow ${endpoint==='from'?'start':'end'} ${detach?'detached':'moved'} to ${Math.round(point.x)}, ${Math.round(point.y)}.`:'Arrow bend moved.');
     }).catch(showFailure);
     return true;
   }
+  // Arrows on a selected drawn element's focused bottom-right corner resize it, 1 unit, 10 with Shift (UI SDK
+  // createResize keys); a sticker keeps its proportions, as its corners do under the pointer. One save per press.
+  resizeHandleKey(e) {
+    const handle=e.target.closest('[data-decoration-resize="se"]');
+    const direction={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];
+    if(!handle||!direction||e.altKey||e.metaKey||e.ctrlKey)return false;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(this.host.commandBusy()||this.host.decorationCommitting||this.host.keysBusy?.())return true;
+    const d=this.find(handle.closest('[data-decoration]')?.dataset.decoration);
+    if(!d||d.type==='line'||d.container)return true;
+    const step=e.shiftKey?10:1;
+    const patch=resizeDecoration(d,'se',direction[0]*step,direction[1]*step,!!d.sticker);
+    if(patch.width===d.width&&patch.height===d.height)return true;
+    if(d.textSizing==='auto')patch.textSizing='fixed';
+    const work=async()=>{
+      await this.save(d.id,patch,undefined,decorationUnchanged(d));
+      const sdk=await sdkCore();
+      sdk.keepFocus(()=>document.querySelector(selector(d.id))?.querySelector('[data-decoration-resize="se"]'));
+      sdk.announce(sdk.resizeMessage({label:decorationLabel(d),handle:'se',box:{x:patch.x,y:patch.y,width:Math.round(patch.width),height:Math.round(patch.height)}}));
+    };
+    this.host.keyMoveRunning?this.host.keyMoveRunning(work):work().catch(showFailure);
+    return true;
+  }
   keydown(e) {
+    // The bar sits in the Tab order right after the board (mount): after the object's own controls, before what follows
+    // the board. Tab past the bar goes on to what follows the board. The container options
+    // popover's Tab-out (popups.js, which runs first) has already sent focus to its button on the bar, so the same rule
+    // then carries it on. Option-F10 reaches the bar from anywhere (focusBar).
+    if(this.focusBarKey(e))return;
+    if(this.tabPastBar(e))return;
+    // A key pressed inside an open SDK menu or popover (this bar's More, Arrange, the board's menus) is the popup's,
+    // Escape included. (A showing tooltip's Escape is left to the bar's own ladder here, as the controls stream has it.)
+    if(e.target.closest?.('[data-slot$="-content"][data-open]:not([data-slot^="tooltip"])'))return;
+    // The bar's own format panels (Text size, Ink, Typeface, Text box, colour, drawing options) keep a popover's Tab:
+    // from the last control the panel closes and Tab goes on after its button, that is past the bar, so back to the
+    // object; Shift+Tab from the first goes back to the button.
+    if(e.key==='Tab'&&this.appearance&&!this.menu.hidden){
+      const opener=this.toolbar.querySelector(`[data-whiteboard-action="${this.appearance.trigger}"]`);
+      if(tabOutOfPanel(e,this.menu,opener,()=>this.closeMenu())){e.stopImmediatePropagation();this.tabPastBar(e);return;}
+    }
     const task=e.target.closest('[data-deco-task]');
     if(task&&[' ','Enter'].includes(e.key)) {
       if(e.repeat)e.preventDefault();
@@ -1457,6 +1672,7 @@ export class Whiteboard {
     if(this.editor&&e.key==='Escape'&&(e.isComposing||e.keyCode===229||this.editor.composing)){e.stopImmediatePropagation();return;}
     if(this.handleEscape(e)){e.preventDefault();e.stopImmediatePropagation();return;}
     if(this.arrowHandleKey(e))return;
+    if(this.resizeHandleKey(e))return;
     const rotate=e.target.closest('[data-sticker-rotate]');
     const turn={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1,Home:0}[e.key];
     if(rotate&&turn!==undefined&&!e.altKey&&!e.metaKey&&!e.ctrlKey){
@@ -1464,23 +1680,56 @@ export class Whiteboard {
       if(!e.repeat)this.adjustSticker(rotate,turn*(e.shiftKey?15:5));
       return;
     }
-    if(this.editor?.rich&&e.key==='Tab'&&e.shiftKey&&e.target===this.toolbar.querySelector('button')){
+    if(this.editor?.rich&&e.key==='Tab'&&e.shiftKey&&e.target.closest('.whiteboard-toolbar')){
       e.preventDefault();e.stopImmediatePropagation();
       restoreFocus(this.editor.previewing?this.editor.preview:this.editor.textarea);return;
     }
-    if(e.target.closest('.whiteboard-toolbar')&&['ArrowRight','ArrowLeft','Home','End'].includes(e.key)) {
-      const buttons=[...this.toolbar.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
-      e.preventDefault();e.stopImmediatePropagation();
-      buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length]?.focus();return;
-    }
-    if(e.target.closest('.whiteboard-menu')&&!this.appearance&&!this.containerLayout&&!e.target.closest('input,select,textarea')) {
-      const buttons=[...this.menu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
-      if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();}
-    }
+    // Arrows, Home and End on the bar belong to ui-toolbar: one Tab stop, focus moves along the buttons.
     const group=e.target.closest('[data-decoration]');
-    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button,.whiteboard-editor')&&!document.querySelector('dialog[open]')&&['Enter','F2'].includes(e.key)){
+    if(group&&!e.target.closest('input,textarea,select,[contenteditable],button,[role=button],.whiteboard-editor')&&!document.querySelector('dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]')&&['Enter','F2'].includes(e.key)&&!e.altKey&&!e.metaKey&&!e.ctrlKey){
+      // Enter on a container goes in among its contents (board-focus.js); an empty one opens its options.
+      if(e.key==='Enter'&&!e.shiftKey&&e.target===group&&this.host.boardFocus?.enterContainer(group.dataset.decoration)){e.preventDefault();e.stopImmediatePropagation();return;}
       e.preventDefault();e.stopImmediatePropagation();this.select(group.dataset.decoration);e.key==='F2'?this.edit(group.dataset.decoration):this.inspect(group.dataset.decoration);
     }
+  }
+  // The first Tab stop after the board and its bar (the kind legend, else the zoom pill …).
+  afterBoard() {
+    const viewport=document.getElementById('viewport');if(!viewport)return null;
+    return [...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].find(el=>el.tabIndex>=0&&!el.disabled&&
+      !viewport.contains(el)&&!this.toolbar.contains(el)&&!this.menu.contains(el)&&(viewport.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING)&&
+      !el.closest('[inert],[hidden]')&&el.getClientRects().length)||null;
+  }
+  focusBar() {
+    if(this.toolbar.api?.focus)this.toolbar.api.focus();else restoreFocus(this.toolbar.querySelector('button'));
+  }
+  // Option-F10 (Alt+F10) moves focus to the bar, the key editors give their floating toolbars (TinyMCE, CKEditor; WAI-ARIA
+  // Authoring Practices' toolbar example). Not from a field, where the key is the field's.
+  focusBarKey(e) {
+    if(e.code!=='F10'||!e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||!this.toolbar||this.toolbar.hidden)return false;
+    if(e.target.closest?.('input,textarea,select,[contenteditable]')&&!this.editor)return false;
+    e.preventDefault();e.stopImmediatePropagation();this.focusBar();return true;
+  }
+  // Tab past the bar (forward from its one Tab stop, or out of one of its panels, which sends focus to its button
+  // first) goes on to what follows the board. While a text is being edited it goes back to the editor (Shift+Tab from
+  // the bar goes there too); with nothing after the board, to the selected object. True when the Tab was taken.
+  tabPastBar(e) {
+    if(e.key!=='Tab'||e.shiftKey||e.altKey||e.ctrlKey||e.metaKey||e.isComposing||!this.toolbar||this.toolbar.hidden)return false;
+    const active=document.activeElement;
+    if(!this.toolbar.contains(active))return false;
+    // A control with a Tab stop of its own after the bar's (none today) would keep the Tab inside the bar.
+    if(this.toolbar.contains(e.target)){
+      const stops=[...this.toolbar.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].filter(el=>el.tabIndex>=0&&!el.disabled&&el.getClientRects().length);
+      if(stops.length&&!(stops.at(-1)===active||stops.at(-1).contains(active)))return false;
+    }
+    const focus=this.host.boardFocus,host=this.host;
+    const selected=host.activeDecoration?document.querySelector(`#world ${selector(host.activeDecoration)}`)
+      :host.selection?.size===1?document.querySelector(`#world .workspace-card[data-placement="${CSS.escape([...host.selection][0])}"]`):null;
+    const back=(this.editor?(this.editor.previewing?this.editor.preview:this.editor.textarea):null)
+      ||this.afterBoard()||selected||focus?.element(focus.stop)||document.getElementById('viewport');
+    if(!back?.isConnected)return false;
+    e.preventDefault();e.stopImmediatePropagation();
+    back.focus({preventScroll:true});
+    return true;
   }
   inspect(id) {
     const d=this.find(id);if(!d)return;
@@ -1501,6 +1750,7 @@ export class Whiteboard {
     this.save(d.id,{rotation},undefined,decorationUnchanged(d)).then(()=>{
       if(!handle.isConnected&&document.activeElement===document.body)
         restoreFocus(document.querySelector(selector(d.id))?.querySelector('[data-sticker-rotate]'));
+      announce(`Sticker rotated to ${rotation}°.`);
     }).catch(showFailure);
   }
 }

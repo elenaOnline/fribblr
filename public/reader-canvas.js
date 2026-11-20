@@ -42,6 +42,12 @@ export function contentScrolls(target, dx, dy, top = window) {
   return false;
 }
 
+// The stage's pattern offset changes on every pan frame and only the stage's own background reads it: registered as
+// non-inherited, a pan restyles the stage alone instead of everything in the opened item (see canvas.js).
+for (const name of ['--reader-pattern-x', '--reader-pattern-y']) {
+  try { CSS.registerProperty({ name, syntax: '*', inherits: false }); } catch {}
+}
+
 // Saved viewports use 40–10000; decoded images may be larger. Bound layout work
 // without changing their aspect ratio, and reject nonfinite/untrusted dimensions.
 export function resourceSize(width, height) {
@@ -186,6 +192,12 @@ export class ReaderCanvas {
     const r = this.stage.getBoundingClientRect();
     const sx = Math.max(0, Math.min(r.width, clientX - r.left)), sy = Math.max(0, Math.min(r.height, clientY - r.top));
     this.zoomTo(this.view.zoom * factor, sx, sy);
+  }
+  // Part of the window is out of view (zoomed in past what fits): there is something to pan to. The arrow keys pan then,
+  // and step to another Tinka only while it all fits (canvas.js, ui-sdk.md § Opened item).
+  overflows() {
+    const { width } = this.area(), height = this.area().height - (this.insets?.().bottom ?? 0), zoom = this.view.zoom;
+    return this.sheet.offsetWidth * zoom > width + 1 || this.sheet.offsetHeight * zoom > height + 1;
   }
   panBy(dx, dy) {
     if (!dx && !dy) return;

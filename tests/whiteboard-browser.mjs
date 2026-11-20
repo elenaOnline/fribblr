@@ -85,13 +85,13 @@ try{
  await toHandle.focus();
  await page.keyboard.press('Delete');
  assert.deepEqual(await eventually(async()=>(await find('attached')).to,p=>Number.isFinite(p.x)),{x:280,y:90});
- assert.equal(await page.locator('dialog[open]').count(),0);
+ assert.equal(await page.locator(':is(dialog[open],[data-slot$=dialog-content][data-open])').count(),0);
  // Reattach with visible grab points, preserving the untouched start.
  await page.locator('[data-decoration=attached] [data-decoration-label]').click();
  const handle=page.locator('[data-decoration=attached] [data-endpoint=to]'),h=await centre(handle);
  await page.mouse.move(h.x,h.y);await page.mouse.down();await page.mouse.move(h.x+10,h.y,{steps:2});
  const port=page.getByRole('button',{name:'Connect Ready? left',exact:true});await port.waitFor();const end=await centre(port);await page.mouse.move(end.x,end.y,{steps:5});await page.mouse.up();
- await page.waitForFunction(()=>!document.querySelector('dialog[open]'));await page.waitForTimeout(100);
+ await page.waitForFunction(()=>!document.querySelector(':is(dialog[open],[data-slot$=dialog-content][data-open])'));await page.waitForTimeout(100);
  assert.equal((await find('attached')).to.decorationId,'decision');
  // Move an endpoint across both axes, then reconnect it to the original edge.
  await page.locator('[data-decoration=attached] [data-decoration-label]').click();const fromHandle=page.locator('[data-decoration=attached] [data-endpoint=from]');
@@ -116,14 +116,17 @@ try{
  await page.mouse.move(region.x+50,region.y+70);await page.mouse.down();await page.mouse.move(region.x+180,region.y+140,{steps:4});await page.locator('#workspace-marquee').waitFor();await page.keyboard.press('Escape');await page.mouse.up();assert.equal((await snapshot()).revision,regionRevision);
  await page.screenshot({path:path.join(evidence,'whiteboard-wide.png')});
  // Human Add menu creates the compact flowchart preset, using scoped metadata.
- await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('[data-add=ellipse]').click();
+ await page.locator('#board-info-toggle').click();await page.locator('#workspace-add').click();await page.locator('#workspace-add-menu [data-add=ellipse]').click();
  await page.locator('.whiteboard-editor textarea').waitFor();await page.keyboard.press('Escape');assert.ok(await eventually(async()=>(await snapshot()).decorations.some(d=>d.shape==='ellipse'&&d.type==='region'),Boolean));
  // Keyboard-reachable actions fit at a narrow width and ordinary objects resize at their outline.
  await page.setViewportSize({width:390,height:844});await page.locator('[data-decoration=sticky]').scrollIntoViewIfNeeded();
  await page.locator('[data-decoration=sticky]').focus();await page.keyboard.press('Enter');
- const menu=page.locator('.whiteboard-menu');await menu.waitFor();
+ // Enter is Whiteboard's options: the object's More menu (a UI SDK menu, #whiteboard-more-menu), focus inside it.
+ const menu=page.getByRole('menu',{name:'Object actions'});await menu.waitFor();
+ assert.ok(await page.evaluate(()=>!!document.activeElement?.closest('#whiteboard-more-menu')),'Focus is in the More menu');
  assert.equal(await menu.getByText("Position & size", {exact:false}).count(),0);
  const bounds=await menu.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=391);await page.screenshot({path:path.join(evidence,'whiteboard-narrow.png')});await page.keyboard.press('Escape');
+ await menu.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>document.activeElement?.dataset.decoration),'sticky','Escape returns focus to the sticky Enter was pressed on');
  await op({type:'removeDecoration',decorationId:'decision'});await page.reload();await page.locator('.whiteboard-detached').first().waitFor();assert.equal(await page.evaluate(()=>document.querySelector('.whiteboard-detached')?.textContent),'Detached');
  assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,evidence,checks:'shape/card movement + resize with transient attached redraw, mounted preview identity, keyboard endpoint detach and direct reattach, cancellation, sticky whole body, region marquee, port creation, Add preset, keyboard actions at 390, detached fallback'}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(fixture,{recursive:true,force:true,maxRetries:5,retryDelay:100});}

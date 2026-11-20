@@ -1,4 +1,10 @@
-import {positionTilePopover,bindTileMenu} from './tile-ui.js';
+import {closePanel, sidePanel} from "./side-panel.js";
+import {setItemDisabled} from "./header-toolbar.js";
+import {segmentedHTML,setSegmented,onSegmented,focusSegmented} from './ui-segmented.js';
+import {followVisibility,setButtonOff,setPressed,onPress,setChoice,onChoose} from './ui-toolbar.js';
+import {sharedMenu,openMenu,menuItem,menuLink,menuSeparator,menuGroup,menuRadioGroup,keyboardContextMenu,menuOpen,inPopup,openOnArrowDown,openOnChecked,focusAfterOutsidePress,placeInBoardOrder} from './popups.js';
+import {widgetOwnsKey} from './ui-sdk.js';
+import {tips,tip,setTip,tipOuter} from './tips.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
 import {bindDrawingPalette,colorDot,paletteMarkup} from './color-control.js';
 import {drawingPalette,drawingColor} from './drawing-palette.js';
@@ -19,7 +25,7 @@ import {KindLegend} from "./kind-legend.js";
 import {eventFiles,hasFileDrag,validateImportFiles,importLayout,pdfSupported,pdfPreviewURL} from "./file-import.js";
 import {CutIntent} from "./cut-intent.js";
 import {MovementHistory} from "./movement-history.js";
-import {timeHTML} from "./relative-dates.js";
+import {timeHTML,exactTimeHTML} from "./relative-dates.js";
 import {navigationGraph} from "./navigator-graph.js";
 import {isMacPlatform,stepModifierLabel} from "./reader-keys.js";
 import {snapBox,boundsOf,snapDisabled,GuideLayer} from "./snap-guides.js";
@@ -27,8 +33,10 @@ import {stackRanks,stackRef} from "./stacking.js";
 import {CommentPins,COMMENT_ICON,refBox} from "./comment-pins.js";
 import {CLIPBOARD_MIME,CLIPBOARD_PREFIX,clipboardBounds,clipboardBytes,readClipboard,externalClipboard} from "./clipboard.js";
 import {EMOJI_STICKER_MIME,emojiSticker} from "./emoji-stickers.js";
-import {mountEmojiPicker} from "./emoji-picker.js";
+import {openEmojiPicker} from "./emoji-picker.js";
 import {copyCardPreview} from "./copy-preview.js";
+// Keyboard focus on the board's items (UI SDK canvas norms).
+import {BoardFocus,announce} from "./board-focus.js";
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions, versionSheets} from "./version-stack.js";
 import {
   WorkspaceClient,
@@ -39,10 +47,13 @@ import {
   featureOnParentDialog,
   itemForm,
   makeDialog,
+  confirmDialog,
   newBoardDialog,
   toast,
   showFailure,
 } from "./workspace.js";
+// A modal dialog (the app's own <dialog> or a UI SDK modal) pauses the board's keys.
+const MODAL_OPEN = "dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]";
 // The opened-Tinka step modifier: ⌥ on a Mac, Ctrl elsewhere (see reader-keys.js).
 const MOD = stepModifierLabel(isMacPlatform());
 const svg16 = body => `<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -105,10 +116,12 @@ const EDIT_TOOL_ICONS = {
   arrow: '<path d="M4 15c2.2-5 5.5-7.3 11.5-8.8M11.5 4l4.1 2.2-2.3 4.2"/>',
   sticker: '<path d="M16.5 10a6.5 6.5 0 11-6.5-6.5A6.5 6.5 0 0116.5 10zM7.7 11.5a2.7 2.7 0 004.6 0M7.8 8.2h.1m4.2 0h.1"/>',
 };
+// [name, tools, kind]: a "choice" group is the canvas's current tool (one pressed at a time, a ui-toggle-group);
+// "actions" make something (ui-toolbar-buttons). The Navigation choice always keeps one pressed, Comment can be put down.
 const EDIT_TOOL_GROUPS = [
-  ["Navigation",[["pointer","Pointer","V"],["pan","Pan","H"]]],
-  ["Draw",[["text","Text","T"],["sticky","Sticky note","S"],["container","Container"],["rounded","Rounded shape"],["arrow","Arrow"],["sticker","Sticker"]]],
-  ["Feedback",[["comment","Comment","C"]]],
+  ["Navigation",[["pointer","Pointer","V"],["pan","Pan","H"]],"choice"],
+  ["Draw",[["text","Text","T"],["sticky","Sticky note","S"],["container","Container"],["rounded","Rounded shape"],["arrow","Arrow"],["sticker","Sticker"]],"actions"],
+  ["Feedback",[["comment","Comment","C"]],"choice"],
 ];
 const $ = (id) => document.getElementById(id);
 const tilePaperChoices=[
@@ -121,32 +134,48 @@ function inspectorColorMarkup(label,value,role) {
     ${colorDot(value,role)}<span>${esc(label)}</span></button>
     <div id="${panelId}" class="text-format-controls inspector-color-palette" data-inspector-palette hidden></div>`;
 }
-function bindInspectorColor(host,{label,read,save,options,role}) {
+// `clear` (with `canClear`) adds "Remove color" after the palette, as the background image has "Remove image": the board
+// goes back to standing on the Background chosen in Appearance. It shows only while a colour is set.
+function bindInspectorColor(host,{label,read,save,options,role,clear,canClear=()=>false}) {
   const trigger=host.querySelector("[data-inspector-color]"),panel=host.querySelector("[data-inspector-palette]");
-  panel.innerHTML=paletteMarkup(["fill"],{options,resolve:(id,_channel,theme)=>renderDrawingColor(literalFill(id),role,theme)});
+  panel.innerHTML=paletteMarkup(["fill"],{options,resolve:(id,_channel,theme)=>renderDrawingColor(literalFill(id),role,theme)})
+    +(clear?'<button type="button" class="tk-btn tk-sm tk-tonal inspector-color-clear" data-inspector-clear data-tip="Show the Background chosen in Appearance">Remove color</button>':"");
+  const remove=panel.querySelector("[data-inspector-clear]");
+  if(remove)remove.hidden=!canClear();
   const palette=panel.querySelector("[data-color-swatches]");
-  let writing=false,painted=read();
+  tips(panel);
+  // The write in flight, if any: a choice made meanwhile is dropped (the palette then shows what was saved), and Remove
+  // color waits for it, so a quick Remove after a choice still clears the colour.
+  let writing=null,painted=read();
+  const write=async run=>{
+    writing=(async()=>{ try { await run(); } catch(error) { showFailure(error); } })();
+    await writing;writing=null;sync(true);
+  };
   const setValue=bindDrawingPalette(palette,{channel:"fill",label,value:painted,toValue:literalFill,previewRole:role,
     choose:async value=>{
       if(writing||value===read())return;
-      writing=true;
-      try { await save(value); }
-      catch(error) { showFailure(error); }
-      finally { writing=false;sync(true); }
+      await write(()=>save(value));
     },
   });
   const sync=(force=false)=>{
+    if(remove)remove.hidden=!canClear();
     const value=read();
     if(!force&&value===painted)return;
     painted=value;setValue(value);
     trigger.querySelector(".drawing-color-dot").outerHTML=colorDot(value,role);
+  };
+  if(remove)remove.onclick=async()=>{
+    while(writing)await writing;
+    if(canClear())await write(clear);
+    // The button has gone with the colour: the palette closes and focus goes back to its trigger.
+    toggle(false);trigger.focus({preventScroll:true});
   };
   const toggle=open=>{
     panel.hidden=!open;
     trigger.setAttribute("aria-expanded",String(open));
     if(open){
       sync(true);
-      (palette.querySelector("[aria-pressed=true]")||palette.querySelector("button"))?.focus({preventScroll:true});
+      (palette.querySelector("[data-swatch][data-checked]")||palette.querySelector("[data-swatch]"))?.focus({preventScroll:true});
     }
   };
   trigger.onclick=()=>toggle(panel.hidden);
@@ -172,6 +201,16 @@ function resizePlacementBox(p, edge, dx, dy) {
   const width = /[we]/.test(edge) ? limit(p.width + (shrinkLeft ? -dx : dx),p.width,icon ? 190 : 160) : p.width;
   const height = /[ns]/.test(edge) ? limit(p.height + (shrinkTop ? -dy : dy),p.height,icon ? 90 : 120) : p.height;
   return { x:shrinkLeft ? p.x+p.width-width : p.x, y:shrinkTop ? p.y+p.height-height : p.y, width, height };
+}
+// A toolbar inside a card (board-focus.js § Toolbars inside an item): every control but the first enabled one leaves
+// the Tab order in the markup, so the toolbar is one Tab stop from the start.
+function rovingMarkup(html) {
+  let lead = false;
+  return html.replace(/<(button|a)\b([^>]*)>/g, (tag, name, rest) => {
+    if (/\btabindex=/.test(rest)) return tag;
+    if (!lead && !/\sdisabled\b/.test(rest)) { lead = true; return tag; }
+    return `<${name} tabindex="-1"${rest}>`;
+  });
 }
 export class WorkspaceBoard {
   constructor(config, snapshot, hooks) {
@@ -215,6 +254,8 @@ export class WorkspaceBoard {
     this.savePromise = null;
     this.surface = "content";
     this.activeDecoration = null;
+    // One Tab stop for the board's items, arrows between them (board-focus.js).
+    this.boardFocus = new BoardFocus(this);
   }
   adapt(snapshot = this.snapshot) {
     this.snapshot = snapshot;
@@ -318,10 +359,10 @@ export class WorkspaceBoard {
     document.body.classList.add("workspace-board");
     $("viewport").setAttribute(
       "aria-label",
-      "Board canvas: scroll to pan, pinch or Control-scroll to zoom; drag a card to move it or drop it into a board",
+      "Board canvas: scroll or arrow keys to pan, pinch or Control-scroll to zoom, plus and minus zoom, 0 shows 100%; Tab to the items, then arrow keys go to the nearest item that way, Option or Alt with an arrow moves it, Space selects it, Enter opens it or goes into a container and Escape comes back out; drag a card to move it or drop it into a board",
     );
     $("help-panel").innerHTML =
-      "<strong>Make yourself at home.</strong> Scroll with your mouse or trackpad, or swipe the background on a touch screen, to move around Canvas; Shift-scroll moves sideways. Pinch, or hold Control or ⌘ while scrolling, to zoom. Drag a card’s body to move it; drop inside a highlighted board to move the item into it. Escape cancels a drag. Notes and buttons keep their usual behavior. A click opens a preview. Select an item and use arrow keys to move it, or drag its corner to resize. Move… in the selection toolbar also moves items into boards. Double-click text or a region label to edit it. Grid shows newer boards first, keeping other items in comparison order. Open an item to try it, then step with Previous, Next or the dots. Escape returns here. Stars and notes follow the item across references.";
+      "<strong>Make yourself at home.</strong> Scroll with your mouse or trackpad, or swipe the background on a touch screen, to move around Canvas; Shift-scroll moves sideways. Pinch, or hold Control or ⌘ while scrolling, to zoom. Drag a card’s body to move it; drop inside a highlighted board to move the item into it. Escape cancels a drag. Notes and buttons keep their usual behavior. A click opens a preview. Tab to the board’s items, then use the arrow keys to go to the nearest item that way; Option (Alt) with an arrow moves the focused item, and anything selected or grouped with it, 1 unit, 10 with Shift. Space selects the focused item and Enter opens it. Enter goes into a container, the arrows then move among its contents, Option with an arrow moves one to another place in it, and Escape comes back out. Drag a card’s corner to resize it, or focus the corner and use the arrow keys. Move… in the selection toolbar also moves items into boards. Double-click text or a region label to edit it. Grid shows newer boards first, keeping other items in comparison order. Open an item to try it, then step with Previous, Next or the dots. Escape returns here. Stars and notes follow the item across references.";
     const bar = document.createElement("section");
     $("help-panel").append(" Use ⌘/Ctrl-X to cut selected Tinkas, then paste on another board to move them together. Originals stay safe until paste succeeds. Escape or ⌘/Ctrl-Z cancels a pending cut; text fields keep their normal cut.");
     $("help-panel").append(" Copy selected Tinkas with ⌘/Ctrl-C, then paste here or in another board with ⌘/Ctrl-V. Copies retain their arrangement and use the same files. A pasted link gets a saved representation; pasted text becomes a document. Undo also reverses paste. Text fields keep their normal clipboard.");
@@ -331,7 +372,7 @@ export class WorkspaceBoard {
     bar.id = "workspace-toolbar";
     bar.className = "workspace-toolbar";
     bar.setAttribute("aria-label", "Organize this board");
-    bar.innerHTML = `<div class="workspace-segments"><button data-mode="grid">Grid</button><button data-mode="canvas">Canvas</button></div><label class="workspace-search"><span class="sr-only">Filter visible canvas items</span><input type="search" placeholder="Filter this canvas…" id="workspace-search"></label><button id="workspace-favorites" aria-pressed="false">☆ Favorites</button><button id="workspace-recent" aria-pressed="false">Last 6 weeks</button><button id="workspace-archive" aria-pressed="false">Archive</button><button id="workspace-owner" hidden>Open primary content</button><button id="workspace-retry-drafts" hidden>Retry unsaved feedback</button><button id="workspace-recover-text" hidden>Recover unsaved text</button>`;
+    bar.innerHTML = `${segmentedHTML({ label: "Layout", className: "workspace-segments", items: [{ value: "grid", label: "Grid", attrs: { "data-mode": "grid" } }, { value: "canvas", label: "Canvas", attrs: { "data-mode": "canvas" } }] })}<label class="workspace-search"><span class="sr-only">Filter visible canvas items</span><input type="search" placeholder="Filter this canvas…" id="workspace-search"></label><button id="workspace-favorites" aria-pressed="false">☆ Favorites</button><button id="workspace-recent" aria-pressed="false">Last 6 weeks</button><button id="workspace-archive" aria-pressed="false">Archive</button><button id="workspace-owner" hidden>Open primary content</button><button id="workspace-retry-drafts" hidden>Retry unsaved feedback</button><button id="workspace-recover-text" hidden>Recover unsaved text</button>`;
     $("board-info").prepend(bar);
     const add = document.createElement("button");
     add.id = "workspace-add";
@@ -339,15 +380,23 @@ export class WorkspaceBoard {
     add.className = "tk-btn tk-primary chrome-add";
     add.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11"/></svg><span class="chrome-add-label">Add</span>';
     add.setAttribute("aria-label", "Add");
-    add.title = "Add text, shapes, arrows, items and boards";
-    add.setAttribute("aria-haspopup", "menu");
-    add.setAttribute("aria-expanded", "false");
+    add.dataset.tip = "Add text, shapes, arrows, items and boards";
     const actions = $("chrome-actions");
     const quick = document.createElement("span");
     quick.className = "chrome-history";
-    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" title="Undo (⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" title="Redo (⇧⌘Z)" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
-    actions.insertBefore(quick, $("board-info-toggle"));
-    actions.append(add);
+    quick.innerHTML = '<button type="button" id="chrome-undo" class="tk-btn tk-icon" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" data-tip="Undo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 4 8.5 7.5 12"/><path d="M4.5 8.5H12a4 4 0 0 1 0 8H9"/></svg></button><button type="button" id="chrome-redo" class="tk-btn tk-icon" aria-label="Redo" aria-keyshortcuts="Shift+Meta+Z Control+Shift+Z" data-tip="Redo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5 16 8.5 12.5 12"/><path d="M15.5 8.5H8a4 4 0 0 0 0 8h3"/></svg></button>';
+    // Beside the Inspector toggle's outermost wrapper (toolbar part, tooltip trigger), never inside it.
+    tipOuter($("board-info-toggle")).before(quick);
+    // Add opens the shared Add menu (popups.js): an item of the "Board actions" toolbar whose button is the menu's
+    // trigger (<ui-toolbar-button><ui-menu-trigger for=…><button>). The wrappers are display:contents, so the button lays
+    // out as before; the SDK writes aria-haspopup, aria-expanded, aria-controls and the open keys (↓ too) onto it.
+    const addPart = document.createElement("ui-toolbar-button"), addTrigger = document.createElement("ui-menu-trigger");
+    addTrigger.setAttribute("for", "workspace-add-menu");
+    addTrigger.append(add);
+    addPart.append(addTrigger);
+    actions.append(addPart);
+    tips(actions);
+    this.addMenuElement();
     this.installEditTools();
     const history = document.createElement("div");
     history.className = "workspace-history-actions";
@@ -367,7 +416,7 @@ export class WorkspaceBoard {
     }
     document.addEventListener("keydown", e => {
       if (this.hooks.viewOnly || !(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== "z" ||
-          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector("dialog[open]")) return;
+          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector(MODAL_OPEN) || inPopup(e)) return;
       // Browser text editing keeps its own undo; movement replay is available
       // only when no pointer gesture or operation is still being committed.
       e.preventDefault(); e.stopImmediatePropagation();
@@ -375,30 +424,14 @@ export class WorkspaceBoard {
       if (!e.shiftKey && this.cutIntent.active()) { this.cancelCut(); return; }
       this.replayMovement(e.shiftKey ? "redo" : "undo");
     }, true);
-    add.onclick = () => {
-      if (this.addPopup) { this.closeAddMenu(); return; }
-      $("board-info").hidden = true;
-      $("board-info-toggle").setAttribute("aria-expanded", "false");
-      this.closeContext();
-      this.addMenu(add);
-      add.setAttribute("aria-expanded", String(!!this.addPopup));
-    };
-    document.addEventListener("keydown", e => {
-      if (e.key === "Escape" && this.addPopup) {
-        this.closeAddMenu(true);
-        e.preventDefault();
-        e.stopImmediatePropagation();
-      }
-    }, true);
-    const selected = document.createElement("section");
+    const selected = document.createElement("ui-toolbar");
     selected.id = "workspace-selection";
     selected.className = "workspace-selection";
     selected.hidden = true;
     selected.setAttribute("aria-label", "Selected placements");
     $("canvas-header").after(selected);
-    document
-      .querySelectorAll("[data-mode]")
-      .forEach((b) => (b.onclick = () => this.setMode(b.dataset.mode)));
+    followVisibility(selected);
+    onSegmented(bar.querySelector(".workspace-segments"), (mode) => this.setMode(mode));
     $("workspace-search").oninput = (e) => {
       this.filters.search = e.target.value;
       this.rebuild();
@@ -432,13 +465,15 @@ export class WorkspaceBoard {
         const id = select.dataset.placementSelect;
         this.toggleOccurrence({placementId:id});
       }
+      const versions = e.target.closest("#world [data-file-version-menu]");
+      if (versions) { e.preventDefault(); this.versionMenu(versions, e); return; }
       const editDocument = e.target.closest("[data-edit-document-item]");
       if (editDocument) { e.preventDefault(); this.editDocument(editDocument.dataset.editDocumentItem); return; }
       const feedback = e.target.closest("[data-item-feedback]");
       if (feedback) this.feedback.open({itemId:feedback.dataset.itemFeedback,returnFocus:feedback});
       const vote = e.target.closest("[data-item-vote]");
       if (vote) this.feedback.openVote({itemId:vote.dataset.itemVote,anchor:vote,returnFocus:vote});
-      if (context) { if(context.dataset.controlsFocus === 'menu'){if(this.tileMenuPlacement===context.dataset.itemControls)this.closeTileMenu();else this.tileMenu(context.dataset.itemControls,null,context);}else this.itemControls(context.dataset.itemControls, context.dataset.controlsFocus); }
+      if (context) { if(context.dataset.controlsFocus === 'menu'){if(this.tileMenuPlacement===context.dataset.itemControls)this.closeTileMenu();else this.tileMenu(context.dataset.itemControls,null,context,e);}else this.itemControls(context.dataset.itemControls, context.dataset.controlsFocus); }
       if (edit)
         itemForm(this.client, {
           item: this.snapshot.items[edit.dataset.editItem],
@@ -449,6 +484,7 @@ export class WorkspaceBoard {
     $("workspace-retry-drafts").hidden = !this.pendingReview.size;
     $("workspace-retry-drafts").onclick = () => this.saveReview([], {});
     window.addEventListener("pagehide", () => this.persistDrafts());
+    if (!this.hooks.viewOnly) this.pressFocus();
     this.whiteboard = new Whiteboard(this);
     this.whiteboard.mount();
     if (!this.hooks.viewOnly) {
@@ -498,14 +534,12 @@ export class WorkspaceBoard {
       return el;
     };
     const pick = selector => bar.querySelector(selector) || panel.querySelector(selector);
-    const pattern = document.createElement("div");
-    pattern.className = "tk-seg canvas-pattern"; pattern.setAttribute("role", "group"); pattern.setAttribute("aria-label", "Pattern");
-    pattern.innerHTML = '<button type="button" data-canvas-pattern="dots">Dots</button><button type="button" data-canvas-pattern="grid">Grid</button><button type="button" data-canvas-pattern="plain">Plain</button>';
     // Show the board's current background, whether this panel is built before or after it loads.
-    const current = $("viewport")?.dataset.canvasPattern || "plain";
-    pattern.querySelectorAll("[data-canvas-pattern]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.canvasPattern === current)));
+    const patternHost = document.createElement("div");
+    patternHost.innerHTML = segmentedHTML({ label: "Pattern", className: "canvas-pattern", value: $("viewport")?.dataset.canvasPattern || "plain", items: ["dots", "grid", "plain"].map(v => ({ value: v, label: v[0].toUpperCase() + v.slice(1), attrs: { "data-canvas-pattern": v } })) });
+    const pattern = patternHost.firstElementChild;
     const segments = pick(".workspace-segments");
-    if (segments) { segments.classList.add("tk-seg"); segments.setAttribute("role", "group"); segments.setAttribute("aria-label", "Layout"); }
+    // (the Layout control is already a segmented control, named in the bar's markup)
     const tonal = nodes => nodes.filter(Boolean).forEach(node => (node.matches("button") ? [node] : [...node.querySelectorAll("button")]).forEach(button => button.classList.add("tk-btn", "tk-sm", "tk-tonal")));
     const toggles = [pick("#workspace-favorites"), pick("#workspace-recent"), pick("#workspace-archive")];
     tonal(toggles);
@@ -516,15 +550,47 @@ export class WorkspaceBoard {
     const storedColor = () => this.snapshot.background?.color || token("--ground").toLowerCase();
     boardBackground.innerHTML = `${inspectorColorMarkup("Board color",storedColor(),"board")}<button type="button" class="tk-btn tk-sm tk-tonal" data-background-image>Background image…</button>`;
     this.boardColorSync=bindInspectorColor(boardBackground,{label:"Board color palette",read:storedColor,role:"board",
-      save:color=>this.saveBackground({...this.snapshot.background,color})});
+      save:color=>this.saveBackground({...this.snapshot.background,color}),
+      canClear:()=>!!this.snapshot.background?.color,
+      clear:()=>{const {color,...background}=this.snapshot.background||{};return this.saveBackground(background);}});
     const image = boardBackground.querySelector("[data-background-image]");
     image.onclick = () => this.backgroundImageDialog(image);
+    // Board color and Background image… are drawn as the Filter row is, so they are one toolbar too (one Tab stop, ←/→
+    // along it with wrap, Home/End). Board color's palette opens under the row, outside the toolbar, so its own arrows
+    // stay its own; Escape there comes back to Board color.
+    const backgroundBar = document.createElement("ui-toolbar");
+    backgroundBar.className = "inspector-row inspector-background-row";
+    backgroundBar.setAttribute("aria-label", "Board background");
+    for (const button of [boardBackground.querySelector("[data-inspector-color]"), image]) { const part = document.createElement("ui-toolbar-button"); button.before(part); part.append(button); }
+    backgroundBar.append(...boardBackground.querySelectorAll(":scope > ui-toolbar-button"));
+    boardBackground.prepend(backgroundBar);
     // "Pattern", not "Background": Background is the ground in Appearance (fribblr).
     const view = section("View", "", [choice("Layout", segments), choice("Pattern", pattern), boardBackground], "inspector-view");
-    const filter = section("Filter", "", [pick(".workspace-search"), row("inspector-toggles", toggles)], "inspector-filter");
+    // Favorites / Last 6 weeks / Archive: one toolbar (one Tab stop, arrows along it), as the same row on Home.
+    const filterBar = document.createElement("ui-toolbar");
+    filterBar.className = "inspector-row inspector-toggles";
+    filterBar.setAttribute("aria-label", "Filter items");
+    for (const button of toggles.filter(Boolean)) { const part = document.createElement("ui-toolbar-button"); part.append(button); filterBar.append(part); }
+    const filter = section("Filter", "", [pick(".workspace-search"), filterBar], "inspector-filter");
     const order = document.createElement("button"); order.type = "button"; order.className = "tk-btn tk-sm tk-tonal";
     order.textContent = "Comparison order…"; order.onclick = () => this.orderForm();
-    const edit = section("Edit", "", [row("inspector-edit-row", [...edits, order])], "inspector-edit");
+    // The Edit and Feedback rows are drawn as the Filter row is, so they behave as it does: one toolbar each, named by
+    // its heading (one Tab stop, ←/→ along it with wrap, Home/End). A button that is hidden (Retry unsaved feedback,
+    // Recover unsaved text, Open primary content) or disabled (Undo with nothing to undo) leaves the arrow order
+    // (followVisibility); their own modules still find them by id and write `disabled` as before.
+    const toolbarRow = (cls, heading, nodes) => {
+      const el = document.createElement("ui-toolbar");
+      el.className = `inspector-row ${cls}`;
+      el.setAttribute("aria-labelledby", `board-info-${heading}-heading`);
+      nodes.filter(Boolean).forEach(node => el.append(node));
+      // Right around the button, inside any tooltip trigger (which stays the outermost wrapper, ui-sdk.md § Tooltips).
+      const off = [];
+      for (const button of el.querySelectorAll("button")) { const part = document.createElement("ui-toolbar-button"); button.before(part); part.append(button); if (button.disabled) off.push(button); }
+      followVisibility(el);
+      for (const button of off) setButtonOff(button, true);
+      return el;
+    };
+    const edit = section("Edit", "", [toolbarRow("inspector-edit-row", "edit", [...edits, order])], "inspector-edit");
     // Feedback: board-wide Comments as one full-width row (as in the opened Tinka's
     // Inspector), anything else the feedback controls add, and notes export.
     const comments = pick("[data-feedback-toggle]");
@@ -533,7 +599,7 @@ export class WorkspaceBoard {
     const exporter = $("export"); exporter?.classList.add("tk-btn", "tk-sm", "tk-tonal");
     const copy = document.createElement("button"); copy.type = "button"; copy.className = "tk-btn tk-sm tk-tonal";
     copy.textContent = "Copy notes as Markdown"; copy.setAttribute("aria-keyshortcuts", "Shift+Meta+C Control+Shift+C"); copy.onclick = () => this.copyNotes();
-    const feedback = section("Feedback", "", [comments, ...extra, row("", [exporter, copy])], "inspector-feedback");
+    const feedback = section("Feedback", "", [toolbarRow("inspector-feedback-row", "feedback", [comments, ...extra, exporter, copy])], "inspector-feedback");
     const appearance = section("Appearance", "this browser", [row("", [panel.querySelector(".appearance-control")])], "inspector-appearance");
     const guide = pick("#workspace-keyboard-shortcuts"); guide?.classList.add("tk-btn", "tk-sm", "tk-tonal");
     const help = section("Help", "", [panel.querySelector(".board-help"), row("", [guide])], "inspector-help");
@@ -575,12 +641,49 @@ export class WorkspaceBoard {
     this.selectedFileVersions.set(concept.placement.id, target.id);
     this.build([concept], card);
   }
-  fileVersionTicker(item, version) {
+  // A version stack's versions as a menu of radio items, one shared menu at the end of <body> for every card (popups.js):
+  // choosing one shows it on this card, as the arrows do, and closes the menu. A Menu rather than a Select: one list
+  // serves every card's trigger, which are rebuilt with their cards (ui-sdk.md § Version stacks).
+  versionMenuElement() {
+    if (this.versionMenuUI) return this.versionMenuUI;
+    const ui = this.versionMenuUI = sharedMenu({id:"file-version-menu", label:"Versions", className:"file-version-menu"});
+    openOnChecked(ui.root);
+    ui.content.setAttribute("align", "center");
+    ui.content.setAttribute("side-offset", "6");
+    ui.content.setAttribute("collision-padding", "8");
+    ui.content.addEventListener("valuechange", e => {
+      const id = ui.root.api.getPayload(), concept = this.hooks.concepts().find(c => c.placement?.id === id);
+      const card = document.querySelector(`[data-placement="${CSS.escape(id || "")}"]`);
+      if (!concept || !fileVersion(concept.graphItem, e.detail.value)) return;
+      this.selectedFileVersions.set(id, e.detail.value);
+      this.build([concept], card);
+    }, true);
+    ui.root.addEventListener("openchange", e => { if (!e.detail.value) { const id = this.versionMenuPlacement; this.versionMenuPlacement = null; document.querySelector(`[data-file-version-menu="${CSS.escape(id || "")}"]`)?.setAttribute("aria-expanded", "false"); } });
+    return ui;
+  }
+  versionMenu(button, event) {
+    const id = button.dataset.fileVersionMenu, concept = this.hooks.concepts().find(c => c.placement?.id === id);
+    if (!concept) return;
+    const {root, content} = this.versionMenuElement();
+    const current = this.displayedFileVersion(concept);
+    content.innerHTML = menuRadioGroup("file-version", "Versions", fileVersions(concept.graphItem).map(v => [v.id, v.name, {detail: modifiedTime(v.modifiedAt) ? `Modified ${modifiedTime(v.modifiedAt).short}` : ""}]), current?.id || "", {closeOnSelect:true});
+    this.versionMenuPlacement = id;
+    button.setAttribute("aria-expanded", "true");
+    const selector = `[data-file-version-menu="${CSS.escape(id)}"]`;
+    openMenu(root, {anchor:{getBoundingClientRect:() => (document.querySelector(selector) || button).getBoundingClientRect()}, event, payload:id, returnTo:selector});
+  }
+  fileVersionTicker(item, version, placementId = "") {
     const { previous, next } = nearbyFileVersions(item, version.id);
     const time = modifiedTime(version.modifiedAt);
     const title = `File version ${version.name}${time ? ` · Modified ${time.exact}` : ""}`;
-    const arrow = (direction, candidate, path) => `<button type="button" data-file-version-step="${direction}" aria-label="${direction === "previous" ? "Previous" : "Next"} version" aria-disabled="${!candidate}" title="${candidate ? `Show ${esc(candidate.name)}` : direction === "previous" ? "Oldest version" : "Newest version"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg></button>`;
-    return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${previous || next ? arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5") : ""}<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" title="${esc(title)}">${esc(version.name)}</span>${previous || next ? arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5") : ""}</span>`;
+    const arrow = (direction, candidate, path) => `<button type="button" data-file-version-step="${direction}" aria-label="${direction === "previous" ? "Previous" : "Next"} version" aria-disabled="${!candidate}" data-tip="${candidate ? `Show ${esc(candidate.name)}` : direction === "previous" ? "Oldest version" : "Newest version"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg></button>`;
+    // The name is a menu button listing every version (versionMenu); the arrows step to the neighbours.
+    const choose = previous || next ? `<button type="button" class="workspace-file-version-name" data-file-version-menu="${esc(placementId)}" aria-haspopup="menu" aria-expanded="${this.versionMenuPlacement === placementId}" aria-label="${esc(title)}: choose a version" data-tip="${esc(title)}"><span role="status">${esc(version.name)}</span></button>`
+      : `<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" data-tip="${esc(title)}">${esc(version.name)}</span>`;
+    // A toolbar (one Tab stop, ←/→ along it; ↓ on the name opens the menu), roving by board-focus.js. With a single
+    // version there is nothing to step and nothing to choose: the name is a status, not a control.
+    if (!previous && !next) return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${choose}</span>`;
+    return rovingMarkup(`<span class="workspace-file-versions" role="toolbar" data-roving aria-label="File versions for ${esc(item.title)}">${arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5")}${choose}${arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5")}</span>`);
   }
   aliasConcept(key) {
     const p = this.snapshot.placements.find(
@@ -651,14 +754,14 @@ export class WorkspaceBoard {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parent"}));
         crumb.href = `/boards/${encodeURIComponent(parent.id)}/`;
         crumb.setAttribute("aria-label", "Return to parent board " + parent.title);
-        crumb.title = "Return to " + parent.title +
-          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : "");
+        setTip(crumb, "Return to " + parent.title +
+          (parents.length > 1 ? " · also appears on " + (parents.length - 1) + " other boards" : ""));
       } else if (parents.length > 1) {
         crumb.replaceChildren("← ", Object.assign(document.createElement("span"), {className: "workspace-parent-label", textContent: "Parents"}));
         crumb.href = "#parents";
         crumb.setAttribute("role", "button");
         crumb.setAttribute("aria-label", "Choose a parent board");
-        crumb.title = "Choose from " + parents.length + " parent boards";
+        setTip(crumb, "Choose from " + parents.length + " parent boards");
         crumb.onclick = event => {
           event.preventDefault();
           makeDialog("This board appears on", parents.map(p =>
@@ -723,7 +826,7 @@ export class WorkspaceBoard {
   liveBlocked() {
     return !!(this.documentEditing || this.pointerGesture || this.decorationGesture || this.decorationCommitting || this.moveCommitting || this.movePending ||
       this.whiteboard?.editing || this.whiteboard?.finishing || this.client.pendingWrites || this.historyBusy || this.history?.busy || this.pasteBusy || this.saving ||
-      document.activeElement?.closest("input,textarea,select,[contenteditable]") || document.querySelector("dialog.workspace-dialog[open]"));
+      document.activeElement?.closest("input,textarea,select,[contenteditable]") || document.querySelector(".workspace-dialog:is([open],[data-open])"));
   }
   // Arrangement writes survive an unrelated revision change: after a revision-only
   // rejection the affected board is re-read once, and the same operation is
@@ -803,10 +906,37 @@ export class WorkspaceBoard {
   clipboardCandidates() {
     return this.renderedPlacements().filter(p => this.selection.has(p.id));
   }
+  // With nothing selected, the board's commands act on the item that has keyboard focus (on it, or on a control inside
+  // it), as its own menu advertises (Details… ⌘I, Duplicate ⌘D, Edit document E, Bring to front ]). With a selection
+  // they act on the selection. Focus is not selection (ui-sdk.md § Board canvas); this only names a target when there
+  // is no selection to act on.
+  focusedTarget() {
+    if (this.mode !== "canvas" || this.selection.size || this.activeDecoration || this.decorationSelection?.size) return null;
+    const el = this.boardFocus.item(document.activeElement);
+    if (!el || document.activeElement.closest("input,textarea,select,[contenteditable],[role=textbox]")) return null;
+    return el.dataset.placement ? {placementId:el.dataset.placement} : {decorationId:el.dataset.decoration};
+  }
+  // The focused item becomes the selection, as the card's menu makes it when it opens, so a command that works on the
+  // selection (Duplicate, Bring to front) acts on it. A grouped item brings its group, as a click does. Focus stays.
+  adoptFocusedTarget() {
+    const ref = this.focusedTarget();
+    if (!ref) return false;
+    const key = this.boardFocus.key(this.boardFocus.item(document.activeElement));
+    this.toggleOccurrence(ref);
+    this.boardFocus.keepOn(key);
+    return true;
+  }
+  // The focused Markdown document card when nothing is selected (E edits it).
+  focusedDocument() {
+    const ref = this.focusedTarget();
+    const p = ref?.placementId && this.snapshot.placements.find(p => p.id === ref.placementId), item = p && this.snapshot.items[p.itemId];
+    return item && this.editableDocument(item) ? {item, placementId:p.id} : null;
+  }
   boardCommandBlocked(event) {
     return this.clipboardBlocked() || this.history?.busy ||
       event?.target.closest?.("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]") ||
-      document.activeElement?.closest("[role=textbox]");
+      // A key pressed while a popup is open belongs to it (a click on a palette tool is never blocked by one).
+      document.activeElement?.closest("[role=textbox]") || widgetOwnsKey(event) || (event?.type === "keydown" && inPopup(event));
   }
   installBoardCommands(bar) {
     const guide = document.createElement("button");
@@ -857,6 +987,8 @@ export class WorkspaceBoard {
     globalThis.window?.addEventListener("blur", releaseBoxKey);
     document.addEventListener("keydown", event => {
       if (event.isComposing || event.keyCode === 229 || event.altKey) return;
+      // An open menu or popover owns typed letters (typeahead) and its keys; board commands wait until it closes.
+      if (inPopup(event)) return;
       const command = event.metaKey || event.ctrlKey;
       // Shift-1/2 match the physical keys, so they work on any keyboard layout.
       const shifted = digit => event.shiftKey && (event.code ? event.code === `Digit${digit}` : event.key === "!@"[digit - 1] || event.key === String(digit));
@@ -871,12 +1003,15 @@ export class WorkspaceBoard {
         const editing = "input,textarea,select,[contenteditable],[role=textbox],[role=dialog]";
         const hasDrawings = this.mode === "canvas" && (this.decorationSelection?.size || this.activeDecoration);
         if (event.target.closest?.(editing) || document.activeElement?.closest(editing) ||
-            document.activeElement?.tagName === "IFRAME" || document.querySelector("dialog[open]") ||
-            !this.clipboardCandidates().length && !hasDrawings) return;
+            document.activeElement?.tagName === "IFRAME" || document.querySelector(MODAL_OPEN) || widgetOwnsKey(event) ||
+            !this.clipboardCandidates().length && !hasDrawings && !this.focusedTarget()) return;
         // Board-owned Duplicate never falls through to browser Bookmark while
         // a held key or an in-flight action suppresses another duplication.
         event.preventDefault(); event.stopImmediatePropagation();
-        if (!event.repeat && !this.boardCommandBlocked(event)) this.duplicateSelection();
+        if (event.repeat || this.boardCommandBlocked(event)) return;
+        // Nothing selected: the focused item is duplicated, as its menu's Duplicate ⌘D does.
+        if (!this.clipboardCandidates().length && !hasDrawings) this.adoptFocusedTarget();
+        this.duplicateSelection();
         return;
       }
       // F fits when it is released, so it (and Z) can be held through a selection box.
@@ -905,8 +1040,9 @@ export class WorkspaceBoard {
           else if (drawn.length) this.whiteboard?.selectDecorations(drawn);
           this.selectionMenu();
         };
+      // Enter opens the one selected Tinka, unless an item has focus: then Enter is that item's (board-focus.js).
       else if (!command && !event.shiftKey && key === "enter" &&
-          !event.target.closest?.("button,a,[role=button],.board-map-stage") && this.clipboardCandidates().length === 1) {
+          !event.target.closest?.("button,a,[role=button],.board-map-stage,#world .workspace-card,#world .workspace-decoration") && this.clipboardCandidates().length === 1) {
         const id = this.clipboardCandidates()[0].id;
         const card = [...$("world").querySelectorAll(".workspace-card[data-placement]")].find(card => card.dataset.placement === id);
         const open = card?.querySelector("[data-open]:not(:disabled)");
@@ -919,8 +1055,8 @@ export class WorkspaceBoard {
       else if (!command && shifted(2) && this.mode === "canvas")
         action = () => this.hooks.fit?.("selection");
       // ] brings the selection to the front and [ sends it to the back.
-      else if (!command && (key === "]" || key === "[") && this.stackSelection())
-        action = () => this.restackSelection(key === "]" ? "front" : "back");
+      else if (!command && (key === "]" || key === "[") && (this.stackSelection() || this.focusedTarget() && this.mode === "canvas" && !this.hooks.viewOnly))
+        action = () => { if (!this.stackSelection()) this.adoptFocusedTarget(); this.restackSelection(key === "]" ? "front" : "back"); };
       // M shows or hides the board map.
       else if (!command && !event.shiftKey && key === "m" && this.mode === "canvas")
         action = () => this.hooks.toggleMap?.();
@@ -931,9 +1067,10 @@ export class WorkspaceBoard {
         action = () => this.setCanvasTool(key === "h" ? "pan" : "pointer");
       else if (!command && key === "?") action = () => this.keyboardShortcuts();
       // E edits the one selected Markdown document.
-      else if (!command && !event.shiftKey && key === "e" && this.selectedDocument()) {
-        const id = this.selectedDocument().id;
-        action = () => this.editDocument(id);
+      else if (!command && !event.shiftKey && key === "e" && (this.selectedDocument() || this.focusedDocument())) {
+        const focused = this.selectedDocument() ? null : this.focusedDocument();
+        const id = focused ? focused.item.id : this.selectedDocument().id;
+        action = () => this.editDocument(id, focused ? {placementId:focused.placementId} : {});
       }
       // C arms the Comment tool; Shift-C shows or hides the comments layer.
       else if (!command && key === "c" && this.mode === "canvas" && this.commentPins)
@@ -954,40 +1091,43 @@ export class WorkspaceBoard {
     }, true);
   }
   keyboardShortcuts() {
-    const previousFocus = document.activeElement;
-    const returnFocus = $("board-info").contains(previousFocus) ? $("board-info-toggle") : previousFocus;
-    $("board-info").hidden = true;
-    $("board-info-toggle").setAttribute("aria-expanded","false");
+    // An Inspector that opened it stays open behind it (as with Comparison order…), and focus comes back to its button.
+    const returnFocus = document.activeElement;
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
       <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
-      <dt>⌘/Ctrl-D</dt><dd>Duplicate selection</dd>
-      <dt>] / [</dt><dd>Bring the selection to the front / send it to the back</dd>
-      <dt>⌘/Ctrl-G</dt><dd>Group selected Canvas objects or ungroup the selected group</dd>
+      <dt>⌘/Ctrl-D</dt><dd>Duplicate selection (with nothing selected, the focused item)</dd>
+      <dt>] / [</dt><dd>Bring the selection (or the focused item) to the front / send it to the back</dd>
+      <dt>⌘/Ctrl-G</dt><dd>Group the selected Canvas objects, or ungroup the selected group (select with Space, then ⌘/Ctrl-G)</dd>
       <dt>${isMacPlatform() ? "Option" : "Alt"}-drag</dt><dd>Place another copy on this canvas. Cards share their item; drawn elements have their own content.</dd>
-      <dt>${MOD}← · ${MOD}→</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
-      <dt>Enter</dt><dd>Open one selected Tinka</dd>
+      <dt>${isMacPlatform() ? "K · J" : `${MOD}← · ${MOD}→ or K · J`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
+      <dt>Tab, then arrow keys</dt><dd>Go to the board’s items: the arrows move to the nearest item that way; Home · End go to the first · last</dd>
+      <dt>Space</dt><dd>Select or deselect the focused item (a grouped item brings its group)</dd>
+      <dt>Enter</dt><dd>Open the focused Tinka, or the one selected; on a container, go in among its contents</dd>
+      <dt>Escape on an item in a container</dt><dd>Back out to the container</dd>
       <dt>⌘/Ctrl-K or /</dt><dd>Find across this project (Navigator)</dd>
-      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka or this board</dd>
+      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka (with nothing selected, the focused one) or this board</dd>
       <dt>Shift-click · ⌘/Ctrl-click</dt><dd>Add a Tinka to the selection</dd>
       <dt>F</dt><dd>Fit the selection, then the whole board (⌥-click Fit always fits the board)</dd>
       <dt>Hold F · Z while drawing a selection box</dt><dd>When you let go: fit what the box selected · zoom to the box itself</dd>
       <dt>Shift-1 · Shift-2 · Shift-0</dt><dd>Fit the canvas · Fit the selection · Zoom to 100%</dd>
       <dt>M</dt><dd>Show or hide the board map</dd>
       <dt>V · H</dt><dd>Pointer · Pan</dd>
-      <dt>Arrow keys on a tile resize grip</dt><dd>Resize the tile. Hold Shift for ten board units.</dd>
+      <dt>Arrow keys on a resize corner</dt><dd>Resize the card, shape, text or sticker 1 unit, 10 with Shift</dd>
+      <dt>⌥/Alt-F10</dt><dd>Move to the selected drawing's bar (it also follows the drawing's own controls in Tab order); Escape comes back</dd>
+      <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
-      <dt>E</dt><dd>Edit the selected Markdown document</dd>
-      <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment · Show or hide comments</dd>
+      <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
+      <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment, or press Enter on the focused one · Show or hide comments</dd>
       <dt>N</dt><dd>Quick jot: type a line, Enter adds it as a sticky; Escape closes</dd>
       <dt>?</dt><dd>Show keyboard shortcuts</dd>
       <dt>⌘/Ctrl-C · X · V</dt><dd>Copy · Cut · Paste</dd>
       <dt>Shift-⌘/Ctrl-C</dt><dd>Copy this board's notes as Markdown (text, stickies and linked item titles)</dd>
-      <dt>Delete / Backspace</dt><dd>Remove selection from this board</dd>
+      <dt>Delete / Backspace</dt><dd>Remove selection from this board (only what is selected: Space selects the focused item)</dd>
       <dt>⌘/Ctrl-Z · Shift-⌘/Ctrl-Z</dt><dd>Undo · Redo</dd>
-      <dt>Arrow keys · Shift-Arrow</dt><dd>Move selection 1 · 10 units</dd>
+      <dt>${isMacPlatform() ? "⌥" : "Alt+"}Arrow · ${isMacPlatform() ? "⌥⇧" : "Alt+Shift+"}Arrow</dt><dd>Move the focused item, and the selection or group with it, 1 · 10 units; in a container, move it one place · to the first or last place</dd>
       <dt>Escape</dt><dd>Close the newest panel or menu, then cancel a gesture, pending Cut or selection</dd>
-      <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ]</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
+      <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ] · K · J</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
     dialog.addEventListener("close", () => {
       if (returnFocus?.isConnected) returnFocus.focus({preventScroll:true});
     });
@@ -996,7 +1136,7 @@ export class WorkspaceBoard {
   // Work in progress blocks every board command, clicked or typed.
   commandBusy() {
     return this.hooks.viewOnly || this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy ||
-      this.client.pendingWrites || this.saving || document.querySelector("dialog[open]");
+      this.client.pendingWrites || this.saving || document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]");
   }
   // Keyboard and native clipboard events also yield to focused fields and panels.
   clipboardBlocked() {
@@ -1066,8 +1206,7 @@ export class WorkspaceBoard {
       if (!copied) toast("Use ⌘/Ctrl-C to copy the selected objects.");
     };
     $("workspace-paste").onclick = () => {
-      $("board-info").hidden = true;
-      $("board-info-toggle").setAttribute("aria-expanded","false");
+      closePanel($("board-info"));
       $("viewport").focus({preventScroll:true});
       toast("Press ⌘/Ctrl-V here to paste board objects, a link, or text.");
     };
@@ -1111,7 +1250,7 @@ export class WorkspaceBoard {
     });
     window.addEventListener("storage",e=>{if(e.key===this.cutIntent.key || e.key===null)this.syncCutMarks();});
     document.addEventListener("keydown",e=>{
-      if(e.key!=="Escape" || this.clipboardBlocked() || e.target.closest?.("input,textarea,select,[contenteditable],[role=dialog]") || !this.cutIntent.active()) return;
+      if(e.key!=="Escape" || this.clipboardBlocked() || e.target.closest?.("input,textarea,select,[contenteditable],[role=dialog]") || inPopup(e) || !this.cutIntent.active()) return;
       this.cancelCut();
     });
     document.addEventListener("paste", e => {
@@ -1275,6 +1414,7 @@ export class WorkspaceBoard {
       this.selection = new Set(result.placementIds || []);
       await this.refresh({saveReview:false});
       this.hooks.revealPlacements?.(this.snapshot.placements.filter(p=>this.selection.has(p.id)));
+      this.focusCreated({placementIds:result.placementIds || []});
       toast(`Imported ${files.length} ${files.length === 1 ? "file" : "files"}.`);
     } catch (error) {
       this.moveCommitting = false;
@@ -1389,6 +1529,7 @@ export class WorkspaceBoard {
         const ids = new Set(drawingIds);
         positions.push(...this.snapshot.decorations.filter(d => ids.has(d.id)).map(d => decorationBounds(d,this.snapshot)));
         this.hooks.revealPlacements?.(positions);
+        this.focusCreated({placementIds:result.placementIds,decorationIds:drawingIds});
       }});
       const count = result.placementIds.length + drawingIds.length;
       const noun = drawingIds.length ? (count === 1 ? "object" : "objects") : (count === 1 ? "Tinka" : "Tinkas");
@@ -1408,26 +1549,36 @@ export class WorkspaceBoard {
       this.updateHistoryControls();
     }
   }
+  // A drawn object's save runs until its refresh has landed. The board's command keys already wait for it (commandBusy);
+  // Undo, Redo and Paste show it too, so they read busy until the board they would act on is the saved one.
+  get decorationCommitting() { return !!this._decorationCommitting; }
+  set decorationCommitting(value) {
+    if (this._decorationCommitting === !!value) return;
+    this._decorationCommitting = !!value;
+    this.updateHistoryControls();
+  }
   updateHistoryControls() {
-    const busy = this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy || this.client.pendingWrites || this.saving || this.history?.busy;
+    const busy = this.pointerGesture || this.decorationGesture || this.decorationCommitting || this.movePending || this.historyBusy || this.pasteBusy || this.client?.pendingWrites || this.saving || this.history?.busy;
     for (const direction of ["undo","redo"]) {
       const button = $("workspace-" + direction);
       if (!button) continue;
       const verb = direction === "undo" ? "Undo" : "Redo", label = this.history?.label(direction);
       button.textContent = label ? `${verb} ${label.toLowerCase()}` : verb;
-      button.disabled = !!busy || !this.history?.available(direction);
-      button.title = direction === "undo" ? "Undo movement, paste or removal (⌘/Ctrl Z)" : "Redo movement, paste or removal (⌘/Ctrl Shift Z)";
+      // Through the Edit toolbar's part (setButtonOff): the SDK writes the button's `disabled` from it.
+      const off = !!busy || !this.history?.available(direction);
+      setButtonOff(button, off);
+      setTip(button, direction === "undo" ? "Undo movement, paste or removal" : "Redo movement, paste or removal");
       const quick = $("chrome-" + direction);
-      if (quick) { quick.disabled = button.disabled; quick.title = `${label ? `${verb} ${label.toLowerCase()}` : verb} (${direction === "undo" ? "⌘Z" : "⇧⌘Z"})`; }
+      if (quick) { setItemDisabled(quick, off); setTip(quick, label ? `${verb} ${label.toLowerCase()}` : verb); }
     }
     const copy = $("workspace-copy"), paste = $("workspace-paste");
     const hasDrawings = this.mode === "canvas" && (this.activeDecoration || this.decorationSelection.size);
-    if (copy) copy.disabled = !!busy || !this.clipboardCandidates().length && !hasDrawings;
-    if (paste) paste.disabled = !!busy;
+    if (copy) setButtonOff(copy, !!busy || !this.clipboardCandidates().length && !hasDrawings);
+    if (paste) setButtonOff(paste, !!busy);
   }
   async replayMovement(direction, {explicit = false} = {}) {
     if (this.pointerGesture || this.decorationGesture || this.movePending || this.historyBusy || this.pasteBusy || this.history?.busy || this.client.pendingWrites || this.saving ||
-        (!explicit && document.activeElement?.closest("input,textarea,select,[contenteditable],[role=dialog]")) || document.querySelector("dialog[open]") ||
+        (!explicit && document.activeElement?.closest("input,textarea,select,[contenteditable],[role=dialog]")) || document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]") ||
         !this.history.available(direction)) return;
     this.historyBusy = true;
     this.movePending = true;
@@ -1461,9 +1612,7 @@ export class WorkspaceBoard {
       );
     } catch {}
     document.body.dataset.boardLayout = mode;
-    document
-      .querySelectorAll("[data-mode]")
-      .forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+    document.querySelectorAll(".workspace-segments").forEach(seg => setSegmented(seg, mode));
     this.hooks.mode(mode);
     this.syncEditTools?.();
     if (mode !== "canvas" && this.commentPins?.armed) this.commentPins.arm(false);
@@ -1535,14 +1684,14 @@ export class WorkspaceBoard {
       const childBoard = boardTile ? this.snapshot.childBoards?.[item.childBoardId] : null;
       const childCount = childBoard ? childBoard.placements.filter(entry => !entry.removedAt && !entry.deletedAt && !entry.archivedAt).length : this.snapshot.boardCovers?.[item.childBoardId]?.count;
       const placeMeta = boardTile ? `<span class="workspace-place-meta">Board${Number.isFinite(childCount) ? ` · ${childCount} ${childCount === 1 ? "item" : "items"}` : ""}${childBoard?.updatedAt ? ` · ${timeHTML(childBoard.updatedAt, { prefix: "edited ", verb: "Edited" })}` : ""}</span>` : "";
-      const badges = `<span class="workspace-badges" aria-hidden="true">${review.star ? '<span class="workspace-badge workspace-badge-star" title="Favorite"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></span>' : ""}${review.note ? '<span class="workspace-badge workspace-badge-note" title="Has notes"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 15h4"/></svg></span>' : ""}${voteState.mine ? `<span class="workspace-badge workspace-badge-vote" title="Your vote">${esc(choice)}</span>` : ""}</span>`;
+      const badges = `<span class="workspace-badges" aria-hidden="true">${review.star ? '<span class="workspace-badge workspace-badge-star" data-tip="Favorite"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></span>' : ""}${review.note ? '<span class="workspace-badge workspace-badge-note" data-tip="Has notes"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 15h4"/></svg></span>' : ""}${voteState.mine ? `<span class="workspace-badge workspace-badge-vote" data-tip="Your vote">${esc(choice)}</span>` : ""}</span>`;
       const tileNumber = String(c.shownNumber ?? "").trim().slice(0, 8);
-      const titleButton = `${tileNumber ? `<span class="workspace-concept-number workspace-caption-number">${esc(tileNumber)}</span>` : ""}<button type="button" class="workspace-panel-title" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" title="${esc(item.title)}">${esc(item.title)}</button>`;
-      const select = `<button type="button" class="workspace-select-dot" data-placement-select="${esc(p.id)}" aria-pressed="${selected}" aria-label="${selected ? "Deselect" : "Select"} ${esc(item.title)}" title="${selected ? "Deselect" : "Select"} (or Shift-click the item)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10.2 3 3 6-6.4"/></svg></button>`;
-      const ticker = version && !unavailable && !this.hooks.viewOnly ? this.fileVersionTicker(item, version) : "";
-      const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${ticker}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize ${esc(item.title)}" title="Drag to resize, or focus and use arrow keys" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown">◢</button>` : ""}</footer>`;
-      const more = `<button type="button" class="workspace-tile-more" data-item-controls="${esc(p.id)}" data-controls-focus="menu" aria-label="Actions for ${esc(item.title)}" aria-haspopup="menu" aria-expanded="${this.tileMenuPlacement === p.id}" title="Item actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>${review.note ? '<span class="workspace-note-dot" aria-hidden="true"></span>' : ""}</button>`;
-      const toolbar = `<div class="workspace-tile-toolbar" role="toolbar" aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" title="Edit document (E)">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" title="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" title="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" title="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`;
+      const titleButton = `${tileNumber ? `<span class="workspace-concept-number workspace-caption-number">${esc(tileNumber)}</span>` : ""}<button type="button" class="workspace-panel-title" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" data-tip="${esc(item.title)}" data-tip-truncated>${esc(item.title)}</button>`;
+      const select = `<button type="button" class="workspace-select-dot" data-placement-select="${esc(p.id)}" aria-pressed="${selected}" aria-label="${selected ? "Deselect" : "Select"} ${esc(item.title)}" data-tip="${selected ? "Deselect" : "Select"} (or Shift-click the item)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10.2 3 3 6-6.4"/></svg></button>`;
+      const ticker = version && !unavailable && !this.hooks.viewOnly ? this.fileVersionTicker(item, version, p.id) : "";
+      const footer = `<footer class="workspace-item-footer workspace-panel-caption">${p.presentation?.featuredFrom ? `<div class="workspace-feature-caption">${panel ? titleButton : ''}${sourceLine}</div>` : panel ? titleButton : placeMeta || '<span class="workspace-item-spacer" aria-hidden="true"></span>'}${ticker}${badges}${this.mode === "canvas" ? `<button type="button" class="workspace-resize" data-resize="${esc(p.id)}" aria-label="Resize bottom right of ${esc(item.title)}" data-tip="Drag to resize, or focus and use arrow keys" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown">◢</button>` : ""}</footer>`;
+      const more = `<button type="button" class="workspace-tile-more" data-item-controls="${esc(p.id)}" data-controls-focus="menu" aria-label="Actions for ${esc(item.title)}" aria-haspopup="menu" aria-expanded="${this.tileMenuPlacement === p.id}" data-tip="Item actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>${review.note ? '<span class="workspace-note-dot" aria-hidden="true"></span>' : ""}</button>`;
+      const toolbar = rovingMarkup(`<div class="workspace-tile-toolbar" role="toolbar" data-roving aria-label="Actions for ${esc(item.title)}"><button type="button" class="workspace-tool-open" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}">${placeOnly ? "Open board" : "Open"}</button>${this.editableDocument(item) ? `<button type="button" class="workspace-tool-open workspace-tool-edit" data-edit-document-item="${esc(item.id)}" aria-label="Edit ${esc(item.title)}" data-tip="Edit document" aria-keyshortcuts="E">Edit</button>` : ""}<button type="button" data-item-feedback="${esc(item.id)}" aria-label="Comments on ${esc(item.title)}" data-tip="Comments"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h7"/></svg></button><button type="button" class="workspace-vote-trigger" data-item-vote="${esc(item.id)}"${this.feedback?.showsVote?.(item.id) === false ? " hidden" : ""} data-vote-value="${esc(voteState.mine || "")}" aria-haspopup="dialog" aria-pressed="${!!voteState.mine}" aria-label="Vote on ${esc(item.title)}${voteState.mine ? `. Your vote: ${esc(choice)}` : ""}" data-tip="${voteState.mine ? `Your vote: ${esc(choice)}` : "Vote"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10H3v10h18V10h-2M3 14h18M8 3h8v9H8z"/><path d="m10 7 2 2 3-3"/></svg><span data-vote-summary>${esc(choice)}</span></button><button type="button" class="shortlist" data-star="${esc(c.key)}" aria-label="Favorite ${esc(item.title)}" aria-pressed="${!!review.star}" data-tip="Favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button></div>`);
       const visual = unavailable
         ? `<div class="workspace-build-placeholder"><strong>${item.build.state === "building" ? "In progress" : "Reserved"}</strong><span>${esc(item.build.message || "The preview will appear when this work is ready for review.")}</span></div>`
         : live ? `<iframe ${excerpt ? 'class="workspace-document-excerpt"' : ""} src="${esc(preview)}" data-preview-source="${esc(previewSource)}" title="${esc(item.title)} ${panel ? "design" : "live"} preview" tabindex="-1" loading="lazy" inert></iframe>`
@@ -1557,13 +1706,15 @@ export class WorkspaceBoard {
         : panel || icon ? `width:${p.width}px;height:${p.height}px;` : "";
       return `<article tabindex="-1" class="workspace-card ${panel ? "workspace-panel" : icon ? "workspace-icon" : "workspace-compact"} ${selected ? "selected" : ""} ${selected && this.selection.size === 1 ? "solo" : ""} ${boardTile ? "workspace-board-tile" : ""} ${placeOnly ? "workspace-place-only" : ""} ${this.revealFlash === p.id ? "navigator-revealed" : ""} ${this.pulsePlacement === p.id ? "return-pulse" : ""}" data-key="${esc(c.key)}" data-placement="${esc(p.id)}" ${kindAttributes(item)}${versionSheets(item) ? ` data-sheets="${versionSheets(item)}"` : ""} data-build-state="${esc(item.build?.state || "ready")}"${paper ? " data-custom-paper" : ""} style="${dimensions}${paper}--panel-viewport-width:${viewport.width}px;--panel-viewport-height:${viewport.height}px;">${select}${more}<div class="workspace-card-body">${icon ? `<button type="button" class="workspace-icon-entry" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="Open ${esc(item.title)}"><span aria-hidden="true">${item.childBoardId ? "▱" : item.content?.kind === "image" ? "▧" : item.content?.kind === "html" ? "▤" : "◇"}</span><strong>${esc(item.title)}</strong></button>` : `<div class="workspace-card-preview ${panel ? "workspace-panel-preview" : ""} ${live ? "workspace-live-preview" : ""} ${excerpt ? "workspace-document-excerpt-preview" : ""}" ${live && !documentContent || panel ? `data-preview-width="${viewport.width}" data-preview-height="${viewport.height}"` : ""}>${visual}<button type="button" class="workspace-preview-launch" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}" aria-label="${placeOnly ? "Open board" : "Open"} ${esc(item.title)}"><span>${placeOnly ? 'Open board <kbd aria-hidden="true">↵</kbd>' : `Open ${esc(item.title)} ↗`}</span></button></div>${!panel ? `<div class="workspace-card-copy"><div class="workspace-compact-meta">${tileNumber ? `<span class="workspace-concept-number">${esc(tileNumber)}</span>` : ""}${unavailable ? `<span class="workspace-build-label">${item.build.state === "building" ? "In progress" : "Reserved"}</span>` : ""}</div><h3><button type="button" ${unavailable ? "disabled" : ""} data-open="${esc(c.key)}">${esc(item.title)}</button></h3>${item.description ? `<p>${esc(item.description)}</p>` : ""}${item.question ? `<p class="workspace-question">${esc(item.question)}</p>` : ""}${item.childBoardId && item.content ? `<button type="button" class="workspace-child" data-child-board="${esc(item.childBoardId)}">Open board ↗</button>` : ""}</div>` : ""}`}</div>${footer}${toolbar}${this.mode === "canvas" && !this.hooks.viewOnly ? tileResizeEdges : ""}</article>`;
     };
+    // The roving group (board-focus.js): one Tab stop for the board's items.
+    const card = c => this.boardFocus.cardMarkup(renderCard(c), c.placement.id, c.graphItem.title);
     if (versionCard) {
       const template = document.createElement("template");
-      template.innerHTML = renderCard(concepts[0]);
+      template.innerHTML = card(concepts[0]);
       this.reconcileChildren(versionCard, template.content.firstElementChild);
       return;
     }
-    const cards = concepts.map(renderCard).join("");
+    const cards = concepts.map(card).join("");
     const groups = new Map();
     for (const c of concepts) {
       if (!groups.has(c.round)) groups.set(c.round, []);
@@ -1574,14 +1725,18 @@ export class WorkspaceBoard {
         const r = this.snapshot.rounds.find((r) => r.id === id) || {
           title: "On this board",
         };
-        return `<section class="workspace-grid-round" data-round="${esc(id)}"><header><p class="workspace-eyebrow">${r.number ? "ROUND " + esc(r.number) : "ITEMS"}${r.date ? " · " + esc(r.date) : ""}</p><h2>${esc(r.title || "Exploration")}</h2>${r.description ? `<p>${esc(r.description)}</p>` : ""}</header><div class="workspace-cards">${newestBoardsFirst(entries, c => this.snapshot.childBoardCreatedAt?.[c.graphItem.childBoardId], c => !!c.graphItem.childBoardId).map(renderCard).join("")}</div></section>`;
+        return `<section class="workspace-grid-round" data-round="${esc(id)}"><header><p class="workspace-eyebrow">${r.number ? "ROUND " + esc(r.number) : "ITEMS"}${r.date ? " · " + esc(r.date) : ""}</p><h2>${esc(r.title || "Exploration")}</h2>${r.description ? `<p>${esc(r.description)}</p>` : ""}</header><div class="workspace-cards">${newestBoardsFirst(entries, c => this.snapshot.childBoardCreatedAt?.[c.graphItem.childBoardId], c => !!c.graphItem.childBoardId).map(card).join("")}</div></section>`;
       })
       .join("");
     // On Canvas, stickies, shapes, text, regions and arrows also make a board non-empty.
     const canvasEmpty = !cards && !(this.snapshot.decorations || []).length;
+    const lostFocus = this.boardFocus.lostBox();
+    // A rebuild takes the comment layer out of the world and puts it back (syncGeometry): a pin that has focus keeps it.
+    const pinFocus = this.commentPins?.focusToken();
     this.reconcile(world, `${this.mode === "canvas" ? this.decorations() : ""}${this.mode === "grid" ? grid || '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : `<div class="workspace-cards">${canvasEmpty ? '<p class="workspace-empty">Nothing here yet. Add an idea or clear a filter.</p>' : cards}</div>`}`);
     // The foot's kind legend counts exactly the cards just drawn.
     (this.kindLegend ||= new KindLegend(world)).update(this.snapshot.id);
+    this.boardFocus.ensureStop(lostFocus);
     // A card being edited in place keeps its editing state across re-renders.
     if (this.documentEditing) import("./board-document.js").then(m => m.reapplyEditing(this)).catch(() => {});
     if (this.mode === "canvas") {
@@ -1625,6 +1780,7 @@ export class WorkspaceBoard {
     this.hooks.layout();
     this.positionContext();
     this.syncGeometry();
+    this.commentPins?.restoreFocus(pinFocus);
   }
   reconcile(parent, markup) {
     const template = document.createElement("template");
@@ -1665,40 +1821,47 @@ export class WorkspaceBoard {
       : el.clientWidth / width;
     el.style.setProperty("--preview-scale", String(scale));
   }
+  // The selection bar is one ui-toolbar built once; a selection change updates it in place (labels, which actions show),
+  // so a focused action stays focused and the toolbar keeps its place in the tab order (one Tab stop, arrows along it).
   selectionMenu() {
     this.closeArrangeMenu();
     const el = $("workspace-selection");
+    if (!el.dataset.built) {
+      el.dataset.built = "1";
+      const part = html => `<ui-toolbar-button>${html}</ui-toolbar-button>`;
+      const bulk = (name, label, extra = "") => part(`<button type="button" class="tk-btn tk-sm ${extra}" data-bulk="${name}">${label}</button>`);
+      el.innerHTML = `<strong role="status"></strong>`
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-arrange-open aria-label="Arrange" aria-haspopup="menu" aria-expanded="false" data-tip="Arrange: align, distribute, tidy into a grid" hidden>${ARRANGE_ICON}</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-edit-document aria-keyshortcuts="E" data-tip="Edit document" hidden>Edit document</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-selection-details aria-label="Item details" aria-keyshortcuts="Meta+I Control+I" data-tip="Item details" hidden>Details…</button>`)
+        + part(`<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" aria-keyshortcuts="Meta+G Control+G" hidden></button>`)
+        + bulk("feature", "Show on parent…") + bulk("move", "Move…") + bulk("reference", "Add reference…", "selection-wide") + bulk("new-board-around", "New board around selection…")
+        + bulk("archive", "Archive here", "selection-wide") + bulk("remove", "Remove from board…", "tk-danger")
+        + `<span class="tk-divider" aria-hidden="true"></span>`
+        + part(`<button type="button" class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" aria-keyshortcuts="Escape" data-tip="Clear selection"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`);
+      el.querySelectorAll("[data-bulk]").forEach((b) => (b.onclick = () => this.bulk(b.dataset.bulk)));
+      el.querySelector("[data-arrange-open]").onclick = event => this.arrangeMenu(event.currentTarget, event);
+      el.querySelector("[data-selection-details]").onclick = () => { const id = [...this.selection][0]; if (id) this.itemControls(id, "notes"); };
+      el.querySelector("[data-edit-document]").onclick = () => { const doc = this.selectedDocument(); if (doc) this.editDocument(doc.id); };
+      // Arrange is a menu button in the bar: ArrowDown opens its menu at the first item (the one ArrowDown wiring for it).
+      openOnArrowDown(el, "[data-arrange-open]", (event, button) => { if (button.getAttribute("aria-expanded") !== "true") this.arrangeMenu(button, event); });
+      tips(el);
+    }
     el.hidden = !this.selection.size;
-    el.setAttribute("role", "toolbar");
+    const count = this.selectedCount();
+    el.querySelector("strong").textContent = `${count} selected`;
     const grouping = this.selection.size && this.groupAction();
-    const groupButton = grouping ? `<button type="button" class="tk-btn tk-sm" data-bulk="canvas-group" aria-keyshortcuts="Meta+G Control+G">${grouping.label}</button>` : "";
-    el.innerHTML = `<strong role="status">${this.selectedCount()} selected</strong>${groupButton}<button class="tk-btn tk-sm" data-bulk="feature">Show on parent…</button><button class="tk-btn tk-sm" data-bulk="move">Move…</button><button class="tk-btn tk-sm selection-wide" data-bulk="reference">Add reference…</button><button class="tk-btn tk-sm" data-bulk="new-board-around">New board around selection…</button><button class="tk-btn tk-sm selection-wide" data-bulk="archive">${this.filters.archive ? "Restore here" : "Archive here"}</button><button class="tk-btn tk-sm tk-danger" data-bulk="remove">Remove from board…</button><span class="tk-divider" aria-hidden="true"></span><button class="tk-btn tk-sm tk-icon" data-bulk="clear" aria-label="Clear selection" title="Clear selection (Esc)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button>`;
-    if (this.canvasGroups().some(group => group.placementIds.some(id => this.selection.has(id)) && group.decorationIds.length)) {
-      for (const action of ["feature","move","reference","new-board-around","archive"])
-        el.querySelector(`[data-bulk="${action}"]`).hidden = true;
-    }
-    if (this.mode === "canvas" && this.selectedCount() >= 2 && this.arrangeObjects().length >= 2) {
-      const arrange = document.createElement("button");
-      arrange.type = "button"; arrange.className = "tk-btn tk-sm tk-icon"; arrange.dataset.arrangeOpen = "";
-      arrange.setAttribute("aria-label", "Arrange"); arrange.setAttribute("aria-haspopup", "dialog");
-      arrange.setAttribute("aria-expanded", "false");
-      arrange.title = "Arrange: align, distribute, tidy into a grid"; arrange.innerHTML = ARRANGE_ICON;
-      arrange.onclick = () => this.arrangeMenu(arrange);
-      el.querySelector("strong")?.after(arrange);
-    }
-    el.querySelectorAll("[data-bulk]").forEach(
-      (b) => (b.onclick = () => this.bulk(b.dataset.bulk)),
-    );
-    if (this.selection.size === 1) {
-      const id = [...this.selection][0];
-      const controls = document.createElement('button'); controls.type='button'; controls.className='tk-btn tk-sm'; controls.textContent='Details…'; controls.setAttribute('aria-label','Item details'); controls.setAttribute('aria-keyshortcuts','Meta+I Control+I'); controls.title='Item details (⌘I)';
-      controls.onclick=()=>this.itemControls(id,'notes'); el.insertBefore(controls,el.querySelector('[data-bulk]'));
-      const doc = this.selectedDocument();
-      if (doc) {
-        const edit = document.createElement('button'); edit.type='button'; edit.className='tk-btn tk-sm'; edit.dataset.editDocument=''; edit.textContent='Edit document'; edit.setAttribute('aria-keyshortcuts','E'); edit.title='Edit document (E)';
-        edit.onclick=()=>this.editDocument(doc.id); el.insertBefore(edit,controls);
-      }
-    }
+    const groupButton = el.querySelector('[data-bulk="canvas-group"]');
+    groupButton.hidden = !grouping;
+    if (grouping) groupButton.textContent = grouping.label;
+    el.querySelector('[data-bulk="archive"]').textContent = this.filters.archive ? "Restore here" : "Archive here";
+    const withDrawn = this.canvasGroups().some(group => group.placementIds.some(id => this.selection.has(id)) && group.decorationIds.length);
+    for (const action of ["feature","move","reference","new-board-around","archive"])
+      el.querySelector(`[data-bulk="${action}"]`).hidden = withDrawn;
+    const one = this.selection.size === 1;
+    el.querySelector("[data-arrange-open]").hidden = !(this.mode === "canvas" && count >= 2 && this.arrangeObjects().length >= 2);
+    el.querySelector("[data-selection-details]").hidden = !one;
+    el.querySelector("[data-edit-document]").hidden = !(one && this.selectedDocument());
     this.updateHistoryControls();
     this.emitSelection();
     this.positionEditTools();
@@ -1735,7 +1898,7 @@ export class WorkspaceBoard {
       const title = this.snapshot.items[p?.itemId]?.title || "item";
       button.setAttribute("aria-pressed", String(selected));
       button.setAttribute("aria-label", `${selected ? "Deselect" : "Select"} ${title}`);
-      button.title = `${selected ? "Deselect" : "Select"} (or Shift-click the item)`;
+      setTip(button, `${selected ? "Deselect" : "Select"} (or Shift-click the item)`);
     }
     const count = $("workspace-selection").querySelector("strong");
     if (count) count.textContent = `${this.selectedCount()} selected`;
@@ -1786,11 +1949,12 @@ export class WorkspaceBoard {
       }
       if (type === "remove") {
         if (!ids.length) return;
-        makeDialog(
-          "Remove these placements?",
-          `<p>Remove ${ids.length} placement${ids.length === 1 ? "" : "s"} from this board${this.groupDecorations().length ? ` and delete ${this.groupDecorations().length} drawn element${this.groupDecorations().length === 1 ? "" : "s"}` : ""}. Other references, canonical items, notes and all resource files remain intact.</p><button type="submit" class="workspace-primary">Remove from this board</button>`,
-          () => this.removePlacements(ids),
-        );
+        const drawnCount = this.groupDecorations().length;
+        if (await confirmDialog({
+          title: "Remove from this board",
+          description: `Remove ${ids.length} placement${ids.length === 1 ? "" : "s"} from this board${drawnCount ? ` and delete ${drawnCount} drawn element${drawnCount === 1 ? "" : "s"}` : ""}. Other references, canonical items, notes and all resource files remain intact.`,
+          confirmLabel: "Remove from this board",
+        })) await this.removePlacements(ids);
         return;
       }
       await this.client.write("archive", {
@@ -1830,8 +1994,9 @@ export class WorkspaceBoard {
       ids.forEach(id => this.selection.delete(id));
       if (ids.includes(this.contextPlacement)) this.closeContext();
       await this.refresh({saveReview:false});
-      toast(drawn.length ? `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}. Undo to restore.`
-        : `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} from this board. Undo to restore.`);
+      toast(drawn.length ? `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}.`
+        : `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} from this board.`,
+        {action:{label:"Undo", onAction:() => this.replayMovement("undo", {explicit:true})}});
     } catch (error) {
       try { await this.refresh({saveReview:false}); } catch {}
       if (confirmedRemoved) toast("Removed from this board. Reload to see the latest board; Undo remains available.");
@@ -1922,25 +2087,28 @@ export class WorkspaceBoard {
     return destinationDialog(this.client, { sourceBoardId: this.snapshot.id, placementIds, kind: type,
       refresh: async () => { if (type === "move") this.hooks.closeReader(); await this.refresh({ saveReview: false }); } });
   }
-  editItem(item) { if (item) itemForm(this.client, { item, refresh: () => this.refresh() }); }
-  itemControls(id, focus = "notes") {
-    if (this.contextPlacement === id) { this.closeContext(); return; }
+  editItem(item, opener) { if (item) itemForm(this.client, { item, refresh: () => this.refresh(), ...(opener ? { opener } : {}) }); }
+  itemControls(id, focus = "notes", {returnToCard = false, again = null} = {}) {
+    if (this.contextPlacement === id && !again) { this.closeContext(); return; }
     this.closeContext();
     const p = this.snapshot.placements.find(p => p.id === id);
     const item = this.snapshot.items[p?.itemId];
     if (!item) return;
     this.closeAddMenu();
-    $("board-info").hidden = true;
-    $("board-info-toggle").setAttribute("aria-expanded", "false");
+    closePanel($("board-info"));
     this.contextPlacement = id;
+    this.contextReturnToCard = returnToCard;
     // The Inspector: the right side is "what". It replaces the old attached
     // popup with labelled sections; notes stay canonical, appearance stays local.
-    const popover = document.createElement("section");
+    // A UI SDK non-modal Dialog (side-panel.js): the board stays usable beside it.
+    const panelRoot = document.createElement("ui-dialog");
+    const popover = document.createElement("ui-dialog-content");
     popover.id = "workspace-item-controls";
     popover.className = "workspace-item-controls calm-side calm-side-right";
-    popover.setAttribute("role", "dialog");
-    popover.setAttribute("aria-modal", "false");
+    popover.setAttribute("inline", "");
+    popover.hidden = true;
     popover.setAttribute("aria-label", `Details of ${item.title}`);
+    panelRoot.append(popover);
     const note = this.pendingReview.get(item.id)?.note ?? item.review?.note ?? "";
     const kinds = {html:"Prototype",image:"Image",markdown:"Document",pdf:"PDF",video:"Video",audio:"Audio",note:"Note",text:"Text",url:"Link",file:"File"};
     const placeOnly = !!item.childBoardId && !item.content;
@@ -1957,37 +2125,71 @@ export class WorkspaceBoard {
         ${item.description ? `<p class="inspector-desc">${esc(item.description)}</p>` : ""}
         <div class="inspector-open"><button type="button" class="tk-btn tk-primary" data-context-open ${["reserved","building"].includes(item.build?.state) && !placeOnly ? "disabled" : ""}>${placeOnly ? "Open board" : "Open"}</button>${item.childBoardId && item.content ? `<button type="button" class="tk-btn tk-tonal" data-context-board>Open board</button>` : ""}${resourceURL(item.resources?.find(r=>r.role==="handoff")?.resource)?`<a class="tk-btn" href="${esc(resourceURL(item.resources.find(r=>r.role==="handoff").resource))}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}<button type="button" class="tk-btn tk-tonal" data-context-edit>Edit item…</button></div>
         <section class="inspector-sec"><h3>Notes <span>saved as you type</span></h3><label class="workspace-context-note"><span class="inspector-label">Notes</span><textarea data-note="items/${esc(id)}" aria-label="Notes on ${esc(item.title)}" placeholder="A thought to return to…">${esc(note)}</textarea></label></section>
-        <section class="inspector-sec"><h3>Feedback</h3><div class="workspace-context-row workspace-context-actions inspector-feedback"><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button><button type="button" class="tk-btn tk-sm" data-context-vote>Vote</button></div></section>
-        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span><div class="workspace-appearance-buttons tk-seg" role="group" aria-label="Item appearance">${[["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => `<button type="button" data-presentation="${value}" aria-label="${label}" title="${label}" aria-pressed="${mode === value}"><svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span></button>`).join("")}</div></div><div class="inspector-paper">${inspectorColorMarkup("Paper color",paper,"paper")}</div></section>
-        <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${timeHTML(item.createdAt, { verb: "Created", focusable: true }) || "Unknown"}</dd><dt>Edited</dt><dd>${timeHTML(item.updatedAt, { verb: "Edited", focusable: true }) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${timeHTML(child.updatedAt, { verb: "Edited", focusable: true })}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
-        <section class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button>${this.mode === "canvas" ? '<button type="button" class="tk-mi" data-context-connect>Connect</button>' : ""}<button type="button" class="tk-mi" data-context-move>Move to board…</button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></section>
+        <section class="inspector-sec"><h3 id="workspace-item-feedback-heading">Feedback</h3><ui-toolbar class="workspace-context-row workspace-context-actions inspector-feedback" aria-labelledby="workspace-item-feedback-heading"><ui-toolbar-button><button type="button" class="tk-btn tk-sm" data-context-star aria-pressed="${!!item.review?.star}">${item.review?.star ? "Unfavorite" : "Favorite"}</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-btn tk-sm" data-context-comments>Comments</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-btn tk-sm" data-context-vote aria-haspopup="dialog">Vote</button></ui-toolbar-button></ui-toolbar></section>
+        <section class="inspector-sec"><h3>Appearance <span>this placement</span></h3><div class="workspace-context-row"><span class="inspector-label">Appearance</span>${segmentedHTML({ label: "Item appearance", className: "workspace-appearance-buttons", value: mode, items: [["panel", "Full preview", '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 17h18"/>'], ["card", "Compact card", '<rect x="5" y="4" width="14" height="16" rx="1"/><path d="M5 13h14M8 16h8"/>'], ["icon", "Icon", '<rect x="7" y="7" width="10" height="10" rx="2"/>']].map(([value, label, art]) => ({ value, ariaLabel: label, tip: label, attrs: { "data-presentation": value }, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${art}</svg><span>${value === "panel" ? "Full" : value === "card" ? "Card" : "Icon"}</span>` })) })}</div><div class="inspector-paper">${inspectorColorMarkup("Paper color",paper,"paper")}</div></section>
+        <section class="inspector-sec"><h3>Details</h3><dl class="inspector-props"><dt>Created</dt><dd>${exactTimeHTML(item.createdAt) || "Unknown"}</dd><dt>Edited</dt><dd>${exactTimeHTML(item.updatedAt) || "Unknown"}</dd>${child?.updatedAt ? `<dt>Board edited</dt><dd>${exactTimeHTML(child.updatedAt)}</dd>` : ""}<dt>Status</dt><dd>${esc(stateLabel)}${item.revisions?.length ? ` · ${item.revisions.length} versions` : ""}</dd></dl>${item.build?.message ? `<p class="inspector-desc">${esc(item.build.message)}</p>` : ""}</section>
+        <ui-toolbar orientation="vertical" class="inspector-sec inspector-acts workspace-context-row workspace-context-actions" aria-label="Item actions"><ui-toolbar-button><button type="button" class="tk-mi" data-context-select>${this.selection.has(id) ? "Deselect" : "Select"}</button></ui-toolbar-button>${this.mode === "canvas" ? '<ui-toolbar-button><button type="button" class="tk-mi" data-context-connect>Connect</button></ui-toolbar-button>' : ""}<ui-toolbar-button><button type="button" class="tk-mi" data-context-move>Move to board…</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-mi" data-context-duplicate aria-keyshortcuts="Meta+D Control+D">Duplicate</button></ui-toolbar-button><ui-toolbar-button><button type="button" class="tk-mi tk-danger" data-context-remove>Remove from board…</button></ui-toolbar-button></ui-toolbar>
       </div>`;
-    document.body.append(popover);
+    // Focus goes back to what had it when the Inspector opened (a card, Details… on the selection bar); opened from a
+    // menu, whose item is gone, to the card's ⋯.
+    const before = document.activeElement;
+    const fromMenu = !before || before === document.body || !!before.closest?.('[role=menu],ui-menu-content,.workspace-tile-menu');
+    // Where focus goes when it closes: the card's ⋯ when a menu opened it (its item is gone), else what had focus, kept
+    // as a selector so the Inspector rebuilt after Edit item… (`again`) still finds it.
+    const cardSelector = `#world .workspace-card[data-placement="${CSS.escape(id)}"]`;
+    const returnTo = again ? again.returnTo : fromMenu ? (document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`) ? `[data-item-controls="${CSS.escape(id)}"]` : null)
+      : before?.id ? `#${CSS.escape(before.id)}` : before?.matches?.(cardSelector) ? cardSelector : null;
+    placeInBoardOrder(panelRoot);
+    tips(popover);
     this.context = popover;
     const invoker = () => document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`);
+    // The control that opened it while it is on screen, else the card's ⋯, else the card: where an outside press on
+    // nothing focusable returns focus (popups.js). (Tab needs no steering: the panel sits right after the board,
+    // placeInBoardOrder.)
+    popover.tabTrigger = () => {
+      const shown = el => el?.isConnected && el.getClientRects().length ? el : null;
+      const card = document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`);
+      return shown(invoker()) || shown(card?.querySelector(".workspace-tile-more")) || shown(card) || $("viewport");
+    };
+    this.contextPanel = sidePanel(panelRoot, {
+      openers: () => [...document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`)],
+      keepOpen: target => !!target.closest?.('.workspace-dialog,dialog[open],[aria-modal="true"],.feedback-panel,.feedback-ballot,.workspace-popover,.workspace-tile-menu,[data-slot$="-content"]:not([data-slot="dialog-content"])'),
+      body: content => content.querySelector('.calm-side-body') || content,
+      onClosed: () => { if (this.context === popover) this.closeContext(); },
+    });
     const only = () => { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.selection = new Set([id]); this.syncSelection(); this.selectionMenu(); };
     popover.querySelector("[data-context-close]").onclick = () => this.closeContext(true);
-    popover.querySelector("[data-context-edit]").onclick = () => {
-      this.closeContext();
-      itemForm(this.client, {item, opener:invoker, refresh:() => this.refresh()});
+    // Edit item… opens over the Inspector, which stays open behind it; closing the dialog returns focus to Edit item….
+    // After a save the Inspector is rebuilt in place, at once, to show the new details, with focus on Edit item… again.
+    popover.querySelector("[data-context-edit]").onclick = event => {
+      const button = event.currentTarget;
+      let saved = false;
+      const dialog = itemForm(this.client, {item, opener:button, refresh:async () => { saved = true; await this.refresh(); }});
+      dialog.addEventListener("close", () => {
+        if (!saved || this.context !== popover) return;
+        const fresh = this.snapshot.placements.find(p => p.id === id);
+        if (fresh && this.snapshot.items[fresh.itemId]) this.itemControls(id, "edit", {returnToCard:this.contextReturnToCard, again:{returnTo}});
+        else this.closeContext();
+      });
     };
     popover.querySelector("[data-context-open]").onclick = () => { const open = document.querySelector(`[data-placement="${CSS.escape(id)}"] [data-open]:not(:disabled)`); this.closeContext(); open?.click(); };
     popover.querySelector("[data-context-board]")?.addEventListener("click", () => { this.closeContext(); this.navigate(item.childBoardId); });
-    popover.querySelectorAll("[data-presentation]").forEach(button => button.onclick = async () => {
+    const applyAppearance = async ({ mode: chosen }) => {
       const placement = this.snapshot.placements.find(p => p.id === id);
-      const presentation = { mode: "card", ...(placement.presentation || {}), mode:button.dataset.presentation };
+      const presentation = { mode: "card", ...(placement.presentation || {}), mode:chosen };
       const patch = { presentation };
-      if (button.dataset.presentation && button.dataset.presentation !== (placement.presentation?.mode || "card")) {
+      if (chosen && chosen !== (placement.presentation?.mode || "card")) {
         const [width, height] = { panel: [560, 420], card: [320, 260], icon: [218, 112] }[presentation.mode];
         Object.assign(patch, { width, height });
       }
       try {
         await this.client.write("updatePlacement", { boardId: this.snapshot.id, placementId: id, patch });
         Object.assign(placement, patch);
-        popover.querySelectorAll("[data-presentation]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.presentation === (presentation.mode || "card"))));
+        setSegmented(popover.querySelector(".workspace-appearance-buttons"), presentation.mode || "card");
         await this.refresh();
       } catch (error) { showFailure(error); }
-    });
+    };
+    onSegmented(popover.querySelector(".workspace-appearance-buttons"), value => applyAppearance({ mode: value }));
     const latestPlacement=()=>this.snapshot.placements.find(entry=>entry.id===id);
     this.contextPaperSync=bindInspectorColor(popover.querySelector(".inspector-paper"),{
       label:"Paper color palette",options:[...tilePaperChoices,...drawingPalette],role:"paper",
@@ -2004,6 +2206,8 @@ export class WorkspaceBoard {
     actions.querySelector('[data-context-select]').onclick=()=>{this.toggleOccurrence({placementId:id});this.closeContext();};
     popover.querySelector('[data-context-star]').onclick=event=>{const button=document.querySelector(`[data-placement="${CSS.escape(id)}"] [data-star]`);button?.click();const on=button?.getAttribute('aria-pressed')==='true';event.currentTarget.textContent=on?'Unfavorite':'Favorite';event.currentTarget.setAttribute('aria-pressed',String(on));};
     popover.querySelector('[data-context-comments]').onclick=()=>{this.closeContext();this.feedback.open({itemId:item.id,returnFocus:()=>invoker()?.focus({preventScroll:true})});};
+    // Feedback is one toolbar, as the same actions are on the card's strip: ←/→ along it, ↓ on Vote opens the ballot.
+    openOnArrowDown(popover.querySelector('.inspector-feedback'), '[data-context-vote]', (event, button) => button.click());
     popover.querySelector('[data-context-vote]').onclick=event=>{this.closeContext();const trigger=invoker()||event.currentTarget;this.feedback.openVote({itemId:item.id,anchor:trigger,returnFocus:trigger});};
     actions.querySelector('[data-context-connect]')?.addEventListener('click',()=>{const from=invoker();this.closeContext();this.whiteboard?.connectPlacement(id,from);this.selectionMenu();});
     actions.querySelector('[data-context-move]').onclick=()=>{this.closeContext();only();this.bulk("move");};
@@ -2015,47 +2219,121 @@ export class WorkspaceBoard {
     this.positionContext();
     document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`).forEach(b => b.setAttribute("aria-expanded", "false"));
     document.querySelector(`[data-placement="${CSS.escape(id)}"]`)?.classList.add("inspected");
-    if (focus === "notes") noteField.focus({ preventScroll: true });
-    else if(focus==="actions") actions.querySelector("button").focus({preventScroll:true});
-    else popover.querySelector("[data-presentation]").focus({ preventScroll: true });
+    const start = focus === "notes" ? noteField : focus === "actions" ? actions.querySelector("button") : focus === "edit" ? popover.querySelector("[data-context-edit]") : null;
+    this.contextPanel.open({ opener: returnTo, focus: start || false });
+    // Rebuilt in place (again): no slide-in, it was already there.
+    if (again) for (const animation of popover.getAnimations?.({subtree: true}) || []) animation.finish();
+    // Appearance: a segmented control gets its roles a moment after it renders; focus its checked option then.
+    if (!start) focusSegmented(popover.querySelector(".workspace-appearance-buttons"));
   }
-  // Right-click gives a short native-feeling menu; Details… opens the Inspector.
-  tileMenu(id, point, anchor = null) {
-    this.closeTileMenu();
+  // Right-click (or a card's ⋯) gives a short native-feeling menu; Details… opens the Inspector. One shared UI SDK
+  // menu at the end of <body> serves every card (popups.js): it opens at the pointer for a right-click, under the ⋯
+  // for a press on it, and re-anchors on a second right-click.
+  tileMenuElement() {
+    if (this.tileMenuUI) return this.tileMenuUI;
+    const ui = this.tileMenuUI = sharedMenu({id:"workspace-tile-menu", className:"workspace-tile-menu"});
+    ui.root.addEventListener("action", e => this.runTileMenu(e.detail.value, ui.root.api.getPayload()));
+    ui.root.addEventListener("openchange", e => { if (!e.detail.value) this.tileMenuClosed(); });
+    // A turn of the wheel, a scroll that moves the card or a resized window leaves the card behind: the menu closes
+    // (as before the SDK). A wheel over a card's live preview scrolls the canvas without reaching this page as a
+    // wheel, so a moved ⋯ counts too; a scroll notification that moved nothing (revealing the invoker) does not.
+    const away = e => {
+      if (!ui.root.open || (e.target instanceof Node && ui.content.contains(e.target))) return;
+      // The board revealing the opener as the menu opens (focus moving to it) scrolls too: the menu follows its anchor
+      // then (the SDK re-reads it), so only a scroll after that settles closes it.
+      if (e.type === "scroll" && performance.now() - this.tileMenuOpenedAt < 500) { this.tileMenuOrigin = this.tileMenuAnchor?.getBoundingClientRect() || this.tileMenuOrigin; return; }
+      if (e.type === "scroll") { const now = this.tileMenuAnchor?.isConnected ? this.tileMenuAnchor.getBoundingClientRect() : null, was = this.tileMenuOrigin; if (now && was && Math.abs(now.x - was.x) <= .5 && Math.abs(now.y - was.y) <= .5) return; }
+      // A close asked for in the menu's first frame can be refused while it is still opening: ask again next frame.
+      if (!ui.root.api.close({reason:"imperative"})) requestAnimationFrame(() => { if (ui.root.open) ui.root.api.close({reason:"imperative"}); });
+    };
+    document.addEventListener("wheel", away, {capture:true, passive:true});
+    document.addEventListener("scroll", away, {capture:true, passive:true});
+    window.addEventListener("resize", away);
+    return ui;
+  }
+  tileMenu(id, point, anchor = null, event = null) {
     const p = this.snapshot.placements.find(p => p.id === id), item = this.snapshot.items[p?.itemId];
     if (!item) return;
     if (!this.selection.has(id)) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.selection = new Set([id]); this.syncSelection(); this.selectionMenu(); }
     const placeOnly = !!item.childBoardId && !item.content, star = !!(this.pendingReview.get(item.id)?.star ?? item.review?.star);
     const handoff=resourceURL(item.resources?.find(r=>r.role==="handoff")?.resource);
     const unavailable=["reserved","building"].includes(item.build?.state) && !placeOnly;
-    const menu = document.createElement("div");
-    menu.className = "tk-menu workspace-tile-menu"; menu.setAttribute("role", "menu"); menu.setAttribute("aria-label", `Actions for ${item.title}`);
-    menu.innerHTML = `<button type="button" class="tk-mi" role="menuitem" data-tile-menu="open" ${unavailable?"disabled":""}>${placeOnly ? "Open board" : "Open experiment"}<kbd class="tk-kbd" aria-hidden="true">↵</kbd></button>${handoff?`<a class="tk-mi" role="menuitem" href="${esc(handoff)}" target="_blank" rel="noopener noreferrer">Handoff</a>`:""}${this.editableDocument(item)?'<button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document" aria-keyshortcuts="E">Edit document</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="edit-document-source">Edit Markdown source</button>':""}<button type="button" class="tk-mi" role="menuitem" data-tile-menu="notes">Notes</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="details" aria-keyshortcuts="Meta+I Control+I">Details…</button><div class="tk-msep" role="separator"></div><button type="button" class="tk-mi" role="menuitem" data-tile-menu="star">${star ? "Unfavorite" : "Favorite"}</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="move">Move to board…</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="duplicate" aria-keyshortcuts="Meta+D Control+D">Duplicate</button>${this.mode === "canvas" && !this.hooks.viewOnly ? '<button type="button" class="tk-mi" role="menuitem" data-tile-menu="front" aria-keyshortcuts="]">Bring to front</button><button type="button" class="tk-mi" role="menuitem" data-tile-menu="back" aria-keyshortcuts="[">Send to back</button>' : ""}<div class="tk-msep" role="separator"></div><button type="button" class="tk-mi tk-danger" role="menuitem" data-tile-menu="remove">Remove from board…</button>`;
+    const {root, content} = this.tileMenuElement();
     this.closeContext();
-    document.body.append(menu); this.tilePopup = menu;this.tileMenuPlacement=id;
-    anchor?.setAttribute("aria-expanded","true");
-    positionTilePopover(menu,anchor,point);
-    const card = () => document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
-    menu.onclick = e => {
-      const action = e.target.closest("[data-tile-menu]")?.dataset.tileMenu; if (!action) {if(e.target.closest("a"))this.closeTileMenu();return;}
-      this.closeTileMenu();
-      if (action === "open") card()?.querySelector("[data-open]:not(:disabled)")?.click();
-      else if (action === "edit-document") this.editDocument(item.id, {placementId:id});
-      else if (action === "edit-document-source") this.editDocument(item.id, {placementId:id, source:true});
-      else if (action === "notes") this.hooks.editNote?.(`items/${id}`,card()?.querySelector("[data-item-controls]"));
-      else if (action === "details") this.itemControls(id, "notes");
-      else if (action === "star") card()?.querySelector("[data-star]")?.click();
-      else if (action === "move") this.bulk("move");
-      else if (action === "duplicate") this.duplicateSelection({explicit:true});
-      else if (action === "front" || action === "back") this.restackSelection(action);
-      else if (action === "remove") this.bulk("remove");
-    };
-    this.tileMenuBinding=bindTileMenu(menu,{close:()=>this.closeTileMenu(),returnFocus:()=>card()?.querySelector('[data-item-controls]'),anchor:anchor||card()});
+    if (this.tileMenuPlacement && this.tileMenuPlacement !== id) this.tileMenuClosed();
+    content.setAttribute("aria-label", `Actions for ${item.title}`);
+    const mi = (value, label, options = {}) => menuItem(value, label, {...options, attrs:`data-tile-menu="${value}"`});
+    content.innerHTML = mi("open", placeOnly ? "Open board" : "Open experiment", {shortcut:"enter", disabled:unavailable})
+      + (handoff ? menuLink(handoff, "Handoff") : "")
+      + (this.editableDocument(item) ? mi("edit-document", "Edit document", {shortcut:"e"}) + mi("edit-document-source", "Edit Markdown source") : "")
+      + mi("notes", "Notes") + mi("details", "Details…", {shortcut:"mod+i"})
+      + menuSeparator
+      + mi("star", star ? "Unfavorite" : "Favorite") + mi("move", "Move to board…") + mi("duplicate", "Duplicate", {shortcut:"mod+d"})
+      // 1.4's stacking commands, on Canvas only; ] and [ run them from the board too.
+      + (this.mode === "canvas" && !this.hooks.viewOnly ? mi("front", "Bring to front", {shortcut:"]"}) + mi("back", "Send to back", {shortcut:"["}) : "")
+      + menuSeparator
+      + mi("remove", "Remove from board…", {destructive:true, className:"tk-danger"});
+    // At the pointer: the menu's corner sits on it. Under the ⋯: right edges line up, as before.
+    content.setAttribute("side", "bottom");
+    content.setAttribute("align", point ? "start" : "end");
+    content.setAttribute("side-offset", point ? "2" : "6");
+    content.setAttribute("collision-padding", "8");
+    this.tileMenuPlacement = id;
+    const control = anchor?.matches?.('[data-controls-focus="menu"]') ? anchor : document.querySelector(`[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]`);
+    control?.setAttribute("aria-expanded", "true");
+    this.tileMenuAnchor = anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
+    this.tileMenuOrigin = this.tileMenuAnchor?.getBoundingClientRect() || null;
+    this.tileMenuOpenedAt = performance.now();
+    // Focus goes back to what opened the menu: the ⋯ when it was opened from the ⋯, else the card (a right-click or
+    // Shift+F10 on the card), where the arrows keep moving between cards.
+    const fromMore = !!anchor?.matches?.('[data-controls-focus="menu"]') && !point && (!event || !!event.target?.closest?.('[data-controls-focus="menu"]'));
+    this.tileMenuFromCard = !fromMore;
+    openMenu(root, {anchor: point || anchor || document.querySelector(`[data-placement="${CSS.escape(id)}"]`), payload:id, event,
+      returnTo: fromMore ? `[data-item-controls="${CSS.escape(id)}"][data-controls-focus="menu"]` : `[data-placement="${CSS.escape(id)}"]`});
   }
-  closeTileMenu() {
-    this.tileMenuBinding?.destroy();this.tileMenuBinding=null;
-    if(this.tileMenuPlacement)document.querySelector(`[data-item-controls="${CSS.escape(this.tileMenuPlacement)}"]`)?.setAttribute('aria-expanded','false');
-    this.tilePopup?.remove(); this.tilePopup = null;this.tileMenuPlacement=null;
+  tileMenuClosed() {
+    if(this.tileMenuPlacement)document.querySelectorAll(`[data-item-controls="${CSS.escape(this.tileMenuPlacement)}"][data-controls-focus="menu"]`).forEach(b=>b.setAttribute('aria-expanded','false'));
+    this.tileMenuPlacement=null;
+  }
+  closeTileMenu() { if (this.tileMenuUI?.root.open) this.tileMenuUI.root.api.close({reason:"imperative"}); else this.tileMenuClosed(); }
+  runTileMenu(action, id) {
+    const p = this.snapshot.placements.find(p => p.id === id), item = this.snapshot.items[p?.itemId];
+    if (!item || !action) return;
+    const card = () => document.querySelector(`[data-placement="${CSS.escape(id)}"]`);
+    if (action === "open") card()?.querySelector("[data-open]:not(:disabled)")?.click();
+    else if (action === "edit-document") this.editDocument(item.id, {placementId:id});
+    else if (action === "edit-document-source") this.editDocument(item.id, {placementId:id, source:true});
+    else if (action === "notes") this.hooks.editNote?.(`items/${id}`,card()?.querySelector("[data-item-controls]"));
+    else if (action === "details") this.itemControls(id, "notes", {returnToCard:this.tileMenuFromCard});
+    else if (action === "star") card()?.querySelector("[data-star]")?.click();
+    else if (action === "move") this.bulk("move");
+    else if (action === "duplicate") this.duplicateSelection({explicit:true});
+    else if (action === "front" || action === "back") this.restackSelection(action);
+    else if (action === "remove") this.bulk("remove");
+  }
+  // Keys that open the card and board menus, asked by the board's key handler before its own: Shift+F10 or the
+  // context-menu key opens the context menu of what has focus, a card's (under its ⋯) or the board's (at the canvas
+  // centre; macOS browsers fire no contextmenu event for these keys); ArrowDown / ArrowUp on a card's ⋯ open its menu
+  // at the first / last item, as on any menu button. True when the key was taken.
+  menuKey(e) {
+    if (e.altKey || e.metaKey || e.ctrlKey || this.mode !== "canvas") return false;
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      const card = e.target.closest?.("#world .workspace-card[data-placement]");
+      if (card) { e.preventDefault(); e.stopImmediatePropagation(); const more = card.querySelector('[data-controls-focus="menu"]'); this.tileMenu(card.dataset.placement, null, more?.getClientRects().length ? more : card, e); return true; }
+      const viewport = $("viewport");
+      if (e.target === viewport || e.target === document.body) { e.preventDefault(); e.stopImmediatePropagation(); const r = viewport.getBoundingClientRect(); this.addMenu(null, null, e, {x:r.left + r.width / 2, y:r.top + r.height / 2}); return true; }
+      return false;
+    }
+    // A menu button in a toolbar (Arrange in the selection bar) opens on ArrowDown through the toolbar's own listener
+    // (popups.js openOnArrowDown), which runs after this capture-phase handler: the board steps aside.
+    // (A card's own toolbars rove in board-focus.js; their menu buttons open just below.)
+    if (e.key === "ArrowDown" && !e.shiftKey && e.target.closest?.("[role=toolbar]:not([data-roving]) [aria-haspopup], ui-toolbar [aria-haspopup]")) return true;
+    const more = ["ArrowDown","ArrowUp"].includes(e.key) && !e.shiftKey && e.target.closest?.('[data-item-controls][data-controls-focus="menu"], #world [data-file-version-menu]');
+    if (!more) return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (more.dataset.fileVersionMenu) this.versionMenu(more, e);
+    else this.tileMenu(more.dataset.itemControls, null, more, e);
+    return true;
   }
 
   positionContext() {
@@ -2065,18 +2343,35 @@ export class WorkspaceBoard {
     if (!card) { this.closeContext(); return; }
     // The Inspector stays docked at the right edge; the inspected tile keeps a quiet mark.
     card.classList.add("inspected");
-    this.context.hidden = false;
   }
+  // Closing sends focus back to what opened the Inspector when focus was inside it (the SDK's rule); `focus` asks for
+  // that, and is kept for callers: focus outside the Inspector stays where it is.
   closeContext(focus = false) {
     if (!this.context) return;
-    const id = this.contextPlacement;
+    const id = this.contextPlacement, panel = this.contextPanel, content = this.context;
     this.contextCommit?.destroy(); this.contextCommit=null; this.contextPaperSync=null;
-    this.context.remove(); this.context = null; this.contextPlacement = null;
+    this.context = null; this.contextPanel = null; this.contextPlacement = null;
+    const root = content.closest("ui-dialog") || content;
+    content.removeAttribute("id");
+    if (panel?.isOpen) panel.close();
+    const hadFocus = !!panel?.hadFocus || content.contains(document.activeElement);
     cancelAnimationFrame(this.contextFrame);
     document.querySelectorAll(".workspace-card.inspected").forEach(card => card.classList.remove("inspected"));
     const buttons = document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`);
     buttons.forEach(b => b.setAttribute("aria-expanded", "false"));
-    if (focus) buttons[0]?.focus({ preventScroll: true });
+    // The SDK has sent focus back as it closed. When the control it went back to can't take focus (the card's ⋯
+    // shows only on hover), the card itself takes it. The element goes once that is done.
+    // Opened from a card's own menu (Details…), it goes back to the card, where the arrows keep moving between cards.
+    const card = this.contextReturnToCard && id ? document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`) : null;
+    requestAnimationFrame(() => {
+      if (card && (hadFocus || focus) && (!document.activeElement || document.activeElement === document.body || root.contains(document.activeElement) || document.activeElement.matches?.('[data-item-controls]'))) { card.focus({ preventScroll: true }); root.remove(); return; }
+      const lost = !document.activeElement || document.activeElement === document.body || root.contains(document.activeElement);
+      if ((hadFocus || focus) && lost) for (const el of [buttons[0], document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`)]) {
+        el?.focus({ preventScroll: true });
+        if (el && document.activeElement === el) break;
+      }
+      root.remove();
+    });
   }
   dropContext(gesture) {
     const graph = this.workspaceGraph, subject = gesture.lifted || {
@@ -2185,7 +2480,7 @@ export class WorkspaceBoard {
     const viewport = $("viewport");
     const emptyCanvas = e => {
       if (e.pointerType === "touch" || e.isPrimary === false || e.ctrlKey || e.metaKey || e.altKey ||
-          document.querySelector("dialog[open]")) return false;
+          document.querySelector("dialog[open],ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]")) return false;
       const rect = viewport.getBoundingClientRect();
       if (e.clientX < rect.left + viewport.clientLeft || e.clientX >= rect.left + viewport.clientLeft + viewport.clientWidth ||
           e.clientY < rect.top + viewport.clientTop || e.clientY >= rect.top + viewport.clientTop + viewport.clientHeight) return false;
@@ -2320,6 +2615,8 @@ export class WorkspaceBoard {
       this.updateHistoryControls();
       try { viewport.releasePointerCapture(done.pointerId); } catch {}
       drainRefresh();
+      // The box's live count goes with it; the result is said once, on release (as UI SDK's lasso does).
+      if (done.active && !cancelled) announce(`${this.selection.size + (this.decorationSelection.size || (this.activeDecoration ? 1 : 0))} selected.`);
       if (area && held === "z") this.hooks.fit?.("area",area);
       else if (area && held === "f" && this.clipboardCandidates().length) this.hooks.fit?.("selection");
     };
@@ -2464,6 +2761,7 @@ export class WorkspaceBoard {
             this.syncSelection();
             this.selectionMenu();
           } else this.whiteboard?.selectDecorations(result.decorationIds);
+          this.focusCreated(result);
         }});
         const count = result.placementIds.length + result.decorationIds.length;
         toast(count > 1 ? `Placed ${count} copies.` : "Placed a copy.");
@@ -2544,18 +2842,19 @@ export class WorkspaceBoard {
     // which would clear only the drawn elements).
     window.addEventListener("keydown", e => {
       if (e.key === "Escape" && drag?.copy) { cancel(); e.preventDefault(); e.stopImmediatePropagation(); return; }
-      if (e.key === "Escape" && this.arrangePopup) {
-        this.closeArrangeMenu({focus:true});e.preventDefault();e.stopImmediatePropagation();return;
-      }
-      if (e.key === "Escape" && this.panTool && !document.querySelector("dialog[open]")) {
+      // An open UI SDK menu or popover takes its own Escape (it closes one layer and returns focus).
+      if (e.key === "Escape" && inPopup(e)) return;
+      if (e.key === "Escape" && this.panTool && !document.querySelector(MODAL_OPEN) && !inPopup(e)) {
         this.setCanvasTool("pointer");e.preventDefault();e.stopImmediatePropagation();return;
       }
       if (e.key !== "Escape" || !this.mixedGroup || this.whiteboard?.editor || this.context || this.addPopup ||
-          document.querySelector("dialog[open]") || e.target.closest?.("input,textarea,select,[contenteditable]")) return;
+          document.querySelector(MODAL_OPEN) || e.target.closest?.("input,textarea,select,[contenteditable]") || inPopup(e)) return;
       e.preventDefault(); e.stopImmediatePropagation();
       this.whiteboard?.clearSelection({finishEdit:true,focus:false});
       this.mixedGroup = false;
+      const fromBar = !!e.target.closest?.("#workspace-selection");
       this.selection.clear(); this.build(this.hooks.concepts());
+      if (fromBar) this.boardFocus.afterBar();
     }, true);
     window.addEventListener("pointerdown", e => {
       this.heldGroup = this.mixedGroup && e.target.closest?.("#world .workspace-card.selected") ? this.decorationSelection : null;
@@ -2563,7 +2862,8 @@ export class WorkspaceBoard {
     // Whiteboard handles single drawn elements on document capture. Take their
     // Option-drag first, without changing either selection or persisted objects.
     window.addEventListener("pointerdown", e => {
-      if (this.panTool || !e.altKey || e.shiftKey || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
+      // A press that closes an open menu belongs to the menu (popups.js), never starts a drag.
+      if (menuOpen() || this.panTool || !e.altKey || e.shiftKey || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
           this.commandBusy() || this.whiteboard?.editing || this.documentEditing || drag || marquee || pointers.size) return;
       const element = e.target.closest?.("#world [data-decoration]");
       if (!element || e.target.closest("button,input,textarea,select,[contenteditable],[data-endpoint],[data-decoration-resize],[data-port]")) return;
@@ -2590,7 +2890,7 @@ export class WorkspaceBoard {
       e.preventDefault(); e.stopImmediatePropagation();
     }, true);
     window.addEventListener("pointerdown", e => {
-      if (this.panTool || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
+      if (menuOpen() || this.panTool || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
           e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || this.movePending || drag || marquee || pointers.size) return;
       const element = e.target.closest?.("#world [data-decoration]");
       if (!element ||
@@ -2995,7 +3295,9 @@ export class WorkspaceBoard {
       const card = e.target.closest(".workspace-card[data-placement]");
       if (!card) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      this.tileMenu(card.dataset.placement, { x: e.clientX, y: e.clientY });
+      // Shift+F10 or the context-menu key on a focused card: under its ⋯, focus on the first item.
+      if (keyboardContextMenu(e)) { const more = card.querySelector('[data-controls-focus="menu"]'); this.tileMenu(card.dataset.placement, null, more?.getClientRects().length ? more : card, e); }
+      else this.tileMenu(card.dataset.placement, { x: e.clientX, y: e.clientY }, null, e);
     });
     let marqueeFrame;
     const updateMarquee = () => {
@@ -3014,59 +3316,62 @@ export class WorkspaceBoard {
   decorations() {
     return (this.snapshot.decorations || []).map(d => this.decorationMarkup(d)).join("");
   }
-  decorationMarkup(d) { return this.whiteboard?.markup(d) || decorationMarkup(d,this.snapshot,this.origin,this.activeDecoration === d.id); }
+  decorationMarkup(d) { return this.whiteboard?.markup(d) || this.boardFocus.decorationMarkup(decorationMarkup(d,this.snapshot,this.origin,this.activeDecoration === d.id),d.id); }
   updateDecorationElement(d) {
     if (this.whiteboard) { this.whiteboard.patch(d); return; }
     const old = document.querySelector(`[data-decoration="${CSS.escape(d.id)}"]`);
     if (old && !old.querySelector("[contenteditable]")) old.outerHTML = this.decorationMarkup(d);
   }
-  closeAddMenu(focus = false) {
-    const anchor = this.addPopupAnchor || $("viewport");
-    this.addPopup?.remove(); this.addPopup = null;
-    this.addPopupAnchor = null;
-    $("workspace-add").setAttribute("aria-expanded", "false");
-    if (focus) anchor.focus({preventScroll:true});
-  }
-  addMenu(anchor, point) {
-    if (this.addPopup) { this.closeAddMenu(); return; }
-    this.closeStickerPicker();
-    this.closeContext();
-    const menu = document.createElement("div");
-    menu.className = "workspace-add-menu"; menu.setAttribute("role", "menu");
-    menu.setAttribute("aria-label", "Add to board");
+  // The Add menu: one under the Add button (its trigger), and the same items as the board's context menu, opened at
+  // the pointer by a right-click on empty canvas (a created object lands there) or at the canvas centre by Shift+F10.
+  // Two menu elements so a right-click never marks Add as expanded; both live at the end of <body> (popups.js).
+  addMenuItems() {
     const options = [
       ["text","T","Text"],["sticky","▣","Sticky note"],["document","≣","Document"],["sticker","☺","Sticker"],
       ["region","▧","Colored region"],["container","▤","Container"],["arrow","↗","Arrow"],
       ["rounded","▢","Process"],["diamond","◇","Decision"],["ellipse","⬭","Start / end"],
     ];
-    const addKeys = {text:"T", sticky:"S", document:"D"};   // the keys that add the same at the pointer
-    const choice = ([id, icon, label]) => `<button type="button" role="menuitem" data-add="${id}"${addKeys[id] ? ` aria-keyshortcuts="${addKeys[id]}"` : ""}><span aria-hidden="true">${icon}</span>${label}</button>`;
-    menu.innerHTML = options.map(choice).join("") + '<hr role="separator">' + [
-      ["idea","◇","Item…"],["board","▱","New board…"],
-    ].map(choice).join("");
-    document.body.append(menu); this.addPopup = menu; this.addPopupAnchor = anchor;
-    const rect = anchor?.getBoundingClientRect();
-    const screen = point || { x: rect.right - menu.offsetWidth, y: rect.bottom + 6 };
-    Object.assign(menu.style, { left: `${Math.max(8, Math.min(innerWidth - menu.offsetWidth - 8, screen.x))}px`, top: `${Math.max(8, Math.min(innerHeight - menu.offsetHeight - 8, screen.y))}px` });
-    $("workspace-add").setAttribute("aria-expanded", "true");
-    menu.querySelectorAll("[data-add]").forEach(button => button.onclick = () => {
-      const type = button.dataset.add;
-      this.closeAddMenu();
-      if (["text", "region", "container", "arrow", "sticky", "rounded", "diamond", "ellipse"].includes(type)) this.createDecoration(type, point);
-      else if (type === "sticker") this.openStickerPicker(anchor || $("workspace-add"),point);
-      else if (type === "document") this.createDocument(point);
-      else if (type === "board") this.newBoard();
-      else if (type === "idea") itemForm(this.client, {boardId:this.snapshot.id, opener:anchor || $("workspace-add"), refresh:() => this.refresh()});
-    });
-    menu.onkeydown = e => {
-      const buttons = [...menu.querySelectorAll("button")], index = buttons.indexOf(document.activeElement);
-      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
-        e.preventDefault();
-        buttons[e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : (index + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus();
-      }
-    };
-    menu.querySelector("button").focus({ preventScroll: true });
+    const addKeys = {text:"t", sticky:"s", document:"d"};   // the keys that add the same at the pointer
+    const choice = ([type, glyph, label]) => menuItem(type, label, {icon:`<span class="add-glyph">${glyph}</span>`, shortcut:addKeys[type], attrs:`data-add="${type}"`});
+    return options.map(choice).join("") + menuSeparator + [["idea","◇","Item…"],["board","▱","New board…"]].map(choice).join("");
   }
+  addMenuElement() {
+    if (this.addMenuUI) return this.addMenuUI;
+    const build = (id, label) => {
+      const ui = sharedMenu({id, label, className:"workspace-add-menu"});
+      ui.content.innerHTML = this.addMenuItems();
+      ui.content.setAttribute("collision-padding", "8");
+      ui.root.addEventListener("action", e => this.runAdd(e.detail.value, ui.root.api.getPayload()?.point, ui === this.addMenuUI ? $("workspace-add") : null));
+      ui.root.addEventListener("openchange", e => { if (e.detail.value) { this.closeStickerPicker(); this.closeContext(); } });
+      return ui;
+    };
+    this.addMenuUI = build("workspace-add-menu", "Add to board");
+    this.addMenuUI.content.setAttribute("align", "end");
+    this.addMenuUI.content.setAttribute("side-offset", "6");
+    // Opening Add closes the board Inspector, as before.
+    this.addMenuUI.root.addEventListener("openchange", e => { if (e.detail.value) closePanel($("board-info")); });
+    this.boardMenuUI = build("board-context-menu", "Add to board");
+    this.boardMenuUI.content.setAttribute("side", "bottom");
+    this.boardMenuUI.content.setAttribute("align", "start");
+    this.boardMenuUI.content.setAttribute("side-offset", "2");
+    return this.addMenuUI;
+  }
+  get addPopup() { return !!(this.addMenuUI?.root.open || this.boardMenuUI?.root.open); }
+  closeAddMenu() { for (const ui of [this.addMenuUI, this.boardMenuUI]) if (ui?.root.open) ui.root.api.close({reason:"imperative"}); }
+  // The board's context menu: point is where a right-click landed (a created object lands there); at is where a
+  // keyboard-opened one sits (the canvas centre, where the object lands anyway).
+  addMenu(anchor, point, event, at) {
+    this.addMenuElement();
+    openMenu(this.boardMenuUI.root, {anchor: point || at || anchor, payload: {point}, event, returnTo: anchor || undefined});
+  }
+  runAdd(type, point, opener) {
+    if (["text", "region", "container", "arrow", "sticky", "rounded", "diamond", "ellipse"].includes(type)) this.createDecoration(type, point);
+    else if (type === "sticker") this.openStickerPicker(opener || $("workspace-add"), point);
+    else if (type === "document") this.createDocument(point);
+    else if (type === "board") this.newBoard();
+    else if (type === "idea") itemForm(this.client, {boardId:this.snapshot.id, opener:opener || $("workspace-add"), refresh:() => this.refresh()});
+  }
+  // The emoji sticker picker (emoji-picker.js): a UI SDK popover beside its opener. Pressing the opener again closes it.
   openStickerPicker(anchor, point) {
     if(this.hooks.viewOnly||this.commandBusy())return;
     const alreadyOpen=this.stickerPicker?.anchor===anchor;
@@ -3075,47 +3380,22 @@ export class WorkspaceBoard {
     this.closeContext();
     this.whiteboard.closeMenu();
     if(this.mode!=="canvas")this.setMode("canvas");
-    const popup=document.createElement('div'), events=new AbortController();
-    popup.className='tk-menu workspace-sticker-picker';
-    let stylesheet=document.querySelector('link[data-emoji-styles]');
-    if(!stylesheet){
-      stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href='/app/emoji-picker.css';
-      stylesheet.dataset.emojiStyles='';document.head.append(stylesheet);
-    }
-    document.body.append(popup);
-    const position=()=>{
-      const rect=anchor.getBoundingClientRect(), width=popup.offsetWidth, height=popup.offsetHeight;
-      const left=Math.max(8,Math.min(innerWidth-width-8,rect.left+(rect.width-width)/2));
-      const above=rect.top-height-6;
-      const top=rect.bottom+height+14<=innerHeight?rect.bottom+6:Math.max(8,above);
-      Object.assign(popup.style,{left:`${left}px`,top:`${top}px`,maxHeight:`${Math.max(0,innerHeight-top-8)}px`});
-    };
     let attempt;
-    const controls=mountEmojiPicker(popup,{
+    const picker=openEmojiPicker({
+      anchor,
       choose:emoji=>{
         if(attempt?.value!==emoji)attempt={value:emoji,operationId:crypto.randomUUID()};
         return this.createEmojiSticker(emoji,point,attempt);
       },
-      close:()=>this.closeStickerPicker({focus:popup.contains(document.activeElement)}),
+      onClosed:()=>{if(this.stickerPicker===picker)this.stickerPicker=null;},
     });
-    this.stickerPicker={popup,anchor,controls,events};
-    const away=event=>{
-      if(!popup.contains(event.target)&&!anchor.contains(event.target))this.closeStickerPicker();
-    };
-    document.addEventListener('pointerdown',away,{capture:true,signal:events.signal});
-    document.addEventListener('focusin',away,{capture:true,signal:events.signal});
-    window.addEventListener('resize',position,{signal:events.signal});
-    stylesheet.addEventListener('load',position,{once:true,signal:events.signal});
-    const contents=new ResizeObserver(position);contents.observe(popup.firstElementChild);
-    this.stickerPicker.contents=contents;
-    position();controls.focus();
+    this.stickerPicker=picker;
   }
   closeStickerPicker({focus=false}={}) {
     const picker=this.stickerPicker;
     if(!picker)return;
     this.stickerPicker=null;
-    picker.events.abort();picker.contents.disconnect();picker.controls.destroy();picker.popup.remove();
-    if(focus)picker.anchor.focus({preventScroll:true});
+    picker.close({focus});
   }
   async createEmojiSticker(value, screen, attempt={}) {
     const emoji=emojiSticker(value);
@@ -3152,7 +3432,7 @@ export class WorkspaceBoard {
       if (e.key === "Escape") { this.keyQueue.length = 0; return; }
       if (this.replayingKey || !this.keysBusy() || !this.queueableKey(e)) return;
       e.preventDefault(); e.stopImmediatePropagation();
-      this.keyQueue.push({at:Date.now(), init:{key:e.key, code:e.code, keyCode:e.keyCode, shiftKey:e.shiftKey, metaKey:e.metaKey, ctrlKey:e.ctrlKey, altKey:false}});
+      this.keyQueue.push({at:Date.now(), init:{key:e.key, code:e.code, keyCode:e.keyCode, shiftKey:e.shiftKey, metaKey:e.metaKey, ctrlKey:e.ctrlKey, altKey:e.altKey}});
       this.watchKeyQueue();
     }, true);
   }
@@ -3174,9 +3454,10 @@ export class WorkspaceBoard {
   // Board commands only: plain keys, arrows, Delete/Backspace/Enter, and ⌘/Ctrl-Z, -D, -A, -G. Native
   // clipboard and browser shortcuts, fields, editors, dialogs and IME composition pass through.
   queueableKey(e) {
-    if (e.isComposing || e.keyCode === 229 || e.repeat || e.altKey || this.editorHold || this.whiteboard?.editing || this.documentEditing) return false;
-    if (document.querySelector("dialog[open]") || document.activeElement?.tagName === "IFRAME" ||
-        e.target.closest?.("input,textarea,select,[contenteditable],[role=dialog],[role=textbox]")) return false;
+    const arrow = e.key?.startsWith("Arrow");
+    if (e.isComposing || e.keyCode === 229 || e.repeat || (e.altKey && !arrow) || this.editorHold || this.whiteboard?.editing || this.documentEditing) return false;
+    if (document.querySelector(MODAL_OPEN) || document.activeElement?.tagName === "IFRAME" ||
+        e.target.closest?.("input,textarea,select,[contenteditable],[role=dialog],[role=textbox]") || inPopup(e) || widgetOwnsKey(e)) return false;
     const key = e.key.toLowerCase();
     // Duplicate on an in-flight duplicate's new selection would copy twice.
     // Let the scoped handler consume the shortcut without queuing it then.
@@ -3184,7 +3465,14 @@ export class WorkspaceBoard {
       if (key === "g") return !e.shiftKey && !!this.groupAction();
       return key === "d" ? !this.duplicatePending : ["z","a"].includes(key);
     }
-    return key.length === 1 || ["arrowleft","arrowright","arrowup","arrowdown","delete","backspace","enter"].includes(key);
+    // Arrows write only as Option/Alt-arrow moves and on a resize corner; plain arrows move focus or pan at once.
+    if (arrow) return e.altKey || !!e.target.closest?.("#world .workspace-resize,#world [data-decoration-resize]");
+    // Space and Enter on a button or link are its native press: queuing (preventDefault) would swallow the press.
+    if ((key === " " || key === "enter") && e.target.closest?.("button,a[href],[role=button]")) return false;
+    // Space and Enter on a focused item act on that item at once (select, open, go in); they write nothing, and a replay
+    // later would land on whatever has focus by then.
+    if ((key === " " || key === "enter") && this.boardFocus.item(e.target) === e.target) return false;
+    return key.length === 1 || ["delete","backspace","enter"].includes(key);
   }
   // Replays queued keys while the board is idle (or while a new text or sticky is holding keys
   // for its editor, which then receives them); stops again as soon as one makes it busy.
@@ -3298,40 +3586,33 @@ export class WorkspaceBoard {
   installEditTools() {
     if (this.hooks.viewOnly || $("edit-tools")) return;
     try { this.editToolsOpen = localStorage.getItem(this.editToolsKey()) !== "off"; } catch { this.editToolsOpen = true; }
-    const palette = document.createElement("div");
+    const palette = document.createElement("ui-toolbar");
     palette.id = "edit-tools";
     palette.className = "edit-tools";
-    palette.setAttribute("role", "toolbar");
     palette.setAttribute("aria-label", "Canvas tools");
-    palette.setAttribute("aria-orientation", "horizontal");
-    palette.innerHTML = EDIT_TOOL_GROUPS.map(([group,tools]) =>
-      `<div role="group" aria-label="${group}" class="edit-tool-group">${tools.filter(([tool])=>tool!=="sticker"||typeof this.openStickerPicker==="function").map(([tool,label,key]) => {
-        const icon = tool === "comment" ? COMMENT_ICON : `<svg viewBox="0 0 20 20" aria-hidden="true">${EDIT_TOOL_ICONS[tool]}</svg>`;
-        return `<button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" title="${label}${key?` (${key})`:""}"${key?` aria-keyshortcuts="${key}"`:""}${tool==="sticker"?' aria-haspopup="dialog"':""}>${icon}</button>`;
-      }).join("")}</div>`
-    ).join("");
+    const toolButton = ([tool,label,key]) => {
+      const icon = tool === "comment" ? COMMENT_ICON : `<svg viewBox="0 0 20 20" aria-hidden="true">${EDIT_TOOL_ICONS[tool]}</svg>`;
+      return `<button type="button" class="tk-btn tk-icon" data-edit-tool="${tool}" aria-label="${label}" data-tip="${label}"${key?` aria-keyshortcuts="${key}"`:""}${tool==="sticker"?' aria-haspopup="dialog"':""}>${icon}</button>`;
+    };
+    palette.innerHTML = EDIT_TOOL_GROUPS.map(([group,tools,kind]) => {
+      const list = tools.filter(([tool])=>tool!=="sticker"||typeof this.openStickerPicker==="function");
+      return kind === "choice"
+        ? `<ui-toggle-group class="edit-tool-group" aria-label="${group}" data-edit-choice${group==="Navigation"?' deselectable="false" default-value="pointer"':""}>${list.map(tool => `<ui-toggle value="${tool[0]}">${toolButton(tool)}</ui-toggle>`).join("")}</ui-toggle-group>`
+        : `<ui-toolbar-group class="edit-tool-group" aria-label="${group}">${list.map(tool => `<ui-toolbar-button>${toolButton(tool)}</ui-toolbar-button>`).join("")}</ui-toolbar-group>`;
+    }).join("");
+    // A press on an action makes something. The choice groups report through valuechange (below).
     palette.onclick = e => {
       const button = e.target.closest("[data-edit-tool]");
-      if (!button || this.boardCommandBlocked()) return;
+      if (!button || button.closest("ui-toggle") || this.boardCommandBlocked()) return;
       const tool = button.dataset.editTool;
-      if (tool === "pointer" || tool === "pan" || tool === "comment") {
-        this.setCanvasTool(tool === "comment" && this.commentPins?.armed ? "pointer" : tool);
-        return;
-      }
       this.setCanvasTool("pointer");
       if (tool === "sticker") this.openStickerPicker(button);
       else this.createDecoration(tool);
     };
-    palette.onkeydown = event => {
-      if (!["ArrowLeft","ArrowRight","Home","End"].includes(event.key)) return;
-      const buttons = [...palette.querySelectorAll("button")];
-      const current = buttons.indexOf(document.activeElement);
-      const offset = event.key==="ArrowLeft" ? -1 : 1;
-      const next = event.key==="Home" ? 0 : event.key==="End" ? buttons.length-1 : (current+offset+buttons.length)%buttons.length;
-      event.preventDefault();
-      event.stopPropagation();
-      buttons[next]?.focus();
-    };
+    // The current tool is the board's to own: a choice asks for it here, syncEditTools() writes the answer back.
+    palette.querySelectorAll("[data-edit-choice]").forEach(group => onChoose(group, tool => { if (!this.boardCommandBlocked()) this.setCanvasTool(tool || "pointer"); }));
+    followVisibility(palette);
+    tips(palette);
     document.body.append(palette);
     const toggle = document.createElement("button");
     toggle.id = "edit-tools-toggle";
@@ -3340,11 +3621,18 @@ export class WorkspaceBoard {
     toggle.setAttribute("aria-controls", "edit-tools");
     toggle.setAttribute("aria-label", "Edit tools");
     toggle.setAttribute("aria-keyshortcuts", "A");
-    toggle.title = "Edit tools (A)";
+    toggle.dataset.tip = "Edit tools";
     toggle.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><circle cx="14" cy="6" r="3"/><path d="M6 11.5 9 16.5H3z"/><path d="M14 11.5v5M11.5 14h5"/></svg>';
-    toggle.onclick = () => this.toggleEditTools();
+    // A pressed/unpressed item of the view pill (ui-toggle): the board owns whether the tools show.
+    const item = document.createElement("ui-toggle");
+    item.append(toggle);
+    onPress(item, () => this.toggleEditTools());
     const map = $("board-map-toggle");
-    map?.parentElement?.insertBefore(toggle, map);
+    // Beside the map toggle, outside whatever wrappers (toggle, tooltip trigger) it already has.
+    let before = map;
+    while (before?.parentElement && !before.parentElement.matches("ui-toolbar")) before = before.parentElement;
+    before?.parentElement?.insertBefore(item, before);
+    tips(item);
     window.addEventListener("resize",()=>this.positionEditTools());
     this.syncEditTools();
   }
@@ -3374,9 +3662,8 @@ export class WorkspaceBoard {
     $("viewport").classList.toggle("canvas-pan-tool",!!this.panTool);
     palette.hidden = !(canvas && this.editToolsOpen);
     const current = this.panTool ? "pan" : this.commentPins?.armed ? "comment" : "pointer";
-    for (const tool of ["pointer","pan","comment"])
-      palette.querySelector(`[data-edit-tool="${tool}"]`)?.setAttribute("aria-pressed",String(tool===current));
-    if (toggle) { toggle.hidden = !canvas; toggle.setAttribute("aria-pressed", String(!!this.editToolsOpen)); }
+    for (const group of palette.querySelectorAll("[data-edit-choice]")) setChoice(group, [...group.querySelectorAll("[data-edit-tool]")].some(b => b.dataset.editTool === current) ? current : null);
+    if (toggle) { toggle.hidden = !canvas; setPressed(toggle, !!this.editToolsOpen); }
     this.positionEditTools();
   }
   // A mixed group: cards (this.selection) with drawn elements (this.decorationSelection),
@@ -3572,70 +3859,48 @@ export class WorkspaceBoard {
     }
     return [...cardMap.values(),...drawnMap.values(),...units];
   }
-  closeArrangeMenu({focus=false}={}) {
-    const popup = this.arrangePopup;
-    if (!popup) return;
-    this.arrangePopup = null;
-    popup.events.abort();
-    popup.menu.remove();
-    popup.anchor.setAttribute("aria-expanded","false");
-    if (focus && popup.anchor.isConnected) popup.anchor.focus({preventScroll:true});
+  // Arrange: align, distribute, tidy. A UI SDK menu (popups.js) opened from the selection bar's Arrange or the
+  // drawn-object bar's, from code against the pressed button. A menu is a vertical list (arrows move up and down,
+  // typeahead finds "Align …" or "Distribute …" by name), so each icon carries its name beside it. It opens on the side
+  // of its bar away from the selection, so the objects stay in view while they move, and follows the bar as the
+  // view pans or zooms.
+  arrangeMenuElement() {
+    if (this.arrangeMenuUI) return this.arrangeMenuUI;
+    const ui = this.arrangeMenuUI = sharedMenu({id:"arrange-menu", label:"Arrange", className:"arrange-menu"});
+    ui.content.setAttribute("align", "center");
+    ui.content.setAttribute("side-offset", "7");
+    ui.content.setAttribute("collision-padding", "8");
+    ui.root.addEventListener("action", e => this.arrange(e.detail.value));
+    ui.root.addEventListener("openchange", e => { if (!e.detail.value) { this.arrangeAnchor?.setAttribute("aria-expanded", "false"); this.arrangeAnchor = null; } });
+    return ui;
   }
+  get arrangePopup() { return !!this.arrangeMenuUI?.root.open; }
+  closeArrangeMenu() { if (this.arrangeMenuUI?.root.open) this.arrangeMenuUI.root.api.close({reason:"imperative"}); }
+  // The side of the bar away from the selection: above a bar that sits above the objects, else below (the SDK flips
+  // it when there is no room). Called again when the view moves (canvas.js), so the menu keeps to its bar.
   positionArrangeMenu() {
-    const popup = this.arrangePopup;
-    if (!popup) return;
-    const {anchor,menu} = popup;
-    if (!anchor.isConnected || anchor.getClientRects().length === 0) { this.closeArrangeMenu(); return; }
-    const objects = this.arrangeObjects();
-    if (objects.length < 2) { this.closeArrangeMenu(); return; }
-    const box = boundsOf(objects.map(object => object.box));
-    const start = this.boardToScreen({x:box.x,y:box.y});
-    const end = this.boardToScreen({x:box.x+box.width,y:box.y+box.height});
-    const object = {left:start.x,top:start.y,right:end.x,bottom:end.y};
-    const toolbar = anchor.closest("[role=toolbar]")?.getBoundingClientRect() || anchor.getBoundingClientRect();
-    const viewport = $("viewport").getBoundingClientRect();
-    const side = toolbar.top+toolbar.bottom < object.top+object.bottom ? "top" : "bottom";
-    const scrollTop = menu.scrollTop;
-    menu.style.maxHeight = "";
-    const position = placeWhiteboardPopover(viewport,object,toolbar,side,menu.offsetWidth,Math.max(menu.offsetHeight,menu.scrollHeight));
-    Object.assign(menu.style,{left:`${position.left}px`,top:`${position.top}px`,maxHeight:`${position.maxHeight}px`});
-    menu.scrollTop = scrollTop;
-    menu.dataset.popupSide = position.side;
+    if (!this.arrangePopup) return;
+    const anchor = this.arrangeAnchor;
+    if (!anchor?.isConnected || !anchor.getClientRects().length || this.arrangeObjects().length < 2) { this.closeArrangeMenu(); return; }
+    const objects = this.arrangeObjects(), box = boundsOf(objects.map(object => object.box));
+    const top = this.boardToScreen({x:box.x,y:box.y}).y, bottom = this.boardToScreen({x:box.x+box.width,y:box.y+box.height}).y;
+    const bar = anchor.closest("[role=toolbar]")?.getBoundingClientRect() || anchor.getBoundingClientRect();
+    this.arrangeMenuUI.content.setAttribute("side", bar.top + bar.bottom < top + bottom ? "top" : "bottom");
   }
-  arrangeMenu(anchor) {
-    const sameAnchor = this.arrangePopup?.anchor === anchor;
-    this.closeArrangeMenu({focus:sameAnchor});
-    if (sameAnchor) return;
+  arrangeMenu(anchor, event) {
     const count = this.arrangeObjects().length;
-    if (count < 2) return;
-    const events = new AbortController();
-    const menu = document.createElement("div");
-    menu.className = "tk-menu arrange-menu"; menu.setAttribute("role","dialog"); menu.setAttribute("aria-label","Arrange");
-    const item = ([kind,label,icon]) => `<button type="button" class="arrange-item" data-arrange="${kind}" aria-label="${label}" title="${label}" ${kind.startsWith("distribute") && count < 3 ? "disabled" : ""}>${svg16(icon)}</button>`;
-    menu.innerHTML = `<div class="arrange-group" role="group" aria-label="Align"><span>Align</span>${ARRANGE.slice(0,6).map(item).join("")}</div>
-      <div class="arrange-group" role="group" aria-label="Distribute"><span>Distribute</span>${ARRANGE.slice(6,8).map(item).join("")}</div>
-      <button type="button" class="arrange-tidy" data-arrange="tidy" title="Tidy the selection into a grid, keeping reading order">${svg16(ARRANGE[8][2])}<span>Tidy into grid</span></button>`;
-    document.body.append(menu);
-    this.arrangePopup = {menu,anchor,events};
-    anchor.setAttribute("aria-expanded","true");
+    if (count < 2 || !anchor) return;
+    const {root, content} = this.arrangeMenuElement();
+    const item = ([kind,label,icon]) => menuItem(kind, label, {icon:svg16(icon), disabled:kind.startsWith("distribute") && count < 3, attrs:`data-arrange="${kind}"`});
+    content.innerHTML = menuGroup("Align", ARRANGE.slice(0,6).map(item).join("")) + menuGroup("Distribute", ARRANGE.slice(6,8).map(item).join(""))
+      + menuSeparator + menuItem("tidy", "Tidy into grid", {icon:svg16(ARRANGE[8][2]), tip:"Tidy the selection into a grid, keeping reading order", attrs:'data-arrange="tidy"'});
+    this.arrangeAnchor?.setAttribute("aria-expanded", "false");
+    this.arrangeAnchor = anchor;
+    anchor.setAttribute("aria-haspopup", "menu");
+    anchor.setAttribute("aria-expanded", "true");
     this.positionArrangeMenu();
-    menu.onclick = e => {
-      const button = e.target.closest("[data-arrange]:not(:disabled)");
-      if (!button) return;
-      this.closeArrangeMenu({focus:true});
-      this.arrange(button.dataset.arrange);
-    };
-    menu.onkeydown = e => {
-      const forward = ["ArrowRight","ArrowDown"].includes(e.key), backward = ["ArrowLeft","ArrowUp"].includes(e.key);
-      if (!forward && !backward && e.key !== "Home" && e.key !== "End") return;
-      e.preventDefault();
-      const buttons = [...menu.querySelectorAll("button:not(:disabled)")], index = buttons.indexOf(document.activeElement);
-      buttons[e.key === "Home" ? 0 : e.key === "End" ? buttons.length-1 : (index+(forward?1:-1)+buttons.length)%buttons.length]?.focus();
-    };
-    const away = e => { if (!menu.contains(e.target) && !anchor.contains(e.target)) this.closeArrangeMenu(); };
-    document.addEventListener("pointerdown",away,{capture:true,signal:events.signal});
-    document.addEventListener("focusin",away,{capture:true,signal:events.signal});
-    menu.querySelector("button:not(:disabled)")?.focus({preventScroll:true});
+    const returnTo = anchor.matches("[data-arrange-open]") ? "#workspace-selection [data-arrange-open]" : anchor.matches("[data-whiteboard-action=arrange]") ? '.whiteboard-toolbar [data-whiteboard-action="arrange"]' : undefined;
+    openMenu(root, {anchor, event, returnTo});
   }
   // One arrangePlacements write: one revision and one Undo step.
   async arrange(kind) {
@@ -3744,13 +4009,13 @@ export class WorkspaceBoard {
       }).catch(error=>toast(error.message));
     });
     document.addEventListener("pointerdown", e => {
-      if (this.tilePopup && !e.target.closest(".workspace-tile-menu,[data-item-controls]")) this.closeTileMenu();
-      if (this.context && !e.target.closest("#workspace-item-controls,[data-item-controls],.workspace-dialog,dialog[open],.feedback-panel,.workspace-popover,.workspace-tile-menu")) this.closeContext();
-      if (this.addPopup && !e.target.closest(".workspace-add-menu,#workspace-add")) this.closeAddMenu();
     }, true);
     viewport.addEventListener("contextmenu", e => {
       if (e.target.closest(".workspace-card,.workspace-decoration,button,input,textarea")) return;
-      e.preventDefault(); this.addMenu(null, { x: e.clientX, y: e.clientY });
+      e.preventDefault();
+      // Shift+F10 or the context-menu key on the focused canvas: at its centre, where the object would land anyway.
+      if (keyboardContextMenu(e)) { const r = viewport.getBoundingClientRect(); this.addMenu(null, null, e, {x:r.left + r.width / 2, y:r.top + r.height / 2}); }
+      else this.addMenu(null, { x: e.clientX, y: e.clientY }, e);
     });
     viewport.addEventListener("click", e => {
       if (!e.target.closest(".workspace-card,.workspace-decoration,.whiteboard-ports")) {
@@ -3758,81 +4023,187 @@ export class WorkspaceBoard {
       }
     });
     document.addEventListener("keydown", async e => {
-      if (document.querySelector("#reader-dialog[open],dialog.workspace-dialog[open]")) return;
-      // The focused board map owns its arrows, Escape and +/−.
-      if (e.target.closest?.(".board-map-stage")) return;
-      if (e.isComposing || e.keyCode === 229 || e.repeat || e.defaultPrevented) return;
+      if (document.querySelector("#reader-dialog[open],.workspace-dialog:is([open],[data-open])")) return;
+      // The board map owns its keys: the stage its arrows, Escape and +/−; the head its toolbar keys and Escape.
+      if (e.target.closest?.(".board-map")) return;
+      // An open UI SDK menu, popover or Inspector panel owns every key, Escape included.
+      if (inPopup(e)) return;
+      if (e.isComposing || e.keyCode === 229 || e.defaultPrevented) return;
+      // A held arrow keeps moving focus across the board; nothing else repeats.
+      if (e.repeat) { if (!widgetOwnsKey(e)) this.boardFocus.repeatKey(e); return; }
+      if (this.menuKey(e)) return;
       if (this.feedback?.consumeEscape(e)) return;
       if (this.whiteboard?.handleEscape(e)) return;
       if (e.key === "Escape") {
         if (this.context) { this.closeContext(true); e.preventDefault(); e.stopImmediatePropagation(); return; }
-        if (this.addPopup) { this.closeAddMenu(true); e.preventDefault(); e.stopImmediatePropagation(); return; }
-        if (this.activeDecoration) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); e.preventDefault(); return; }
-        if (this.selection.size) { this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault(); return; }
+        if (this.activeDecoration) { this.whiteboard?.clearSelection({finishEdit:true,focus:false}); this.boardFocus.keepOn(this.boardFocus.key(this.boardFocus.item(e.target))); e.preventDefault(); return; }
+        if (this.selection.size) {
+          // Escape inside the selection bar clears the selection and the bar goes: focus returns to the board's roving
+          // item (the one focused last) rather than falling to <body>.
+          const fromBar = !!e.target.closest?.("#workspace-selection");
+          this.selection.clear(); this.build(this.hooks.concepts()); e.preventDefault();
+          if (fromBar) this.boardFocus.afterBar();
+          return;
+        }
+        // Last: Escape on an item inside a container goes back out to the container.
+        if (!this.cutIntent.active() && this.boardFocus.escapeKey(e)) return;
       }
+      // A focused UI SDK widget (toolbar, radio group, listbox …) owns its other keys. Escape is handled above first:
+      // the item Inspector is role=dialog, and its Escape must still close it.
+      if (widgetOwnsKey(e)) return;
       if (e.target.closest("input,textarea,select,[contenteditable],[role=textbox],[role=dialog]")) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const delta = { ArrowLeft: [-1,0], ArrowRight: [1,0], ArrowUp: [0,-1], ArrowDown: [0,1] }[e.key];
-      const resizeGrip = delta && e.target.closest("[data-resize]");
-      if (resizeGrip) {
-        e.preventDefault(); e.stopImmediatePropagation();
-        if (this.pointerGesture || this.keysBusy()) return;
-        const p = this.snapshot.placements.find(entry => entry.id === resizeGrip.dataset.resize);
-        if (!p || p.removedAt || p.deletedAt) return;
-        const [dx,dy] = delta.map(value => value * (e.shiftKey ? 10 : 1));
-        const patch = resizePlacementBox(p,"se",dx,dy);
-        if (patch.width === p.width && patch.height === p.height) return;
-        this.hooks.holdView?.();
-        try {
-          await this.writeArrangement("updatePlacement", {boardId:this.snapshot.id,placementId:p.id,patch},
-            latest => placementsUnchanged(latest,[p]));
-          await this.refresh({saveReview:false});
-        } catch (error) { showFailure(error); }
-        return;
-      }
+      if (e.metaKey || e.ctrlKey) return;
+      // UI SDK canvas keys (board-focus.js): arrows move focus, Space selects, Enter opens or goes into a container,
+      // arrows on a resize corner resize, Option/Alt-arrow moves.
+      if (this.boardFocus.keydown(e)) return;
+      if (e.altKey) return;
       if ((this.activeDecoration || !this.selection.size && this.decorationSelection.size > 1) && ["Delete", "Backspace"].includes(e.key)) { e.preventDefault(); this.deleteDecoration(); return; }
       if (["Delete", "Backspace"].includes(e.key)) {
         if (e.repeat || e.shiftKey || this.clipboardBlocked() || this.history?.busy) return;
         const ids = this.clipboardCandidates().map(p => p.id);
+        // Delete removes the selection only, never an item that merely has focus: removing is the one board command
+        // whose slip costs work, and the card's menu prints no Delete key. With nothing selected it says how instead
+        // of doing nothing silently.
+        if (!ids.length && this.focusedTarget() && e.target === this.boardFocus.item(e.target)) {
+          e.preventDefault();
+          const message = `Nothing is selected. Press Space to select ${this.boardFocus.label(e.target)}, then Delete.`;
+          announce(message); toast(message);
+          return;
+        }
         if (!ids.length) return;
         e.preventDefault(); e.stopImmediatePropagation();
         this.removePlacements(ids);
         return;
       }
-      if (!delta || (!this.activeDecoration && !this.selection.size && !this.keyboardDecorations().length)) return;
-      e.preventDefault(); e.stopImmediatePropagation();
-      if (this.pointerGesture || this.movePending || this.historyBusy) return;
-      const [dx,dy] = delta.map(v => v * (e.shiftKey ? 10 : 1));
-      try {
-        if (this.keyboardDecorations().length) {
-          const board = this.snapshot;
-          const placements = this.snapshot.placements.filter(p => this.selection.has(p.id) && !p.removedAt && !p.deletedAt);
-          const drawings = this.keyboardDecorations();
-          const placementIds = placements.map(p => p.id), decorationIds = drawings.map(d => d.id);
-          const unchangedDrawings = drawings.map(d => decorationUnchanged(d));
-          await this.writeArrangement("translatePlacements", {boardId:board.id,placementIds,decorationIds,dx,dy},
-            latest=>placementsUnchanged(latest,placements) && unchangedDrawings.every(unchanged => unchanged(latest)) &&
-            sameGroups(board,latest,placementIds,decorationIds));
-          await this.refresh({saveReview:false});
-        }
-        else if (this.activeDecoration) {
-          const d=this.snapshot.decorations.find(d=>d.id===this.activeDecoration);
-          let patch={x:d.x+dx,y:d.y+dy};
-          if(d.type === "line"){const r=resolveLine(d,this.snapshot),from={x:r.from.x+dx,y:r.from.y+dy},to={x:r.to.x+dx,y:r.to.y+dy};patch={...lineBox(from,to),from,to};}
-          await this.whiteboard.save(d.id,patch,undefined,decorationUnchanged(d));
-        }
-        else {
-          const board = this.snapshot;
-          const placements = board.placements.filter(p => this.selection.has(p.id) && !p.removedAt && !p.deletedAt);
-          if (!placements.length) return;
-          const placementIds = [...this.selection].filter(id => placements.some(p => p.id === id));
-          await this.writeArrangement("translatePlacements", {boardId:board.id,placementIds,dx,dy},
-            latest=>placementsUnchanged(latest,placements) && sameGroups(board,latest,placementIds,[]));
-          await this.refresh({saveReview:false});
-        }
-      } catch (error) { showFailure(error); }
+    }, true);
+    // The focused card or drawn element keeps the board's Tab stop (UI SDK roving focus: the item focused last).
+    // Focus bookkeeping runs on focus events only, never on pointer moves.
+    // Tab onto an item brings it into view, as an arrow does (UI SDK viewport: focus-in): the browser's own focus
+    // scrolling (carried over from the cushion as a pan) skips an item it already shows in part. Only a Tab: a press is
+    // already where she pointed, and focus coming back (after the reader, a menu) leaves the board where it was.
+    let tabbedAt = -1;
+    document.addEventListener("keydown", e => { if (e.key === "Tab") tabbedAt = e.timeStamp; }, true);
+    $("world").addEventListener("focusin", e => {
+      const item = this.boardFocus.item(e.target);
+      if (!item) return;
+      this.boardFocus.setStop(this.boardFocus.key(item));
+      if (e.target === item) this.boardFocus.roveReach(item); else this.boardFocus.rove(e.target);
+      if (tabbedAt >= 0 && e.timeStamp - tabbedAt < 100) { tabbedAt = -1; this.boardFocus.revealElement(item); }
+    });
+  }
+  // Focus follows a press: a press on any board item (card, drawn element, sticker, container member) makes it the
+  // focused item, so Option-arrow, Space and the board's commands act on what was just pressed, never on an item
+  // focused earlier. A card takes focus natively, but Whiteboard's pointerdown prevents that for drawn elements and
+  // stops the event on document capture, and a press that starts a group drag can stop it on window capture. So this
+  // listens on window capture, registered before any of those, and only notes the press; focus moves a frame later,
+  // by the item's key, because the press's own selection may re-render the element. A press on the empty canvas (or a
+  // plain region's open middle, which works as empty canvas) takes focus off the items. One check per press; nothing
+  // on pointer moves.
+  // What the app just created and selected takes keyboard focus (the first of it), so Option-arrow, Space and the
+  // board's commands act on what was made, never on the item focused before: ⌘D, then ⌥→ moves the copy, as in Figma,
+  // tldraw and Excalidraw (ui-sdk.md § Board canvas, "Focus follows what the app creates"). Focus in a field, an editor
+  // or a modal dialog stays where it is.
+  focusCreated({placementIds = [], decorationIds = []} = {}) {
+    const key = placementIds[0] ? `placement:${placementIds[0]}` : decorationIds[0] ? `decoration:${decorationIds[0]}` : null;
+    const el = key && this.boardFocus?.element(key);
+    if (!el) return;
+    const active = document.activeElement;
+    if (active?.matches?.("input,textarea,select,[contenteditable],iframe") ||
+        active?.closest?.(".whiteboard-editor,dialog:modal,ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]")) return;
+    this.boardFocus.setStop(key);
+    if (active !== el) el.focus({preventScroll:true});
+    this.boardFocus.keepOn(key);
+  }
+  // The board item a press lands on: its roving key, null for the empty canvas (or a plain region's open middle, which
+  // works as empty canvas), undefined for a press that is not the board's (outside the canvas, or on a control).
+  pressedKey(e) {
+    if (this.mode !== "canvas" || !e.target.closest?.("#viewport")) return undefined;
+    if (e.target.closest("button,a,input,textarea,select,[contenteditable],[role=button],[data-deco-task],.whiteboard-editor,[data-port],.board-map,.whiteboard-ports")) return undefined;
+    let item = this.boardFocus.item(e.target);
+    if (item?.matches(".decoration-region:not(.whiteboard-shape,.whiteboard-container)") && !e.target.closest("[data-decoration-label]")) {
+      const r = item.getBoundingClientRect();
+      if (e.clientX > r.left + 6 && e.clientX < r.right - 6 && e.clientY > r.top + 28 && e.clientY < r.bottom - 6) item = null;
+    }
+    return item ? this.boardFocus.key(item) : null;
+  }
+  pressFocus() {
+    // A press that closes a popup (a menu swallows it; a popover lets it through) gives focus to what it pressed, as it
+    // would with no popup open: the pressed item, or the canvas (popups.js, focusAfterOutsidePress).
+    focusAfterOutsidePress(e => {
+      const key = this.pressedKey(e);
+      return key === undefined ? undefined : key ? this.boardFocus.element(key) : $("viewport");
+    });
+    window.addEventListener("pointerdown", e => {
+      if (e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool) return;
+      const key = this.pressedKey(e);
+      if (key === undefined) return;
+      // Where focus was before the press, by element and by board item (a re-render replaces the element).
+      const before = document.activeElement, beforeItem = before && this.boardFocus.item(before), beforeKey = beforeItem && this.boardFocus.key(beforeItem);
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        // A field or editor keeps focus that code gave it on this press, and a field on the board itself (an editor
+        // the press finishes) keeps it too. A field the press left (Find, a panel's comment field) gives it up, as a
+        // press on any other focusable place takes it.
+        const field = active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor");
+        if (field && (active !== before || active.closest("#viewport"))) return;
+        const target = key ? this.boardFocus.element(key) : $("viewport");
+        if (!target?.isConnected || active === target) return;
+        // Focus that moved on before this frame (code acting on the press, a click that an assistive technology
+        // sends in one go, a key pressed straight after) is left where it went: only focus still where it was, or
+        // dropped to <body> by a re-render, is moved to the pressed item.
+        const activeItem = active && active !== document.body ? this.boardFocus.item(active) : null;
+        if (active && active !== document.body && active !== before && !target.contains(active) &&
+            !(beforeKey && activeItem && this.boardFocus.key(activeItem) === beforeKey)) return;
+        // A press on a card's own control area keeps native focus where it landed inside the card. A control inside a
+        // drawn element focused since the press (an arrow's end handle, focused straight after the press that selected
+        // the arrow) keeps it too: moving focus off it would hand its next key (Delete) to the whole arrow.
+        if (target.contains(active) && active !== target &&
+          (key?.startsWith("placement:") || (active !== before && active.matches?.("button,a[href],[role=button]")))) return;
+        if (key) this.boardFocus.setStop(key);
+        target.focus({preventScroll:true});
+      });
     }, true);
   }
+  // Moves cards and drawn elements by dx, dy board units in one write (one undo step), as a keyboard move does:
+  // {placements, decorations} together, or {single} drawn element on its own. Returns what moveMessage announces.
+  async translateOccurrences({placements = [], decorations = [], single = null, focus = null, dx, dy}) {
+    const label = ref => this.boardFocus.label(this.boardFocus.element(ref?.placementId ? `placement:${ref.placementId}` : `decoration:${ref?.decorationId}`));
+    if (single) {
+      const d = single;
+      let patch = {x:d.x + dx, y:d.y + dy};
+      if (d.type === "line") { const r = resolveLine(d,this.snapshot), from = {x:r.from.x + dx,y:r.from.y + dy}, to = {x:r.to.x + dx,y:r.to.y + dy}; patch = {...lineBox(from,to),from,to}; }
+      await this.whiteboard.save(d.id,patch,undefined,decorationUnchanged(d));
+      return {keys:[d.id], label:label({decorationId:d.id}), at:{x:Math.round(patch.x), y:Math.round(patch.y)}};
+    }
+    const board = this.snapshot;
+    const placementIds = placements.map(p => p.id), decorationIds = decorations.map(d => d.id);
+    const unchangedDrawings = decorations.map(d => decorationUnchanged(d));
+    await this.writeArrangement("translatePlacements", {boardId:board.id,placementIds,...(decorationIds.length ? {decorationIds} : {}),dx,dy},
+      latest => placementsUnchanged(latest,placements) && unchangedDrawings.every(unchanged => unchanged(latest)) &&
+        sameGroups(board,latest,placementIds,decorationIds));
+    await this.refresh({saveReview:false});
+    const first = placements.find(p => p.id === focus?.placementId) || decorations.find(d => d.id === focus?.decorationId) || placements[0] || decorations[0];
+    const firstRef = placements.includes(first) ? {placementId:first.id} : {decorationId:first.id};
+    const at = first.type === "line" ? decorationBounds(first,board) : first;
+    return {keys:[...placementIds,...decorationIds], label:label(firstRef), at:{x:Math.round(at.x + dx), y:Math.round(at.y + dy)}};
+  }
+  // A keyboard move or resize holds the board busy until its write and refresh land, so the next press (queued by
+  // installKeyQueue while busy) starts from the new geometry instead of overwriting it.
+  async keyMoveRunning(work) {
+    this.movePending = true;
+    this.updateHistoryControls();
+    try { await work(); }
+    catch (error) { showFailure(error); }
+    finally {
+      this.movePending = false;
+      this.updateHistoryControls();
+      this.drainGeometryRefresh();
+    }
+  }
+  placementsUnchanged(latest, placements) { return placementsUnchanged(latest, placements); }
+  resizePlacementBox(p, edge, dx, dy) { return resizePlacementBox(p, edge, dx, dy); }
+  // Focus the card for a placement, keeping the board's Tab stop on it (the board step and the reader's return use it).
+  focusPlacement(id, options) { return this.boardFocus.focusKey(`placement:${id}`, options); }
   async deleteDecoration() { return this.whiteboard.remove(); }
   async saveBackground(background) {
     await this.client.write("updateBoard", {boardId:this.snapshot.id,patch:{background}});
@@ -3857,39 +4228,54 @@ export class WorkspaceBoard {
       form.requestSubmit();
     });
   }
-  orderForm() {
-    const placements = this.snapshot.reviewOrder
+  // Comparison order: a reorderable list (order-list.js; ui-sdk.md § Comparison order). One Tab stop, ↑/↓ move focus;
+  // Space/Enter picks a row up, ↑/↓ carry it, Space/Enter drops it, Escape puts it back; ⌥↑/↓ moves at once (⇧ to an
+  // end), as a container's members move on the board; a pointer drags a row.
+  async orderForm() {
+    await import("./order-list.js");
+    const placements = new Map(this.snapshot.reviewOrder
       .map((id) => this.snapshot.placements.find((p) => p.id === id))
-      .filter((p) => p && !p.removedAt);
+      .filter((p) => p && !p.removedAt)
+      .map((p) => [p.id, p]));
+    const title = id => this.snapshot.items[placements.get(id)?.itemId]?.title || placements.get(id)?.itemId || "Item";
+    const hint = "workspace-order-keys";
     const d = makeDialog(
       "Comparison order",
-      `<p>Set which item opens next in the reader.</p><div id="workspace-order"></div><button type="submit" class="workspace-primary">Save order</button>`,
+      `<p>Set which item opens next in the reader. Drag a row, or press Space to pick it up, ↑ or ↓ to move it and Space to drop it; Escape puts it back.</p><p id="${hint}" class="sr-only">Space picks up the item, the up and down arrows move it, Space drops it, Escape puts it back. Option or Alt with an arrow moves it one place at once.</p><fr-order-list id="workspace-order" class="workspace-order-list" aria-label="Comparison order" aria-describedby="${hint}">${[...placements.keys()].map((id, i) => `<fr-order-item value="${esc(id)}"><div class="workspace-order-row" aria-describedby="${hint}"><svg class="workspace-order-grip" viewBox="0 0 12 16" aria-hidden="true"><circle cx="4" cy="4" r="1.2"/><circle cx="8" cy="4" r="1.2"/><circle cx="4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg><span class="workspace-order-number" aria-hidden="true">${i + 1}</span><span class="workspace-order-title">${esc(title(id))}</span></div></fr-order-item>`).join("")}</fr-order-list><button type="submit" class="workspace-primary">Save order</button>`,
       async () => {
         await this.client.write("updateBoard", {
           boardId: this.snapshot.id,
-          patch: { reviewOrder: placements.map((p) => p.id) },
+          patch: { reviewOrder: list.api.order() },
         });
         await this.refresh();
       },
     );
-    const render = () => {
-      d.querySelector("#workspace-order").innerHTML = placements
-        .map(
-          (p, i) =>
-            `<div class="workspace-order-row"><span>${i + 1}. ${esc(this.snapshot.items[p.itemId]?.title || p.itemId)}</span><button type="button" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move ${esc(this.snapshot.items[p.itemId]?.title)} earlier">↑</button><button type="button" data-down="${i}" ${i === placements.length - 1 ? "disabled" : ""} aria-label="Move ${esc(this.snapshot.items[p.itemId]?.title)} later">↓</button></div>`,
-        )
-        .join("");
-      d.querySelectorAll("[data-up],[data-down]").forEach(
-        (b) =>
-          (b.onclick = () => {
-            const i = Number(b.dataset.up ?? b.dataset.down),
-              j = i + (b.dataset.up !== undefined ? -1 : 1);
-            [placements[i], placements[j]] = [placements[j], placements[i]];
-            render();
-          }),
-      );
-    };
-    render();
+    const list = d.querySelector("#workspace-order");
+    list.label = title;
+    list.value = [...placements.keys()];
+    list.addEventListener("valuechange", event => { list.value = event.detail.value; });
+    // Draw the rows in the list's order (a row still held moves as it is carried). The row being carried, or the
+    // focused one, never moves in the DOM, so it keeps focus and its pointer capture; the others are placed around it.
+    let shown = [...placements.keys()].join();
+    list.api.subscribe(order => {
+      if (order.join() === shown) return;
+      shown = order.join();
+      const nodes = new Map([...list.querySelectorAll("fr-order-item")].map(node => [node.getAttribute("value"), node]));
+      const fixedKey = order.find(key => list.api.held(key)) ?? document.activeElement?.closest?.("fr-order-item")?.getAttribute("value");
+      const fixed = nodes.get(fixedKey) || null, at = fixed ? order.indexOf(fixedKey) : -1;
+      let after = fixed;
+      order.forEach((key, index) => {
+        const node = nodes.get(key);
+        if (!node) return;
+        node.querySelector(".workspace-order-number").textContent = String(index + 1);
+        if (node === fixed) return;
+        if (!fixed) { list.append(node); return; }
+        if (index < at) list.insertBefore(node, fixed);
+        else { after.after(node); after = node; }
+      });
+    });
+    // Focus starts in the list, on its first row (dialog.md: the first control of the body).
+    requestAnimationFrame(() => { if (d.isConnected && d.contains(document.activeElement) && !list.contains(document.activeElement)) list.api.focus(); });
   }
   persistDrafts() {
     try {

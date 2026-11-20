@@ -28,17 +28,18 @@
   text-align:center;
 }
 /* a drawing's action rows (Select section contents, Bring to front, ...) read as menu rows: words at the start, a printed key at the end */
-.text-format-controls .whiteboard-format-actions > button { display:flex; align-items:center; justify-content:space-between; padding:0 10px; }
+.text-format-controls .whiteboard-format-actions > ui-toolbar-button > button { display:flex; align-items:center; justify-content:space-between; padding:0 10px; }
 /* faces, fill and border options, auto height and fit height are raised keys (depth.css): their face, rim and "on" come from there.
    The rest are flat and take a wash on hover. */
-.text-format-controls :is([data-format-close], [data-border-auto], [data-style-retry], .text-format-roles button) { background:transparent; }
-.text-format-controls :is([data-format-close], [data-border-auto], [data-style-retry], .text-format-roles button):hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.text-format-controls :is([data-format-close], [data-border-auto], [data-style-retry]) { background:transparent; }
+.text-format-controls :is([data-format-close], [data-border-auto], [data-style-retry]):hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
 .whiteboard-menu .text-format-controls :is(.text-format-faces, .text-format-options) button:not(:disabled):hover,
 .whiteboard-menu .text-format-controls .text-format-box-height button:not(:disabled):hover { background-color:var(--surface-paper); }
 .whiteboard-menu .text-format-controls :is(.text-format-faces, .text-format-options) button[aria-pressed=true]:hover,
 .whiteboard-menu .text-format-controls .text-format-box-height button[aria-pressed=true]:hover { background-color:var(--surface-chosen); }
 /* the chosen role is a raised cell in its sunken track (depth.css), like any segmented choice */
 .text-format-controls button:focus-visible,
+.text-format-swatches [data-swatch]:focus-visible,
 .text-format-custom:has(input:focus-visible) {
   outline:2px solid var(--mark-blue);
   outline-offset:1px;
@@ -122,13 +123,16 @@ html[data-appearance=dark] .drawing-color-dot:not(.drawing-color-dot-mixed) { ba
   border:1px solid transparent;   /* keeps its box; the sunken track (depth.css) draws the rim */
   border-radius:var(--shape-key);
 }
-.text-format-roles button { min-height:26px; font-size:12px; }
+.text-format-roles > [data-slot=segmented-control-item] { min-height:26px; height:auto; padding:0 4px; font-size:12px; }
 .text-format-controls[data-text-format-mode=box] .text-format-colors { border-top:0; padding-top:0; }
+/* Auto height (a toggle) and Fit height once (an action): one toolbar, raised keys (depth.css) */
 .text-format-box-height { display:flex; justify-content:space-between; gap:7px; border-top:1px solid var(--line-hair); padding-top:7px; }
-/* Auto height (a toggle) and Fit height once (an action) are raised keys (depth.css) */
 .text-format-box-height [data-auto-height] { display:flex; justify-content:center; align-items:center; gap:5px; width:auto; padding:0 7px; color:var(--ink-2); }
 .text-format-box-height [data-auto-height][aria-pressed=true] { color:var(--ink); }
 .text-format-box-height [data-fit-height] { width:auto; padding:0 7px; font-size:12px; }
+/* While a fit saves, Fit height once stays focusable but inert (aria-disabled, UI SDK toolbar): drawn as depth.css draws a
+   disabled key, which only knows :disabled (asked of the depth model) */
+.text-format-box-height [data-fit-height][aria-disabled=true] { --key-d:0px; --key-face:var(--surface-frame); --key-rim:var(--line-hair); color:var(--ink-2); translate:none; cursor:default; }
 .text-format-options button {
   display:flex;
   justify-content:center;
@@ -151,12 +155,15 @@ html[data-appearance=dark] .text-format-fill-preview { background:var(--preview-
 :is([data-fill=none],[data-border=none]) :is(.text-format-fill-preview,.text-format-border-preview) {
   background:linear-gradient(135deg,transparent 45%,var(--ink-2) 46% 54%,transparent 55%);
 }
+.text-format-swatches [data-swatch]:hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
 .text-format-swatches {
   display:grid;
   grid-template-columns:repeat(8,minmax(0,1fr));
   gap:2px 3px;
 }
 .text-format-swatches [data-swatch],.text-format-swatches .text-format-custom {
+  box-sizing:border-box;
+  cursor:pointer;
   display:grid;
   place-items:center;
   min-width:0;
@@ -177,7 +184,7 @@ html[data-appearance=dark] .text-format-fill-preview { background:var(--preview-
   background:var(--swatch-color);
   border:1px solid var(--line-edge);   /* a flat chip with a hairline ring */
 }
-.text-format-swatches [data-swatch][aria-pressed=true]>span,
+.text-format-swatches [data-swatch][data-checked]>span,
 .text-format-custom.is-selected .text-format-custom-chip {
   outline:2px solid var(--mark-blue); outline-offset:2px;   /* chosen: the selection line, drawn clear of the chip */
 }
