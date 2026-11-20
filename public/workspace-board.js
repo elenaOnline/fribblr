@@ -636,7 +636,10 @@ export class WorkspaceBoard {
     // The name is a menu button listing every version (versionMenu); the arrows step to the neighbours.
     const choose = previous || next ? `<button type="button" class="workspace-file-version-name" data-file-version-menu="${esc(placementId)}" aria-haspopup="menu" aria-expanded="${this.versionMenuPlacement === placementId}" aria-label="${esc(title)}: choose a version" data-tip="${esc(title)}"><span role="status">${esc(version.name)}</span></button>`
       : `<span class="workspace-file-version-name" role="status" aria-label="${esc(title)}" data-tip="${esc(title)}">${esc(version.name)}</span>`;
-    return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${previous || next ? arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5") : ""}${choose}${previous || next ? arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5") : ""}</span>`;
+    // A toolbar (one Tab stop, ←/→ along it; ↓ on the name opens the menu), roving by board-focus.js. With a single
+    // version there is nothing to step and nothing to choose: the name is a status, not a control.
+    if (!previous && !next) return `<span class="workspace-file-versions" role="group" aria-label="File versions for ${esc(item.title)}">${choose}</span>`;
+    return rovingMarkup(`<span class="workspace-file-versions" role="toolbar" data-roving aria-label="File versions for ${esc(item.title)}">${arrow("previous", previous, "m9.5 4.5-3.5 3.5 3.5 3.5")}${choose}${arrow("next", next, "m6.5 4.5 3.5 3.5-3.5 3.5")}</span>`);
   }
   aliasConcept(key) {
     const p = this.snapshot.placements.find(
@@ -2211,7 +2214,8 @@ export class WorkspaceBoard {
     }
     // A menu button in a toolbar (Arrange in the selection bar) opens on ArrowDown through the toolbar's own listener
     // (popups.js openOnArrowDown), which runs after this capture-phase handler: the board steps aside.
-    if (e.key === "ArrowDown" && !e.shiftKey && e.target.closest?.("[role=toolbar] [aria-haspopup], ui-toolbar [aria-haspopup]")) return true;
+    // (A card's own toolbars rove in board-focus.js; their menu buttons open just below.)
+    if (e.key === "ArrowDown" && !e.shiftKey && e.target.closest?.("[role=toolbar]:not([data-roving]) [aria-haspopup], ui-toolbar [aria-haspopup]")) return true;
     const more = ["ArrowDown","ArrowUp"].includes(e.key) && !e.shiftKey && e.target.closest?.('[data-item-controls][data-controls-focus="menu"], #world [data-file-version-menu]');
     if (!more) return false;
     e.preventDefault(); e.stopImmediatePropagation();
