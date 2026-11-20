@@ -117,7 +117,7 @@ try{
   await openItemDetails(page.locator(`[data-placement="${placements.town}"] [data-item-controls]`));await page.screenshot({path:path.join(evidence,'item-popup-dark-narrow.png')});await page.locator('[data-context-close]').click();
   await page.getByRole('button',{name:'Navigator',exact:true}).click();await page.locator('#project-navigator').waitFor({state:'visible'});await page.getByText('Loading project boards…',{exact:true}).waitFor({state:'hidden'});await check('.navigator-status','#project-navigator');
   await page.screenshot({path:path.join(evidence,'navigator-dark-narrow.png')});await page.keyboard.press('Escape');
-  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name:'System'}).getAttribute('aria-pressed'),'true');
+  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name:'System'}).getAttribute('aria-checked'),'true');
   assert.deepEqual(errors,[]);
   await writeFile(path.join(evidence,'appearance-report.json'),JSON.stringify({passed:true,contrasts,checks:['system/light/dark persistence','mixed building and review cards','explicit white and dark paper','popup field text and boundary','authored media retains source colors','home and navigator','normal and narrow'],errors},null,2));
   console.log(JSON.stringify({passed:true,evidence,contrasts,errors}));
