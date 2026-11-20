@@ -244,6 +244,10 @@ try{
  assert.deepEqual((await decoration('stack')).container.children,['t3','t1','t2'],'Left does not move a member of a stack');checks++;
  await page.keyboard.press(`${mod}+z`);
  ok(await until(async()=>(await decoration('stack')).container.children[0]==='t1'),'One undo step per reorder');
+ // The undo's toast is announced through the same polite announcer, batched a moment after it shows: let it speak
+ // before the next reorder, whose announcement it would otherwise replace.
+ const spoken=text=>page.evaluate(text=>[...document.querySelectorAll('[data-ui-sdk-announcer]')].some(e=>e.textContent.includes(text)),text);
+ ok(await until(()=>spoken('Undid arrange in container.')),`The undo is announced: ${await announced()}`);
  // In a grid, Option+↓ moves a member down a row.
  await page.locator('#world [data-decoration="grid"]').focus();await press('Enter','drawn:g-a');
  await page.keyboard.press('Alt+ArrowDown');
@@ -273,7 +277,11 @@ try{
  await page.locator('#world [data-decoration="rocket"]').focus();await page.keyboard.press('Space');
  await page.keyboard.press(`${mod}+g`);
  ok(await until(async()=>!(await snapshot()).groups.some(g=>g.decorationIds.includes('rocket'))),'Space on a grouped item, then ⌘/Ctrl-G, ungroups');
- await page.keyboard.press('Escape');await page.waitForTimeout(150);
+ // The server has it before the board has re-read it: wait for the board to settle, as for grouping above, so the
+ // Escape lands on the settled selection (else the next Space toggles a still-selected sticker off).
+ ok(await until(()=>page.evaluate(()=>!document.getElementById('workspace-paste')?.disabled&&!document.getElementById('chrome-undo')?.matches('[disabled],[aria-disabled=true]'))),'The ungroup settles');
+ await page.keyboard.press('Escape');
+ ok(await until(async()=>await drawnSelected()===0),'Escape clears the selection');
 
  // A selected sticker or shape has a keyboard resize corner; a sticker keeps its proportions.
  await page.locator('#world [data-decoration="rocket"]').focus();await page.keyboard.press('Space');

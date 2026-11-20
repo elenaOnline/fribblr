@@ -676,3 +676,10 @@ body:is(.workspace-box-fit, .workspace-box-zoom) #workspace-marquee { border-sty
 
 /* Phone width: the parent crumb is its arrow alone, so the board's name gets the room. Its aria-label and title keep the words. */
 @media (max-width: 480px) { #canvas-header .workspace-parent .workspace-parent-label { display: none; } }
+
+/* An aria-disabled key in the top bars (Undo and Redo with nothing to undo: UI SDK toolbar items stay reachable and
+   say they are disabled, toolbar.md § Disabled) lies flat in the frame with a hairline, as depth.css draws :disabled.
+   FLAG: depth.css has no [aria-disabled] rule yet (asked of the theme team); drop this once it has one. The html
+   prefix outweighs depth.css's key rule and its hover / press, which only step aside for :disabled. */
+html :is(#canvas-header, #reader-header) .tk-btn[aria-disabled="true"] { --key-d: 0px; --key-face: var(--surface-frame); --key-rim: var(--line-hair); color: var(--ink-2); opacity: 1; cursor: default; }
+html :is(#canvas-header, #reader-header) .tk-btn[aria-disabled="true"]:is(:hover, :active):not(:disabled) { background-color: var(--surface-frame); box-shadow: inset 0 0 0 1px var(--line-hair); translate: none; }

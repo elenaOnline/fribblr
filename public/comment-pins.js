@@ -8,6 +8,7 @@ import {toast, dismissToast, makeDialog, escape as esc} from './workspace.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {tips, setTip} from './tips.js';
 import {sharedMenu, openMenu, menuCheckbox, menuGroup, menuItem, inPopup, openOnArrowDown} from './popups.js';
+import {sdkCore, ARROWS} from './board-focus.js';
 
 // ---- API adapter (comment API, Tinka 1.1). Field and operation names live only here.
 export const commentApi = {
@@ -66,6 +67,15 @@ export class CommentPins {
   mount() {
     this.world = document.getElementById('world');this.viewport = document.getElementById('viewport');
     this.layer = document.createElement('div');this.layer.className = 'comment-pins';this.layer.setAttribute('aria-label', 'Comments');
+    // The pins are one Tab stop, like the board's items: the pin focused last holds it (else the first in reading
+    // order), arrows move to the nearest pin that way (UI SDK nearestInDirection on screen boxes), Home and End reach the
+    // first and last, and Enter or Space opens the focused pin (a cluster, its list).
+    this.layer.setAttribute('role', 'group');
+    this.layer.addEventListener('focusin', e => {
+      const key = this.pinKey(e.target.closest?.('[data-comment-pin],[data-comment-cluster]'));
+      if (key && key !== this.pinStop) { this.pinStop = key; for (const pin of this.layer.querySelectorAll('[data-comment-pin],[data-comment-cluster]')) pin.tabIndex = this.pinKey(pin) === key ? 0 : -1; }
+    });
+    this.layer.addEventListener('keydown', e => this.pinKeys(e));
     this.world.append(this.layer);
     // feedback.js stops drawing its numbered canvas pins once this layer exists.
     this.board.feedback?.syncPins?.();
@@ -128,6 +138,26 @@ export class CommentPins {
     this.mountMenus();
     this.sync();this.renderBar();
   }
+  pinKey(el) { return el?.dataset?.commentPin ? `pin:${el.dataset.commentPin}` : el?.dataset?.commentCluster ? `cluster:${el.dataset.commentCluster}` : null; }
+  pinKeys(e) {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+    const from = e.target.closest?.('[data-comment-pin],[data-comment-cluster]');
+    const direction = ARROWS[e.key];
+    if (!from || (!direction && e.key !== 'Home' && e.key !== 'End')) return;
+    e.preventDefault(); e.stopPropagation();
+    const pins = [...this.layer.querySelectorAll('[data-comment-pin],[data-comment-cluster]')].map(el => ({el, key:this.pinKey(el), rect:el.getBoundingClientRect()}));
+    if (!direction) {
+      const order = [...pins].sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+      (e.key === 'Home' ? order[0] : order.at(-1))?.el.focus({preventScroll:true});
+      return;
+    }
+    const here = pins.find(pin => pin.el === from);
+    sdkCore().then(core => {
+      if (document.activeElement !== from) return;
+      const key = core.nearestInDirection(here.rect, pins.filter(pin => pin !== here), direction);
+      pins.find(pin => pin.key === key)?.el.focus({preventScroll:true});
+    });
+  }
   // ---- data
   async reload() {
     const boardId = this.snapshot.id;
@@ -166,7 +196,12 @@ export class CommentPins {
       const near = groups.find(g => g[0].t.id !== this.dragging?.id && Math.hypot((g[0].p.x - entry.p.x) * zoom, (g[0].p.y - entry.p.y) * zoom) < CLUSTER_PX);
       near ? near.push(entry) : groups.push([entry]);
     }
-    const html = groups.map(group => group.length === 1 ? this.pinMarkup(group[0].t, group[0].p, origin) : this.clusterMarkup(group, origin, zoom)).join('');
+    // One Tab stop: the pin focused last, else the first in reading order (by board position).
+    const keyOf = group => group.length === 1 ? `pin:${group[0].t.id}` : `cluster:${group.map(g => g.t.id).join(' ')}`;
+    const first = [...groups].sort((a, b) => a[0].p.y - b[0].p.y || a[0].p.x - b[0].p.x)[0];
+    const stop = groups.some(group => keyOf(group) === this.pinStop) ? this.pinStop : first && keyOf(first);
+    const html = groups.map(group => (group.length === 1 ? this.pinMarkup(group[0].t, group[0].p, origin) : this.clusterMarkup(group, origin, zoom))
+      .replace('<button type="button"', `<button type="button" tabindex="${keyOf(group) === stop ? 0 : -1}"`)).join('');
     if (this.layer.innerHTML !== html) {
       // The pins are rebuilt as a string: a pin that has focus (Escape from its card sends focus here) gets it back on
       // its new copy in the same turn, so focus never falls to <body> between renders.
@@ -201,7 +236,17 @@ export class CommentPins {
     const view = this.viewport?.getBoundingClientRect(), world = this.world.getBoundingClientRect(), margin = 22 / zoom;
     if (view?.width) {
       const left = (view.left - world.left) / zoom - origin.x, top = (view.top - world.top) / zoom - origin.y, right = left + view.width / zoom, bottom = top + view.height / zoom;
-      if (x >= left && x <= right && y >= top && y <= bottom) { x = Math.min(Math.max(x, left + margin), right - margin);y = Math.min(Math.max(y, top + margin), bottom - margin); }
+      if (x >= left && x <= right && y >= top && y <= bottom) {
+        x = Math.min(Math.max(x, left + margin), right - margin);y = Math.min(Math.max(y, top + margin), bottom - margin);
+        // The floating footer's bars and the edit tools rail sit over the canvas's bottom edge (across all of it at phone
+        // width): a cluster under one of them moves up, clear of it, as revealBox keeps revealed items clear (canvas.js).
+        const sx = world.left + (x + origin.x) * zoom;
+        for (const bar of document.querySelectorAll('.canvas-footer .zoom-pill, #edit-tools')) {
+          const r = bar.hidden || !bar.getClientRects().length ? null : bar.getBoundingClientRect();
+          if (!r || sx < r.left - 22 || sx > r.right + 22) continue;
+          y = Math.min(y, (r.top - world.top) / zoom - origin.y - margin);
+        }
+      }
     }
     return `<button type="button" class="comment-pin comment-cluster" data-comment-cluster="${esc(group.map(g => g.t.id).join(' '))}" data-status="${status}" style="left:${x + origin.x}px;top:${y + origin.y}px" aria-haspopup="menu" aria-label="${group.length} comments here · ${STATUS_LABEL[status] || status}">${group.length}<span class="comment-pin-badge" aria-hidden="true"></span></button>`;
   }

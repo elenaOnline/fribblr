@@ -51,6 +51,8 @@ export async function createBoardDocument(board, point) {
   board.selection = new Set(data.result.placementIds || []);
   try { await board.refresh({saveReview:false}); } catch {}
   board.hooks?.revealPlacements?.(board.snapshot.placements.filter(p => board.selection.has(p.id)));
+  // The new card holds focus under the editor, so closing the editor comes back to it (focusCreated).
+  board.focusCreated?.({placementIds:data.result.placementIds || []});
   const itemId = data.result.itemIds[0];
   await editBoardDocument(board, itemId, {selectTitle:true, placementId:data.result.placementIds?.[0]});
   return itemId;

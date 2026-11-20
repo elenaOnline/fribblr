@@ -1071,6 +1071,7 @@ export class WorkspaceBoard {
       <dt>M</dt><dd>Show or hide the board map</dd>
       <dt>V · H</dt><dd>Pointer · Pan</dd>
       <dt>Arrow keys on a resize corner</dt><dd>Resize the card, shape, text or sticker 1 unit, 10 with Shift</dd>
+      <dt>⌥/Alt-F10</dt><dd>Move to the selected drawing's bar (it also follows the drawing's own controls in Tab order); Escape comes back</dd>
       <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
@@ -1371,6 +1372,7 @@ export class WorkspaceBoard {
       this.selection = new Set(result.placementIds || []);
       await this.refresh({saveReview:false});
       this.hooks.revealPlacements?.(this.snapshot.placements.filter(p=>this.selection.has(p.id)));
+      this.focusCreated({placementIds:result.placementIds || []});
       toast(`Imported ${files.length} ${files.length === 1 ? "file" : "files"}.`);
     } catch (error) {
       this.moveCommitting = false;
@@ -1485,6 +1487,7 @@ export class WorkspaceBoard {
         const ids = new Set(drawingIds);
         positions.push(...this.snapshot.decorations.filter(d => ids.has(d.id)).map(d => decorationBounds(d,this.snapshot)));
         this.hooks.revealPlacements?.(positions);
+        this.focusCreated({placementIds:result.placementIds,decorationIds:drawingIds});
       }});
       const count = result.placementIds.length + drawingIds.length;
       const noun = drawingIds.length ? (count === 1 ? "object" : "objects") : (count === 1 ? "Tinka" : "Tinkas");
@@ -2083,6 +2086,13 @@ export class WorkspaceBoard {
     tips(popover);
     this.context = popover;
     const invoker = () => document.querySelector(`[data-item-controls="${CSS.escape(id)}"]`);
+    // Tab past the panel's last control continues from what opened it (popups.js, the SDK's non-modal dialog rule): the
+    // control that opened it while it is on screen, else the card's ⋯, else the card.
+    popover.tabTrigger = () => {
+      const shown = el => el?.isConnected && el.getClientRects().length ? el : null;
+      const card = document.querySelector(`#world .workspace-card[data-placement="${CSS.escape(id)}"]`);
+      return shown(invoker()) || shown(card?.querySelector(".workspace-tile-more")) || shown(card) || $("viewport");
+    };
     this.contextPanel = sidePanel(panelRoot, {
       openers: () => [...document.querySelectorAll(`[data-item-controls="${CSS.escape(id)}"]`)],
       keepOpen: target => !!target.closest?.('.workspace-dialog,dialog[open],[aria-modal="true"],.feedback-panel,.feedback-ballot,.workspace-popover,.workspace-tile-menu,[data-slot$="-content"]:not([data-slot="dialog-content"])'),
@@ -2680,6 +2690,7 @@ export class WorkspaceBoard {
             this.syncSelection();
             this.selectionMenu();
           } else this.whiteboard?.selectDecorations(result.decorationIds);
+          this.focusCreated(result);
         }});
         const count = result.placementIds.length + result.decorationIds.length;
         toast(count > 1 ? `Placed ${count} copies.` : "Placed a copy.");
@@ -4011,6 +4022,21 @@ export class WorkspaceBoard {
   // by the item's key, because the press's own selection may re-render the element. A press on the empty canvas (or a
   // plain region's open middle, which works as empty canvas) takes focus off the items. One check per press; nothing
   // on pointer moves.
+  // What the app just created and selected takes keyboard focus (the first of it), so Option-arrow, Space and the
+  // board's commands act on what was made, never on the item focused before: ⌘D, then ⌥→ moves the copy, as in Figma,
+  // tldraw and Excalidraw (ui-sdk.md § Board canvas, "Focus follows what the app creates"). Focus in a field, an editor
+  // or a modal dialog stays where it is.
+  focusCreated({placementIds = [], decorationIds = []} = {}) {
+    const key = placementIds[0] ? `placement:${placementIds[0]}` : decorationIds[0] ? `decoration:${decorationIds[0]}` : null;
+    const el = key && this.boardFocus?.element(key);
+    if (!el) return;
+    const active = document.activeElement;
+    if (active?.matches?.("input,textarea,select,[contenteditable],iframe") ||
+        active?.closest?.(".whiteboard-editor,dialog:modal,ui-dialog-content[data-open][aria-modal=true],ui-alert-dialog-content[data-open]")) return;
+    this.boardFocus.setStop(key);
+    if (active !== el) el.focus({preventScroll:true});
+    this.boardFocus.keepOn(key);
+  }
   pressFocus() {
     window.addEventListener("pointerdown", e => {
       if (this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || menuOpen() || this.panTool || !e.target.closest?.("#viewport")) return;
@@ -4022,11 +4048,19 @@ export class WorkspaceBoard {
       }
       const key = item && this.boardFocus.key(item);
       if (!key && !document.activeElement?.closest?.("#world")) return;
+      // Where focus was before the press, by element and by board item (a re-render replaces the element).
+      const before = document.activeElement, beforeItem = before && this.boardFocus.item(before), beforeKey = beforeItem && this.boardFocus.key(beforeItem);
       requestAnimationFrame(() => {
         const active = document.activeElement;
         if (active?.matches?.("input,textarea,select,[contenteditable]") || active?.closest?.(".whiteboard-editor")) return;
         const target = key ? this.boardFocus.element(key) : $("viewport");
         if (!target?.isConnected || active === target) return;
+        // Focus that moved on before this frame (code acting on the press, a click that an assistive technology
+        // sends in one go, a key pressed straight after) is left where it went: only focus still where it was, or
+        // dropped to <body> by a re-render, is moved to the pressed item.
+        const activeItem = active && active !== document.body ? this.boardFocus.item(active) : null;
+        if (active && active !== document.body && active !== before && !target.contains(active) &&
+            !(beforeKey && activeItem && this.boardFocus.key(activeItem) === beforeKey)) return;
         // A press on a card's own control area keeps native focus where it landed inside the card.
         if (key?.startsWith("placement:") && target.contains(active) && active !== target) return;
         if (key) this.boardFocus.setStop(key);
