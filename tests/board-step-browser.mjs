@@ -149,6 +149,8 @@ try{
  await open('cursor');
  const pick=async n=>{await page.locator(`.workspace-card[data-placement="${row[n-1]}"] [data-placement-select]`).evaluate(b=>b.click());await page.waitForTimeout(60);};
  const openAndStep=async(keys=['Alt+ArrowRight','Alt+ArrowRight'])=>{await page.locator(`.workspace-card[data-placement="${row[3]}"] [data-open]`).first().evaluate(b=>b.click());await page.locator('#reader-dialog[open]').waitFor();
+  // Rest the pointer off the reader's controls: a hover tooltip there would take the Escape first (tooltip.md § Keyboard).
+  await page.mouse.move(700,300);
   await page.waitForFunction(()=>document.getElementById('reader-count').textContent.trim()==='4 / 8');
   for(const k of keys)await page.keyboard.press(k);
   await page.waitForFunction(()=>document.getElementById('reader-count').textContent.trim()==='6 / 8');
