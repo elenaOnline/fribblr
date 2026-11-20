@@ -204,6 +204,13 @@ Applies to the organized Home (`WorkspaceHome`); the legacy shelf in `home.js` (
   click opens a board, and a 2-D grid doesn't wrap top to bottom. Escape clearing the selection is the app's
   existing behaviour (the SDK's selection helper maps no Escape; Listbox leaves the selection alone).
 
+- **Toolbars on Home:** the Favorites/Archive row (`.workspace-home-toolbar`) and the floating selection bar are
+  `ui-toolbar`s of `ui-toolbar-button`s: one Tab stop each, arrows and Home/End along the actions. The bar is built once
+  on the first selection and updated in place (count, Archive/Restore label), so a focused action keeps focus as the
+  selection changes; `followVisibility` keeps it out of the Tab order while hidden. Its Clear button carries the SDK
+  tooltip (`data-tip`, `aria-keyshortcuts="Escape"`). The sort control and Appearance menu belong to the toolbars and
+  menus streams.
+
 ### Navigator (⌘K, `/`, the header toggle, Find boards and items, the reader's toggle)
 
 Files: `navigator.js`, `navigator.css`; openers in `canvas.js` (`#chrome-search`, `#reader-search` and `#reader-navigator`
@@ -492,3 +499,15 @@ frame is active, a script `focus()` only sets what gets focus when this frame is
 half would otherwise take the keys from the other); the element that had focus comes back when the frame becomes
 active again; and Tab wraps from the last control to the first (Shift+Tab the other way). The before half is served
 from branch `ux/base-framed`: the experiment's base plus `frame-focus.js`.
+
+### Update notice chip and popover (`update-notice.js`)
+
+The chip ("Tinka 1.1 available") is rebuilt on every render, so it is no `ui-popover-trigger`: its popover is one shared
+non-modal `ui-popover` (`sharedPopover`, `modal="false"`, `final-focus="none"`) opened from code with the chip as anchor,
+content refilled per state (compatible, review, failed). The SDK supplies Escape, a press outside, focus leaving and
+placement (below the chip, flipping above near the window bottom; width capped to the window). Focus: the chip is focused
+as it opens, so the SDK's rule returns there; because the chip may be a new element by then, `openchangecomplete` focuses
+`.update-chip` again after Escape or a code close (not after a press elsewhere). Tab: `content.tabTrigger` names the chip
+so popups.js's Tab-out rule closes the popover and continues from it. The class `workspace-popover` stays on the content
+so the board Inspector stays open while it is used. The major-update consent is a `ui-dialog` (focus starts on Later) and
+the policy control a segmented control.

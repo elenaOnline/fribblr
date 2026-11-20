@@ -74,6 +74,6 @@ try{
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(evidence,'parent-feature-narrow.png')});
   await op('remove',{boardId:round.boardId,placementIds:a.placementIds});await page.reload();
   await page.locator(`[data-placement="${featured.id}"] .workspace-feature-source`).filter({hasText:'Not currently in source'}).waitFor();
-  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('menu',{name:'Appearance'}).getByRole('group',{name:'Mode'}).getByRole('menuitemradio',{name:'Light'}).getAttribute('aria-checked'),'true');
+  await page.goto(base+'/');await page.getByRole('button',{name:'Appearance',exact:true}).click();assert.equal(await page.getByRole('group',{name:'Appearance mode'}).getByRole('button',{name:'Light'}).getAttribute('aria-pressed'),'true');
   assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,evidence,checks:['system dark','multiple parents','cancel and failed-save recovery','feature a full-size shared item','source geometry preserved','shared note and comment editing','source and stale-membership links','unclipped numbered featured caption','light preference across Home and board','narrow layout'],errors}));
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
