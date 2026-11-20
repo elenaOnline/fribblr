@@ -370,7 +370,7 @@ export class WorkspaceBoard {
     }
     document.addEventListener("keydown", e => {
       if (this.hooks.viewOnly || !(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== "z" ||
-          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector("dialog[open]")) return;
+          e.target.closest("input,textarea,select,[contenteditable],[role=dialog]") || document.querySelector("dialog[open]") || inPopup(e)) return;
       // Browser text editing keeps its own undo; movement replay is available
       // only when no pointer gesture or operation is still being committed.
       e.preventDefault(); e.stopImmediatePropagation();
@@ -2649,7 +2649,8 @@ export class WorkspaceBoard {
     // Whiteboard handles single drawn elements on document capture. Take their
     // Option-drag first, without changing either selection or persisted objects.
     window.addEventListener("pointerdown", e => {
-      if (this.panTool || !e.altKey || e.shiftKey || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
+      // A press that closes an open menu belongs to the menu (popups.js), never starts a drag.
+      if (menuOpen() || this.panTool || !e.altKey || e.shiftKey || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
           this.commandBusy() || this.whiteboard?.editing || this.documentEditing || drag || marquee || pointers.size) return;
       const element = e.target.closest?.("#world [data-decoration]");
       if (!element || e.target.closest("button,input,textarea,select,[contenteditable],[data-endpoint],[data-decoration-resize],[data-port]")) return;
@@ -2676,7 +2677,7 @@ export class WorkspaceBoard {
       e.preventDefault(); e.stopImmediatePropagation();
     }, true);
     window.addEventListener("pointerdown", e => {
-      if (this.panTool || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
+      if (menuOpen() || this.panTool || this.mode !== "canvas" || e.button !== 0 || e.isPrimary === false || e.pointerType === "touch" ||
           e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || this.movePending || drag || marquee || pointers.size) return;
       const element = e.target.closest?.("#world [data-decoration]");
       if (!element ||
