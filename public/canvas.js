@@ -20,6 +20,7 @@ import {quietPointerFocus} from './pointer-focus.js';
 import {voteTotals} from './feedback.js';
 import {markKind} from './kinds.js';
 import './keycaps.js';
+import {inPopup, openOnArrowDown} from './popups.js';
 import {fileVersion, fileVersions, modifiedTime, nearbyFileVersions} from './version-stack.js';
 
 const $ = id => document.getElementById(id);
@@ -688,13 +689,13 @@ function setType(value, send = true) {
   if (send) sendPreferences();
 }
 
-function setReaderMenuOpen(open, { focus = false } = {}) {
-  const menu = $('reader-zoom-menu');
-  if (menu.hidden !== open) { if (!open && focus) $('reader-zoom-toggle').focus({ preventScroll: true }); return; }
-  menu.hidden = !open;
-  $('reader-zoom-toggle').setAttribute('aria-expanded', String(open));
-  if (open) { renderSizeControls(); menu.querySelector('button:not([hidden])')?.focus({ preventScroll: true }); }
-  else if (focus) $('reader-zoom-toggle').focus({ preventScroll: true });
+// The % popover (board.html #reader-zoom-popover): a UI SDK Popover inside the reader dialog. Its trigger opens and
+// closes it; Escape, a press outside it or a click into the content close it; focus goes in on open and back on close.
+const readerZoomPopover = $('reader-zoom-popover');
+readerZoomPopover.addEventListener('openchange', event => { if (event.detail.value) renderSizeControls(); });
+function setReaderMenuOpen(open) {
+  if (open) { if (!readerZoomPopover.open) readerZoomPopover.api?.open(); }
+  else if (readerZoomPopover.open) readerZoomPopover.api.close({ reason: 'imperative' });
 }
 
 function renderRevisionOptions() {
@@ -1165,6 +1166,8 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (event.key === ' ' && event.target === readerStage) { event.preventDefault(); if (!event.repeat) readerCanvas.setSpacePan(true); return; }
+  // A focused menu or popover keeps its arrows, letters (typeahead) and Enter.
+  if (inPopup(event)) return;
   // The Navigator keeps its own arrows and typing.
   if (event.target?.closest?.('.project-navigator') && !event.altKey && !event.ctrlKey) return;
   const command = readerCommand(event, { mac: readerKeysMac, editable: readerEditable(event.target), tinkaFocus: readerTinkaFocus(event.target) });
@@ -1300,7 +1303,6 @@ function handleEscape(event) {
   const keyEvent=event||{key:'Escape',defaultPrevented:false,isComposing:false,preventDefault(){},stopImmediatePropagation(){}};
   if(graph?.feedback?.consumeEscape(keyEvent))return true;
   if (readerPath.isOpen) { readerPath.close({ focus: true }); return true; }
-  if (!$('reader-zoom-menu').hidden) { setReaderMenuOpen(false, { focus: true }); return true; }
   if (!readerInfo.hidden) { setReaderInfoOpen(false, { focus: true }); return true; }
   if (projectNavigator?.isOpen && projectNavigator.hostEl) { projectNavigator.hide(); return true; }
   if (notesOpen && $('notes-panel').contains(document.activeElement)) { setNotesOpen(false); return true; }
@@ -1645,19 +1647,19 @@ function setInfoOpen(open, { focus = false } = {}) {
 document.addEventListener('pointerdown', event => {
   const remove = event.target.closest('[data-remove-experiment]');
   if (remove && event.button === 0) { event.preventDefault(); remove.focus({ preventScroll: true }); }
-  if (!$('reader-zoom-menu').hidden && !event.target.closest('.reader-footer .zoom-menu-wrap')) setReaderMenuOpen(false);
   if (readerPath.isOpen && !event.target.closest('#reader-path-pop, #reader-path, #reader-count')) readerPath.close({ focus: false });
   if (!readerInfo.hidden && !event.target.closest('#reader-info, #reader-info-toggle, .workspace-dialog, .feedback-ballot')) setReaderInfoOpen(false);
 });
 document.addEventListener('pointerdown', event => {
   if (!$('board-info').hidden && !event.target.closest('#board-info, #board-info-toggle, .workspace-dialog, dialog[open], .workspace-add-menu, .workspace-popover, .feedback-panel')) setInfoOpen(false);
-  if (!$('zoom-menu').hidden && !event.target.closest('.zoom-menu-wrap')) setZoomMenuOpen(false);
 }, true);
 let pendingDocumentOpen = 0;
 document.addEventListener('click', event => {
   const fileStep = event.target.closest('#world [data-file-version-step]');
   if (fileStep && graph) { graph.stepFileVersion(fileStep); return; }
-  const open = event.target.closest('[data-open]');
+  // data-open names the item a card's control opens; UI SDK parts also carry a data-open state attribute (and a
+  // data-slot), so an open menu trigger is not an item to open.
+  const open = event.target.closest('[data-open]:not([data-slot])');
   const star = event.target.closest('[data-star]');
   const remove = event.target.closest('[data-remove-experiment]');
   if (remove && appConfig) {
@@ -1708,10 +1710,11 @@ const readerNoteHint=document.createElement('small');readerNoteHint.className='w
 document.addEventListener('keydown', event => {
   // The document editor (board-document.js) handles its own Escape: save and close it, keep the reader open.
   if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode===229 || event.repeat || document.querySelector('dialog.workspace-dialog[open],dialog.tinka-doc-editor[open]')) return;
+  // An open UI SDK menu or popover takes its own Escape (it closes one layer and returns focus).
+  if (inPopup(event)) return;
   if (tileNotes.element) {event.preventDefault();event.stopImmediatePropagation();tileNotes.close({focus:true});return;}
   if (legacyMenu) {event.preventDefault();event.stopImmediatePropagation();closeLegacyMenu(true);return;}
   if (dialog.open) { if (projectNavigator?.panel?.contains(event.target)) return; handleEscape(event); event.preventDefault(); return; }
-  if (!$('zoom-menu').hidden) { event.preventDefault(); setZoomMenuOpen(false, { focus: true }); return; }
   if (!$('board-info').hidden) { event.preventDefault(); setInfoOpen(false, { focus: true }); }
 }, true);
 
@@ -1734,23 +1737,29 @@ $('chrome-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka
 // ⌘I / Ctrl-I opens the Inspector: the selected item when there is exactly one, otherwise the board.
 document.addEventListener('keydown', event => {
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'i' || event.repeat) return;
-  if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]')) return;
+  if (dialog.open || event.target.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]') || inPopup(event)) return;
   event.preventDefault();
   const sole = graph?.selection?.size === 1 ? [...graph.selection][0] : null;
   if (sole && graph.contextPlacement !== sole) { setInfoOpen(false); graph.itemControls(sole, 'notes'); return; }
   if (graph?.context) { graph.closeContext(true); return; }
   setInfoOpen($('board-info').hidden, { focus: true });
 }, true);
-// The floating view pill: − · percent menu · + · Fit.
-function setZoomMenuOpen(open, { focus = false } = {}) {
-  $('zoom-menu').hidden = !open;
-  $('zoom-menu-toggle').setAttribute('aria-expanded', String(open));
-  if (open) readSelection();
+// The floating view pill: − · percent popover · + · Fit. The popover (board.html #zoom-popover) is a UI SDK Popover:
+// its trigger opens and closes it, Escape and a press outside close it, focus goes in on open and back on close.
+const zoomPopover = $('zoom-popover');
+zoomPopover.addEventListener('openchange', event => {
+  if (!event.detail.value) return;
+  readSelection();
   $('zoom-menu').querySelector('[data-zoom-to="selection"]').hidden = !graph || graph.mode !== 'canvas' || !selectionInfo.count;
-  if (open) $('zoom-menu').querySelector('button:not([hidden])')?.focus({ preventScroll: true });
-  else if (focus) $('zoom-menu-toggle').focus({ preventScroll: true });
+});
+function setZoomMenuOpen(open) {
+  if (open) { if (!zoomPopover.open) zoomPopover.api?.open(); }
+  else if (zoomPopover.open) zoomPopover.api.close({ reason: 'imperative' });
 }
-$('zoom-menu-toggle').onclick = () => setZoomMenuOpen($('zoom-menu').hidden);
+// The % buttons are items of their pill's toolbar: ArrowDown opens the popover, as a toolbar's menu button does (a
+// Popover trigger has no ArrowDown of its own).
+openOnArrowDown(document.querySelector('.canvas-footer .zoom-pill'), '#zoom-menu-toggle', () => setZoomMenuOpen(true));
+openOnArrowDown(dialog.querySelector('.reader-footer .zoom-pill'), '#reader-zoom-toggle', () => setReaderMenuOpen(true));
 $('zoom-minus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom / 1.25); };
 $('zoom-plus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * 1.25); };
 $('zoom-menu').addEventListener('click', event => {
@@ -1758,7 +1767,7 @@ $('zoom-menu').addEventListener('click', event => {
   if (!choice) return;
   if (graph) graph.revealedPlacement = null;
   const to = choice.dataset.zoomTo;
-  setZoomMenuOpen(false, { focus: true });
+  setZoomMenuOpen(false);
   if (to === 'fit') fitBoard();
   else if (to === 'selection') fitSelection();
   else changeZoom(Number(to));
@@ -2036,7 +2045,6 @@ $('reader-navigator').onclick = () => { if (!projectNavigator) return; if (proje
 $('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open'));
 $('reader-info-toggle').onclick = () => setReaderInfoOpen(readerInfo.hidden, { focus: true });
 // The pill: − · % menu (zoom, window and version, light, type size, standalone) · + · Back · Fit.
-$('reader-zoom-toggle').onclick = () => setReaderMenuOpen($('reader-zoom-menu').hidden);
 $('reader-zoom-minus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25);
 $('reader-zoom-plus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25);
 bindZoomSlider($('reader-zoom-slider'),value=>readerCanvas.zoomTo(value));
@@ -2047,7 +2055,7 @@ $('reader-zoom-menu').addEventListener('click', event => {
   const size = event.target.closest('[data-size]');
   const light = event.target.closest('[data-reader-light]');
   if (zoomChoice) {
-    setReaderMenuOpen(false, { focus: true });
+    setReaderMenuOpen(false);
     if (zoomChoice.dataset.readerZoom === 'fit') readerCanvas.fit(); else readerCanvas.zoomTo(Number(zoomChoice.dataset.readerZoom));
   }
   if (size) setReaderSize(size.dataset.size);
@@ -2310,7 +2318,9 @@ viewport.addEventListener('scroll', () => {
 }, { passive: true });
 window.addEventListener('popstate', route);
 // Clicking into the experiment frame never reaches this document; close the popover when focus leaves it.
-window.addEventListener('blur', () => { setReaderMenuOpen(false); readerCanvas.setSpacePan(false); });
+// A click into the experiment frame never reaches this document: the % popover closes when focus lands in the frame.
+// Switching to another window leaves it open (popover.md).
+window.addEventListener('blur', () => { setTimeout(() => { if (document.activeElement?.tagName === 'IFRAME') setReaderMenuOpen(false); }, 60); readerCanvas.setSpacePan(false); });
 addEventListener('resize', () => readerPath.close({ focus: false }));
 window.addEventListener('hashchange', route);
 $('live-refresh').onclick = reloadCanvas;

@@ -109,7 +109,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill {
 }
 /* icon keys in the bar sit quiet until the pointer is on them (raised inputs, depth.css) */
 body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-icon:not([aria-pressed="true"]) { --key-face: transparent; --key-rim: transparent; --key-side: transparent; --key-face-hover: var(--surface-paper); }
-body :is(.canvas-footer, .reader-footer) .zoom-pill button { min-height: 0; min-width: var(--control-h); border: 0; margin: 0; font-size: var(--type-ui); }
+body :is(.canvas-footer, .reader-footer, .board-zoom-popover, .reader-zoom-popover) :is(.zoom-pill, .zoom-menu) button { min-height: 0; min-width: var(--control-h); border: 0; margin: 0; font-size: var(--type-ui); }
 body :is(.canvas-footer, .reader-footer) .zoom-pill .fit { border: 0; border-radius: var(--shape-key); padding: 0 10px; margin: 0; }
 body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-divider { margin: 0 3px; }
 .zoom-percent { min-width: 52px; font: 400 12.5px/1 var(--type-mono); font-variant-numeric: tabular-nums; }
@@ -120,7 +120,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill .tk-divider { margin: 0 3px;
 .zoom-menu .tk-seg { display: flex; margin: 2px 6px 6px; }
 .zoom-menu .tk-seg > button { flex: 1; }
 .zoom-slider-row { display: flex; align-items: center; gap: 10px; padding: 4px 10px; color: var(--ink-2); font: var(--type-meta)/1 var(--type-sans); }
-body .canvas-footer .zoom-slider-row input[type=range] { flex: 1; width: auto; min-width: 0; height: 28px; margin: 0; accent-color: var(--mark-blue); }
+body :is(.canvas-footer, .board-zoom-popover) .zoom-slider-row input[type=range] { flex: 1; width: auto; min-width: 0; height: 28px; margin: 0; accent-color: var(--mark-blue); }
 
 /* ---------- Side panels: left is where, right is what ---------- */
 #board-info.calm-side, #workspace-item-controls.calm-side {
@@ -416,7 +416,7 @@ body dialog::backdrop { background: rgb(from var(--ground-cast) r g b / .22); }
    quiet 32px shape: a transparent border carries the extra hit area and the
    background is clipped inside it. */
 :is(#canvas-header, #reader-header) :is(.tk-btn, .brand, .workspace-parent, .project-navigator-toggle),
-body :is(.canvas-footer, .reader-footer) .zoom-pill :is(button, .tk-btn) {
+body :is(.canvas-footer, .reader-footer, .board-zoom-popover, .reader-zoom-popover) :is(.zoom-pill, .zoom-menu) :is(button, .tk-btn) {
   box-sizing: border-box; height: 44px; min-height: 44px; min-width: 44px;
   border: 6px solid transparent; background-clip: padding-box; border-radius: 14px;
 }
@@ -425,7 +425,7 @@ body :is(.canvas-footer, .reader-footer) .zoom-pill :is(button, .tk-btn) {
 :is(#canvas-header, #reader-header) .workspace-parent { padding: 0 4px; }
 /* the focus ring follows the visible key, not its transparent hit border */
 :is(#canvas-header, #reader-header) :is(.tk-btn, .brand, .workspace-parent, .project-navigator-toggle):focus-visible,
-body :is(.canvas-footer, .reader-footer) .zoom-pill :is(button, .tk-btn):focus-visible { outline-offset: -4px; }
+body :is(.canvas-footer, .reader-footer, .board-zoom-popover, .reader-zoom-popover) :is(.zoom-pill, .zoom-menu) :is(button, .tk-btn):focus-visible { outline-offset: -4px; }
 /* the divider after ← Parent stands outside the key, so the ring never takes it in */
 :is(#canvas-header, #reader-header) .workspace-parent { position: relative; margin-right: 10px; }
 :is(#canvas-header, #reader-header) .workspace-parent::after { position: absolute; right: -11px; top: 50%; margin: -8px 0 0; }

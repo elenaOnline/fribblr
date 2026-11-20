@@ -21,7 +21,8 @@ ui-segmented-control { display: inline-flex; }
 /* The old items were buttons and also took the button rules of what holds them. In the view pills' menus that was
    canvas.css's `.view-tools button { min-width: 44px }`: the cells shrink to share the menu's width instead of standing
    at their text width (the reader's Window row of four would otherwise run past its 288 px menu and scroll sideways). */
-.view-tools :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item { min-width: 44px; }
+/* The zoom popovers sit outside their pill now (popups.js), so the rule names them too. */
+:is(.view-tools, .zoom-menu) :is(.tk-seg, .tk-seg > ui-tooltip-trigger) > ui-segmented-control-item { min-width: 44px; }
 
 /* Toolbar and toggle parts that wrap one of our buttons: the button takes part in layout directly (display: contents,
    as the SDK does for triggers). A wrapper hidden with the attribute still hides. */
