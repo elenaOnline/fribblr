@@ -8,6 +8,9 @@
 //   connection points of a selected object, the board Inspector's Edit and Feedback rows, the reader Inspector's
 //   Organize rows;
 // - with the item Inspector or the Comments panel open, Tab goes on through the page and off it, never round again;
+// - focus never drops to <body>: Escape from a document's editor comes back to its card, a click on empty canvas from
+//   the Comments panel's field focuses the canvas, and the second Escape in Home's Find goes back to the boards;
+// - Home's confirmations have plain titles, not questions;
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
@@ -29,6 +32,9 @@ try{
  const add=async(title,x,y)=>(await op('createItem',{boardId:'fixes',item:{title,content:{kind:'note',text:`${title}.`}},placement:{x,y,width:240,height:160}})).placementIds[0];
  const c={};
  c.a=await add('Card A',0,0);c.b=await add('Card B',300,0);c.c=await add('Card C',600,0);c.d=await add('Card D',900,0);
+ const assets=path.join(config.boardsRoot,'assets');await mkdir(assets);await writeFile(path.join(assets,'doc.md'),'# A document\n\nSome text.\n');
+ await op('updateWorkspace',{patch:{resourceRoots:{assets:{path:'../assets'}}}});
+ c.doc=(await op('createItem',{boardId:'fixes',item:{title:'A document',content:{kind:'markdown',resource:{rootId:'assets',path:'doc.md'}}},placement:{x:1200,y:0,width:320,height:240,presentation:{mode:'card'}}})).placementIds[0];
  for(const decoration of [
    {id:'words',type:'text',x:0,y:240,width:220,height:60,text:'Some words',color:'#456139'},
    {id:'shape',type:'region',shape:'diamond',x:300,y:240,width:200,height:120,text:'A shape',color:'palette:gold'},
@@ -185,6 +191,37 @@ try{
    ok(r.left&&!r.back&&r.end&&r.rail,`From the Comments panel, Tab goes on past the tools rail and off the page, never back into it: ${r.seen.join(' → ')}`);}
   await page.locator('#feedback-message').focus();await page.keyboard.press('Escape');await page.waitForTimeout(300);
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+ }
+
+ // ---- 6. Focus never drops to <body>. ----
+ {// Escape from a document's inline editor comes back to its card.
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await page.locator(`#world [data-placement="${c.doc}"]`).focus();await page.keyboard.press('e');
+  ok(await until(()=>page.evaluate(()=>!!document.activeElement?.contentDocument?.activeElement?.isContentEditable),6000),'E edits the focused document');
+  await page.keyboard.type(' More');await page.keyboard.press('Escape');
+  ok(await until(async()=>(await focused())==='card:A document'),`Escape from the document's editor comes back to its card: ${await focused()}`);
+  await page.waitForTimeout(1500);
+  eq(await focused(),'card:A document','and stays there once the save has refreshed the board');
+  // A click on empty canvas from the Comments panel's field focuses the canvas.
+  await page.locator(`#world [data-placement="${c.a}"]`).focus();await page.keyboard.press(process.platform==='darwin'?'Meta+i':'Control+i');
+  await page.locator('#workspace-item-controls [data-context-comments]').click();
+  await page.locator('#feedback-message').waitFor();await page.locator('#feedback-message').focus();
+  const empty=await emptyPoint();await page.mouse.click(empty.x,empty.y);
+  ok(await until(async()=>(await focused())==='viewport'),`A click on empty canvas from the Comments field focuses the canvas: ${await focused()}`);
+ }
+ {// Home: the second Escape in Find goes to the boards; the Archive everywhere confirmation has a plain title.
+  await page.goto(base+'/',{waitUntil:'load'});await page.locator('main .board-link').first().waitFor();await page.waitForTimeout(400);
+  await page.keyboard.press('/');ok(await until(()=>page.evaluate(()=>document.activeElement?.id==='home-find')),'/ focuses Find on Home');
+  await page.keyboard.type('fix');await page.keyboard.press('Escape');
+  eq(await page.evaluate(()=>[document.activeElement?.id,document.activeElement?.value]),['home-find',''],'The first Escape clears Find');
+  await page.keyboard.press('Escape');
+  ok(await page.evaluate(()=>!!document.activeElement?.matches('main .board-link')),`The second Escape leaves Find for the boards, not <body>: ${await page.evaluate(()=>document.activeElement?.className)}`);
+  await page.keyboard.press('Space');
+  await page.locator('[data-home-action="archive"]').click();
+  const title=await page.locator('ui-alert-dialog-content[data-open] [data-slot="alert-dialog-title"], ui-alert-dialog-content[data-open] h2').first().textContent();
+  eq(title.trim(),'Archive these boards everywhere','The Archive everywhere confirmation has a plain title');
+  ok(!/\?/.test(title),'with no question mark');
+  await page.keyboard.press('Escape');
  }
 
  assert.deepEqual(errors,[]);checks++;

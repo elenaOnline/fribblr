@@ -609,7 +609,9 @@ per card on wheel, pointer pan, drag or marquee, and no observer is added. A lat
   `tests/board-fixes-browser.mjs` and `tests/canvas-keyboard-browser.mjs`.
 - **Focus follows what the app creates** (`focusCreated`). What the app creates and selects takes focus (the first of
   it): Duplicate (⌘D, the card menu, the Inspector), Paste, imported files, an Option-drag copy, an arrow drawn from a
-  port, a new document's card (under its editor, so closing the editor comes back to it). So Option-arrow moves the
+  port, a new document's card (under its editor, so closing the editor comes back to it: `finish` in
+  `board-document.js` focuses the card as the frame goes inert, and again after the save's refresh, unless a press
+  outside ended the edit and took focus elsewhere; the same for E on a document). So Option-arrow moves the
   copy, never the original, as in Figma, tldraw and Excalidraw. Add's Text, shape, arrow and sticker focus what they
   make. Focus in a field, an editor or a modal dialog stays. Quick jot is the exception: a jot is not selected, and
   focus stays in its field for the next line. Checked in `tests/board-fixes-browser.mjs`.
@@ -882,6 +884,9 @@ Each entry: files, SDK parts, and what is not obvious. Everything not said follo
 bar are `ui-toolbar`s of `ui-toolbar-button`s. The bar is built once on the first selection and updated in place
 (count, Archive/Restore label), so a focused action keeps focus; `followVisibility` keeps it out of the Tab order while
 hidden. Its Clear button has `data-tip` and `aria-keyshortcuts="Escape"`.
+
+**Home Find.** `home.js`. `/` focuses it. Escape clears its text, and a second Escape leaves the field: focus goes back
+to where it was before Find (a click or Tab there), else to the boards' one Tab stop, never to `<body>`.
 
 **Home sort and Appearance.** `home.js`/`home.html` (Sort: segmented control), `appearance.js`. Appearance is a
 `ui-menu-trigger` menu of two radio groups, Mode and Background; radio items stay open; Background items are disabled
