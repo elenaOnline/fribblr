@@ -5,7 +5,8 @@
 // - with nothing selected, board commands (⌘I, ⌘D, E) act on the focused item, as its menu advertises;
 // - what the app creates and selects (⌘D, ⌘C ⌘V, an Option-drag copy) takes focus, so Option-arrow moves the copy;
 // - C, then Enter on the focused item, places a comment there; Escape disarms;
-// - Tab past the drawn-object bar or any of its panels goes on to the board's focused item, never to <body>;
+// - the drawn-object bar sits in the Tab order after the object's own controls and before what follows the board;
+//   Tab out of it or its panels goes on after the board, Option-F10 reaches it and Escape on it returns to the object;
 // - the bar's panels start on their checked option, or on their first control (never on ×), with no tooltip there, so
 //   one Escape closes them;
 // - in a popover, arrows don't walk between controls (Tab does), and a slider's arrows stay the slider's;
@@ -195,14 +196,36 @@ try{
  await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();ok(true,'Disarmed, Enter opens the card again');
  await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});await clear();
 
- // ---- 4. Tab past the drawn-object bar, or out of any of its panels, goes back to the object it edits. ----
+ // ---- 4. The drawn-object bar's place in the Tab order: object → its own controls → the bar → what follows the board,
+ // and back with Shift+Tab; Tab out of any of its panels goes on after the board too. Option-F10 reaches the bar from
+ // the object, and Escape on the bar goes back to the object. ----
  const select=async id=>{await clear();await idle();await page.locator(`#world [data-decoration="${id}"]`).focus();await page.keyboard.press('Space');await page.locator('.whiteboard-toolbar:not([hidden])').waitFor();await page.waitForTimeout(150);};
  const barStop=()=>page.evaluate(()=>{const b=document.querySelector('.whiteboard-toolbar:not([hidden])');const stop=[...b.querySelectorAll('button')].find(x=>x.tabIndex===0)||b.querySelector('button');stop.focus();return stop.getAttribute('aria-label');});
  const inPanel=()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-menu,ui-popover-content'));
+ // True when focus is on the first Tab stop after the board and its bar.
+ const afterBoard=()=>{const v=document.getElementById('viewport'),bar=document.querySelector('.whiteboard-toolbar');
+   const first=[...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].find(el=>el.tabIndex>=0&&!el.disabled&&!v.contains(el)&&!bar?.contains(el)&&
+     !el.closest('.whiteboard-menu,[inert],[hidden]')&&(v.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING)&&el.getClientRects().length);
+   return !!first&&document.activeElement===first;};
  const panelStarts={};
  for(const id of ['words','arrow','shape']){
-   await select(id);await barStop();await page.keyboard.press('Tab');
-   eq(await focused(),`drawn:${id}`,`Tab past the bar goes back to the object it edits (${id}), not to <body>`);
+   await select(id);
+   // Forward from the object: its controls (label, corner, ports), then the bar; never round again.
+   {const seen=[];let n=0;while(n++<20&&!(await page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-toolbar')))){await page.keyboard.press('Tab');await page.waitForTimeout(40);
+      seen.push(await page.evaluate(()=>document.activeElement?.closest('#viewport')?'board':document.activeElement?.closest('.whiteboard-toolbar')?'bar':'other'));}
+    ok(seen.at(-1)==='bar'&&seen.slice(0,-1).every(w=>w==='board'),`Tab from ${id} goes through its own controls straight to the bar: ${seen.join(' ')}`);}
+   await page.keyboard.press('Shift+Tab');
+   ok(await page.evaluate(id=>!!document.activeElement?.closest(`#world`)&&!!document.querySelector(`#world [data-decoration="${id}"]`),id),`Shift+Tab from the bar goes back to ${id}'s controls`);
+   await barStop();await page.keyboard.press('Tab');
+   ok(await page.evaluate(afterBoard),`Tab past the bar (${id}) goes on to what follows the board, not back to the object: ${await focused()}`);
+   await page.keyboard.press('Shift+Tab');
+   ok(await page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-toolbar')),`Shift+Tab from what follows the board comes back to the bar (${id})`);
+   await page.locator(`#world [data-decoration="${id}"]`).focus();await page.keyboard.press('Alt+F10');
+   ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('.whiteboard-toolbar'))),`Option-F10 on ${id} moves focus to its bar`);
+   eq(await page.locator('ui-tooltip-content[data-open]').count(),0,`with no tooltip popping on the bar (${id})`);
+   await page.keyboard.press('Escape');
+   ok(await until(async()=>(await focused())===`drawn:${id}`),`Escape on the bar goes back to ${id}: ${await focused()}`);
+   ok(await page.locator('.whiteboard-toolbar:not([hidden])').count(),`with ${id} still selected`);
    const triggers=await page.evaluate(()=>[...document.querySelectorAll('.whiteboard-toolbar:not([hidden]) [aria-haspopup="dialog"]')].map(b=>[b.dataset.whiteboardAction,b.getAttribute('aria-label')]));
    ok(triggers.length,`The bar for ${id} has panels`);
    for(const [action,label] of triggers){
@@ -230,7 +253,7 @@ try{
      eq(await page.locator('ui-tooltip-content[data-open]').count(),0,`and no tooltip opens on ${label} as focus comes back`);
      await page.keyboard.press('Enter');ok(await until(inPanel),`${label} opens again`);
      let n=0;while(n++<40&&await inPanel()){await page.keyboard.press('Tab');await page.waitForTimeout(40);}
-     eq(await focused(),`drawn:${id}`,`Tab out of the last control of ${label} (${id}) goes back to the object`);
+     ok(await page.evaluate(afterBoard),`Tab out of the last control of ${label} (${id}) goes on after the board: ${await focused()}`);
      eq(await page.locator('.whiteboard-menu:not([hidden]),ui-popover-content[data-open]').count(),0,`and ${label} closes`);
    }
  }

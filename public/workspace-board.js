@@ -1071,6 +1071,7 @@ export class WorkspaceBoard {
       <dt>M</dt><dd>Show or hide the board map</dd>
       <dt>V · H</dt><dd>Pointer · Pan</dd>
       <dt>Arrow keys on a resize corner</dt><dd>Resize the card, shape, text or sticker 1 unit, 10 with Shift</dd>
+      <dt>⌥/Alt-F10</dt><dd>Move to the selected drawing's bar (it also follows the drawing's own controls in Tab order); Escape comes back</dd>
       <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>

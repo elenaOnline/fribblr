@@ -919,15 +919,20 @@ control.
   bar's own panel element (they hold the text-format and colour controls; see Menus) but keep a popover's Tab:
   `tabOutOfPanel` closes the panel from its last control and Tab moves on after its button; Shift+Tab from the first
   goes back to the button. Escape and an outside press close it and focus returns to its button, as before.
-- **Tab past the drawn-object bar** (`whiteboard.js` `tabPastBar`, fix round 2). The bar is its object's toolbar but sits
-  at the end of `<body>`, so the browser's stop after its one Tab stop is nothing (`<body>`; in a window, the browser's
-  own toolbar). Tab forward from the bar goes back to what the bar edits: the editor while a text is edited (Shift+Tab
-  from the bar already went there), else the selected object, else the board's focused item. Every panel of the bar
-  follows by composition: its Tab-out sends focus to its button first (`tabOutOfPanel` for Typeface, Text box, Ink, Text
-  size, colour and drawing options; popups.js for the container options popover, `content.tabTrigger`), and the same
-  rule carries it past the bar. From the object, Tab goes on through its own controls (resize corner, ports) and the
-  page; Shift+Tab from the bar still goes back along the page (the tools rail). Escape (deselect) takes the bar away.
-  Checked in `tests/board-fixes-browser.mjs`.
+- **The drawn-object bar in the Tab order** (`whiteboard.js` `mount`, `tabPastBar`, `focusBarKey`, final fixes). The bar
+  floats (`position: fixed`) but sits in the page right after `#viewport`, so the order is: the object → its own
+  controls (label, resize corner, ports) → the bar (one stop) → what follows the board (kind legend, zoom pill, tools
+  rail) → off the page, and Shift+Tab back the same way. That is where a card's toolbar sits too, and Tab leaves the
+  board as it does from a card; the earlier rule (Tab past the bar went back to the object, which made a loop) is gone.
+  Every panel of the bar follows by composition: its Tab-out sends focus to its button first (`tabOutOfPanel` for
+  Typeface, Text box, Ink, Text size, colour and drawing options; popups.js for the container options popover,
+  `content.tabTrigger`), and Tab past the bar goes on to the first stop after the board. While a text is edited, Tab from
+  the editor goes to the bar and Tab past the bar back to the editor (Shift+Tab from the bar too), as before.
+  **Option-F10** (Alt+F10) jumps to the bar from anywhere outside a field: the key editors give their floating
+  toolbars (TinyMCE, CKEditor, and the WAI-ARIA Authoring Practices' rich-text toolbar), chosen over F6, which browsers
+  and desktop apps use to cycle panes. **Escape** on the bar goes back to the object it edits with the selection kept,
+  as Escape from an editor's toolbar returns to the text; Escape there deselects, which takes the bar away. Checked in
+  `tests/board-fixes-browser.mjs`.
 - **Where a bar panel starts** (`whiteboard.js` `focusPanelStart`, `text-appearance.js` `focus()`, fix round 2). One rule,
   the SDK's (popover.md "Opening moves focus to the first focusable element", popups.md § Focus `initial-focus`): the
   panel's first control, unless one is marked `[data-autofocus]`; a group of choices is entered on its checked or
