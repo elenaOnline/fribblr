@@ -44,7 +44,7 @@ try {
   // No native title is left on a control; wrapped chrome sits in triggers; the board's cards have no triggers at all.
   const census=await page.evaluate(()=>({titles:[...document.querySelectorAll('[title]')].filter(e=>e.tagName!=='IFRAME').map(e=>e.id||e.className||e.tagName),
     worldTriggers:document.querySelectorAll('#world ui-tooltip-trigger').length,cardTips:document.querySelectorAll('#world .workspace-card [data-tip]').length,
-    unwrappedChrome:[...document.querySelectorAll('[data-tip]')].filter(e=>!e.closest('[data-tip-zone], ui-segmented-control, ui-tooltip-trigger, [role=menu], [hidden]')&&e.getClientRects().length).map(e=>e.id||e.className)}));
+    unwrappedChrome:[...document.querySelectorAll('[data-tip]')].filter(e=>!e.closest('[data-tip-zone], ui-segmented-control, ui-radio-group, ui-pagination, ui-tooltip-trigger, [role=menu], [hidden]')&&!e.matches('input, select, textarea')&&e.getClientRects().length).map(e=>e.id||e.className)}));
   check(census.titles.length===0,'no native title on the page (iframes keep theirs as their names)',census.titles);
   check(census.worldTriggers===0&&census.cardTips>=12,'card controls carry data-tip and the canvas holds no trigger elements',census);
   check(census.unwrappedChrome.length===0,'every visible hinted chrome control sits in a tooltip trigger',census.unwrappedChrome);

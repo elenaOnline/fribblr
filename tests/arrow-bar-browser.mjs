@@ -202,6 +202,9 @@ try{
    assert.equal(await eventually(async()=>(await find('wide')).thickness,v=>v===expected),expected);await idle();
    assert.equal((await snapshot()).revision,beforeKey+1);
  }
+ // Keyboard focus on the scrub shows its SDK tooltip, which takes the first Escape (tooltip.md § Keyboard).
+ await page.locator('ui-tooltip-content[data-open]').waitFor();
+ await page.keyboard.press('Escape');await page.locator('ui-tooltip-content[data-open]').waitFor({state:'detached'}).catch(()=>{});assert.equal(await page.locator('ui-tooltip-content[data-open]').count(),0,'Escape closes only the hint');
  await page.keyboard.press('Escape');
  await page.keyboard.press(process.platform==='darwin'?'Meta+z':'Control+z');
  assert.equal(await eventually(async()=>(await find('wide')).thickness,v=>v===30),30);
