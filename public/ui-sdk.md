@@ -103,6 +103,8 @@ Every menu and popover follows one pattern, in `popups.js` (helpers) and `popups
   while its hint reads ⌘, so we write both ourselves. (2) `final-focus` on menu content is ignored for a menu opened
   from code: focus returns to "the element focused before", so `openMenu` focuses the opener just before opening.
   (3) A Popover trigger does not open on ↓; the toolbar norm is added by `openOnArrowDown`.
+  (4) A Select with several external triggers (`for=`) marks them all expanded, anchors its list to the first and
+  returns focus there, so a list shared by rebuilt per-card triggers is a Menu (radio items) opened with `openMenu`.
 - **Hazard for every stream:** SDK parts carry a `data-open` state attribute. The app's `[data-open]` (open this item)
   selectors must exclude SDK parts: `[data-open]:not([data-slot])` (fixed in `canvas.js`).
 
