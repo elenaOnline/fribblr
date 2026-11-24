@@ -93,6 +93,9 @@ export class ReaderCanvas {
   // document fitted to the stage owns all of it, as upstream. Otherwise the side runs off the stage's bottom edge.
   insets() {
     const none = { top: 0, right: 0, left: 0, bottom: 0 };
+    // Expanded, the window fills the stage above the zoom pill (reserveBottom: the pill and its gap), so the pill never
+    // covers a corner of it; the slab's side, a few pixels, runs under the pill.
+    if (this.expanded) return { ...none, bottom: Math.max(0, Math.ceil(this.reserveBottom())) };
     const fit = (this.sheet.dataset?.size || 'fit') === 'fit';
     if (fit && !this.resourceSize) return none;
     const css = getComputedStyle(this.sheet);

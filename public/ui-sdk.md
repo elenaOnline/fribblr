@@ -766,7 +766,8 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
   is shown; § Top bars), icon and the label "Expand" (the label drops below 1100 px wide, as Find's does). Pressed state
   through `setPressed` / `onPress`. Key: Shift+F (`aria-keyshortcuts="Shift+F"`; F is Fit, and Shift+F is free on the
   board and in the reader). Expanded:
-  - The window fills the stage (`fitMax()` lifts Fit's 100% cap): contain, never crop, never reflow. An image or HTML
+  - The window fills the stage above the zoom pill (`fitMax()` lifts Fit's 100% cap; `insets()` reserves
+    `reserveBottom`, the pill and its gap, so the pill never covers a corner): contain, never crop, never reflow. An image or HTML
     resource at its authored viewport, and a Compact, Standard, Wide or custom window, magnify to the stage's width or
     height; a document at Fit already fills the stage edge to edge and stays so; a resource larger than the stage fits
     as before. Exact 100% (0, ⇧0, Zoom to 100%) is the floor when the floor is above it.

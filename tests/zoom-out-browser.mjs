@@ -168,8 +168,10 @@ try{
  eq(await expand.getAttribute('aria-pressed'),'true','Expand is pressed');
  eq(await announced(),'Expanded: zoom out is off','Turning Expand on is announced, so it is never a silent toggle');
  const big=await plane(),stage=await page.locator('#reader-stage').boundingBox(),win=await sheetBox();
- ok(big.zoom>2,`Expanded, the small picture is magnified past 100% (${Math.round(big.zoom*100)}%)`);
- ok(Math.abs(win.height-stage.height)<4||Math.abs(win.width-stage.width)<4,'…to fill the stage');
+ ok(big.zoom>1.5,`Expanded, the small picture is magnified past 100% (${Math.round(big.zoom*100)}%)`);
+ const pill=await page.locator('#reader-dialog .reader-footer .zoom-pill').boundingBox();
+ ok(win.y+win.height<=pill.y+1,`…and stops above the zoom pill (window bottom ${Math.round(win.y+win.height)}, pill top ${Math.round(pill.y)})`);
+ ok(Math.abs(win.height-(stage.height-pill.height-20))<4||Math.abs(win.width-stage.width)<4,'…filling the stage above it (the pill and its gap)');
  eq(await page.locator('#reader-zoom-minus').getAttribute('aria-disabled'),'true','Expanded at its size, − is unavailable (aria-disabled)');
  await page.mouse.move(cx,cy);await newGesture();
  for(let i=0;i<3;i++)await ctrlWheel(100);
