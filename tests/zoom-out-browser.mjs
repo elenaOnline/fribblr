@@ -163,8 +163,10 @@ try{
  eq(await expand.getAttribute('aria-pressed'),'false','Expand starts off');
  eq(await page.locator('#reader-header .chrome-actions #reader-expand').count(),1,'Expand is in the Tinka actions toolbar');
  eq(await expand.getAttribute('aria-keyshortcuts'),'Shift+F','Expand declares Shift+F');
+ const announced=()=>page.locator('#reader-view-announce').textContent();
  await expand.click();
  eq(await expand.getAttribute('aria-pressed'),'true','Expand is pressed');
+ eq(await announced(),'Expanded: zoom out is off','Turning Expand on is announced, so it is never a silent toggle');
  const big=await plane(),stage=await page.locator('#reader-stage').boundingBox(),win=await sheetBox();
  ok(big.zoom>2,`Expanded, the small picture is magnified past 100% (${Math.round(big.zoom*100)}%)`);
  ok(Math.abs(win.height-stage.height)<4||Math.abs(win.width-stage.width)<4,'…to fill the stage');
@@ -184,16 +186,19 @@ try{
  ok(await isOpen(),'− comes back down to the expanded size and stops');eq((await plane()).zoom,big.zoom,'…at the expanded size');
  await expand.click();
  eq(await expand.getAttribute('aria-pressed'),'false','The toggle again turns Expand off');
+ eq(await announced(),'Expand off','Turning it off is announced');
  eq((await plane()).zoom,fit.zoom,'…back to the fitted view');
  ok(await page.locator('#reader-zoom-minus').getAttribute('aria-disabled')!=='true','…and − is available again');
  await page.locator('#reader-stage').focus();await page.keyboard.press('Shift+F');
  eq(await expand.getAttribute('aria-pressed'),'true','Shift+F turns Expand on');
+ eq(await announced(),'Expanded: zoom out is off','…announced, by key as by the button');
  await page.keyboard.press('j');await page.waitForFunction(()=>document.querySelector('#reader-name').textContent.trim()!=='Small picture');
  eq(await expand.getAttribute('aria-pressed'),'true','Expand stays on while stepping');
  await page.keyboard.press('k');await page.waitForFunction(()=>document.querySelector('#reader-name').textContent.trim()==='Small picture');await ready();
  await page.locator('#reader-stage').focus();await page.keyboard.press('Escape');
  ok(await isOpen(),'Escape turns Expand off first and keeps the Tinka open');
  eq(await expand.getAttribute('aria-pressed'),'false','…Expand is off');
+ eq(await announced(),'Expand off','…announced');
  // The path's exit: Up (the board crumb) leaves Expand with the reader; the next open starts unexpanded.
  await expand.click();eq(await expand.getAttribute('aria-pressed'),'true','Expand on again');
  await page.locator('#close-reader').click();await page.locator('#reader-dialog').waitFor({state:'hidden'});checks++;
