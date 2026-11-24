@@ -792,11 +792,22 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
 **Boards: zooming out goes to the parent.** Elena (2026-11-23): "zooming out of a board should go to its parent yes."
 A board opened as its own page has the same floor and the same gate (`zoomOutGate`), so she learns it once:
 
-- **The floor** (`measureBoardFloor`, `boardZoomFloor`): the zoom at which all of the board's content fits the fit area
-  (Fit board's view, uncapped; the area left of an open map), never above 100%. A board that fits at more than 100% stops
-  at 100%, where it is already all in view; an empty board stops at 100%. Zooming out to the floor is always free:
+- **The floor** (`measureBoardFloor`, `boardContentBox`, `boardZoomFloor`): the zoom at which the content itself (cards
+  and drawn elements, as the map measures them; not the world box, which keeps a minimum frame) fits the fit area with
+  Fit's 24 px margin (the area left of an open map), never above 100%. A board that fits at more than 100% stops at
+  100%, where it is already all in view; an empty board stops at 100% at every width. Zooming out to the floor is always free:
   seeing the whole board is the usual reason to zoom out. Measured at the start of each zoom-out input, before the view
   is written; `applyView` reads only the stored value (slider `min`, the − hint).
+- **The settle** (`settleView`, `changeZoomSettled`). Zoom is anchored at the pointer, so a floor reached about a corner
+  would leave much of the board off screen with no way to zoom further. Over the last stretch, from twice the floor
+  down to it, each zoom-out step also draws the view towards the floor view (the content centred in the fit area), in
+  proportion to the step, so the floor shows all of the board wherever the pointer was, as Photos and Preview settle a
+  picture centred as it reaches fit. It is movement made by her own zoom input, frame for frame; nothing runs after
+  she stops. It reads nothing (the target is measured with the floor, before the view is written). Every zoom-out path
+  settles: wheel, pinch (a touch pinch takes the point now under the fingers after each pull), −, the button, the map,
+  the slider, presets and 0. The suite checks every card is inside the view at the floor, at 1440 and 390, the pointer
+  at the centre and in a corner. The floor view is the content's own frame, not Fit board's (world box) view, which can
+  differ by its minimum frame.
 - **The threshold and resistance** are the opened item's: a wheel or pinch gesture that reaches the floor stops there,
   a press of − that reaches it stops, a held − never leaves, and a fresh zoom-out one step below (one press, one notch,
   pinch steps adding up to a fifth) leaves. Every zoom-out she makes goes through `boardZoomTarget`: Control-wheel and
@@ -822,6 +833,12 @@ A board opened as its own page has the same floor and the same gate (`zoomOutGat
 - **No cascade.** A gesture still running when she arrives (from a child board after the page load, or on the board
   after leaving an opened item) carries on as one that reached the floor from above (`zoomOutGate().hold()`): it zooms
   the new place down to its floor and stops there. Only a new gesture goes up again.
+- **The − button at the floor** is named for where it goes, "Zoom out to <parent>" or "Zoom out to Home", in its
+  accessible name and its hint (looked up only as the view reaches or leaves the floor).
+- **Kept as they are, to watch in her hands-on pass** (review 2026-11-23): ⌘-scroll at the floor leaves as Control-scroll
+  does (one model for both modifiers); landing selects the card, so the selection bar shows, as after leaving an opened
+  item; a press-and-hold of − that starts at the floor leaves on its first keydown (a press is a press; only the repeats
+  never leave).
 - **Not on**: Grid view and the overview render (no canvas zoom), or while the reader is open (it has its own floor).
 - **Cost**: board Control-wheel handler 0.20–0.22 ms against 0.19–0.20 ms on `main`; style per recalc and EventLatency
   equal within run-to-run spread (`showcase-dense`, fixed 60 Hz, three interleaved rounds; `team/ux/bzoom/bperf.mjs`).
