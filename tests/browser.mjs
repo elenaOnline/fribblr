@@ -248,8 +248,9 @@ try{
   await a.page.mouse.move(720,600);
   await a.page.mouse.wheel(0,610);
   await a.page.waitForFunction(()=>document.querySelector('#round-status').textContent.startsWith('Round 2 /'));
+  // The slider towards 20% stops at the board's floor (where the whole board fits, here about 28%; ui-sdk.md § Zoom floor).
   await a.page.locator('#zoom-slider').evaluate((el,value)=>{el.value=String(value);el.dispatchEvent(new Event('input',{bubbles:true}));},sliderFromZoom(.2));
-  assert.equal(await a.page.locator('#world').evaluate(el=>el.style.transform),'scale(0.2)');
+  {const s=Number((await a.page.locator('#world').evaluate(el=>el.style.transform)).match(/[\d.]+/)[0]);assert(s>.2&&s<.4,`The slider stops at the board's floor: ${s}`);}
   await showRound('second');
   await settledRound(1);
   await a.page.emulateMedia({reducedMotion:'reduce'});

@@ -290,7 +290,9 @@ try{
    ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('ui-popover-content ui-toolbar[aria-orientation=vertical]'))),`↓ on % opens the ${where} popover, focus on its preset rows`);
    // In the reader, zooming out stops at fit: on a Tinka that fits at more than 50%, Zoom to 50% is unavailable (still
    // reachable, aria-disabled), and the popover opens on the first row that can act.
-   const [first,second]=where==='reader'?['Zoom to 100%','Zoom to 200%']:['Zoom to 50%','Zoom to 100%'];
+   // A board's 50% row is unavailable too when the board fits at more than 50% (its zoom floor).
+   const board50=where==='board'&&await page.locator('#zoom-menu [data-zoom-to="0.5"]').getAttribute('aria-disabled')==='true';
+   const [first,second]=where==='reader'?['Zoom to 100%','Zoom to 200%']:board50?['Zoom to 100%','Zoom to 125%']:['Zoom to 50%','Zoom to 100%'];
    if(where==='reader')eq(await page.locator('#reader-zoom-menu [data-reader-zoom="0.5"]').getAttribute('aria-disabled'),'true','Zoom to 50% is unavailable below the fitted view');
    eq(await row(),first,`The ${where} popover opens on its first available row`);
    const z0=await zoomText();
