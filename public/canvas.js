@@ -150,7 +150,7 @@ async function fetchBoard() {
   if (!response.ok) throw new Error(`Board metadata unavailable (${response.status})`);
   const data = await response.json();
   if (data.schemaVersion === 2) {
-    if (!graph) graph = new WorkspaceBoard(appConfig, data, { concepts:()=>all, active:()=>active, zoom:()=>zoom, shiftOrigin:(dx,dy)=>{if(dx||dy){view.x-=dx*zoom;view.y-=dy*zoom;resting=false;shiftSavedViews(dx,dy);}}, shiftViewport:(dx,dy)=>{if(dx||dy)moveView(view.x+dx,view.y+dy);}, holdView:()=>{resting=false;}, revealPlacements:revealPlacements, revealTarget:placement=>{const fit=Math.min((viewport.clientWidth-80)/placement.width,(viewport.clientHeight-80)/placement.height,1);changeZoom(fit);const rect=world.getBoundingClientRect(),region=viewport.getBoundingClientRect();moveView(view.x+region.left+viewport.clientWidth/2-(rect.left+(placement.x+graph.origin.x+placement.width/2)*zoom),view.y+region.top+viewport.clientHeight/2-(rect.top+(placement.y+graph.origin.y+placement.height/2)*zoom));}, preview:(c,version)=>previewHref(c,version,'paper',100,versionStamp(version,liveSnapshot?.items?.[c.graphItem.id])), layout:()=>{ if(resting)rest();else applyView(); contentChanged(); }, mode:mode=>{ if(mode==='canvas'){zoom=1;settleCushion();}else{viewport.scrollLeft=0;viewport.scrollTop=0;} requestAnimationFrame(syncMapAvailability); }, fit:(kind,area)=>runFit(kind==='smart'?smartFitTarget():kind,area), toggleMap:()=>setMapOpen(!boardMap.visible,{remember:true}), reloadReader:()=>loadRevision(), saveStatus:setSaveStatus, openOwner:()=>{const c=graph.ownerConcept();if(c)openReader(c.key);}, closeReader:()=>closeReader(), flushNotes:flushNoteEdits, liveReady:()=>{void drainLiveUpdates().catch(()=>{});}, data:acceptGraphData, editNote:(key,anchor)=>openTileNote(key,anchor), readerChanged:()=>{if(active&&dialog.open)renderReaderChrome();}, currentView:()=>({zoom,x:view.x,y:view.y,resting,round:rounds[currentRound]?.id}), viewOnly:overview });
+    if (!graph) graph = new WorkspaceBoard(appConfig, data, { concepts:()=>all, active:()=>active, zoom:()=>zoom, shiftOrigin:(dx,dy)=>{if(dx||dy){view.x-=dx*zoom;view.y-=dy*zoom;resting=false;shiftSavedViews(dx,dy);}}, shiftViewport:(dx,dy)=>{if(dx||dy)moveView(view.x+dx,view.y+dy);}, holdView:()=>{resting=false;}, revealPlacements:revealPlacements, revealTarget:placement=>{const fit=Math.min((viewport.clientWidth-80)/placement.width,(viewport.clientHeight-80)/placement.height,1);changeZoom(fit);const rect=world.getBoundingClientRect(),region=viewport.getBoundingClientRect();moveView(view.x+region.left+viewport.clientWidth/2-(rect.left+(placement.x+graph.origin.x+placement.width/2)*zoom),view.y+region.top+viewport.clientHeight/2-(rect.top+(placement.y+graph.origin.y+placement.height/2)*zoom));}, preview:(c,version)=>previewHref(c,version,'paper',100,versionStamp(version,liveSnapshot?.items?.[c.graphItem.id])), layout:()=>{ if(resting)rest();else applyView(); contentChanged(); }, mode:mode=>{ if(mode==='canvas'){zoom=1;settleCushion();}else{viewport.scrollLeft=0;viewport.scrollTop=0;} requestAnimationFrame(syncMapAvailability); }, fit:(kind,area)=>runFit(kind==='smart'?smartFitTarget():kind,area), toggleMap:()=>setMapOpen(!boardMap.visible,{remember:true}), reloadReader:()=>loadRevision(), saveStatus:setSaveStatus, openOwner:()=>{const c=graph.ownerConcept();if(c)openReader(c.key);}, closeReader:()=>closeReader(), flushNotes:flushNoteEdits, liveReady:()=>{void drainLiveUpdates().catch(()=>{});}, data:acceptGraphData, editNote:(key,anchor)=>openTileNote(key,anchor), readerChanged:()=>{if(active&&dialog.open)renderReaderChrome();}, currentView:()=>({zoom,x:view.x,y:view.y,resting,round:rounds[currentRound]?.id}), zoomOutChanged:()=>{boardMinusState=null;applyView();}, viewOnly:overview });
     graph.hooks.revealBox = revealBox;
     if (overview) graph.mode = 'canvas';
     return graph.adapt(data);
@@ -279,8 +279,13 @@ function applyView() {
   // so nothing here reads layout after the writes above.
   const min = String(boardFloor == null ? 0 : sliderFromZoom(boardFloor));
   if (slider.min !== min) slider.min = min;
-  const minusState = boardFloor != null && zoom <= boardFloor * (1 + 1e-3) ? 'leave' : 'zoom';
-  if (minusState !== boardMinusState) { boardMinusState = minusState; setTip($('zoom-minus'), minusState === 'leave' ? (graph?.resolvedParent || graph?.parentBoards?.length ? 'Zoom out to the parent board' : 'Zoom out to Home') : 'Zoom out'); }
+  // At the floor, − names where it goes, in its accessible name and its hint (the parent is looked up only there).
+  const atFloor = boardFloor != null && zoom <= boardFloor * (1 + 1e-3);
+  if (atFloor !== boardMinusState) {
+    boardMinusState = atFloor;
+    const label = atFloor ? `Zoom out to ${graph?.zoomOutParent?.()?.title || 'Home'}` : 'Zoom out', minus = $('zoom-minus');
+    minus.setAttribute('aria-label', label); setTip(minus, label);
+  }
   syncViewChrome();
 }
 
@@ -364,7 +369,7 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
 // it lives on (its parent), or Home for a board on Home. The opened item's model (canvas-zoom.js zoomOutGate; ui-sdk.md §
 // Zoom floor). Fit, the map's Fit and app-chosen moves use changeZoom directly; every zoom-out she makes goes through here.
 var boardGate = zoomOutGate();
-var boardFloor = null, leavingBoard = false, boardMinusState = '';  // var: applyView may run before this line
+var boardFloor = null, leavingBoard = false, boardMinusState = null;  // var: applyView may run before this line
 // Only a canvas board on its own page has a floor: not Grid view, the overview render, or while the reader is open.
 const boardHasFloor = () => !!board && !overview && graph?.mode !== 'grid' && !dialog.open;
 // The content's own extent (cards and drawn elements, world units), not the world box, which keeps a minimum frame.

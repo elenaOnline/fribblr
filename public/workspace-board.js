@@ -740,6 +740,7 @@ export class WorkspaceBoard {
         (parents.length === 1 ? parents[0] : null);
       this.resolvedParent = parent ? {id:parent.id, title:parent.title} : null;
       this.parentBoards = parents.map(p => ({id: p.id, title: p.title}));
+      this.hooks.zoomOutChanged?.();  // the − button names the parent once it is known
       let crumb = $("workspace-parent");
       if (!crumb) {
         crumb = document.createElement("a");
@@ -2064,6 +2065,10 @@ export class WorkspaceBoard {
   // parent's view when she entered from its tile)}, or null for a board on Home (or with no parent): Home is above it.
   async zoomOutTarget() {
     try { if (!this.workspaceGraph) await this.loadCrumb(); } catch {}
+    return this.zoomOutParent();
+  }
+  // The same, from what is loaded (null before the workspace graph arrives, as for Home). Adds the parent's title.
+  zoomOutParent() {
     const ws = this.workspaceGraph;
     if (!ws?.boards) return null;
     const id = this.snapshot.id, owner = this.snapshot.ownerItemId;
@@ -2082,7 +2087,7 @@ export class WorkspaceBoard {
     const placementId = (entry && parent.placements.some(p => live(p) && p.id === entry.placementId) ? entry.placementId : null)
       || parent.placements.find(p => live(p) && p.itemId === owner)?.id || null;
     const from = parentId === inPath && path.length > 2 ? path[path.length - 3].id : null;
-    return { parentId, from, placementId, view: entry?.view || null };
+    return { parentId, title: parent.title || "Untitled board", from, placementId, view: entry?.view || null };
   }
   // The boards from a root to this one, preferring the board it was entered from (?from=).
   boardPath() {

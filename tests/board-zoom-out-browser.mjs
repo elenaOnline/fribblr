@@ -171,7 +171,16 @@ try{
   await clearReturn();await page.goto(`${base}/boards/${id}/?from=top`,{waitUntil:'load'});await page.waitForTimeout(700);
   eq(await page.locator('#zoom-slider').evaluate(el=>Number(el.min)),sliderFromZoom(1),`390px: ${id} board's floor is 100%`);
  }
+ // (10) At the floor, − names where it goes, in its accessible name.
  await page.setViewportSize({width:1440,height:900});
+ await clearReturn();await load(`${base}/boards/kid/?from=top`);
+ await page.locator('#viewport').focus();await page.keyboard.press('=');for(let i=0;i<20;i++)await page.keyboard.down('-');await page.keyboard.up('-');await page.waitForTimeout(300);
+ eq(await page.locator('#zoom-minus').getAttribute('aria-label'),'Zoom out to Top board','At the floor, − is named for the parent');
+ await page.keyboard.press('=');eq(await page.locator('#zoom-minus').getAttribute('aria-label'),'Zoom out','Above it, plain Zoom out');
+ await clearReturn();await load(`${base}/boards/top/`);
+ await page.locator('#viewport').focus();await page.keyboard.press('=');for(let i=0;i<20;i++)await page.keyboard.down('-');await page.keyboard.up('-');await page.waitForTimeout(300);
+ eq(await page.locator('#zoom-minus').getAttribute('aria-label'),'Zoom out to Home','A board on Home: Zoom out to Home');
+
  eq(errors,[],'No page errors');
  console.log(`Board zoom out browser checks passed: ${checks}`);
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}
