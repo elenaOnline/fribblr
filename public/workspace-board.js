@@ -739,6 +739,8 @@ export class WorkspaceBoard {
         parents.find((p) => p.id === requested) ||
         (parents.length === 1 ? parents[0] : null);
       this.resolvedParent = parent ? {id:parent.id, title:parent.title} : null;
+      this.parentBoards = parents.map(p => ({id: p.id, title: p.title}));
+      this.hooks.zoomOutChanged?.();  // the − button names the parent once it is known
       let crumb = $("workspace-parent");
       if (!crumb) {
         crumb = document.createElement("a");
@@ -777,7 +779,8 @@ export class WorkspaceBoard {
     await this.saveReview([], {});
     // Remember the tile this board was entered from, so returning lands on it.
     const from = placementId || this.snapshot.placements.find(p => !p.removedAt && !p.archivedAt && this.snapshot.items[p.itemId]?.childBoardId === id)?.id;
-    if (from && id !== this.snapshot.id) try { sessionStorage.setItem(`tinka/${this.config.workspaceId}/return-to-tile`, JSON.stringify({ parentBoardId: this.snapshot.id, placementId: from, childBoardId: id, at: Date.now() })); } catch {}
+    // The view too: zooming out of the child comes back to it (canvas.js leaveBoard).
+    if (from && id !== this.snapshot.id) try { sessionStorage.setItem(`tinka/${this.config.workspaceId}/return-to-tile`, JSON.stringify({ parentBoardId: this.snapshot.id, placementId: from, childBoardId: id, at: Date.now(), view: this.hooks.currentView?.() || null })); } catch {}
     if (id === this.snapshot.id) {
       this.hooks.closeReader();
       return;
@@ -1114,7 +1117,7 @@ export class WorkspaceBoard {
       <dt>V · H</dt><dd>Pointer · Pan</dd>
       <dt>Arrow keys on a resize corner</dt><dd>Resize the card, shape, text or sticker 1 unit, 10 with Shift</dd>
       <dt>⌥/Alt-F10</dt><dd>Move to the selected drawing's bar (it also follows the drawing's own controls in Tab order); Escape comes back</dd>
-      <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused</dd>
+      <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused. Zooming out stops where the whole board is in view; once more goes up to the parent board, or Home</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
       <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
@@ -2055,6 +2058,36 @@ export class WorkspaceBoard {
     if (!item) return;
     $("notes-for").textContent = "Item notes · shared across placements";
     this.hooks.readerChanged?.();
+  }
+  // Where zooming out of this board goes (canvas.js leaveBoard). Its parent: the board she entered it from (the tile she
+  // came through, or ?from=), else the parent in its path (as the path menu shows it), else the first board that shows its
+  // owner item. Returns {parentId, from (the parent's own ?from=), placementId (this board's card there), view (the
+  // parent's view when she entered from its tile)}, or null for a board on Home (or with no parent): Home is above it.
+  async zoomOutTarget() {
+    try { if (!this.workspaceGraph) await this.loadCrumb(); } catch {}
+    return this.zoomOutParent();
+  }
+  // The same, from what is loaded (null before the workspace graph arrives, as for Home). Adds the parent's title.
+  zoomOutParent() {
+    const ws = this.workspaceGraph;
+    if (!ws?.boards) return null;
+    const id = this.snapshot.id, owner = this.snapshot.ownerItemId;
+    const live = p => !p.removedAt && !p.archivedAt && !p.deletedAt;
+    const parents = owner ? ws.boards.filter(b => b.id !== id && (b.placements || []).some(p => live(p) && p.itemId === owner)) : [];
+    if (!parents.length) return null;
+    let entry = null;
+    try { entry = JSON.parse(sessionStorage.getItem(`tinka/${this.config.workspaceId}/return-to-tile`) || "null"); } catch {}
+    if (entry?.childBoardId !== id || entry.zoomOut || !parents.some(b => b.id === entry.parentBoardId)) entry = null;
+    // A board on Home that she didn't enter from a parent has Home above it.
+    const from_ = new URLSearchParams(location.search).get("from");
+    if (!entry && !parents.some(b => b.id === from_) && ws.homeBoardIds?.includes(id)) return null;
+    const path = this.boardPath() || [], inPath = path.length > 1 ? path[path.length - 2].id : null;
+    const parentId = entry?.parentBoardId || (parents.some(b => b.id === inPath) ? inPath : parents[0].id);
+    const parent = parents.find(b => b.id === parentId);
+    const placementId = (entry && parent.placements.some(p => live(p) && p.id === entry.placementId) ? entry.placementId : null)
+      || parent.placements.find(p => live(p) && p.itemId === owner)?.id || null;
+    const from = parentId === inPath && path.length > 2 ? path[path.length - 3].id : null;
+    return { parentId, title: parent.title || "Untitled board", from, placementId, view: entry?.view || null };
   }
   // The boards from a root to this one, preferring the board it was entered from (?from=).
   boardPath() {

@@ -40,3 +40,39 @@ export function wheelZoomFactor(event) {
 export const LARGE_BOARD_ZOOM = .4;
 // Two views match when pan and zoom agree to within rounding.
 export const sameView = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1 && Math.abs(a.zoom - b.zoom) < 1e-4;
+// Zooming out stops at a floor, and a fresh zoom-out from the floor leaves for the place above (ui-sdk.md § Zoom floor):
+// an opened Tinka's floor is its fitted view and leaving goes to its board; a board's floor is the zoom at which all of it
+// fits (boardZoomFloor) and leaving goes to its parent board, or Home. One step below the floor leaves: one − press
+// (1.25×), one wheel notch, or wheel / pinch steps that add up to a fifth. A wheel or pinch gesture is its zoom-out events
+// with no gap of GESTURE_GAP ms; one that reaches the floor from above stops there, and only a new gesture started at
+// the floor can leave. A held key (repeat) never leaves.
+export const LEAVE_RATIO = 1 / 1.25;
+export const GESTURE_GAP = 300;
+export function zoomOutGate() {
+  let g = null;
+  return {
+    reset() { g = null; },
+    // The input that was just applied brought the view down to the floor.
+    reachedFloor() { if (g) g.fromAbove = true; },
+    // She has just arrived here by zooming out of the place below: a wheel or pinch gesture still running carries on as
+    // one that reached the floor from above, so it stops here instead of leaving this place too.
+    hold(now = globalThis.performance?.now?.() ?? Date.now()) { g = { source: '*', ratio: 1, fromAbove: true, last: now }; },
+    // A zoom-out by `factor` (< 1). `above`: the view is above the floor before it. `locked`: the floor never leaves
+    // (Expand). Returns 'zoom' (apply it, down to the floor at most), 'held' (at the floor, nothing moves) or 'leave'.
+    out(factor, { above, source = 'step', repeat = false, locked = false, now = globalThis.performance?.now?.() ?? Date.now() }) {
+      const gesture = source !== 'step';
+      if (!g || !gesture || (g.source !== source && g.source !== '*') || now - g.last > GESTURE_GAP) g = { source, ratio: 1, fromAbove: false };
+      g.source = source;
+      g.last = now;
+      if (above) return 'zoom';
+      if (locked || repeat || g.fromAbove) return 'held';
+      g.ratio *= factor;
+      if (gesture && g.ratio > LEAVE_RATIO * (1 + 1e-6)) return 'held';
+      g = null;
+      return 'leave';
+    },
+  };
+}
+// A board's floor: the zoom at which all of its content fits the area (fitZoom, uncapped), never above 100%, so a small
+// board can still be seen at 100% and an empty one (fitZoom null) stops at 100%.
+export const boardZoomFloor = fitZoom => clampZoom(Math.min(1, Number.isFinite(fitZoom) && fitZoom > 0 ? fitZoom : 1));

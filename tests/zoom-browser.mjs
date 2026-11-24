@@ -59,10 +59,15 @@ try{
  await page.locator('#zoom-plus').click();ok(await zoom()>1.6,'The + button continues past 125%');
  await setZoom(1000);ok(Math.abs(await zoom()-MAX_ZOOM)<1e-6,'Slider reaches 1000%');
  assert.equal(await page.locator('#zoom-slider').getAttribute('aria-valuetext'),'1000 percent');checks++;
- await setZoom(2);ok(Math.abs(await zoom()-MIN_ZOOM)<1e-6,'Slider reaches 2%');
- // Tile chrome keeps its screen size at high zoom (the counter-scale is no longer floored at 0.8).
+ // The slider stops at the board's floor (where all of it fits, 100% at most), not at 2% (ui-sdk.md § Zoom floor).
+ await setZoom(2);{const z=await zoom(),min=await page.locator('#zoom-slider').evaluate(el=>Number(el.min));
+  ok(z>MIN_ZOOM&&z<=1&&min===sliderFromZoom(z),`The slider stops at the board's floor, not at 2%: ${z}, min ${min}`);}
+ // Tile chrome keeps its screen size at high zoom (the counter-scale is no longer floored at 0.8). Fit first: the slider
+ // at 2% used to recentre the board by its pan limits; at the floor it stays where it was.
+ await page.locator('#viewport').focus();await page.keyboard.press('Shift+Digit1');
  await setZoom(100);await page.mouse.move(...Object.values(await center()));const toolbar=card.locator('.workspace-tile-toolbar');
  await page.waitForFunction(id=>getComputedStyle(document.querySelector(`[data-placement="${id}"] .workspace-tile-toolbar`)).opacity==='1',design);
+ await page.mouse.move((await center()).x+3,(await center()).y);await page.waitForTimeout(400);  // let its scale settle
  const bar100=(await toolbar.boundingBox()).width;
  await setZoom(400);await page.mouse.move(...Object.values(await center()));await page.mouse.move((await center()).x+3,(await center()).y);await page.waitForTimeout(300);
  const bar400=(await toolbar.boundingBox())?.width;

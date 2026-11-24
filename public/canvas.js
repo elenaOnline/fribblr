@@ -9,7 +9,7 @@ import { WorkspaceBoard } from './workspace-board.js';
 import { contentURL, enableOrganization, makeDialog } from './workspace.js';
 import { validTextAnchor } from './markdown-document.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
-import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, stepSliderZoom, wheelZoomFactor} from './canvas-zoom.js';
+import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, stepSliderZoom, wheelZoomFactor, zoomOutGate, boardZoomFloor} from './canvas-zoom.js';
 import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {ReaderCanvas, contentScrolls} from './reader-canvas.js';
@@ -150,7 +150,7 @@ async function fetchBoard() {
   if (!response.ok) throw new Error(`Board metadata unavailable (${response.status})`);
   const data = await response.json();
   if (data.schemaVersion === 2) {
-    if (!graph) graph = new WorkspaceBoard(appConfig, data, { concepts:()=>all, active:()=>active, zoom:()=>zoom, shiftOrigin:(dx,dy)=>{if(dx||dy){view.x-=dx*zoom;view.y-=dy*zoom;resting=false;shiftSavedViews(dx,dy);}}, shiftViewport:(dx,dy)=>{if(dx||dy)moveView(view.x+dx,view.y+dy);}, holdView:()=>{resting=false;}, revealPlacements:revealPlacements, revealTarget:placement=>{const fit=Math.min((viewport.clientWidth-80)/placement.width,(viewport.clientHeight-80)/placement.height,1);changeZoom(fit);const rect=world.getBoundingClientRect(),region=viewport.getBoundingClientRect();moveView(view.x+region.left+viewport.clientWidth/2-(rect.left+(placement.x+graph.origin.x+placement.width/2)*zoom),view.y+region.top+viewport.clientHeight/2-(rect.top+(placement.y+graph.origin.y+placement.height/2)*zoom));}, preview:(c,version)=>previewHref(c,version,'paper',100,versionStamp(version,liveSnapshot?.items?.[c.graphItem.id])), layout:()=>{ if(resting)rest();else applyView(); contentChanged(); }, mode:mode=>{ if(mode==='canvas'){zoom=1;settleCushion();}else{viewport.scrollLeft=0;viewport.scrollTop=0;} requestAnimationFrame(syncMapAvailability); }, fit:(kind,area)=>runFit(kind==='smart'?smartFitTarget():kind,area), toggleMap:()=>setMapOpen(!boardMap.visible,{remember:true}), reloadReader:()=>loadRevision(), saveStatus:setSaveStatus, openOwner:()=>{const c=graph.ownerConcept();if(c)openReader(c.key);}, closeReader:()=>closeReader(), flushNotes:flushNoteEdits, liveReady:()=>{void drainLiveUpdates().catch(()=>{});}, data:acceptGraphData, editNote:(key,anchor)=>openTileNote(key,anchor), readerChanged:()=>{if(active&&dialog.open)renderReaderChrome();}, viewOnly:overview });
+    if (!graph) graph = new WorkspaceBoard(appConfig, data, { concepts:()=>all, active:()=>active, zoom:()=>zoom, shiftOrigin:(dx,dy)=>{if(dx||dy){view.x-=dx*zoom;view.y-=dy*zoom;resting=false;shiftSavedViews(dx,dy);}}, shiftViewport:(dx,dy)=>{if(dx||dy)moveView(view.x+dx,view.y+dy);}, holdView:()=>{resting=false;}, revealPlacements:revealPlacements, revealTarget:placement=>{const fit=Math.min((viewport.clientWidth-80)/placement.width,(viewport.clientHeight-80)/placement.height,1);changeZoom(fit);const rect=world.getBoundingClientRect(),region=viewport.getBoundingClientRect();moveView(view.x+region.left+viewport.clientWidth/2-(rect.left+(placement.x+graph.origin.x+placement.width/2)*zoom),view.y+region.top+viewport.clientHeight/2-(rect.top+(placement.y+graph.origin.y+placement.height/2)*zoom));}, preview:(c,version)=>previewHref(c,version,'paper',100,versionStamp(version,liveSnapshot?.items?.[c.graphItem.id])), layout:()=>{ if(resting)rest();else applyView(); contentChanged(); }, mode:mode=>{ if(mode==='canvas'){zoom=1;settleCushion();}else{viewport.scrollLeft=0;viewport.scrollTop=0;} requestAnimationFrame(syncMapAvailability); }, fit:(kind,area)=>runFit(kind==='smart'?smartFitTarget():kind,area), toggleMap:()=>setMapOpen(!boardMap.visible,{remember:true}), reloadReader:()=>loadRevision(), saveStatus:setSaveStatus, openOwner:()=>{const c=graph.ownerConcept();if(c)openReader(c.key);}, closeReader:()=>closeReader(), flushNotes:flushNoteEdits, liveReady:()=>{void drainLiveUpdates().catch(()=>{});}, data:acceptGraphData, editNote:(key,anchor)=>openTileNote(key,anchor), readerChanged:()=>{if(active&&dialog.open)renderReaderChrome();}, currentView:()=>({zoom,x:view.x,y:view.y,resting,round:rounds[currentRound]?.id}), zoomOutChanged:()=>{boardMinusState=null;applyView();}, viewOnly:overview });
     graph.hooks.revealBox = revealBox;
     if (overview) graph.mode = 'canvas';
     return graph.adapt(data);
@@ -275,6 +275,17 @@ function applyView() {
   slider.value = String(sliderFromZoom(zoom));
   slider.setAttribute('aria-valuetext', `${percent} percent`);
   setTip(slider, `Zoom ${percent}%`);
+  // The slider runs from the floor up, and − at the floor says where it goes; from the floor measured at the last input,
+  // so nothing here reads layout after the writes above.
+  const min = String(boardFloor == null ? 0 : sliderFromZoom(boardFloor));
+  if (slider.min !== min) slider.min = min;
+  // At the floor, − names where it goes, in its accessible name and its hint (the parent is looked up only there).
+  const atFloor = boardFloor != null && zoom <= boardFloor * (1 + 1e-3);
+  if (atFloor !== boardMinusState) {
+    boardMinusState = atFloor;
+    const label = atFloor ? `Zoom out to ${graph?.zoomOutParent?.()?.title || 'Home'}` : 'Zoom out', minus = $('zoom-minus');
+    minus.setAttribute('aria-label', label); setTip(minus, label);
+  }
   syncViewChrome();
 }
 
@@ -352,6 +363,102 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
   const scale = clampZoom(value) / zoom;
   zoom = clampZoom(value);
   moveView(cx - (cx - view.x) * scale, cy - (cy - view.y) * scale);
+}
+
+// ---- The board's zoom floor: zooming out stops where all of the board fits; a fresh zoom-out there goes up to the board
+// it lives on (its parent), or Home for a board on Home. The opened item's model (canvas-zoom.js zoomOutGate; ui-sdk.md §
+// Zoom floor). Fit, the map's Fit and app-chosen moves use changeZoom directly; every zoom-out she makes goes through here.
+var boardGate = zoomOutGate();
+var boardFloor = null, leavingBoard = false, boardMinusState = null;  // var: applyView may run before this line
+// Only a canvas board on its own page has a floor: not Grid view, the overview render, or while the reader is open.
+const boardHasFloor = () => !!board && !overview && graph?.mode !== 'grid' && !dialog.open;
+// The content's own extent (cards and drawn elements, world units), not the world box, which keeps a minimum frame.
+// Cached on the snapshot and the world's size, so a wheel run measures it once.
+var contentBoxKey = null, contentBox = null;
+function boardContentBox() {
+  if (!graph?.snapshot) { const w = world.offsetWidth - geometry.pad * 2, h = world.offsetHeight - geometry.pad * 2; return w > 0 && h > 0 ? { x: geometry.pad, y: geometry.pad, width: w, height: h } : null; }
+  const key = [graph.snapshot, graph.snapshot.revision, world.offsetWidth, world.offsetHeight];
+  if (!contentBoxKey || key.some((v, i) => v !== contentBoxKey[i])) { contentBoxKey = key; contentBox = mapShapes().bounds; }
+  return contentBox;
+}
+// Measured at the start of an input, before the view is written (§ Performance rules); kept for the slider's minimum.
+// Also the floor view: at the floor's zoom, the content centred in the fit area (what the last stretch settles to).
+var floorTarget = null;
+function measureBoardFloor() {
+  if (!boardHasFloor()) { boardFloor = floorTarget = null; return null; }
+  const area = fitArea(), box = boardContentBox(), margin = 24;
+  boardFloor = boardZoomFloor(box ? Math.min((area.width - margin * 2) / box.width, (area.height - margin * 2) / box.height) : null);
+  floorTarget = box ? { ax: area.width / 2, ay: area.height / 2, cx: box.x + box.width / 2, cy: box.y + box.height / 2 } : null;
+  return boardFloor;
+}
+// Over the last stretch above the floor (from SETTLE_SPAN × the floor down to it), each zoom-out step also draws the view
+// towards the floor view, in proportion to the step, so the floor shows all of the board, as Fit does, wherever the
+// pointer is (Photos and Preview settle a picture centred as it reaches fit). Frame for frame with her input; nothing
+// runs after it, and it reads nothing (floorTarget was measured before the view was written).
+const SETTLE_SPAN = 2;
+function settleView(anchored, z0, z1) {
+  const floor = boardFloor, t = floorTarget;
+  if (floor == null || !t || !(z1 < z0)) return anchored;
+  const top = floor * SETTLE_SPAN, progress = z => z >= top ? 0 : z <= floor * (1 + 1e-6) ? 1 : Math.log(top / z) / Math.log(top / floor);
+  const p0 = progress(z0), p1 = progress(z1);
+  if (p1 <= p0 || p0 >= 1) return anchored;
+  const target = { x: t.ax - t.cx * z1, y: t.ay - t.cy * z1 }, keep = (1 - p1) / (1 - p0);
+  return { x: target.x + (anchored.x - target.x) * keep, y: target.y + (anchored.y - target.y) * keep };
+}
+// changeZoom, settled on the way down to the floor.
+function changeZoomSettled(value, cx = viewport.clientWidth / 2, cy = viewport.clientHeight / 2) {
+  const z0 = zoom, z1 = clampZoom(value), scale = z1 / z0;
+  const v = settleView({ x: cx - (cx - view.x) * scale, y: cy - (cy - view.y) * scale }, z0, z1);
+  zoom = z1;
+  moveView(v.x, v.y);
+}
+const atBoardFloor = floor => zoom <= floor * (1 + 1e-3);
+// The zoom a zoom-in or zoom-out by `factor` should go to, or null when it left the board. `source`: 'step' (a press),
+// 'wheel' or 'pinch' (a gesture); `repeat`: a held key.
+function boardZoomTarget(factor, { source = 'step', repeat = false } = {}) {
+  if (leavingBoard) return zoom;
+  if (!(factor < 1)) { boardGate.reset(); return clampZoom(zoom * factor); }
+  const floor = measureBoardFloor();
+  if (floor == null) return clampZoom(zoom * factor);
+  const verdict = boardGate.out(factor, { above: !atBoardFloor(floor), source, repeat });
+  if (verdict === 'zoom') { const z = Math.max(floor, clampZoom(zoom * factor)); if (atBoardFloor(floor) || z <= floor * (1 + 1e-3)) boardGate.reachedFloor(); return z; }
+  if (verdict === 'held') return zoom;
+  void leaveBoard();
+  return null;
+}
+function boardZoomBy(factor, cx, cy, options) {
+  const z = boardZoomTarget(factor, options);
+  if (z != null && z !== zoom) changeZoomSettled(z, cx, cy);
+  return z;
+}
+// A zoom she sets directly (the slider, a preset, 0): never below the floor, settled on the way down.
+function boardZoomTo(value) {
+  const floor = measureBoardFloor();
+  changeZoomSettled(floor == null ? value : Math.max(floor, value));
+}
+// Up a level: the parent board (the one she came from, else the one in the path, else the first), landed on this board's
+// card in the view she entered from (canvas.js landFromZoomOut); a board on Home goes Home, its tile selected and focused.
+async function leaveBoard() {
+  if (leavingBoard) return;
+  leavingBoard = true;
+  try {
+    const target = graph ? await graph.zoomOutTarget() : null;
+    if (graph && await graph.saveReview([], {}) === false) { leavingBoard = false; return; }
+    if (!graph) await flushNoteEdits();
+    const at = Date.now();
+    if (target?.parentId) {
+      const entry = { parentBoardId: target.parentId, placementId: target.placementId || null, childBoardId: boardId, at, zoomOut: true, view: !!target.view };
+      try {
+        sessionStorage.setItem(RETURN_KEY(), JSON.stringify(entry));
+        // The parent opens in the view she entered this board from (openBoardView restores it before the first paint).
+        if (target.view) sessionStorage.setItem(`tinka/${workspaceId}/${target.parentId}/view`, JSON.stringify(target.view));
+      } catch {}
+      location.href = `/boards/${encodeURIComponent(target.parentId)}/${target.from ? `?from=${encodeURIComponent(target.from)}` : ''}`;
+    } else {
+      try { sessionStorage.setItem(`tinka/${workspaceId}/return-home`, JSON.stringify({ boardId, at })); } catch {}
+      location.href = '/';
+    }
+  } catch { leavingBoard = false; }
 }
 
 // Pan just enough to bring a box (board units) into view, as UI SDK's viewport reveal does for focus moved by the arrow
@@ -731,6 +838,8 @@ function setReaderExpanded(on, { announce = true } = {}) {
 function leaveToBoard() {
   if (!dialog.open || !active) return;
   closeReader({ land: true });
+  // The rest of the gesture that left the item zooms the board out; it stops at the board's floor rather than going on up.
+  boardGate.hold();
 }
 // Opening a Tinka leaves focus on Tinka's canvas, not inside the content, so its keys work at once.
 function focusTinka() {
@@ -1521,7 +1630,7 @@ let landed = false;
 function landFromChild() {
   let entry = null;
   try { entry = JSON.parse(sessionStorage.getItem(RETURN_KEY()) || 'null'); } catch {}
-  if (!entry || entry.parentBoardId !== boardId || Date.now() - entry.at > 6 * 60 * 60 * 1000) return;
+  if (!entry || entry.zoomOut || entry.parentBoardId !== boardId || Date.now() - entry.at > 6 * 60 * 60 * 1000) return;
   if (new URLSearchParams(location.search).has('reveal')) return;
   const tries = { n: 0 };
   const attempt = () => {
@@ -1530,7 +1639,26 @@ function landFromChild() {
   };
   attempt();
 }
-addEventListener('pageshow', event => { if (event.persisted) landFromChild(); });
+addEventListener('pageshow', event => { if (event.persisted) { leavingBoard = false; landFromChild(); } });
+// Arriving on a parent by zooming out of one of its boards (leaveBoard): the view she entered the child from (restored by
+// openBoardView from the saved view) or, unknown, this board's opening view at 100% at most; the child's card selected,
+// focused, and centred if it isn't in that view (landOnCard, the opened item's landing). In one step, before the canvas
+// is shown.
+var zoomLanding = null;
+function readZoomLanding() {
+  let entry = null;
+  try { entry = JSON.parse(sessionStorage.getItem(RETURN_KEY()) || 'null'); } catch {}
+  if (!entry?.zoomOut || entry.parentBoardId !== boardId || Date.now() - entry.at > 60 * 1000) return null;
+  try { sessionStorage.removeItem(RETURN_KEY()); } catch {}
+  return entry;
+}
+function landFromZoomOut(entry) {
+  boardGate.hold();
+  const card = entry.placementId ? world.querySelector(`.workspace-card[data-placement="${CSS.escape(entry.placementId)}"]`) : null;
+  viewport.style.visibility = '';
+  if (!card) return;
+  landOnCard(card.dataset.key, { noPriorView: !entry.view });
+}
 
 // Escape closes the innermost thing first (feedback, the path, the % menu, the Inspector,
 // the Navigator, notes while typing in them), otherwise goes up to the board.
@@ -2013,7 +2141,7 @@ function bindZoomSlider(input, apply) {
     apply(stepSliderZoom(input.value,direction));
   });
 }
-bindZoomSlider(slider,value=>{if(graph)graph.revealedPlacement=null;changeZoom(value);});
+bindZoomSlider(slider,value=>{if(graph)graph.revealedPlacement=null;boardZoomTo(value);});
 $('fit').onclick = event => runFit(event.altKey ? 'board' : smartFitTarget());
 $('view-back').onclick = goBack;
 $('board-info-toggle').onclick = () => setInfoOpen(!boardInspector.isOpen, { focus: true, opener: $('board-info-toggle') });
@@ -2049,6 +2177,13 @@ zoomPopover.addEventListener('openchange', event => {
   const part = fitSelection.closest('ui-toolbar-button');
   part.disabled = off;
   if (off) part.setAttribute('focusable-when-disabled', 'false'); else part.removeAttribute('focusable-when-disabled');
+  // A preset below the board's floor (Zoom to 50% on a board that fits at 80%) is unavailable, still reachable.
+  const floor = measureBoardFloor();
+  for (const row of $('zoom-menu').querySelectorAll('[data-zoom-to]:not([data-zoom-to="fit"]):not([data-zoom-to="selection"])')) {
+    const rowPart = row.closest('ui-toolbar-button');
+    if (rowPart) rowPart.disabled = floor != null && Number(row.dataset.zoomTo) < floor * (1 - 1e-3);
+  }
+  applyView();
 });
 function setZoomMenuOpen(open) {
   if (open) { if (!zoomPopover.open) zoomPopover.api?.open(); }
@@ -2058,17 +2193,17 @@ function setZoomMenuOpen(open) {
 // Popover trigger has no ArrowDown of its own).
 openOnArrowDown(document.querySelector('.canvas-footer .zoom-pill'), '#zoom-menu-toggle', () => setZoomMenuOpen(true));
 openOnArrowDown(dialog.querySelector('.reader-footer .zoom-pill'), '#reader-zoom-toggle', () => setReaderMenuOpen(true));
-$('zoom-minus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom / 1.25); };
-$('zoom-plus').onclick = () => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * 1.25); };
+$('zoom-minus').onclick = () => { if (graph) graph.revealedPlacement = null; boardZoomBy(1 / 1.25); };
+$('zoom-plus').onclick = () => { if (graph) graph.revealedPlacement = null; boardZoomBy(1.25); };
 $('zoom-menu').addEventListener('click', event => {
   const choice = event.target.closest('[data-zoom-to]');
-  if (!choice) return;
+  if (!choice || choice.getAttribute('aria-disabled') === 'true') return;
   if (graph) graph.revealedPlacement = null;
   const to = choice.dataset.zoomTo;
   setZoomMenuOpen(false);
   if (to === 'fit') fitBoard();
   else if (to === 'selection') fitSelection();
-  else changeZoom(Number(to));
+  else boardZoomTo(Number(to));
 });
 // The % popover is a Popover, not a menu: Tab moves through its controls (popover.md), and arrows belong to the control
 // that has focus. The preset rows (Zoom to …, Fit) look like menu rows, so they are one vertical toolbar (↑/↓ with
@@ -2204,9 +2339,9 @@ function ensureBoardMap() {
     center: centerOn,
     panBy: (dx, dy) => moveView(view.x - dx * zoom, view.y - dy * zoom),
     panScreen: (fx, fy) => moveView(view.x + fx * viewport.clientWidth, view.y + fy * viewport.clientHeight),
-    zoomAt: (factor, wx, wy) => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor, view.x + wx * zoom, view.y + wy * zoom); },
-    zoomBy: factor => { if (graph) graph.revealedPlacement = null; changeZoom(zoom * factor); announceView(`Zoom ${Math.round(zoom * 100)}%`); },
-    actualSize: () => { if (graph) graph.revealedPlacement = null; changeZoom(1); announceView('Zoom 100%'); },
+    zoomAt: (factor, wx, wy) => { if (graph) graph.revealedPlacement = null; boardZoomBy(factor, view.x + wx * zoom, view.y + wy * zoom, { source: 'wheel' }); },
+    zoomBy: factor => { if (graph) graph.revealedPlacement = null; if (boardZoomBy(factor) != null) announceView(`Zoom ${Math.round(zoom * 100)}%`); },
+    actualSize: () => { if (graph) graph.revealedPlacement = null; boardZoomTo(1); announceView('Zoom 100%'); },
     close: () => setMapOpen(false, { remember: true, focus: true }),
   });
   const el = boardMapElement();
@@ -2481,7 +2616,7 @@ viewport.addEventListener('pointerdown', event => {
   } else if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     const [mx, my] = viewportPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
-    pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom, x: (mx - view.x) / zoom, y: (my - view.y) / zoom };
+    pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, x: (mx - view.x) / zoom, y: (my - view.y) / zoom };
     pan = null;
     viewport.classList.add('panning');
   }
@@ -2492,8 +2627,17 @@ viewport.addEventListener('pointermove', event => {
   if (pinch && pointers.size >= 2) {
     const [a, b] = [...pointers.values()];
     const [mx, my] = viewportPoint((a.x + b.x) / 2, (a.y + b.y) / 2);
-    zoom = clampZoom(pinch.zoom * (Math.hypot(a.x - b.x, a.y - b.y) || 1) / pinch.distance);
-    moveView(mx - pinch.x * zoom, my - pinch.y * zoom);
+    // Each move zooms by its own change in spread (so a pinch held at the floor counts only what the fingers did), and
+    // the board point first under the fingers stays under them.
+    const distance = Math.hypot(a.x - b.x, a.y - b.y) || 1, target = boardZoomTarget(distance / pinch.distance, { source: 'pinch' });
+    pinch.distance = distance;
+    if (target == null) { pointers.clear(); pinch = null; pan = null; viewport.classList.remove('panning'); return; }
+    const z0 = zoom;
+    zoom = target;
+    const v = settleView({ x: mx - pinch.x * zoom, y: my - pinch.y * zoom }, z0, zoom);
+    moveView(v.x, v.y);
+    // The settle moved the board under the fingers: the point under them now is the one they hold.
+    pinch.x = (mx - view.x) / zoom; pinch.y = (my - view.y) / zoom;
     return;
   }
   if (!pan || pan.id !== event.pointerId) return;
@@ -2534,7 +2678,7 @@ viewport.addEventListener('wheel', event => {
   if (graph?.mode === 'grid') return;
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-    changeZoom(zoom * wheelZoomFactor(event), ...viewportPoint(event.clientX, event.clientY));
+    boardZoomBy(wheelZoomFactor(event), ...viewportPoint(event.clientX, event.clientY), { source: 'wheel' });
     return;
   }
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
@@ -2552,7 +2696,7 @@ viewport.addEventListener('gesturestart', event => { event.preventDefault(); ges
 viewport.addEventListener('gesturechange', event => {
   event.preventDefault();
   const scale = event.scale > 0 ? event.scale : 1;
-  changeZoom(zoom * scale / gestureScale, ...viewportPoint(event.clientX, event.clientY));
+  boardZoomBy(scale / gestureScale, ...viewportPoint(event.clientX, event.clientY), { source: 'pinch' });
   gestureScale = scale;
 });
 viewport.addEventListener('gestureend', event => event.preventDefault());
@@ -2574,7 +2718,7 @@ document.addEventListener('wheel', event => {
   }
   if (!(event.ctrlKey || event.metaKey) || !boardOwnsPinch(event)) return;
   event.preventDefault();
-  changeZoom(zoom * wheelZoomFactor(event), ...viewportPinchPoint(event));
+  boardZoomBy(wheelZoomFactor(event), ...viewportPinchPoint(event), { source: 'wheel' });
 }, { passive: false });
 const readerOwnsPinch = event => dialog.open && !readerStage.contains(event.target) && !document.querySelector('.workspace-dialog:is([open],[data-open])');
 document.addEventListener('gesturestart', event => { if (boardOwnsPinch(event) || readerOwnsPinch(event)) { event.preventDefault(); gestureScale = 1; } });
@@ -2583,7 +2727,7 @@ document.addEventListener('gesturechange', event => {
   if (!boardOwnsPinch(event)) return;
   event.preventDefault();
   const scale = event.scale > 0 ? event.scale : 1;
-  changeZoom(zoom * scale / gestureScale, ...viewportPinchPoint(event));
+  boardZoomBy(scale / gestureScale, ...viewportPinchPoint(event), { source: 'pinch' });
   gestureScale = scale;
 });
 // Keys pan as scrolling did: arrows, Page Up/Down and Space (on the canvas itself), Home and End for the first and
@@ -2600,7 +2744,8 @@ viewport.addEventListener('keydown', event => {
   // + / − zoom and 0 shows 100% (UI SDK viewport keys) from the canvas or a focused card or drawn element; announced.
   const zoomKeys = onCanvas || !!event.target.matches?.('#world .workspace-card, #world .workspace-decoration');
   if (zoomKeys && ['+', '=', '-', '_', '0'].includes(key)) {
-    changeZoom(key === '0' ? 1 : key === '+' || key === '=' ? zoom * 1.15 : zoom / 1.15);
+    if (key === '0') boardZoomTo(1);
+    else if (boardZoomBy(key === '+' || key === '=' ? 1.15 : 1 / 1.15, undefined, undefined, { repeat: event.repeat }) == null) { event.preventDefault(); return; }
     announceView(`Zoom ${Math.round(zoom * 100)}%`);
   }
   else if (key.startsWith('Arrow') && step) moveView(view.x + step[0], view.y + step[1]);
@@ -2674,6 +2819,8 @@ async function openBoardView() {
       else { resting = false; Object.assign(view, { x: saved.x, y: saved.y }); applyView(); }
     }
   } catch {}
+  if (zoomLanding) landFromZoomOut(zoomLanding);
+  measureBoardFloor(); applyView();
   syncMapAvailability();
   const revealId=new URLSearchParams(location.search).get('reveal');
   if(revealId&&graph)await graph.revealPlacement(revealId);
@@ -2692,6 +2839,9 @@ if (!boardId) showError('This board address is invalid. Return to Boards and ope
 else {
   try {
     await loadAppTitle();
+    // Arriving by zooming out of a child board: the canvas stays hidden until it shows its landing (no other view flashes).
+    zoomLanding = readZoomLanding();
+    if (zoomLanding) viewport.style.visibility = 'hidden';
     board = await fetchBoard();
     rounds = board.rounds;
     revisions = board.revisions || {};
@@ -2710,4 +2860,5 @@ else {
     }
     else await openBoardView();
   } catch (error) { showError(error.message || 'This board could not be loaded.'); if (overview) document.documentElement.dataset.overview = 'error'; }
+  finally { viewport.style.visibility = ''; }
 }

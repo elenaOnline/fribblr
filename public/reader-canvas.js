@@ -8,15 +8,12 @@
 // or pinch) goes back to the board the Tinka lives on (onLeave; canvas.js lands on its card), as pinching in on a fitted
 // photo returns to the grid in Photos. Expanded, the window fills the stage, past 100% if need be, and
 // the floor is a wall: zooming out stops there and never leaves (ui-sdk.md § Opened item).
-import {clampZoom, MAX_ZOOM, sameView, wheelZoomFactor} from './canvas-zoom.js';
+import {clampZoom, MAX_ZOOM, sameView, wheelZoomFactor, zoomOutGate, LEAVE_RATIO, GESTURE_GAP} from './canvas-zoom.js';
 
 // A fitted Tinka shows its window at its true size or smaller.
 export const READER_FIT_MAX_ZOOM = 1;
-// Leaving takes one zoom step below the floor: one − press (1.25×), one wheel notch, or a pinch that would shrink the
-// Tinka by a fifth. A wheel or pinch gesture is its zoom-out events with no gap of GESTURE_GAP ms; one that arrives at the
-// floor from above stops there, and only a new gesture started at the floor can leave.
-export const LEAVE_RATIO = 1 / 1.25;
-export const GESTURE_GAP = 300;
+// Leaving takes one zoom step below the floor, by the same gate as a board's (canvas-zoom.js zoomOutGate).
+export {LEAVE_RATIO, GESTURE_GAP};
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Whether wheel movement (dx, dy) over `target` would scroll something in Tinka's content:
@@ -72,7 +69,7 @@ export class ReaderCanvas {
     this.view = { zoom: 1, x: 0, y: 0 };
     this.fitted = true;
     this.expanded = false;
-    this.outGesture = null;
+    this.gate = zoomOutGate();
     this.floorKey = '';
     this.floorZoom_ = 1;
     this.backView = null;
@@ -174,7 +171,7 @@ export class ReaderCanvas {
     if (this.expanded === !!on) return;
     this.expanded = !!on;
     this.stage.dataset.expanded = String(this.expanded);
-    this.outGesture = null;
+    this.gate.reset();
     this.dropBack();
     this.rest();
   }
@@ -231,20 +228,14 @@ export class ReaderCanvas {
   // or 'wheel' / 'pinch' (a gesture); `repeat` marks a held key. Returns 'zoomed', 'held' (at the floor, nothing moved)
   // or 'leave' (onLeave has been called).
   zoomBy(factor, sx, sy, { source = 'step', repeat = false } = {}) {
-    if (!(factor < 1)) { this.outGesture = null; this.zoomTo(this.view.zoom * factor, sx, sy); return 'zoomed'; }
-    const now = performance.now(), gesture = source !== 'step';
-    let g = this.outGesture;
-    if (!g || !gesture || g.source !== source || now - g.last > GESTURE_GAP) g = this.outGesture = { source, ratio: 1, fromAbove: false, last: now };
-    g.last = now;
-    if (!this.atFloor()) {
+    if (!(factor < 1)) { this.gate.reset(); this.zoomTo(this.view.zoom * factor, sx, sy); return 'zoomed'; }
+    const verdict = this.gate.out(factor, { above: !this.atFloor(), source, repeat, locked: this.expanded });
+    if (verdict === 'zoom') {
       this.zoomTo(this.view.zoom * factor, sx, sy);
-      if (this.atLastFloor()) g.fromAbove = true;
+      if (this.atLastFloor()) this.gate.reachedFloor();
       return 'zoomed';
     }
-    if (this.expanded || repeat || g.fromAbove) return 'held';
-    g.ratio *= factor;
-    if (gesture && g.ratio > LEAVE_RATIO * (1 + 1e-6)) return 'held';
-    this.outGesture = null;
+    if (verdict === 'held') return 'held';
     this.pointers.clear(); this.pinch = null; this.pan = null;
     this.stage.classList.remove('panning');
     this.onLeave(source);

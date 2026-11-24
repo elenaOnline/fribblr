@@ -154,7 +154,8 @@ try{
  const zoom=()=>page.evaluate(()=>new DOMMatrix(getComputedStyle(document.getElementById('world')).transform).a);
  const z0=await zoom();
  await page.keyboard.press('=');ok(await zoom()>z0,'+ zooms in from a focused card');
- await page.keyboard.press('-');await page.keyboard.press('-');ok(await zoom()<z0,'− zooms out');
+ // (Two presses in: on this small board the opening zoom is the floor, where the next − would go up to Home.)
+ await page.keyboard.press('=');const z2=await zoom();await page.keyboard.press('-');ok(await zoom()<z2,'− zooms out');
  await page.keyboard.press('0');ok(Math.abs(await zoom()-1)<1e-6,'0 shows 100%');
  ok((await page.locator('#view-announce').textContent()).includes('Zoom 100%'),'The zoom is announced');
 

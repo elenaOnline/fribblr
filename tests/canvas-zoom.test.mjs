@@ -31,3 +31,28 @@ test('Control-wheel follows a Chromium trackpad pinch 1:1 and caps a mouse notch
   assert.ok(Math.abs(wheelZoomFactor({deltaMode:0, deltaY:120}) - Math.exp(-.3)) < 1e-9);
   assert.ok(Math.abs(wheelZoomFactor({deltaMode:1, deltaY:-3}) - Math.exp(.3)) < 1e-9);
 });
+
+import {zoomOutGate,boardZoomFloor,LEAVE_RATIO,GESTURE_GAP} from '../public/canvas-zoom.js';
+test('the zoom-out gate: a gesture that reaches the floor stops, a fresh one a fifth below leaves, a held key never leaves', () => {
+  let gate = zoomOutGate(), t = 0;
+  assert.equal(gate.out(.74, {above: true, source: 'wheel', now: t += 30}), 'zoom'); gate.reachedFloor();
+  assert.equal(gate.out(.74, {above: false, source: 'wheel', now: t += 30}), 'held', 'the same gesture stops at the floor');
+  assert.equal(gate.out(.74, {above: false, source: 'wheel', now: t += GESTURE_GAP + 1}), 'leave', 'after the pause, one notch leaves');
+  gate = zoomOutGate();
+  for (let i = 0; i < 2; i++) assert.equal(gate.out(.92, {above: false, source: 'pinch', now: t += 16}), 'held', 'a slight pinch at the floor stays');
+  assert.equal(gate.out(.92, {above: false, source: 'pinch', now: t += 16}), 'leave', 'pinch steps adding up to a fifth leave');
+  assert.ok(.92 ** 3 <= LEAVE_RATIO && .92 ** 2 > LEAVE_RATIO);
+  gate = zoomOutGate();
+  assert.equal(gate.out(.8, {above: false, repeat: true}), 'held', 'a held key never leaves');
+  assert.equal(gate.out(.8, {above: false}), 'leave', 'a press at the floor leaves');
+  assert.equal(gate.out(.5, {above: false, locked: true}), 'held', 'Expand: the floor is a wall');
+  gate = zoomOutGate(); gate.hold(t);
+  assert.equal(gate.out(.74, {above: false, source: 'wheel', now: t += 30}), 'held', 'arriving mid-gesture: it carries on as one that reached the floor');
+  assert.equal(gate.out(.74, {above: false, source: 'wheel', now: t += GESTURE_GAP + 1}), 'leave', '…and a new gesture leaves');
+});
+test('a board\'s floor is where all of it fits, never above 100%; an empty board stops at 100%', () => {
+  assert.equal(boardZoomFloor(.4), .4);
+  assert.equal(boardZoomFloor(3), 1);
+  assert.equal(boardZoomFloor(null), 1);
+  assert.equal(boardZoomFloor(.001), MIN_ZOOM);
+});
