@@ -1,4 +1,0 @@
-# The engine build. Iron Drawxide is a private project; its compiled wasm is not
-# published with fribblr. scripts/drawxide-engine.sh copies it in from a local
-# engine checkout.
-pkg/
