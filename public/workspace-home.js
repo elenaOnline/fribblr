@@ -131,6 +131,7 @@ export class WorkspaceHome {
     });
     this.selectionGestures();
     this.render();
+    this.landFromZoomOut();
     this.liveDirty=false;
     this.stopLive=watchChanges(this.config,{onChange:()=>{this.liveDirty=true;return this.drainLive();},onConnection:connected=>{document.getElementById("connection").textContent=connected?"Live on this Mac":"Reconnecting";}});
     document.addEventListener("focusout",()=>queueMicrotask(()=>this.drainLive()));
@@ -228,6 +229,22 @@ export class WorkspaceHome {
       list.addEventListener("valuechange", (e) => this.setSelection(new Set(e.detail.value)));
     }
     return list;
+  }
+  /** Arriving by zooming out of a board on Home (canvas.js leaveBoard): its tile selected, focused and in view, as a
+   *  board's card is after zooming out of a child board. In the same task as the first render, so no other view shows. */
+  landFromZoomOut() {
+    const key = `tinka/${this.config.workspaceId}/return-home`;
+    let entry = null;
+    try { entry = JSON.parse(sessionStorage.getItem(key) || "null"); sessionStorage.removeItem(key); } catch {}
+    if (!entry?.boardId || Date.now() - entry.at > 60 * 1000) return;
+    const card = document.querySelector(`#board-grid .board-card[data-home-board="${CSS.escape(entry.boardId)}"]`);
+    const link = card?.querySelector(".board-link");
+    if (!link) return;
+    const item = card.dataset.homeItem;
+    if (item && !item.startsWith("legacy:")) this.setSelection(new Set([item]));
+    link.focus({ preventScroll: true });
+    const r = card.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > innerHeight) card.scrollIntoView({ block: "center" });
   }
   /** Card state and the floating bar, without rebuilding the grid. */
   syncSelection() {
