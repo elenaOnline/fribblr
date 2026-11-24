@@ -367,15 +367,23 @@ var boardGate = zoomOutGate();
 var boardFloor = null, leavingBoard = false, boardMinusState = '';  // var: applyView may run before this line
 // Only a canvas board on its own page has a floor: not Grid view, the overview render, or while the reader is open.
 const boardHasFloor = () => !!board && !overview && graph?.mode !== 'grid' && !dialog.open;
+// The content's own extent (cards and drawn elements, world units), not the world box, which keeps a minimum frame.
+// Cached on the snapshot and the world's size, so a wheel run measures it once.
+var contentBoxKey = null, contentBox = null;
+function boardContentBox() {
+  if (!graph?.snapshot) { const w = world.offsetWidth - geometry.pad * 2, h = world.offsetHeight - geometry.pad * 2; return w > 0 && h > 0 ? { x: geometry.pad, y: geometry.pad, width: w, height: h } : null; }
+  const key = [graph.snapshot, graph.snapshot.revision, world.offsetWidth, world.offsetHeight];
+  if (!contentBoxKey || key.some((v, i) => v !== contentBoxKey[i])) { contentBoxKey = key; contentBox = mapShapes().bounds; }
+  return contentBox;
+}
 // Measured at the start of an input, before the view is written (§ Performance rules); kept for the slider's minimum.
 // Also the floor view: at the floor's zoom, the content centred in the fit area (what the last stretch settles to).
 var floorTarget = null;
 function measureBoardFloor() {
   if (!boardHasFloor()) { boardFloor = floorTarget = null; return null; }
-  const area = fitArea(), fit = fitBoardView(area, Infinity);
-  boardFloor = boardZoomFloor(fit?.zoom);
-  const w = world.offsetWidth - geometry.pad * 2, h = world.offsetHeight - geometry.pad * 2;
-  floorTarget = fit ? { ax: area.width / 2, ay: area.height / 2, cx: geometry.pad + w / 2, cy: geometry.pad + h / 2 } : null;
+  const area = fitArea(), box = boardContentBox(), margin = 24;
+  boardFloor = boardZoomFloor(box ? Math.min((area.width - margin * 2) / box.width, (area.height - margin * 2) / box.height) : null);
+  floorTarget = box ? { ax: area.width / 2, ay: area.height / 2, cx: box.x + box.width / 2, cy: box.y + box.height / 2 } : null;
   return boardFloor;
 }
 // Over the last stretch above the floor (from SETTLE_SPAN × the floor down to it), each zoom-out step also draws the view

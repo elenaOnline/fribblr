@@ -37,6 +37,7 @@ try{
  const empty=await op('createBoard',{id:'empty',title:'Empty board',parentBoardId:'top'});
  await op('updatePlacement',{boardId:'top',placementId:empty.placementIds[0],patch:{x:1000,y:300}});
  await op('reference',{itemIds:[kid.itemId],targetBoardId:'other'});
+ await op('createBoard',{id:'single',title:'Single card board',parentBoardId:'top'});await note('single','Only card',0,0);
  await note('kid','Kid left',0,0);await note('kid','Kid far',2400,1200);
  const kidTile=kid.placementIds[0];
  server=await listen(config,{port:0});const base=`http://127.0.0.1:${server.address().port}`;
@@ -164,6 +165,11 @@ try{
   await clearReturn();await load(`${base}/boards/top/`);
   await page.locator('#zoom-slider').evaluate(el=>{el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}));});
   {const c=await contained();ok(c.out===0,`${w}px, slider to its minimum: every card is inside the view (${c.out} outside)`);}
+ }
+ // (9) The floor comes from the content, not a minimum frame: an empty board and a one-card board stop at 100% on a phone.
+ for(const id of ['empty','single']){
+  await clearReturn();await page.goto(`${base}/boards/${id}/?from=top`,{waitUntil:'load'});await page.waitForTimeout(700);
+  eq(await page.locator('#zoom-slider').evaluate(el=>Number(el.min)),sliderFromZoom(1),`390px: ${id} board's floor is 100%`);
  }
  await page.setViewportSize({width:1440,height:900});
  eq(errors,[],'No page errors');
