@@ -138,6 +138,8 @@ export class ReaderCanvas {
     return { zoom, x: w <= width ? (width - w) / 2 : Math.min(0, Math.max(width - w, x)), y: h <= height ? (height - h) / 2 : Math.min(0, Math.max(height - h, y)) };
   }
   apply() {
+    // Measured before anything is written, so onChange can read it without forcing style and layout mid-frame.
+    this.floor = this.floorZoom();
     this.view = this.clamp(this.view);
     const { zoom, x, y } = this.view;
     this.plane.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${zoom})`;
@@ -163,6 +165,8 @@ export class ReaderCanvas {
     return this.floorZoom_;
   }
   atFloor() { return this.view.zoom <= this.floorZoom() * (1 + 1e-3); }
+  // The same, from the floor measured at the last apply(): no reads, for code that runs after the view was written.
+  atLastFloor() { return this.view.zoom <= (this.floor ?? this.floorZoom()) * (1 + 1e-3); }
   setExpanded(on) {
     if (this.expanded === !!on) return;
     this.expanded = !!on;
@@ -231,7 +235,7 @@ export class ReaderCanvas {
     g.last = now;
     if (!this.atFloor()) {
       this.zoomTo(this.view.zoom * factor, sx, sy);
-      if (this.atFloor()) g.fromAbove = true;
+      if (this.atLastFloor()) g.fromAbove = true;
       return 'zoomed';
     }
     if (this.expanded || repeat || g.fromAbove) return 'held';

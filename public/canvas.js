@@ -705,12 +705,12 @@ function syncReaderZoom(view) {
   if (toggle.textContent !== `${percent}%`) { toggle.textContent = `${percent}%`; toggle.setAttribute('aria-label', `Zoom ${percent}%, zoom and view options`); }
   const input = $('reader-zoom-slider');
   // The slider runs from the floor (the fitted view) up: there is nothing below it to zoom to.
-  const min = String(sliderFromZoom(readerCanvas.floorZoom()));
+  const min = String(sliderFromZoom(readerCanvas.floor));
   if (input.min !== min) input.min = min;
   input.value = String(sliderFromZoom(view.zoom));
   input.setAttribute('aria-valuetext', `${percent} percent`);
   // − at the floor goes back to the board; expanded, it is unavailable there (aria-disabled through its toolbar part).
-  const floor = readerCanvas.atFloor(), state = readerCanvas.expanded && floor ? 'off' : floor ? 'leave' : 'zoom';
+  const floor = readerCanvas.atLastFloor(), state = readerCanvas.expanded && floor ? 'off' : floor ? 'leave' : 'zoom';
   if (state !== readerMinusState) {
     readerMinusState = state;
     const minus = $('reader-zoom-minus'), part = minus.closest('ui-toolbar-button');
