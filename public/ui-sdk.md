@@ -731,9 +731,13 @@ edits. What the browser leaves out is added:
 
 ### Zoom floor, back to the board, Expand
 
-Files: `reader-canvas.js` (`floorZoom`, `zoomBy`, `setExpanded`, `LEAVE_RATIO`, `GESTURE_GAP`), `canvas.js`
-(`leaveToBoard`, `landOnCard`, `setReaderExpanded`, `syncReaderZoom`, the % popover's `openchange`), `reader-keys.js`
-(`expand`), `board.html` (`#reader-expand`), `reader.css`; tests `tests/zoom-out-browser.mjs`.
+Files: `canvas-zoom.js` (`zoomOutGate`, `LEAVE_RATIO`, `GESTURE_GAP`, `boardZoomFloor`: the one model, shared),
+`reader-canvas.js` (`floorZoom`, `zoomBy`, `setExpanded`), `canvas.js` (`leaveToBoard`, `landOnCard`,
+`setReaderExpanded`, `syncReaderZoom`, the % popovers' `openchange`; for boards `measureBoardFloor`,
+`boardZoomTarget`, `boardZoomBy`, `boardZoomAtLeast`, `leaveBoard`, `readZoomLanding`, `landFromZoomOut`),
+`workspace-board.js` (`zoomOutTarget`, the view saved by `navigate`), `workspace-home.js` (`landFromZoomOut`),
+`reader-keys.js` (`expand`), `board.html` (`#reader-expand`), `reader.css`; tests `tests/zoom-out-browser.mjs`,
+`tests/board-zoom-out-browser.mjs`, `tests/canvas-zoom.test.mjs`.
 
 An opened Tinka is that item on its board, seen close. Elena (2026-11-23): zooming out of an opened item should "zoom
 you out to the board that it exists on rather than zooming out into nothing"; the old free zoom below fit (down to the
@@ -784,6 +788,43 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
   zooming to a frame (zoom to selection) is a place on it, not a separate page. Full-screen modes (macOS, browsers,
   YouTube, Quick Look): a pressed toggle, the same control or Escape to leave. Expand follows that; its "zoom out is off"
   is Elena's own rule.
+
+**Boards: zooming out goes to the parent.** Elena (2026-11-23): "zooming out of a board should go to its parent yes."
+A board opened as its own page has the same floor and the same gate (`zoomOutGate`), so she learns it once:
+
+- **The floor** (`measureBoardFloor`, `boardZoomFloor`): the zoom at which all of the board's content fits the fit area
+  (Fit board's view, uncapped; the area left of an open map), never above 100%. A board that fits at more than 100% stops
+  at 100%, where it is already all in view; an empty board stops at 100%. Zooming out to the floor is always free:
+  seeing the whole board is the usual reason to zoom out. Measured at the start of each zoom-out input, before the view
+  is written; `applyView` reads only the stored value (slider `min`, the − hint).
+- **The threshold and resistance** are the opened item's: a wheel or pinch gesture that reaches the floor stops there,
+  a press of − that reaches it stops, a held − never leaves, and a fresh zoom-out one step below (one press, one notch,
+  pinch steps adding up to a fifth) leaves. Every zoom-out she makes goes through `boardZoomTarget`: Control-wheel and
+  pinch over the board or its chrome, Safari's gesture events, a two-finger touch pinch (now by each move's change in
+  spread, the first board point still under the fingers), − and the pill's −, the map's zoom keys and wheel. The slider,
+  the presets and 0 never go below the floor (`boardZoomAtLeast`); a preset below it is `aria-disabled`, as in the
+  reader. Fit, Fit selection, the map's Fit, Z / F box zoom, Back and the app's own reveals are unchanged and never land
+  below the floor. Free zoom below the floor is gone. No Expand on a board page: a board already is the screen.
+- **Where it goes** (`zoomOutTarget`): the parent she entered this board from (the tile she came through, or `?from=`),
+  else the parent in its path (the path menu's: the first route from Home), else the first board showing its owner item.
+  A board on Home that she didn't enter from a parent goes Home. The parent's own `?from=` is carried on when the
+  parent is the one in the path.
+- **Landing on the parent** (`readZoomLanding`, `landFromZoomOut`, `landOnCard`): in the view she entered this board
+  from (saved with the tile by `navigate`, restored before the first paint like a Navigator return), else the parent's
+  opening view at 100% at most, centred on this board's card; the card selected and focused, centred if it isn't in the
+  view; Enter goes back in. The canvas stays `visibility: hidden` from the start of the page load until the landing is
+  applied, so no other view is ever painted (the suite records every painted frame). No transition animation.
+- **Landing on Home** (`WorkspaceHome.landFromZoomOut`): the board's tile selected and focused, scrolled into view only if
+  off screen, in the same task as Home's first render. Why Home rather than stopping: Home is the place above a top-level
+  board in the path (Home › Board), and the alternative, a floor that never leaves, would make the same input do two
+  different things depending on depth; "zooming out into nothing" is what she named as disorienting, and Home is
+  something.
+- **No cascade.** A gesture still running when she arrives (from a child board after the page load, or on the board
+  after leaving an opened item) carries on as one that reached the floor from above (`zoomOutGate().hold()`): it zooms
+  the new place down to its floor and stops there. Only a new gesture goes up again.
+- **Not on**: Grid view and the overview render (no canvas zoom), or while the reader is open (it has its own floor).
+- **Cost**: board Control-wheel handler 0.20–0.22 ms against 0.19–0.20 ms on `main`; style per recalc and EventLatency
+  equal within run-to-run spread (`showcase-dense`, fixed 60 Hz, three interleaved rounds; `team/ux/bzoom/bperf.mjs`).
 
 ## 3. Keys
 
@@ -861,7 +902,8 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | Delete / Backspace | Remove the selection (only what is selected) |
 | F; hold F or Z through a selection box | Fit the selection, then the board; fit what the box selected / zoom to the box |
 | ⇧1, ⇧2, ⇧0 | Fit the canvas, fit the selection, 100% |
-| + / =, −, 0 | Zoom in, out, 100% (canvas or an item focused; `canvas.js`) |
+| + / =, −, 0 | Zoom in, out, 100% (canvas or an item focused; `canvas.js`). Never below the board's floor (all of it in view, 100% at most); at the floor a fresh − goes up to the parent board, or Home |
+| ⌘/Ctrl-scroll, pinch | Zoom about the pointer, never below the floor; a fresh zoom-out gesture at the floor (a fifth smaller) goes up to the parent board, or Home |
 | M, A, V, H | Board map, edit tools, Pointer, Pan |
 | T, S, D | Add Text, a Sticky note, a Markdown Document at the pointer |
 | E | Edit the selected (or focused) Markdown document |
