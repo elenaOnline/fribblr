@@ -54,6 +54,9 @@ test('brackets and plain arrows are the fallback', () => {
 
 test('view keys', () => {
   assert.equal(readerCommand(key('f')), 'fit');
+  assert.equal(readerCommand(key('F', {shiftKey: true, code: 'KeyF'})), 'expand', 'Shift+F turns Expand on and off');
+  assert.equal(readerCommand(key('F', {shiftKey: true, code: 'KeyF'}), {editable: true}), null, 'a text field keeps Shift+F');
+  assert.equal(readerCommand(key('F', {shiftKey: true, code: 'KeyF'}), {fromFrame: true}), null);
   assert.equal(readerCommand(key('!', {shiftKey: true, code: 'Digit1'})), 'fit');
   assert.equal(readerCommand(key(')', {shiftKey: true, code: 'Digit0'})), 'actual-size');
   assert.equal(readerCommand(key('0')), 'actual-size', '0 shows 100%, as on the board (UI SDK viewport keys)');

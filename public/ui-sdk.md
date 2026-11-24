@@ -708,8 +708,8 @@ edits. What the browser leaves out is added:
 - **Escape, one layer at a time.** An open SDK popup inside the reader (menu, popover, tooltip, nested dialog, an
   Inspector with focus inside) takes its own Escape first (`inPopup` in the document Escape handler). Then
   `handleEscape` peels: the feedback panel → the reader Inspector → the Navigator → the notes column (if focus is in
-  it) → a popup still open inside the content frame (`closeFramePopup`, same-origin frames, up to three deep) → closes
-  the reader. Escape during IME composition does nothing. A frame's own SDK popup with focus inside takes its Escape in
+  it) → a popup still open inside the content frame (`closeFramePopup`, same-origin frames, up to three deep) → Expand
+  (turns it off, the Tinka stays open) → closes the reader. Escape during IME composition does nothing. A frame's own SDK popup with focus inside takes its Escape in
   the frame (the SDK calls `preventDefault`), so `media.js` and `item-content.js` never post `reader-close` for it.
 - **Focus goes back** (popups.md § Focus). Opened from a card on the board, focus returns to the card last viewed
   (after any stepping) without moving the board: `graph.focusPlacement`, or the card's Open control. A card's menu
@@ -723,9 +723,67 @@ edits. What the browser leaves out is added:
   handlers step. At either end the step keeps focus and is `aria-disabled` / `data-disabled` instead of natively
   disabled (pagination.md: "Pressing Next onto the last page keeps focus on Next"); the dimmed look keys on
   `aria-disabled`.
+- **Focus after zooming out to the board** goes to the landed card, whatever opened the reader (§ Zoom floor, back to the
+  board, Expand).
 - **Tab order**: header (navigation, then the actions toolbar) → version switcher (`#reader-file-versions` sits between
   header and stage in the DOM) → Inspector (when open) → content → zoom pill → notes column.
 - The reader's announcer is `#reader-view-announce`, inside the dialog (the board's is inert behind the modal).
+
+### Zoom floor, back to the board, Expand
+
+Files: `reader-canvas.js` (`floorZoom`, `zoomBy`, `setExpanded`, `LEAVE_RATIO`, `GESTURE_GAP`), `canvas.js`
+(`leaveToBoard`, `landOnCard`, `setReaderExpanded`, `syncReaderZoom`, the % popover's `openchange`), `reader-keys.js`
+(`expand`), `board.html` (`#reader-expand`), `reader.css`; tests `tests/zoom-out-browser.mjs`.
+
+An opened Tinka is that item on its board, seen close. Elena (2026-11-23): zooming out of an opened item should "zoom
+you out to the board that it exists on rather than zooming out into nothing"; the old free zoom below fit (down to the
+board's 2%, the window a speck on an empty stage) was "the in-between behavior … pretty disorienting".
+
+- **The floor.** The fitted view is the lowest zoom (`floorZoom()`, the fitted view's zoom; `zoomTo` never goes below
+  it). Free zoom below fit is gone. The % slider's `min` is the floor; a preset row below it (Zoom to 50% on a Tinka that
+  fits at 90%) is unavailable: its toolbar part is disabled, so it says `aria-disabled` and stays reachable, and the
+  popover opens on the first row that can act.
+- **The threshold: one zoom step below fit.** At the floor, a zoom-out that would shrink the Tinka by a fifth
+  (`LEAVE_RATIO` = 1 / 1.25, the − step) leaves: one − press, one press of the pill's −, one mouse-wheel notch (1.35×),
+  or Control-wheel / pinch steps that add up to a fifth. Every input runs through `zoomBy(factor, x, y, {source,
+  repeat})`; `source` is `step` (each press counts alone), `wheel` or `pinch` (a gesture: zoom-out events with no gap
+  of `GESTURE_GAP`, 300 ms).
+- **Resistance.** A gesture that reaches fit from above stops there and can't leave; only a new gesture started at the
+  floor can. A press of − that reaches fit stops there; the next press leaves. A held − (key repeat) never leaves.
+  Nothing moves while a gesture is held at the floor and nothing springs back after it: below the threshold the view
+  stays fitted (Elena's rule: nothing moves unless she moved it).
+- **The landing** (`landOnCard`). The reader closes onto the board view she opened it from, its zoom and position, as
+  Up and Escape do, with the Tinka's card selected (`graph.selectOnly`) and focused (`focusBoardItem`), whatever
+  opened the reader, so Enter opens it again (and Escape then returns to the same view); the announcement says so. If
+  the card isn't in that view (less than 85% of it showing: she stepped to another Tinka), the zoom stays and the card is
+  centred. With no board view of hers (a direct link `#items/…` or Home, where the reader opens as the page loads,
+  `readerWithoutBoardView`), the board's opening zoom, never above 100%, with the card centred. In one step: no glide,
+  no pulse, nothing zooms in (an earlier version sized the card to the window and zoomed compact cards to 400–530%). The
+  rest of a pinch or wheel run lands on the board and keeps zooming it out. When the item has no card on this board (a
+  grid board, a hidden card), the reader closes as Up does.
+- **Up and Escape are unchanged**: they return to the board exactly as it was left, focus on the card last viewed.
+- **Expand** (`#reader-expand`): a `ui-toggle` around our button, first in the "Tinka actions" toolbar (it acts on what
+  is shown; § Top bars), icon and the label "Expand" (the label drops below 1100 px wide, as Find's does). Pressed state
+  through `setPressed` / `onPress`. Key: Shift+F (`aria-keyshortcuts="Shift+F"`; F is Fit, and Shift+F is free on the
+  board and in the reader). Expanded:
+  - The window fills the stage above the zoom pill (`fitMax()` lifts Fit's 100% cap; `insets()` reserves
+    `reserveBottom`, the pill and its gap, so the pill never covers a corner): contain, never crop, never reflow. An image or HTML
+    resource at its authored viewport, and a Compact, Standard, Wide or custom window, magnify to the stage's width or
+    height; a document at Fit already fills the stage edge to edge and stays so; a resource larger than the stage fits
+    as before. Exact 100% (0, ⇧0, Zoom to 100%) is the floor when the floor is above it.
+  - The floor is a wall: zooming out stops at the expanded size and never leaves. There − (the pill's, with its toolbar
+    part disabled) is `aria-disabled` with the disabled look and the hint "Zoom out · turn off Expand first"; the −
+    key, wheel and pinch do nothing (− announces "Expanded: zoom out is off"). Zooming in still works, and − comes back
+    down to the expanded size and stops.
+  - It ends by the toggle (or Shift+F) again, back to the fitted view, or by the path: Up, Home, a row of the path menu
+    (each leaves the reader, and the reader always opens unexpanded). Escape turns it off first, one layer, as Escape
+    leaves full screen in macOS, browsers and Quick Look; the next Escape goes up. It stays on while stepping.
+- **Why this model, from other apps.** Photos (macOS and iOS): a photo zoomed in stops at fit when you pinch in, and
+  pinching in again on the fitted photo closes it back to the grid, onto its thumbnail. Muse: pinching out of a board
+  leaves it for the board around it, landing on its card. Figma and Miro: the canvas zooms as one continuous plane, and
+  zooming to a frame (zoom to selection) is a place on it, not a separate page. Full-screen modes (macOS, browsers,
+  YouTube, Quick Look): a pressed toggle, the same control or Escape to leave. Expand follows that; its "zoom out is off"
+  is Elena's own rule.
 
 ## 3. Keys
 
@@ -825,8 +883,10 @@ Opened item (`reader-keys.js` `readerCommand`, `canvas.js`):
 | Plain arrows, Shift + arrows | Pan, while zoomed in past fit (part of the Tinka out of view, `ReaderCanvas.overflows`): 80 px a press, a screenful (87.5% of the stage) with Shift; held, they keep panning. They never step while zoomed, not even at an edge |
 | ⌥ ↑ (Ctrl elsewhere), Escape | Up to the board (Escape after the ladder) |
 | ⌥ ↓ (Ctrl elsewhere) | Down into the Tinka's own board |
-| F, ⇧1; 0, ⇧0; + / − | Fit; 100%; zoom (announced in `#reader-view-announce`) |
+| F, ⇧1; 0, ⇧0; + / − | Fit; 100%; zoom (announced in `#reader-view-announce`). Never below fit; at fit, − (a fresh press) goes back to the board, landed on the card |
+| ⇧F | Expand: fill the stage; zoom out stops at that size and never leaves. Again (or Escape, or the path) turns it off |
 | ⌘/Ctrl I | Toggle the Inspector |
+| ⌘/Ctrl-scroll, pinch | Zoom about the pointer, never below fit; a fresh zoom-out gesture at fit (a fifth smaller) goes back to the board |
 | Space-drag | Pan a magnified resource with the pointer |
 | ? | Shortcuts |
 
@@ -945,7 +1005,8 @@ opener; `tinka:navigator-open` takes `detail.opener`). Dialog, Command, Tree, Se
 `setItemDisabled`, inserted beside `tipOuter()` of the Inspector toggle). The left of each bar is navigation (the
 Navigator toggle, home, the parent crumb, the board title; in the reader also Up, the path and the stepper): links and
 places, each its own Tab stop, as the SDK's Navigation Menu keeps them. The right acts on what is shown: on a board
-Find, Undo, Redo, Inspector, Add ("Board actions"); in the reader Favorite, Notes, Find, Inspector ("Tinka actions"):
+Find, Undo, Redo, Inspector, Add ("Board actions"); in the reader Expand (a `ui-toggle`), Favorite, Notes, Find,
+Inspector ("Tinka actions"):
 one toolbar, ↓ opens Add's menu. Undo/Redo with nothing to undo and the reader's Favorite while notes load are
 `aria-disabled` and stay reachable. The board title is a heading, not a field. In the reader, `[` / `]` and ⌥ ← / →
 still step from the toolbar; plain ←/→ step from the stepper and the canvas.
@@ -1299,8 +1360,19 @@ upstream Tinka could take it.
 
 ### No per-frame view animation on input paths
 
-Keyboard reveal moves in one step (`revealBox`). A glide that calls `applyView` every frame is only for app-chosen moves
+Keyboard reveal moves in one step (`revealBox`), and so does the landing after zooming out of an opened Tinka
+(`landOnCard`). A glide that calls `applyView` every frame is only for app-chosen moves
 (Fit, round steps).
+
+### The reader's zoom path reads before it writes
+
+`ReaderCanvas.apply()` measures the zoom floor (`floorZoom()`, cached on the stage's and window's sizes, the mode and the
+resource size; the reads are ones `clamp()` already makes) before it writes the transform and custom properties, and
+`syncReaderZoom` (on every zoom and pan frame) reads that stored value (`floor`, `atLastFloor()`), never layout. A
+read after the writes forced style and layout in every wheel event: handler 1.4 ms against 0.13 ms on `main`. With the
+read first: 0.12 ms against 0.13 ms; style per recalc 1.24–1.53 ms against 1.24–1.51 ms; EventLatency medians
+22.1–33.4 ms against 31.7–35.7 ms (fixed 60 Hz Control-wheel on `showcase-media`'s 16:9 image at 176–300%, three
+interleaved rounds; probe `team/ux/zoom/zperf.mjs`).
 
 ### Nothing per card
 
