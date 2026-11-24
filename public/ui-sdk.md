@@ -752,15 +752,16 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
   floor can. A press of − that reaches fit stops there; the next press leaves. A held − (key repeat) never leaves.
   Nothing moves while a gesture is held at the floor and nothing springs back after it: below the threshold the view
   stays fitted (Elena's rule: nothing moves unless she moved it).
-- **The landing** (`landOnCard`). The reader closes and the board shows the Tinka's card centred where the window was,
-  at `LEAVE_RATIO` of the window's last size (the card's box, title included, against the window's box). The rest of
-  the same pinch or wheel run lands on the board and keeps zooming it out: one motion. The board moves in one step, with
-  no glide. The card is selected (`graph.selectOnly`) and focused (`focusBoardItem`), whatever opened the reader, so
-  Enter opens it again; the announcement says so. After stepping it is the card stepped to; from a direct link
-  (`#items/…`) or from Home it is the item's card on the board the page loaded. When the item has no card on this board
-  (a grid board, a hidden card), the reader closes as Up does.
+- **The landing** (`landOnCard`). The reader closes onto the board view she opened it from, its zoom and position, as
+  Up and Escape do, with the Tinka's card selected (`graph.selectOnly`) and focused (`focusBoardItem`), whatever
+  opened the reader, so Enter opens it again (and Escape then returns to the same view); the announcement says so. If
+  the card isn't in that view (less than 85% of it showing: she stepped to another Tinka), the zoom stays and the card is
+  centred. With no board view of hers (a direct link `#items/…` or Home, where the reader opens as the page loads,
+  `readerWithoutBoardView`), the board's opening zoom, never above 100%, with the card centred. In one step: no glide,
+  no pulse, nothing zooms in (an earlier version sized the card to the window and zoomed compact cards to 400–530%). The
+  rest of a pinch or wheel run lands on the board and keeps zooming it out. When the item has no card on this board (a
+  grid board, a hidden card), the reader closes as Up does.
 - **Up and Escape are unchanged**: they return to the board exactly as it was left, focus on the card last viewed.
-  Zooming out continues spatially from the window; going up returns to where you were.
 - **Expand** (`#reader-expand`): a `ui-toggle` around our button, first in the "Tinka actions" toolbar (it acts on what
   is shown; § Top bars), icon and the label "Expand" (the label drops below 1100 px wide, as Find's does). Pressed state
   through `setPressed` / `onPress`. Key: Shift+F (`aria-keyshortcuts="Shift+F"`; F is Fit, and Shift+F is free on the

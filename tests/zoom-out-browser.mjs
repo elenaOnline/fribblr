@@ -1,8 +1,8 @@
 // Headless check: an opened Tinka's fitted view is the floor of its zoom. Zooming out at the floor goes back to the board
 // it lives on, by every input at the same threshold (one zoom step below fit): a wheel notch, a Control-wheel or pinch
 // gesture that would shrink it by a fifth, − and the pill's − button. A gesture that reaches fit from above stops there; a
-// held − never leaves. The board shows the card where the window was, one step smaller, selected and focused; Enter opens
-// it again. Expand fills the stage (past 100%), makes the floor a wall (− aria-disabled, nothing zooms out or leaves),
+// held − never leaves. The board comes back as she opened it from (or, when the card isn't in that view, at that zoom with
+// the card centred), the card selected and focused; Enter opens it again, and Escape then returns to the same view. Expand fills the stage (past 100%), makes the floor a wall (− aria-disabled, nothing zooms out or leaves),
 // and ends by its toggle, by the path (Up) or by Escape, one layer. The same for an item that owns a board, after
 // stepping, and from a direct link. External fixtures only (ui-sdk.md § Opened item).
 import assert from 'node:assert/strict';
@@ -52,28 +52,35 @@ try{
  const card=id=>page.locator(`#world .workspace-card[data-placement="${id}"]`);
  const ready=()=>page.waitForFunction(()=>{const f=document.querySelector('#active-reader');const d=f?.contentDocument?.querySelector('iframe')?.contentDocument||f?.contentDocument;return d&&d.readyState==='complete'&&(d.querySelector('.image-stage img')?.complete||d.querySelector('.markdown p'));},null,{timeout:10000}).then(()=>page.waitForTimeout(200));
  const board=async()=>{await page.goto(`${base}/boards/zb/`,{waitUntil:'load'});await card(imageId).waitFor();await page.waitForTimeout(300);};
- const openFromBoard=async id=>{await card(id).focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();await ready();};
+ // The board's view: the plane's pan and the world's zoom.
+ const boardView=()=>page.evaluate(()=>({plane:getComputedStyle(document.getElementById('plane')).transform,world:getComputedStyle(document.getElementById('world')).transform}));
+ const boardZoom=()=>page.evaluate(()=>new DOMMatrix(getComputedStyle(document.getElementById('world')).transform).a);
+ let opened=null;  // the board view the reader was last opened from
+ const openFromBoard=async id=>{opened=await boardView();await card(id).focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();await ready();};
  const stageCentre=async()=>{const s=await page.locator('#reader-stage').boundingBox();return [s.x+s.width/2,s.y+s.height/2];};
  // A Control-wheel event of deltaY (a mouse notch is 100, clipped to the 1.35× step; a trackpad pinch sends a few units).
  const ctrlWheel=async(dy,gap=30)=>{await page.keyboard.down('Control');await page.mouse.wheel(0,dy);await page.keyboard.up('Control');await page.waitForTimeout(gap);};
  const newGesture=()=>page.waitForTimeout(400);  // longer than GESTURE_GAP
- // The landing: the board, the card selected, focused and in view, centred where the window was at LEAVE_RATIO of it.
- const landed=async(id,sheet,label)=>{
+ // The landing: the board, the card selected, focused and in view. 'same': the board view she opened from, unchanged.
+ // 'centred': that view's zoom, the card centred (it wasn't in that view). 'direct': no board view of hers, the board's
+ // opening zoom (never above 100%), the card centred. Nothing zooms in.
+ const sheetBox=()=>page.locator('#reader-window').boundingBox();
+ const landed=async(id,expect,label,zoomBefore)=>{
   await page.locator('#reader-dialog').waitFor({state:'hidden'});
   await page.waitForFunction(id=>document.activeElement?.closest?.('.workspace-card')?.dataset.placement===id,id,{timeout:3000}).catch(()=>{});
   const s=await page.evaluate(id=>{const c=document.querySelector(`#world .workspace-card[data-placement="${id}"]`),r=c.getBoundingClientRect(),v=document.getElementById('viewport').getBoundingClientRect();
-   return {selected:c.classList.contains('selected'),focus:document.activeElement?.closest?.('.workspace-card')?.dataset.placement||null,r:{x:r.x,y:r.y,width:r.width,height:r.height},inView:r.left>=v.left-1&&r.top>=v.top-1&&r.right<=v.right+1&&r.bottom<=v.bottom+1};},id);
+   return {selected:c.classList.contains('selected'),focus:document.activeElement?.closest?.('.workspace-card')?.dataset.placement||null,dx:Math.abs(r.x+r.width/2-(v.x+v.width/2)),dy:Math.abs(r.y+r.height/2-(v.y+v.height/2)),inView:r.left>=v.left-1&&r.top>=v.top-1&&r.right<=v.right+1&&r.bottom<=v.bottom+1};},id);
   ok(s.selected,`${label}: the card is selected on the board`);
   eq(s.focus,id,`${label}: focus is on the card`);
   ok(s.inView,`${label}: the card is in view`);
-  if(sheet){
-   const dx=Math.abs(s.r.x+s.r.width/2-(sheet.x+sheet.width/2)),dy=Math.abs(s.r.y+s.r.height/2-(sheet.y+sheet.height/2));
-   ok(dx<3&&dy<3,`${label}: the card is centred where the window was (${dx.toFixed(1)}, ${dy.toFixed(1)} px off)`);
-   const scale=Math.max(s.r.width/sheet.width,s.r.height/sheet.height);
-   ok(Math.abs(scale-.8)<.02,`${label}: the card is one zoom step smaller than the window was (${scale.toFixed(3)})`);
+  if(expect==='same')eq(await boardView(),opened,`${label}: the board is the view she opened it from`);
+  else{
+   ok(s.dx<3&&s.dy<3,`${label}: the card is centred (${s.dx.toFixed(1)}, ${s.dy.toFixed(1)} px off)`);
+   const z=await boardZoom();
+   if(expect==='centred')ok(Math.abs(z-zoomBefore)<1e-3,`${label}: the zoom she opened from stays (${z.toFixed(3)})`);
+   else ok(z<=1+1e-6,`${label}: the board's opening zoom, never above 100% (${z.toFixed(3)})`);
   }
  };
- const sheetBox=()=>page.locator('#reader-window').boundingBox();
 
  // (1) Wheel: a fast Control-wheel run from 300% stops at fit; a fresh notch at fit leaves.
  await board();await openFromBoard(imageId);
@@ -92,20 +99,23 @@ try{
  ok(await isOpen()&&(await plane()).zoom===fit.zoom,'Pressing it changes nothing');
  await page.keyboard.press('Escape');await page.locator('#reader-zoom-menu').waitFor({state:'hidden'});
  await page.mouse.move(cx,cy);await newGesture();
- let sheet=await sheetBox();await ctrlWheel(100);
- await landed(imageId,sheet,'Wheel notch');
+ await ctrlWheel(100);
+ await landed(imageId,'same','Wheel notch');
  // Enter opens it again: zooming out and opening are each other's reverse.
  await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();
  eq(await name(),'Small picture','Enter on the landed card opens it again');
  await ready();
+ await page.locator('#reader-stage').focus();await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});
+ eq(await boardView(),opened,'Enter then Escape returns to the board view, not a zoomed-in one');
+ await openFromBoard(imageId);
 
  // (2) Pinch as Control-wheel (Chrome's trackpad pinch): small steps accumulate; a fifth smaller leaves, less does not.
  await page.mouse.move(cx,cy);await newGesture();
  await ctrlWheel(8);await ctrlWheel(8);
  ok(await isOpen(),'A small pinch at fit (about 15%) stays');
  eq((await plane()).zoom,fit.zoom,'…and nothing moves under it');
- sheet=await sheetBox();await ctrlWheel(8);
- await landed(imageId,sheet,'Pinch (Control-wheel)');
+ await ctrlWheel(8);
+ await landed(imageId,'same','Pinch (Control-wheel)');
 
  // (3) Touch pinch on the stage (pointer events) and Safari's gesture events.
  await openFromBoard(imageId);
@@ -121,12 +131,12 @@ try{
  ok(await isOpen(),'A pinch from 250% to below fit stops at fit');
  eq((await plane()).zoom,fit.zoom,'…at the fitted view');
  await newGesture();await pinch(200,180);ok(await isOpen(),'A slight pinch at fit stays');
- await newGesture();sheet=await sheetBox();await pinch(200,150);
- await landed(imageId,sheet,'Touch pinch');
+ await newGesture();await pinch(200,150);
+ await landed(imageId,'same','Touch pinch');
  await openFromBoard(imageId);
- sheet=await sheetBox();
+ 
  await page.locator('#reader-stage').evaluate(el=>{el.dispatchEvent(new Event('gesturestart',{cancelable:true}));const r=el.getBoundingClientRect();el.dispatchEvent(Object.assign(new Event('gesturechange',{cancelable:true}),{scale:.7,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));});
- await landed(imageId,sheet,'Safari pinch');
+ await landed(imageId,'same','Safari pinch');
 
  // (4) −: a press that reaches fit stops there; the next press leaves; a held − never leaves.
  await openFromBoard(imageId);
@@ -136,16 +146,16 @@ try{
  await page.keyboard.press('=');await page.keyboard.press('=');
  for(let i=0;i<6;i++)await page.keyboard.down('-');await page.keyboard.up('-');
  ok(await isOpen(),'A held − stops at fit and never leaves');eq((await plane()).zoom,fit.zoom,'…at fit');
- sheet=await sheetBox();await page.keyboard.press('-');
- await landed(imageId,sheet,'− key');
+ await page.keyboard.press('-');
+ await landed(imageId,'same','− key');
 
  // (5) The zoom control: the pill's − stops at fit, and at fit goes back to the board.
  await openFromBoard(imageId);
  await page.locator('#reader-zoom-plus').click();await page.locator('#reader-zoom-plus').click();
  await page.locator('#reader-zoom-minus').click();await page.locator('#reader-zoom-minus').click();
  ok(await isOpen(),'The − button above fit zooms to fit and stops');eq((await plane()).zoom,fit.zoom,'…at fit');
- sheet=await sheetBox();await page.locator('#reader-zoom-minus').click();
- await landed(imageId,sheet,'− button');
+ await page.locator('#reader-zoom-minus').click();
+ await landed(imageId,'same','− button');
 
  // (6) Expand: fills the stage; zooming out is unavailable and leaves nothing; the toggle and Escape turn it off.
  await openFromBoard(imageId);
@@ -194,27 +204,33 @@ try{
  await expand.click();await page.locator('#reader-path').click();
  await page.locator('#reader-path-pop [data-path-go="up"]').click();await page.locator('#reader-dialog').waitFor({state:'hidden'});checks++;
 
- // (7) Stepping, then zooming out, lands on the card stepped to.
- await board();await openFromBoard(imageId);
+ // (7) Stepping to a card outside the view she opened from, then zooming out: that zoom, the card centred.
+ await board();
+ const imageBox=await card(imageId).boundingBox();await page.mouse.move(imageBox.x+40,imageBox.y+40);
+ for(let i=0;i<3;i++)await ctrlWheel(-100);await page.waitForTimeout(200);
+ const zoomedBoard=await boardZoom();ok(zoomedBoard>1.3,`The board is zoomed in on the picture (${zoomedBoard.toFixed(2)})`);
+ ok(await page.evaluate(id=>{const r=document.querySelector(`#world .workspace-card[data-placement="${id}"]`).getBoundingClientRect();return r.left>=innerWidth||r.right>innerWidth;},docId),'The short note is outside that view');
+ await openFromBoard(imageId);
  await page.keyboard.press('j');await page.waitForFunction(()=>document.querySelector('#reader-name').textContent.trim()==='Short note');await ready();
- await page.locator('#reader-stage').focus();sheet=await sheetBox();await page.keyboard.press('-');
- await landed(docId,sheet,'After stepping');
+ await page.locator('#reader-stage').focus();await page.keyboard.press('-');
+ await landed(docId,'centred','After stepping',zoomedBoard);
 
  // (8) An item with its own board, opened in the view: the same floor, landing and Expand.
- await openFromBoard(ownerId);
+ await board();await openFromBoard(ownerId);
  ok(await page.locator('#reader-down').isVisible(),'The opened item has its own board (↓ Board)');
  await expand.click();eq(await expand.getAttribute('aria-pressed'),'true','Expand works on it');
  eq(await page.locator('#reader-zoom-minus').getAttribute('aria-disabled'),'true','…and − is unavailable');
  await page.locator('#reader-stage').focus();await page.keyboard.press('-');ok(await isOpen(),'Expanded, − does not leave it');
  await expand.click();await page.locator('#reader-stage').focus();
- sheet=await sheetBox();await page.keyboard.press('-');
- await landed(ownerId,sheet,'Item with its own board');
+ await page.keyboard.press('-');
+ await landed(ownerId,'same','Item with its own board');
 
  // (9) A direct link: zooming out lands on the item's board, on its card.
+ await page.goto('about:blank');  // a fresh load, not a hash change on the board already shown
  await page.goto(`${base}/boards/zb/#items/${docId}`,{waitUntil:'load'});await page.locator('#reader-dialog[open]').waitFor();await ready();
  await page.mouse.move(cx,cy);await newGesture();
- sheet=await sheetBox();await ctrlWheel(100);
- await landed(docId,sheet,'Direct link');
+ await ctrlWheel(100);
+ await landed(docId,'direct','Direct link');
  ok(!new URL(page.url()).hash.startsWith('#items/'),'The address is the board again');
  await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();
  eq(await name(),'Short note','Enter opens it again');

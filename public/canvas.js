@@ -12,7 +12,7 @@ import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interactio
 import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, stepSliderZoom, wheelZoomFactor} from './canvas-zoom.js';
 import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
-import {ReaderCanvas, contentScrolls, LEAVE_RATIO} from './reader-canvas.js';
+import {ReaderCanvas, contentScrolls} from './reader-canvas.js';
 import {ReaderResourceSurface} from './reader-resource-surface.js';
 import {ReaderPath} from './reader-path.js';
 import {trapTab, rememberOpener, openerToReturnTo} from './reader-dialog.js';
@@ -727,10 +727,10 @@ function setReaderExpanded(on, { announce = true } = {}) {
   readerCanvas.setExpanded(on);
   if (announce) announceReaderView(on ? 'Expanded: zoom out is off' : 'Expand off');
 }
-// Zooming out past the fitted view: back to the board this Tinka lives on, landed on its card (landOnCard).
+// Zooming out past the fitted view: back to the board this Tinka lives on, the board view she opened it from, its card selected (landOnCard).
 function leaveToBoard() {
   if (!dialog.open || !active) return;
-  closeReader({ land: $('reader-window').getBoundingClientRect() });
+  closeReader({ land: true });
 }
 // Opening a Tinka leaves focus on Tinka's canvas, not inside the content, so its keys work at once.
 function focusTinka() {
@@ -1079,9 +1079,11 @@ function closeReader({ history: mode = 'push', land = null } = {}) {
   readerFromBoardItem = false;
   (toItem || !opener ? viewport : opener).focus({ preventScroll: true });
   settleCushion();
-  if (land && returnKey && landOnCard(returnKey, land)) return;
   Object.assign(view, left);
   applyView();
+  const noPriorView = readerWithoutBoardView;
+  readerWithoutBoardView = false;
+  if (land && returnKey && landOnCard(returnKey, { noPriorView })) return;
   // Land on the tile last viewed (after any arrowing between siblings).
   if (returnKey) requestAnimationFrame(() => {
     if (!returnToTile(returnKey) || !toItem || document.activeElement !== viewport) return;
@@ -1089,22 +1091,25 @@ function closeReader({ history: mode = 'push', land = null } = {}) {
   });
 }
 var readerFromBoardItem = false;  // var: openReader may run before this line during start-up
-// Zoomed out of an opened Tinka: the board shows its card where the Tinka was, one zoom step smaller (LEAVE_RATIO of
-// the window's last rectangle, centred on it), so the zoom-out reads as one motion and the next one continues on the
-// board. The card is selected and focused: Enter opens it again. In one step, no glide (§ Performance rules). False when
-// the card isn't on this board as a card (another board's item, a grid board, a hidden card): the reader closes as Up.
-function landOnCard(key, rect) {
+// Zoomed out of an opened Tinka: the board comes back as she opened it from (closeReader has restored that view), with
+// the card selected and focused, so Enter opens it again. If the card isn't in that view (she stepped to another
+// Tinka, or the view was never hers), the zoom stays and the card is centred; with no board view of her own (a direct
+// link, Home), the board's opening zoom, never above 100%. One step, no glide, no pulse: nothing moves unless she moved
+// it (§ Performance rules). False when the card isn't on this board as a card (another board's item, a grid board, a
+// hidden card): the reader has closed as Up.
+var readerWithoutBoardView;  // var, no initializer: start-up may set it before this line runs
+function landOnCard(key, { noPriorView = false } = {}) {
   const card = world.querySelector(`.workspace-card[data-key="${CSS.escape(key)}"]`) || world.querySelector(`[data-key="${CSS.escape(key)}"]`);
   if (!card || graph?.mode === 'grid') return false;
-  const r = card.getBoundingClientRect();
-  if (!r.width || !r.height || !rect.width || !rect.height) return false;
+  let r = card.getBoundingClientRect();
+  if (!r.width || !r.height) return false;
   stopGlide();
-  const worldRect = world.getBoundingClientRect();
-  const w = r.width / zoom, h = r.height / zoom;
-  const cx = (r.left + r.width / 2 - worldRect.left) / zoom, cy = (r.top + r.height / 2 - worldRect.top) / zoom;
-  const x0 = worldRect.left - view.x, y0 = worldRect.top - view.y;
-  zoom = clampZoom(Math.min(rect.width * LEAVE_RATIO / w, rect.height * LEAVE_RATIO / h));
-  moveView(rect.left + rect.width / 2 - x0 - cx * zoom, rect.top + rect.height / 2 - y0 - cy * zoom);
+  const vr = viewport.getBoundingClientRect();
+  const shown = Math.max(0, Math.min(r.right, vr.right) - Math.max(r.left, vr.left)) * Math.max(0, Math.min(r.bottom, vr.bottom) - Math.max(r.top, vr.top));
+  if (noPriorView || shown < r.width * r.height * .85) {
+    if (noPriorView && zoom > 1) { zoom = 1; applyView(); r = card.getBoundingClientRect(); }
+    moveView(view.x + vr.left + viewport.clientWidth / 2 - (r.left + r.width / 2), view.y + vr.top + viewport.clientHeight / 2 - (r.top + r.height / 2));
+  }
   if (graph) graph.revealedPlacement = null;
   if (graph && card.dataset.placement) graph.selectOnly(card.dataset.placement);
   focusBoardItem(key);
@@ -2647,6 +2652,7 @@ async function openBoardView() {
     currentRound = concept?.row || 0;
     renderNav();
     jump(concept.key);
+    readerWithoutBoardView = true;  // a direct link or Home: she never saw this board's view
     openReader(requested.key, requested.revision, { history: 'replace' });
   } else {
     if (requested.invalid) commitHistory({ view: 'board', round: null }, 'replace');
