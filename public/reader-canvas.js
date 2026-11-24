@@ -6,7 +6,7 @@
 //
 // The fitted view is the floor: zooming out stops there. A fresh zoom-out from the floor (one more − press, wheel notch
 // or pinch) goes back to the board the Tinka lives on (onLeave; canvas.js lands on its card), as pinching in on a fitted
-// photo returns to the grid in Photos and Quick Look. Expanded, the window fills the stage, past 100% if need be, and
+// photo returns to the grid in Photos. Expanded, the window fills the stage, past 100% if need be, and
 // the floor is a wall: zooming out stops there and never leaves (ui-sdk.md § Opened item).
 import {clampZoom, MAX_ZOOM, sameView, wheelZoomFactor} from './canvas-zoom.js';
 
