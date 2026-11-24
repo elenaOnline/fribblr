@@ -23,6 +23,7 @@ import {createDocument,saveDocument} from './lib/documents.mjs';
 import {wantsReturnMark,injectReturnMark,resourcePlaces} from './lib/return-mark.mjs';
 import {createUpdateService} from './lib/update-browser.mjs';
 import {createInboxWaiter} from './lib/inbox-wait.mjs';
+import {handleDrawxide} from './lib/drawxide.mjs';
 
 const appRoot=path.dirname(fileURLToPath(import.meta.url));
 const publicRoot=path.join(appRoot,'public');
@@ -153,6 +154,7 @@ export function createAppServer(config,{updates=createUpdateService(config)}={})
         push.subscribe(req,res,board);return;
       }
       if(pathname==='/api/health'&&method==='GET'){sendJson(res,200,{app:'board-room',version:VERSION,configPath:config.configPath,boardsRoot:config.boardsRoot,projectLabel:config.projectLabel,workspaceId:config.workspaceId,port:server.address().port,url:`http://127.0.0.1:${server.address().port}/`});return;}
+      if(pathname.startsWith('/api/drawxide/')&&await handleDrawxide({req,res,pathname,method,config,checkWrite:()=>checkWrite(req,server,config),sendJson}))return;
       if(pathname==='/api/config'&&method==='GET'){sendJson(res,200,publicConfig(config));return;}
       if(pathname==='/api/tools'&&method==='GET'){sendJson(res,200,listTools());return;}
       // This project's updates (lib/update-browser.mjs): a read-only state and two
