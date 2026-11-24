@@ -33,6 +33,8 @@ export function readerCommand(event, { mac = false, editable = false, tinkaFocus
   if (stepLetter(event) && !event.shiftKey && !event.altKey && !event.ctrlKey) return stepLetter(event);
   if (event.altKey || event.ctrlKey) return null;
   if (!event.shiftKey && tinkaFocus && (key === 'ArrowLeft' || key === 'ArrowRight')) return ARROWS[key];
+  // Shift+F: Expand (fill the screen); F alone fits.
+  if (event.shiftKey && (event.code ? event.code === 'KeyF' : key === 'F')) return 'expand';
   const shifted = digit => event.shiftKey && (event.code ? event.code === `Digit${digit}` : key === '!@)'[digit === 0 ? 2 : digit - 1]);
   if ((!event.shiftKey && (key === 'f' || key === 'F')) || shifted(1)) return 'fit';
   if (shifted(0)) return 'actual-size';

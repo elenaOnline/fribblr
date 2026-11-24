@@ -213,3 +213,14 @@ button.reader-file-version-detail > span { display: flex; flex-wrap: wrap; align
 /* Explicit Window choices keep corner resizing; Fit is the borderless resource. */
 #reader-dialog #reader-window[data-size="fit"] { resize: none; }
 #reader-dialog #reader-window:not([data-size="fit"]) { min-width: 240px; min-height: 200px; }
+
+/* Expand (the Tinka actions toolbar): icon and label; the label goes at narrow widths, as Find's does. Its pressed look
+   is the theme's pressed key (aria-pressed). */
+#reader-header .reader-expand { display: inline-flex; align-items: center; gap: 6px; }
+#reader-header .reader-expand svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 1100px) { #reader-header .reader-expand { width: var(--control-h); padding: 0; justify-content: center; } #reader-header .reader-expand-label { display: none; } }
+/* The pill's − while expanded at the floor: unavailable (aria-disabled from its toolbar part), still reachable. */
+#reader-dialog .reader-footer .zoom-pill .tk-btn[aria-disabled="true"] { color: color-mix(in srgb, var(--ink-2) 40%, transparent); cursor: default; }
+#reader-dialog .reader-footer .zoom-pill .tk-btn[aria-disabled="true"]:is(:hover, :active) { background-color: transparent; box-shadow: none; translate: none; }
+#reader-dialog .reader-zoom-menu .tk-mi[aria-disabled="true"] { color: color-mix(in srgb, var(--ink-2) 45%, transparent); cursor: default; }
+#reader-dialog .reader-zoom-menu .tk-mi[aria-disabled="true"]:hover { background: transparent; }

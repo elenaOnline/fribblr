@@ -12,7 +12,7 @@ import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interactio
 import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, stepSliderZoom, wheelZoomFactor} from './canvas-zoom.js';
 import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
-import {ReaderCanvas, contentScrolls} from './reader-canvas.js';
+import {ReaderCanvas, contentScrolls, LEAVE_RATIO} from './reader-canvas.js';
 import {ReaderResourceSurface} from './reader-resource-surface.js';
 import {ReaderPath} from './reader-path.js';
 import {trapTab, rememberOpener, openerToReturnTo} from './reader-dialog.js';
@@ -690,19 +690,47 @@ const MOD = stepModifierLabel(readerKeysMac);
 const readerCanvas = new ReaderCanvas(readerStage, $('reader-plane'), $('reader-window'), {
   onChange: syncReaderZoom,
   onBack: shown => { $('reader-view-back').hidden = !shown; },
+  onLeave: () => leaveToBoard(),
   reserveBottom: () => { const pill = dialog.querySelector('.reader-footer .zoom-pill'); return pill ? pill.offsetHeight + 20 : 0; },
 });
 const readerResource = new ReaderResourceSurface($('active-reader'), {
   isActive: () => dialog.open,
   onImageSize: (width, height) => readerCanvas.setResourceSize(width, height),
 });
+// Writes only what changed: this runs on every zoom and pan frame.
+let readerMinusState = '';
 function syncReaderZoom(view) {
   const percent = Math.round(view.zoom * 100);
   const toggle = $('reader-zoom-toggle');
   if (toggle.textContent !== `${percent}%`) { toggle.textContent = `${percent}%`; toggle.setAttribute('aria-label', `Zoom ${percent}%, zoom and view options`); }
   const input = $('reader-zoom-slider');
+  // The slider runs from the floor (the fitted view) up: there is nothing below it to zoom to.
+  const min = String(sliderFromZoom(readerCanvas.floorZoom()));
+  if (input.min !== min) input.min = min;
   input.value = String(sliderFromZoom(view.zoom));
   input.setAttribute('aria-valuetext', `${percent} percent`);
+  // − at the floor goes back to the board; expanded, it is unavailable there (aria-disabled through its toolbar part).
+  const floor = readerCanvas.atFloor(), state = readerCanvas.expanded && floor ? 'off' : floor ? 'leave' : 'zoom';
+  if (state !== readerMinusState) {
+    readerMinusState = state;
+    const minus = $('reader-zoom-minus'), part = minus.closest('ui-toolbar-button');
+    if (part) part.disabled = state === 'off'; else minus.setAttribute('aria-disabled', String(state === 'off'));
+    setTip(minus, state === 'off' ? 'Zoom out · turn off Expand first' : state === 'leave' ? 'Zoom out to the board' : 'Zoom out');
+  }
+}
+// Expand: the opened Tinka fills the stage and zooming out stops there. The toggle again, or the path (Up, Home, a row
+// of the path menu), leaves it; so does Escape, one layer at a time. It stays on while stepping and ends with the reader.
+function setReaderExpanded(on, { announce = true } = {}) {
+  on = !!on;
+  setPressed($('reader-expand'), on);
+  if (readerCanvas.expanded === on) return;
+  readerCanvas.setExpanded(on);
+  if (announce) announceReaderView(on ? 'Expanded: zoom out is off' : 'Expand off');
+}
+// Zooming out past the fitted view: back to the board this Tinka lives on, landed on its card (landOnCard).
+function leaveToBoard() {
+  if (!dialog.open || !active) return;
+  closeReader({ land: $('reader-window').getBoundingClientRect() });
 }
 // Opening a Tinka leaves focus on Tinka's canvas, not inside the content, so its keys work at once.
 function focusTinka() {
@@ -766,7 +794,16 @@ function setType(value, send = true) {
 // The % popover (board.html #reader-zoom-popover): a UI SDK Popover inside the reader dialog. Its trigger opens and
 // closes it; Escape, a press outside it or a click into the content close it; focus goes in on open and back on close.
 const readerZoomPopover = $('reader-zoom-popover');
-readerZoomPopover.addEventListener('openchange', event => { if (event.detail.value) renderSizeControls(); });
+readerZoomPopover.addEventListener('openchange', event => {
+  if (!event.detail.value) return;
+  renderSizeControls();
+  // A preset below the floor (Zoom to 50% on a Tinka that fits at 90%) has nothing to show: unavailable, still reachable.
+  const floor = readerCanvas.floorZoom();
+  for (const row of $('reader-zoom-menu').querySelectorAll('[data-reader-zoom]:not([data-reader-zoom="fit"])')) {
+    const part = row.closest('ui-toolbar-button'), off = Number(row.dataset.readerZoom) < floor * (1 - 1e-3);
+    if (part) part.disabled = off; else row.setAttribute('aria-disabled', String(off));
+  }
+});
 function setReaderMenuOpen(open) {
   if (open) { if (!readerZoomPopover.open) readerZoomPopover.api?.open(); }
   else if (readerZoomPopover.open) readerZoomPopover.api.close({ reason: 'imperative' });
@@ -1017,8 +1054,9 @@ function openReader(key, revision = null, { history: mode = 'push', focus = 'tin
   return true;
 }
 
-function closeReader({ history: mode = 'push' } = {}) {
+function closeReader({ history: mode = 'push', land = null } = {}) {
   if (!active && !dialog.open) return;
+  setReaderExpanded(false, { announce: false });
   // Returning focus to the board must not move it: the board comes back exactly as it was left.
   const left = { ...view };
   const returnKey = active?.key;
@@ -1041,6 +1079,7 @@ function closeReader({ history: mode = 'push' } = {}) {
   readerFromBoardItem = false;
   (toItem || !opener ? viewport : opener).focus({ preventScroll: true });
   settleCushion();
+  if (land && returnKey && landOnCard(returnKey, land)) return;
   Object.assign(view, left);
   applyView();
   // Land on the tile last viewed (after any arrowing between siblings).
@@ -1050,6 +1089,28 @@ function closeReader({ history: mode = 'push' } = {}) {
   });
 }
 var readerFromBoardItem = false;  // var: openReader may run before this line during start-up
+// Zoomed out of an opened Tinka: the board shows its card where the Tinka was, one zoom step smaller (LEAVE_RATIO of
+// the window's last rectangle, centred on it), so the zoom-out reads as one motion and the next one continues on the
+// board. The card is selected and focused: Enter opens it again. In one step, no glide (§ Performance rules). False when
+// the card isn't on this board as a card (another board's item, a grid board, a hidden card): the reader closes as Up.
+function landOnCard(key, rect) {
+  const card = world.querySelector(`.workspace-card[data-key="${CSS.escape(key)}"]`) || world.querySelector(`[data-key="${CSS.escape(key)}"]`);
+  if (!card || graph?.mode === 'grid') return false;
+  const r = card.getBoundingClientRect();
+  if (!r.width || !r.height || !rect.width || !rect.height) return false;
+  stopGlide();
+  const worldRect = world.getBoundingClientRect();
+  const w = r.width / zoom, h = r.height / zoom;
+  const cx = (r.left + r.width / 2 - worldRect.left) / zoom, cy = (r.top + r.height / 2 - worldRect.top) / zoom;
+  const x0 = worldRect.left - view.x, y0 = worldRect.top - view.y;
+  zoom = clampZoom(Math.min(rect.width * LEAVE_RATIO / w, rect.height * LEAVE_RATIO / h));
+  moveView(rect.left + rect.width / 2 - x0 - cx * zoom, rect.top + rect.height / 2 - y0 - cy * zoom);
+  if (graph) graph.revealedPlacement = null;
+  if (graph && card.dataset.placement) graph.selectOnly(card.dataset.placement);
+  focusBoardItem(key);
+  announceView(`Back on the board, ${card.getAttribute('aria-label') || 'the item'} selected`);
+  return true;
+}
 // The card of a Tinka on the board takes focus without moving the board: the board's roving card when the canvas
 // keeps one (graph.focusPlacement), else the card's own Open control.
 function focusBoardItem(key) {
@@ -1266,8 +1327,9 @@ function readerShortcuts() {
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
     <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
-    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out</dd>
-    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms</dd>
+    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out; − at fit goes back to the board</dd>
+    <dt>Shift-F</dt><dd>Expand: fill the screen, zoom out off (again, or Escape, to turn it off)</dd>
+    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms. Zooming out again at fit goes back to the board</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
     <dt>⌘/Ctrl-I</dt><dd>Inspector for this Tinka</dd>
@@ -1294,7 +1356,7 @@ function announceReaderView(text = `Zoom ${Math.round(readerCanvas.view.zoom * 1
   clearTimeout(readerAnnounceTimer);
   readerAnnounceTimer = setTimeout(() => { live.textContent = ''; }, 2500);
 }
-function runReaderCommand(command, { fromFrame = false } = {}) {
+function runReaderCommand(command, { fromFrame = false, repeat = false } = {}) {
   if (command === 'previous' || command === 'next') { stepReader(command === 'next' ? 1 : -1, { focus: fromFrame ? 'tinka' : 'keep' }); return true; }
   if (command === 'up') { closeReader(); return true; }
   if (command === 'down') return goDown();
@@ -1302,8 +1364,14 @@ function runReaderCommand(command, { fromFrame = false } = {}) {
   // board announces its own (UI SDK viewport: "Zoom 150%").
   if (command === 'fit') { readerCanvas.fit(); announceReaderView('Fitted this Tinka'); return true; }
   if (command === 'actual-size') { readerCanvas.zoomTo(1); announceReaderView(); return true; }
-  if (command === 'zoom-in') { readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25); announceReaderView(); return true; }
-  if (command === 'zoom-out') { readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25); announceReaderView(); return true; }
+  if (command === 'zoom-in') { readerCanvas.zoomBy(1.25); announceReaderView(); return true; }
+  if (command === 'zoom-out') {
+    const result = readerCanvas.zoomBy(1 / 1.25, undefined, undefined, { repeat });
+    if (result === 'zoomed') announceReaderView();
+    else if (result === 'held' && readerCanvas.expanded && !repeat) announceReaderView('Expanded: zoom out is off');
+    return true;
+  }
+  if (command === 'expand') { setReaderExpanded(!readerCanvas.expanded); return true; }
   if (command === 'shortcuts') { readerShortcuts(); return true; }
   return false;
 }
@@ -1336,7 +1404,7 @@ document.addEventListener('keydown', event => {
   if (!command) return;
   event.preventDefault(); event.stopImmediatePropagation();
   if (event.repeat && !['zoom-in', 'zoom-out'].includes(command)) return;
-  runReaderCommand(command);
+  runReaderCommand(command, { repeat: event.repeat });
 }, true);
 document.addEventListener('keyup', event => { if (event.key === ' ') readerCanvas.setSpacePan(false); }, true);
 // Same-origin content (Tinka's own item, media and board files, and frames inside them)
@@ -1370,7 +1438,7 @@ function forwardFrame(frame) {
     if (!(event.ctrlKey || event.metaKey) || readerBlocked()) return;
     event.preventDefault();
     const point = framePoint(win, event.clientX, event.clientY);
-    readerCanvas.zoomAtClient(wheelZoomFactor(event), point.x, point.y);
+    readerCanvas.zoomAtClient(wheelZoomFactor(event), point.x, point.y, { source: 'wheel' });
   }, { passive: false, capture: true });
   win.addEventListener('wheel', event => {
     if (event.ctrlKey || event.metaKey || event.defaultPrevented || readerBlocked()) return;
@@ -1385,7 +1453,7 @@ function forwardFrame(frame) {
     if (readerBlocked()) return;
     event.preventDefault();
     const scale = event.scale > 0 ? event.scale : 1, point = framePoint(win, event.clientX, event.clientY);
-    readerCanvas.zoomAtClient(scale / gestureScale, point.x, point.y);
+    readerCanvas.zoomAtClient(scale / gestureScale, point.x, point.y, { source: 'pinch' });
     gestureScale = scale;
   });
   doc.addEventListener('load', event => { if (event.target?.tagName === 'IFRAME') forwardFrame(event.target); }, true);
@@ -1481,6 +1549,7 @@ function handleEscape(event) {
   if (projectNavigator?.isOpen && projectNavigator.hostEl) { projectNavigator.hide(); return true; }
   if (notesOpen && $('notes-panel').contains(document.activeElement)) { setNotesOpen(false); return true; }
   if (closeFramePopup()) return true;
+  if (readerCanvas.expanded) { setReaderExpanded(false); return true; }
   closeReader();
   return true;
 }
@@ -2288,14 +2357,16 @@ $('reader-navigator').onclick = () => { if (!projectNavigator) return; if (proje
 $('reader-search').onclick = () => document.dispatchEvent(new CustomEvent('tinka:navigator-open', { detail: { opener: $('reader-search') } }));
 $('reader-info-toggle').onclick = () => setReaderInfoOpen(!readerInspector.isOpen, { focus: true, opener: $('reader-info-toggle') });
 // The pill: − · % menu (zoom, window and version, light, type size, standalone) · + · Back · Fit.
-$('reader-zoom-minus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom / 1.25);
-$('reader-zoom-plus').onclick = () => readerCanvas.zoomTo(readerCanvas.view.zoom * 1.25);
+$('reader-zoom-minus').onclick = () => readerCanvas.zoomBy(1 / 1.25);
+$('reader-zoom-plus').onclick = () => readerCanvas.zoomBy(1.25);
+onPress($('reader-expand'), on => setReaderExpanded(on));
 bindZoomSlider($('reader-zoom-slider'),value=>readerCanvas.zoomTo(value));
 $('reader-fit').onclick = () => readerCanvas.fit();
 $('reader-view-back').onclick = () => readerCanvas.back();
 $('reader-zoom-menu').addEventListener('click', event => {
   const zoomChoice = event.target.closest('[data-reader-zoom]');
   const size = event.target.closest('[data-size="custom"]');
+  if (zoomChoice?.getAttribute('aria-disabled') === 'true') return;
   if (zoomChoice) {
     setReaderMenuOpen(false);
     if (zoomChoice.dataset.readerZoom === 'fit') readerCanvas.fit(); else readerCanvas.zoomTo(Number(zoomChoice.dataset.readerZoom));
@@ -2494,7 +2565,7 @@ function viewportPinchPoint(event) {
 document.addEventListener('wheel', event => {
   // Over an opened Tinka's header, panels or pill, ⌘/Ctrl-scroll zooms its canvas, never the page.
   if ((event.ctrlKey || event.metaKey) && dialog.open && !readerStage.contains(event.target) && !document.querySelector('.workspace-dialog:is([open],[data-open])')) {
-    event.preventDefault(); readerCanvas.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY); return;
+    event.preventDefault(); readerCanvas.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY, { source: 'wheel' }); return;
   }
   if (!(event.ctrlKey || event.metaKey) || !boardOwnsPinch(event)) return;
   event.preventDefault();
@@ -2503,7 +2574,7 @@ document.addEventListener('wheel', event => {
 const readerOwnsPinch = event => dialog.open && !readerStage.contains(event.target) && !document.querySelector('.workspace-dialog:is([open],[data-open])');
 document.addEventListener('gesturestart', event => { if (boardOwnsPinch(event) || readerOwnsPinch(event)) { event.preventDefault(); gestureScale = 1; } });
 document.addEventListener('gesturechange', event => {
-  if (readerOwnsPinch(event)) { event.preventDefault(); const scale = event.scale > 0 ? event.scale : 1; readerCanvas.zoomAtClient(scale / gestureScale, event.clientX, event.clientY); gestureScale = scale; return; }
+  if (readerOwnsPinch(event)) { event.preventDefault(); const scale = event.scale > 0 ? event.scale : 1; readerCanvas.zoomAtClient(scale / gestureScale, event.clientX, event.clientY, { source: 'pinch' }); gestureScale = scale; return; }
   if (!boardOwnsPinch(event)) return;
   event.preventDefault();
   const scale = event.scale > 0 ? event.scale : 1;

@@ -85,6 +85,7 @@
         </span>
       </nav>
       <ui-toolbar class="chrome-actions" aria-label="Tinka actions">
+        <ui-toggle><button id="reader-expand" class="tk-btn reader-expand" type="button" aria-pressed="false" aria-keyshortcuts="Shift+F" data-tip="Fill the screen and turn off zoom out"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 3.5h4.5V8M8 16.5H3.5V12M16.5 3.5l-5 5M3.5 16.5l5-5"/></svg><span class="reader-expand-label">Expand</span></button></ui-toggle>
         <span class="item-actions"><button id="reader-star" class="item-star tk-btn tk-icon" type="button" aria-pressed="false" aria-label="Favorite" data-tip="Favorite">☆</button><button id="notes-toggle" class="notes-toggle tk-btn" type="button" aria-expanded="false" aria-controls="notes-panel">Notes<span class="note-dot" aria-hidden="true" hidden></span></button></span>
         <button id="reader-search" class="tk-btn chrome-search" type="button" aria-label="Find boards and items" aria-keyshortcuts="Meta+K Control+K" data-tip="Find boards and items"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="m12.6 12.6 4.4 4.4"/></svg><span class="chrome-search-label">Find boards and items</span></button>
         <button id="reader-info-toggle" class="info-toggle tk-btn tk-icon" type="button" aria-expanded="false" aria-controls="reader-info" aria-label="Inspector" aria-keyshortcuts="Meta+I Control+I" data-tip="Inspector: this Tinka's details and actions"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.8" y="3.5" width="14.4" height="13" rx="2.2"/><path d="M12 3.5v13"/></svg></button>
@@ -100,7 +101,7 @@
     <ui-dialog id="reader-info-dialog"><ui-dialog-content id="reader-info" class="reader-info calm-side calm-side-right" inline aria-labelledby="reader-info-name" hidden></ui-dialog-content></ui-dialog>
     <div class="reader-area">
       <div class="reader-main">
-        <div id="reader-stage" class="reader-stage" tabindex="-1" aria-label="Tinka canvas: plus and minus zoom, F fits; zoomed in, the arrow keys pan; pinch or Control-scroll to zoom, drag the background to pan"><div id="reader-plane" class="reader-plane"><div id="reader-window" data-tip-zone data-tip=""><iframe id="active-reader" title="Experiment viewer"></iframe></div></div></div>
+        <div id="reader-stage" class="reader-stage" tabindex="-1" aria-label="Tinka canvas: plus and minus zoom, F fits, zoom out at fit goes back to the board; zoomed in, the arrow keys pan; pinch or Control-scroll to zoom, drag the background to pan"><div id="reader-plane" class="reader-plane"><div id="reader-window" data-tip-zone data-tip=""><iframe id="active-reader" title="Experiment viewer"></iframe></div></div></div>
         <button id="reader-update" class="reader-update" type="button" hidden>New version available · Reload experiment</button>
         <footer class="reader-footer">
           <ui-toolbar class="view-tools zoom-pill" aria-label="Tinka view controls">

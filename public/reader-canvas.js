@@ -3,10 +3,20 @@
 // page and Tinka's own chrome never zoom. Fit returns to the fitted view (the whole
 // window in sight, never past 100%) and Back returns to the view before that fit.
 // Canvas zoom magnifies; it never reflows the content (Window and Type size do).
-import {clampZoom, sameView, wheelZoomFactor} from './canvas-zoom.js';
+//
+// The fitted view is the floor: zooming out stops there. A fresh zoom-out from the floor (one more − press, wheel notch
+// or pinch) goes back to the board the Tinka lives on (onLeave; canvas.js lands on its card), as pinching in on a fitted
+// photo returns to the grid in Photos and Quick Look. Expanded, the window fills the stage, past 100% if need be, and
+// the floor is a wall: zooming out stops there and never leaves (ui-sdk.md § Opened item).
+import {clampZoom, MAX_ZOOM, sameView, wheelZoomFactor} from './canvas-zoom.js';
 
 // A fitted Tinka shows its window at its true size or smaller.
 export const READER_FIT_MAX_ZOOM = 1;
+// Leaving takes one zoom step below the floor: one − press (1.25×), one wheel notch, or a pinch that would shrink the
+// Tinka by a fifth. A wheel or pinch gesture is its zoom-out events with no gap of GESTURE_GAP ms; one that arrives at the
+// floor from above stops there, and only a new gesture started at the floor can leave.
+export const LEAVE_RATIO = 1 / 1.25;
+export const GESTURE_GAP = 300;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Whether wheel movement (dx, dy) over `target` would scroll something in Tinka's content:
@@ -57,10 +67,14 @@ export function resourceSize(width, height) {
 }
 
 export class ReaderCanvas {
-  constructor(stage, plane, sheet, { onChange = () => {}, onBack = () => {}, reserveBottom = () => 0 } = {}) {
-    Object.assign(this, { stage, plane, sheet, onChange, onBack, reserveBottom });
+  constructor(stage, plane, sheet, { onChange = () => {}, onBack = () => {}, onLeave = () => {}, reserveBottom = () => 0 } = {}) {
+    Object.assign(this, { stage, plane, sheet, onChange, onBack, onLeave, reserveBottom });
     this.view = { zoom: 1, x: 0, y: 0 };
     this.fitted = true;
+    this.expanded = false;
+    this.outGesture = null;
+    this.floorKey = '';
+    this.floorZoom_ = 1;
     this.backView = null;
     this.glide = 0;
     this.pointers = new Map();
@@ -85,7 +99,7 @@ export class ReaderCanvas {
     const strip = Math.ceil((parseFloat(css.getPropertyValue('--depth-slab')) || 0) + (parseFloat(css.getPropertyValue('--depth-edge-low')) || 0) + 1);   // and its hairline contour
     const { width, height } = this.area();
     const w = Math.max(1, fit ? this.resourceSize.width : this.sheet.offsetWidth), h = Math.max(1, fit ? this.resourceSize.height : this.sheet.offsetHeight);
-    const zoom = room => Math.min(READER_FIT_MAX_ZOOM, width / w, room / h);
+    const zoom = room => Math.min(this.fitMax(), width / w, room / h);
     return zoom(height - strip) < zoom(height) ? none : { ...none, bottom: strip };
   }
   setResourceSize(width, height) {
@@ -97,6 +111,8 @@ export class ReaderCanvas {
     this.resize();
   }
   area() { return { width: this.stage.clientWidth, height: this.stage.clientHeight }; }
+  // Fitted, a window is shown at 100% or smaller; expanded, it fills the stage.
+  fitMax() { return this.expanded ? MAX_ZOOM : READER_FIT_MAX_ZOOM; }
   // Fit uses authored resource dimensions, or the responsive stage for documents.
   fitSize() {
     if (this.resourceSize) return this.resourceSize;
@@ -112,7 +128,7 @@ export class ReaderCanvas {
     const { width, height } = this.area(), i = this.insets();
     const w = Math.max(1, this.sheet.offsetWidth), h = Math.max(1, this.sheet.offsetHeight);
     const room = { width: width - i.left - i.right, height: height - i.top - i.bottom };
-    const zoom = clampZoom(Math.min(READER_FIT_MAX_ZOOM, room.width / w, room.height / h));
+    const zoom = clampZoom(Math.min(this.fitMax(), room.width / w, room.height / h));
     return { zoom, x: Math.round(i.left + (room.width - w * zoom) / 2), y: Math.round(i.top + (room.height - h * zoom) / 2) };
   }
   clamp({ zoom, x, y }) {
@@ -138,6 +154,22 @@ export class ReaderCanvas {
     // fribblr: a document fitted to the stage fills it edge to edge, its side off the bottom (depth.css reads this)
     this.sheet.dataset.flush = String((this.sheet.dataset?.size || 'fit') === 'fit' && !this.resourceSize);
     this.onChange(this.view);
+  }
+  // The floor's zoom (the fitted view's), measured again only when the stage, the window or the mode changes: the reads
+  // are ones clamp() already makes on every zoom event, so the zoom path gains no style or layout work.
+  floorZoom() {
+    const key = `${this.stage.clientWidth} ${this.stage.clientHeight} ${this.sheet.offsetWidth} ${this.sheet.offsetHeight} ${this.expanded} ${this.sheet.dataset?.size} ${this.resourceSize?.width} ${this.resourceSize?.height}`;
+    if (key !== this.floorKey) { this.floorKey = key; this.floorZoom_ = this.fittedView().zoom; }
+    return this.floorZoom_;
+  }
+  atFloor() { return this.view.zoom <= this.floorZoom() * (1 + 1e-3); }
+  setExpanded(on) {
+    if (this.expanded === !!on) return;
+    this.expanded = !!on;
+    this.stage.dataset.expanded = String(this.expanded);
+    this.outGesture = null;
+    this.dropBack();
+    this.rest();
   }
   stopGlide() { cancelAnimationFrame(this.glide); this.glide = 0; }
   // Any view change of your own ends Back.
@@ -179,19 +211,43 @@ export class ReaderCanvas {
     };
     this.glide = requestAnimationFrame(frame);
   }
-  // Zoom to `zoom` keeping the stage point (sx, sy) still.
+  // Zoom to `zoom` keeping the stage point (sx, sy) still; never below the floor (a zoom there is the fitted view).
   zoomTo(zoom, sx = this.stage.clientWidth / 2, sy = this.stage.clientHeight / 2) {
     this.stopGlide(); this.dropBack();
     const { zoom: z0, x, y } = this.view, z = clampZoom(zoom);
+    if (z <= this.floorZoom() * (1 + 1e-3)) { this.fitted = true; this.view = this.fittedView(); this.apply(); return; }
     this.fitted = false;
     this.view = { zoom: z, x: sx - (sx - x) * z / z0, y: sy - (sy - y) * z / z0 };
     this.apply();
   }
+  // Zoom by `factor` about the stage point (sx, sy). `source` is 'step' (a key, a button: each press counts on its own)
+  // or 'wheel' / 'pinch' (a gesture); `repeat` marks a held key. Returns 'zoomed', 'held' (at the floor, nothing moved)
+  // or 'leave' (onLeave has been called).
+  zoomBy(factor, sx, sy, { source = 'step', repeat = false } = {}) {
+    if (!(factor < 1)) { this.outGesture = null; this.zoomTo(this.view.zoom * factor, sx, sy); return 'zoomed'; }
+    const now = performance.now(), gesture = source !== 'step';
+    let g = this.outGesture;
+    if (!g || !gesture || g.source !== source || now - g.last > GESTURE_GAP) g = this.outGesture = { source, ratio: 1, fromAbove: false, last: now };
+    g.last = now;
+    if (!this.atFloor()) {
+      this.zoomTo(this.view.zoom * factor, sx, sy);
+      if (this.atFloor()) g.fromAbove = true;
+      return 'zoomed';
+    }
+    if (this.expanded || repeat || g.fromAbove) return 'held';
+    g.ratio *= factor;
+    if (gesture && g.ratio > LEAVE_RATIO * (1 + 1e-6)) return 'held';
+    this.outGesture = null;
+    this.pointers.clear(); this.pinch = null; this.pan = null;
+    this.stage.classList.remove('panning');
+    this.onLeave(source);
+    return 'leave';
+  }
   // A zoom step about a point given in this document's client coordinates.
-  zoomAtClient(factor, clientX, clientY) {
+  zoomAtClient(factor, clientX, clientY, options) {
     const r = this.stage.getBoundingClientRect();
     const sx = Math.max(0, Math.min(r.width, clientX - r.left)), sy = Math.max(0, Math.min(r.height, clientY - r.top));
-    this.zoomTo(this.view.zoom * factor, sx, sy);
+    return this.zoomBy(factor, sx, sy, options);
   }
   // Part of the window is out of view (zoomed in past what fits): there is something to pan to. The arrow keys pan then,
   // and step to another Tinka only while it all fits (canvas.js, ui-sdk.md § Opened item).
@@ -220,7 +276,7 @@ export class ReaderCanvas {
   bind() {
     const stage = this.stage;
     stage.addEventListener('wheel', event => {
-      if (event.ctrlKey || event.metaKey) { event.preventDefault(); this.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY); return; }
+      if (event.ctrlKey || event.metaKey) { event.preventDefault(); this.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY, { source: 'wheel' }); return; }
       // The window's own edge and padding pan too; wheel over content is handled where it lands.
       if (!this.background(event.target) && event.target !== this.sheet) return;
       event.preventDefault();
@@ -234,7 +290,7 @@ export class ReaderCanvas {
       if (this.pointers.size === 1) this.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, active: false };
       else if (this.pointers.size === 2) {
         const [a, b] = [...this.pointers.values()];
-        this.pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: this.view.zoom };
+        this.pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1 };
         this.pan = null;
       }
     });
@@ -245,8 +301,10 @@ export class ReaderCanvas {
       point.x = event.clientX; point.y = event.clientY;
       if (this.pinch && this.pointers.size >= 2) {
         const [a, b] = [...this.pointers.values()];
-        const ratio = this.pinch.zoom * (Math.hypot(a.x - b.x, a.y - b.y) || 1) / this.pinch.distance / this.view.zoom;
-        this.zoomAtClient(ratio, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        // Each move zooms by its own change in spread, so a pinch held at the floor counts only what the fingers did.
+        const distance = Math.hypot(a.x - b.x, a.y - b.y) || 1, ratio = distance / this.pinch.distance;
+        this.pinch.distance = distance;
+        this.zoomAtClient(ratio, (a.x + b.x) / 2, (a.y + b.y) / 2, { source: 'pinch' });
         return;
       }
       if (!this.pan || this.pan.id !== event.pointerId) return;
@@ -268,7 +326,7 @@ export class ReaderCanvas {
     stage.addEventListener('gesturechange', event => {
       event.preventDefault();
       const scale = event.scale > 0 ? event.scale : 1;
-      this.zoomAtClient(scale / gestureScale, event.clientX, event.clientY);
+      this.zoomAtClient(scale / gestureScale, event.clientX, event.clientY, { source: 'pinch' });
       gestureScale = scale;
     });
   }

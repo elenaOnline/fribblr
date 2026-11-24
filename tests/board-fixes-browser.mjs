@@ -288,10 +288,14 @@ try{
    const row=()=>page.evaluate(()=>document.activeElement.childNodes[0]?.textContent.trim());
    await page.locator(toggle).focus();await page.keyboard.press('ArrowDown');
    ok(await until(()=>page.evaluate(()=>!!document.activeElement?.closest('ui-popover-content ui-toolbar[aria-orientation=vertical]'))),`↓ on % opens the ${where} popover, focus on its preset rows`);
-   eq(await row(),'Zoom to 50%',`The ${where} popover opens on its first row`);
+   // In the reader, zooming out stops at fit: on a Tinka that fits at more than 50%, Zoom to 50% is unavailable (still
+   // reachable, aria-disabled), and the popover opens on the first row that can act.
+   const [first,second]=where==='reader'?['Zoom to 100%','Zoom to 200%']:['Zoom to 50%','Zoom to 100%'];
+   if(where==='reader')eq(await page.locator('#reader-zoom-menu [data-reader-zoom="0.5"]').getAttribute('aria-disabled'),'true','Zoom to 50% is unavailable below the fitted view');
+   eq(await row(),first,`The ${where} popover opens on its first available row`);
    const z0=await zoomText();
    eq(await page.evaluate(()=>[...document.activeElement.closest('ui-toolbar').querySelectorAll('button')].filter(b=>b.tabIndex===0&&!b.disabled&&!b.hidden).length),1,`The ${where} preset rows are one Tab stop`);
-   await page.keyboard.press('ArrowDown');eq(await row(),'Zoom to 100%',`↓ walks the ${where} preset rows`);
+   await page.keyboard.press('ArrowDown');eq(await row(),second,`↓ walks the ${where} preset rows`);
    await page.keyboard.press('End');eq(await row(),last,`End reaches ${last}`);
    await page.keyboard.press('ArrowDown');eq(await row(),'Zoom to 50%',`and ↓ wraps to the first row`);
    await page.keyboard.press('ArrowUp');await page.keyboard.press('Home');eq(await row(),'Zoom to 50%','Home goes to the first row');
