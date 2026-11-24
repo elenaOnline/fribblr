@@ -368,9 +368,36 @@ var boardFloor = null, leavingBoard = false, boardMinusState = '';  // var: appl
 // Only a canvas board on its own page has a floor: not Grid view, the overview render, or while the reader is open.
 const boardHasFloor = () => !!board && !overview && graph?.mode !== 'grid' && !dialog.open;
 // Measured at the start of an input, before the view is written (§ Performance rules); kept for the slider's minimum.
+// Also the floor view: at the floor's zoom, the content centred in the fit area (what the last stretch settles to).
+var floorTarget = null;
 function measureBoardFloor() {
-  boardFloor = boardHasFloor() ? boardZoomFloor(fitBoardView(fitArea(), Infinity)?.zoom) : null;
+  if (!boardHasFloor()) { boardFloor = floorTarget = null; return null; }
+  const area = fitArea(), fit = fitBoardView(area, Infinity);
+  boardFloor = boardZoomFloor(fit?.zoom);
+  const w = world.offsetWidth - geometry.pad * 2, h = world.offsetHeight - geometry.pad * 2;
+  floorTarget = fit ? { ax: area.width / 2, ay: area.height / 2, cx: geometry.pad + w / 2, cy: geometry.pad + h / 2 } : null;
   return boardFloor;
+}
+// Over the last stretch above the floor (from SETTLE_SPAN × the floor down to it), each zoom-out step also draws the view
+// towards the floor view, in proportion to the step, so the floor shows all of the board, as Fit does, wherever the
+// pointer is (Photos and Preview settle a picture centred as it reaches fit). Frame for frame with her input; nothing
+// runs after it, and it reads nothing (floorTarget was measured before the view was written).
+const SETTLE_SPAN = 2;
+function settleView(anchored, z0, z1) {
+  const floor = boardFloor, t = floorTarget;
+  if (floor == null || !t || !(z1 < z0)) return anchored;
+  const top = floor * SETTLE_SPAN, progress = z => z >= top ? 0 : z <= floor * (1 + 1e-6) ? 1 : Math.log(top / z) / Math.log(top / floor);
+  const p0 = progress(z0), p1 = progress(z1);
+  if (p1 <= p0 || p0 >= 1) return anchored;
+  const target = { x: t.ax - t.cx * z1, y: t.ay - t.cy * z1 }, keep = (1 - p1) / (1 - p0);
+  return { x: target.x + (anchored.x - target.x) * keep, y: target.y + (anchored.y - target.y) * keep };
+}
+// changeZoom, settled on the way down to the floor.
+function changeZoomSettled(value, cx = viewport.clientWidth / 2, cy = viewport.clientHeight / 2) {
+  const z0 = zoom, z1 = clampZoom(value), scale = z1 / z0;
+  const v = settleView({ x: cx - (cx - view.x) * scale, y: cy - (cy - view.y) * scale }, z0, z1);
+  zoom = z1;
+  moveView(v.x, v.y);
 }
 const atBoardFloor = floor => zoom <= floor * (1 + 1e-3);
 // The zoom a zoom-in or zoom-out by `factor` should go to, or null when it left the board. `source`: 'step' (a press),
@@ -388,11 +415,14 @@ function boardZoomTarget(factor, { source = 'step', repeat = false } = {}) {
 }
 function boardZoomBy(factor, cx, cy, options) {
   const z = boardZoomTarget(factor, options);
-  if (z != null && z !== zoom) changeZoom(z, cx, cy);
+  if (z != null && z !== zoom) changeZoomSettled(z, cx, cy);
   return z;
 }
-// A zoom she sets directly (the slider, a preset, 0): never below the floor.
-const boardZoomAtLeast = value => { const floor = measureBoardFloor(); return floor == null ? value : Math.max(floor, value); };
+// A zoom she sets directly (the slider, a preset, 0): never below the floor, settled on the way down.
+function boardZoomTo(value) {
+  const floor = measureBoardFloor();
+  changeZoomSettled(floor == null ? value : Math.max(floor, value));
+}
 // Up a level: the parent board (the one she came from, else the one in the path, else the first), landed on this board's
 // card in the view she entered from (canvas.js landFromZoomOut); a board on Home goes Home, its tile selected and focused.
 async function leaveBoard() {
@@ -2098,7 +2128,7 @@ function bindZoomSlider(input, apply) {
     apply(stepSliderZoom(input.value,direction));
   });
 }
-bindZoomSlider(slider,value=>{if(graph)graph.revealedPlacement=null;changeZoom(boardZoomAtLeast(value));});
+bindZoomSlider(slider,value=>{if(graph)graph.revealedPlacement=null;boardZoomTo(value);});
 $('fit').onclick = event => runFit(event.altKey ? 'board' : smartFitTarget());
 $('view-back').onclick = goBack;
 $('board-info-toggle').onclick = () => setInfoOpen(!boardInspector.isOpen, { focus: true, opener: $('board-info-toggle') });
@@ -2160,7 +2190,7 @@ $('zoom-menu').addEventListener('click', event => {
   setZoomMenuOpen(false);
   if (to === 'fit') fitBoard();
   else if (to === 'selection') fitSelection();
-  else changeZoom(boardZoomAtLeast(Number(to)));
+  else boardZoomTo(Number(to));
 });
 // The % popover is a Popover, not a menu: Tab moves through its controls (popover.md), and arrows belong to the control
 // that has focus. The preset rows (Zoom to …, Fit) look like menu rows, so they are one vertical toolbar (↑/↓ with
@@ -2298,7 +2328,7 @@ function ensureBoardMap() {
     panScreen: (fx, fy) => moveView(view.x + fx * viewport.clientWidth, view.y + fy * viewport.clientHeight),
     zoomAt: (factor, wx, wy) => { if (graph) graph.revealedPlacement = null; boardZoomBy(factor, view.x + wx * zoom, view.y + wy * zoom, { source: 'wheel' }); },
     zoomBy: factor => { if (graph) graph.revealedPlacement = null; if (boardZoomBy(factor) != null) announceView(`Zoom ${Math.round(zoom * 100)}%`); },
-    actualSize: () => { if (graph) graph.revealedPlacement = null; changeZoom(1); announceView('Zoom 100%'); },
+    actualSize: () => { if (graph) graph.revealedPlacement = null; boardZoomTo(1); announceView('Zoom 100%'); },
     close: () => setMapOpen(false, { remember: true, focus: true }),
   });
   const el = boardMapElement();
@@ -2589,8 +2619,12 @@ viewport.addEventListener('pointermove', event => {
     const distance = Math.hypot(a.x - b.x, a.y - b.y) || 1, target = boardZoomTarget(distance / pinch.distance, { source: 'pinch' });
     pinch.distance = distance;
     if (target == null) { pointers.clear(); pinch = null; pan = null; viewport.classList.remove('panning'); return; }
+    const z0 = zoom;
     zoom = target;
-    moveView(mx - pinch.x * zoom, my - pinch.y * zoom);
+    const v = settleView({ x: mx - pinch.x * zoom, y: my - pinch.y * zoom }, z0, zoom);
+    moveView(v.x, v.y);
+    // The settle moved the board under the fingers: the point under them now is the one they hold.
+    pinch.x = (mx - view.x) / zoom; pinch.y = (my - view.y) / zoom;
     return;
   }
   if (!pan || pan.id !== event.pointerId) return;
@@ -2697,7 +2731,7 @@ viewport.addEventListener('keydown', event => {
   // + / − zoom and 0 shows 100% (UI SDK viewport keys) from the canvas or a focused card or drawn element; announced.
   const zoomKeys = onCanvas || !!event.target.matches?.('#world .workspace-card, #world .workspace-decoration');
   if (zoomKeys && ['+', '=', '-', '_', '0'].includes(key)) {
-    if (key === '0') changeZoom(boardZoomAtLeast(1));
+    if (key === '0') boardZoomTo(1);
     else if (boardZoomBy(key === '+' || key === '=' ? 1.15 : 1 / 1.15, undefined, undefined, { repeat: event.repeat }) == null) { event.preventDefault(); return; }
     announceView(`Zoom ${Math.round(zoom * 100)}%`);
   }

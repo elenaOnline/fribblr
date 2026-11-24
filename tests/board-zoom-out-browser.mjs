@@ -146,6 +146,26 @@ try{
  eq(boardPath(),'/boards/kid/','…and the rest of that gesture stops at the board\'s floor, not going on up');
  eq(await zoom(),kidFloor,'…at the floor');
 
+ // (8) At the floor all of the board is in view, wherever the pointer was and whatever the zoom-out input, at 1440 and
+ // at phone width: the last stretch draws the view to the floor view (the content centred).
+ const contained=()=>page.evaluate(()=>{const v=document.getElementById('viewport').getBoundingClientRect();const out=[...document.querySelectorAll('#world .workspace-card')].filter(c=>{const r=c.getBoundingClientRect();return r.left<v.left-1||r.top<v.top-1||r.right>v.right+1||r.bottom>v.bottom+1;});return {n:document.querySelectorAll('#world .workspace-card').length,out:out.length};});
+ for(const [w,h] of [[1440,900],[390,844]]){
+  await page.setViewportSize({width:w,height:h});
+  for(const [label,px,py] of [['centre',w/2,h/2],['corner',30,140]]){
+   await clearReturn();await load(`${base}/boards/top/`);
+   await page.mouse.move(px,py);for(let i=0;i<4;i++)await ctrlWheel(-100);  // in first, about the pointer
+   for(let i=0;i<24;i++)await ctrlWheel(100);
+   eq(boardPath(),'/boards/top/',`${w}px, pointer at the ${label}: the run stops at the floor`);
+   const c=await contained();ok(c.n>=4&&c.out===0,`${w}px, pointer at the ${label}: every card is inside the view at the floor (${c.out} of ${c.n} outside)`);
+  }
+  await clearReturn();await load(`${base}/boards/top/`);
+  await page.locator('#viewport').focus();await page.keyboard.press('=');for(let i=0;i<24;i++)await page.keyboard.down('-');await page.keyboard.up('-');
+  {const c=await contained();ok(c.out===0,`${w}px, held −: every card is inside the view at the floor (${c.out} outside)`);}
+  await clearReturn();await load(`${base}/boards/top/`);
+  await page.locator('#zoom-slider').evaluate(el=>{el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  {const c=await contained();ok(c.out===0,`${w}px, slider to its minimum: every card is inside the view (${c.out} outside)`);}
+ }
+ await page.setViewportSize({width:1440,height:900});
  eq(errors,[],'No page errors');
  console.log(`Board zoom out browser checks passed: ${checks}`);
 }finally{await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});}
