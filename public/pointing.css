@@ -9,7 +9,7 @@ body.pointing-on :is(#edit-tools, #workspace-selection, .whiteboard-toolbar, .wh
 .pointing-bar {
   position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); z-index: 37;
   width: min(760px, calc(100vw - 32px)); box-sizing: border-box;
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: end; gap: 6px;
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: end; gap: 6px;
   padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-bar);
   font: var(--type-ui)/1.4 var(--type-sans);
 }
@@ -28,9 +28,13 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
   white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; outline: none; line-height: 20px;
 }
 .pointing-field:empty::before { content: attr(data-placeholder); color: var(--ink-2); pointer-events: none; }
-.pointing-send, .pointing-leave { height: 36px; min-height: 36px; }
+.pointing-send, .pointing-leave, .pointing-selected { height: 36px; min-height: 36px; }
 .pointing-send { padding: 0 12px; }
-.pointing-leave { width: 36px; min-width: 36px; padding: 0; display: grid; place-items: center; }
+.pointing-leave, .pointing-selected { width: 36px; min-width: 36px; padding: 0; display: grid; place-items: center; }
+/* Point at the selection: a quiet key beside the tools (an action, not a tool); with nothing selected it says so. */
+.pointing-selected { align-self: center; border: 0; background: transparent; }
+.pointing-selected:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.pointing-selected[aria-disabled="true"] { color: var(--ink-2); }
 
 /* A mark's number: the same red square on the chip and on the board. */
 .pointing-n, .pointing-badge {
@@ -72,8 +76,9 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 @media (max-width: 600px) { .edit-tools:has([data-pointing-enter]) { --edit-tool-size: clamp(26px, calc((100vw - 48px) / 10), 38px); } }
 @media (max-width: 359px) { .edit-tools .edit-tool-group:has([data-pointing-enter]) { display: none; } }
 @media (max-width: 640px) {
-  .pointing-bar { grid-template-columns: auto 1fr auto auto; grid-template-areas: "tools . send leave" "field field field field"; width: calc(100vw - 32px); }
+  .pointing-bar { grid-template-columns: auto auto 1fr auto auto; grid-template-areas: "tools sel . send leave" "field field field field field"; width: calc(100vw - 32px); }
   .pointing-tools { grid-area: tools; }
+  .pointing-selected { grid-area: sel; }
   .pointing-field-wrap { grid-area: field; }
   .pointing-send { grid-area: send; }
   .pointing-leave { grid-area: leave; }

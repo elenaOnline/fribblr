@@ -99,6 +99,14 @@ function liveRect(board, thread, anchor) {
   }
   return null;
 }
+// A pointing message's card sits clear of its marks as well as its pin (pointing-mode.js sentScreenBox): the anchor is
+// their union while it is small enough for the card to fit beside; marks spread wider keep the pin alone.
+function withMarks(board, thread, box) {
+  const marks = thread?.id && board.pointing?.sentScreenBox?.(thread.id);
+  if (!marks || !box) return box;
+  const u = {left:Math.min(box.left, marks.left), top:Math.min(box.top, marks.top), right:Math.max(box.right, marks.right), bottom:Math.max(box.bottom, marks.bottom)};
+  return u.right - u.left <= innerWidth * .55 && u.bottom - u.top <= innerHeight * .85 ? u : box;
+}
 // Narrow windows get a bottom sheet (the SDK's sheet presentation, styled by .ct-sheet); wider ones a popover beside
 // the pin. The SDK places the popover against the anchor rect, on the right when it fits, else the left, below, above,
 // and never over the anchor (it flips; it only shifts along the anchor's edge).
@@ -138,7 +146,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   const draftKey = () => thread ? `thread:${thread.id}` : `new:${board.snapshot?.id}:${JSON.stringify(anchor || {})}:${itemId || ""}`;
   let composer = null;
   // The pin's rect as given, or (when none, or not laid out) the live pin or target on the board.
-  const currentRect = () => { const t = thread || (threadId ? {id:threadId} : null); return livePin(t) || pinBox(rect) || liveRect(board, t, anchor); };
+  const currentRect = () => { const t = thread || (threadId ? {id:threadId} : null); return withMarks(board, t, livePin(t) || pinBox(rect) || liveRect(board, t, anchor)); };
   // Opened from a list or a link, the board may still be panning to the pin: the anchor follows it until it stops
   // moving (a few frames), then stays put, so the card does not trail the board once she pans.
   let settling = 0, frozen = null;

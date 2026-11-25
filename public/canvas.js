@@ -154,6 +154,8 @@ async function fetchBoard() {
     if (!graph) graph = new WorkspaceBoard(appConfig, data, { concepts:()=>all, active:()=>active, zoom:()=>zoom, shiftOrigin:(dx,dy)=>{if(dx||dy){view.x-=dx*zoom;view.y-=dy*zoom;resting=false;shiftSavedViews(dx,dy);}}, shiftViewport:(dx,dy)=>{if(dx||dy)moveView(view.x+dx,view.y+dy);}, holdView:()=>{resting=false;}, revealPlacements:revealPlacements, revealTarget:placement=>{const fit=Math.min((viewport.clientWidth-80)/placement.width,(viewport.clientHeight-80)/placement.height,1);changeZoom(fit);const rect=world.getBoundingClientRect(),region=viewport.getBoundingClientRect();moveView(view.x+region.left+viewport.clientWidth/2-(rect.left+(placement.x+graph.origin.x+placement.width/2)*zoom),view.y+region.top+viewport.clientHeight/2-(rect.top+(placement.y+graph.origin.y+placement.height/2)*zoom));}, preview:(c,version)=>previewHref(c,version,'paper',100,versionStamp(version,liveSnapshot?.items?.[c.graphItem.id])), layout:()=>{ if(resting)rest();else applyView(); contentChanged(); }, mode:mode=>{ if(mode==='canvas'){zoom=1;settleCushion();}else{viewport.scrollLeft=0;viewport.scrollTop=0;} requestAnimationFrame(syncMapAvailability); }, fit:(kind,area)=>runFit(kind==='smart'?smartFitTarget():kind,area), toggleMap:()=>setMapOpen(!boardMap.visible,{remember:true}), reloadReader:()=>loadRevision(), saveStatus:setSaveStatus, openOwner:()=>{const c=graph.ownerConcept();if(c)openReader(c.key);}, closeReader:()=>closeReader(), flushNotes:flushNoteEdits, liveReady:()=>{void drainLiveUpdates().catch(()=>{});}, data:acceptGraphData, editNote:(key,anchor)=>openTileNote(key,anchor), readerChanged:()=>{if(active&&dialog.open)renderReaderChrome();}, currentView:()=>({zoom,x:view.x,y:view.y,resting,round:rounds[currentRound]?.id}), zoomOutChanged:()=>{boardMinusState=null;applyView();}, viewOnly:overview });
     graph.hooks.revealBox = revealBox;
     graph.hooks.restoreView = restoreBoardView;
+    // Pointing mode's zoom chords (⌥= ⌥− ⌥0 ⌥1, pointing-mode.js): the board's own steps, 100% and fit, announced.
+    graph.hooks.zoomKey = key => { const before = zoom; if (key === '0') boardZoomTo(1); else if (key === 'fit') runFit('board'); else boardZoomBy(key === '+' ? 1.15 : 1 / 1.15); if (zoom !== before) announceView(`Zoom ${Math.round(zoom * 100)}%`); };
     if (overview) graph.mode = 'canvas';
     return graph.adapt(data);
   }
@@ -430,7 +432,8 @@ function boardZoomTarget(factor, { source = 'step', repeat = false } = {}) {
   if (!(factor < 1)) return clampZoom(zoom * boardGate.back(factor, { source }));
   const floor = measureBoardFloor();
   if (floor == null) return clampZoom(zoom * factor);
-  const verdict = boardGate.out(factor, { above: !atBoardFloor(floor), source, repeat });
+  // In pointing mode zooming out stops at the floor and never leaves the board (leaving the mode is explicit).
+  const verdict = boardGate.out(factor, { above: !atBoardFloor(floor), source, repeat, locked: !!graph?.pointing?.active });
   if (verdict === 'zoom') { const z = Math.max(floor, clampZoom(zoom * factor)); if (atBoardFloor(floor) || z <= floor * (1 + 1e-3)) boardGate.reachedFloor(); return z; }
   if (verdict === 'held') return zoom;
   void leaveBoard();

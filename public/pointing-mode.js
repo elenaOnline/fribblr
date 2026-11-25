@@ -13,11 +13,14 @@
 //   Lasso   ⌥L  drag a free shape, closed on release; a click points
 //   Laser   ⌥K  a red dot instead of the cursor; drag to draw a trail that fades behind you. A circle drawn around
 //               something is a reference; waving, underlining and passes over things are not. A click points.
-//   Point   ⌥P  click a thing (a small one whole, a big one at the spot clicked); drag pans
-// Keyboard: @ in the composer picks an item, drawn element or board by name (tool "keyboard").
+//   Point   ⌥P  click a thing; drag pans
+// A click with any tool points at the whole thing under it, and carries the spot clicked; parts come from a drag.
+// Keyboard (tool "keyboard"): ⌥R points at what is selected on the board (else the item that had focus); @ in the
+// composer picks an item, drawn element or board by name, the selected ones first. ⌥= ⌥− ⌥0 ⌥1 zoom in, out, 100%, fit.
+// The unsent draft (words, chips, marks, times) is kept per board for the session, so leaving the page loses nothing.
 import {pointingGuard} from './pointing-guard.js';
-import {rectHits, pathHits, pointTarget, simplify, boundsOf, closedLoop} from './pointing-geometry.js';
-import {esc, attachPicker, decorationLabel} from './comment-refs.js';
+import {rectHits, pathHits, pointTarget, simplify, boundsOf, closedLoop, intersectRect, polygonArea} from './pointing-geometry.js';
+import {esc, attachPicker, decorationLabel, itemLabel} from './comment-refs.js';
 import {choiceHTML, setChoice, onChoose} from './ui-toolbar.js';
 import {tips} from './tips.js';
 import {inPopup} from './popups.js';
@@ -37,7 +40,14 @@ const TOOLS = [
 const ICON = {
   enter: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 2.5 11 6.8l-3.3.8-1.6 3.3z"/><path d="M10.5 11.5h6.5v4.2h-3.3l-2 1.8v-1.8h-1.2z"/></svg>',
   close: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg>',
+  selected: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6.5" y="6.5" width="7" height="7" rx="1"/><path d="M3 6.5V3h3.5M13.5 3H17v3.5M17 13.5V17h-3.5M6.5 17H3v-3.5"/></svg>',
 };
+// Zoom chords inside the mode (plain + − 0 type into the composer): ⌥ with the board's own keys, by key position.
+const ZOOM = {Equal: '+', Minus: '-', Digit0: '0', Digit1: 'fit'};
+const MAX_MARKS = 20, MAX_TEXT = 20000;
+const DRAFT = id => `tinka/pointing-draft/${id}`;
+const MODIFIER = new Set(['Shift', 'Alt', 'Meta', 'Control', 'CapsLock', 'Fn', 'AltGraph', 'OS']);
+const NOT_ANSWERING = /failed to fetch|networkerror|load failed|network request failed/i;
 const STORE = 'tinka/pointing-tool';
 const PLACEHOLDER = 'Message to the agent. Point at things as you type.';
 const ROUND = v => Math.round(v * 10) / 10;
@@ -67,7 +77,6 @@ class PointingMode {
     this.board = board;
     this.active = false;
     this.marks = new Map();        // id -> mark (kept after its chip is deleted, so Undo can bring it back)
-    this.nextN = 1;
     this.t0 = null; this.startedAt = null;
     this.words = new TypedWords();
     this.outbox = []; this.line = Promise.resolve(); this.failure = null; // messages being sent, in order
@@ -77,6 +86,9 @@ class PointingMode {
     this.world = document.getElementById('world');
     this.ensureStyle();
     this.buildBar(); this.buildSheet(); this.buildLayer(); this.addEntry();
+    // Her unsent draft for this board, kept for the session (leaving the page and coming back loses nothing).
+    addEventListener('pagehide', () => this.saveDraft());
+    this.restoreDraft();
     // P enters from the board (Adding a shortcut, ui-sdk.md § 3): never in a field or a menu, never with a modifier.
     document.addEventListener('keydown', e => {
       if (this.active || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.key.toLowerCase() !== 'p' || e.isComposing) return;
@@ -84,6 +96,15 @@ class PointingMode {
       e.preventDefault(); e.stopImmediatePropagation(); this.enter();
     }, true);
     this.onGuard = event => this.guard(event);
+    // The rail's Point and type key, pressed while the mode is off: the press is the mode's alone, so an open Inspector,
+    // comments panel or menu takes it for neither a click-away nor a focus move (brief § 1: her panels stay as they are).
+    // An open menu is not a panel: it closes as it would for any press elsewhere, and the same press enters.
+    pointingGuard.entry = event => {
+      if (!event.target?.closest?.('[data-pointing-enter]')) return false;
+      if (event.type === 'mousedown') event.preventDefault();
+      else for (const menu of document.querySelectorAll('ui-menu-content[data-open]')) { const root = menu.closest('ui-menu'); if (root?.api?.close) root.api.close(); else if (root) root.open = false; }
+      return true;
+    };
   }
   ensureStyle() {
     for (const href of ['/app/comment-thread.css', '/app/pointing.css']) {
@@ -100,19 +121,22 @@ class PointingMode {
     bar.innerHTML = `${choiceHTML({label: 'Pointing tool', className: 'pointing-tools', value: this.tool,
       items: TOOLS.map(t => ({value: t.id, ariaLabel: t.label, tip: t.label, className: 'tk-btn tk-icon', attrs: {'aria-keyshortcuts': t.keys, 'data-pointing-tool': t.id},
         html: `<svg viewBox="0 0 20 20" aria-hidden="true">${t.icon}</svg>`}))})}
+      <button type="button" class="tk-btn tk-icon pointing-selected" aria-label="Point at the selection" aria-keyshortcuts="Alt+R" data-tip="Point at the selection">${ICON.selected}</button>
       <div class="pointing-field-wrap" data-tip-zone><div class="pointing-field" contenteditable="true" data-live-safe role="textbox" aria-multiline="true" aria-label="Message to the agent" data-height="sunken" data-placeholder="${PLACEHOLDER}"></div></div>
       <button type="button" class="tk-btn tk-primary pointing-send" data-height="raised" aria-keyshortcuts="Enter">Send</button>
       <button type="button" class="tk-btn tk-icon pointing-leave" data-height="raised" aria-label="Leave pointing" aria-keyshortcuts="Escape" data-tip="Leave pointing">${ICON.close}</button>
       <p class="pointing-status" role="status" hidden></p>`;
-    document.body.append(bar);
+    // In the page's order where it shows, above the footer's view controls: Tab from Leave goes on to them.
+    const footer = document.querySelector('.canvas-footer');
+    if (footer) footer.before(bar); else document.body.append(bar);
     this.field = bar.querySelector('.pointing-field');
+    this.selButton = bar.querySelector('.pointing-selected');
+    this.selButton.addEventListener('click', () => this.pointSelection());
     this.status = bar.querySelector('.pointing-status');
     this.tools = bar.querySelector('.pointing-tools');
     onChoose(this.tools, tool => this.setTool(tool || this.tool));
     bar.querySelector('.pointing-send').addEventListener('click', () => this.send());
     bar.querySelector('.pointing-leave').addEventListener('click', () => this.leave());
-    // A press on the bar's keys keeps the caret in the composer.
-    bar.addEventListener('mousedown', e => { if (e.target.closest('button') && document.activeElement === this.field) e.preventDefault(); });
     this.field.addEventListener('input', e => this.typed(e));
     this.field.addEventListener('paste', e => { // plain text only, so a pasted chip can never be a mark without data
       e.preventDefault(); document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
@@ -124,6 +148,11 @@ class PointingMode {
     document.addEventListener('selectionchange', keep);
     this.field.addEventListener('focusout', keep);
     this.field.addEventListener('input', keep);
+    // A press on the bar's keys never takes focus from the composer (guard, chrome()); after one, keys type again.
+    bar.addEventListener('click', e => {
+      if (!this.barPress) return; this.barPress = false;
+      if (this.active && !this.field.contains(e.target)) queueMicrotask(() => { if (this.active && document.activeElement !== this.field) this.focusField(); });
+    });
     tips(bar);
     this.syncTool();
   }
@@ -131,9 +160,10 @@ class PointingMode {
     const s = getSelection();
     // Focused already: the live selection is the caret (selectionchange arrives late, so the kept one can lag a key).
     if (document.activeElement === this.field && s.rangeCount && this.field.contains(s.anchorNode)) return;
+    const inside = s.rangeCount && this.field.contains(s.anchorNode);
     this.field.focus({preventScroll: true});
     if (this.caret && this.field.contains(this.caret.startContainer)) { s.removeAllRanges(); s.addRange(this.caret); }
-    else if (!s.rangeCount || !this.field.contains(s.anchorNode)) { const r = document.createRange(); r.selectNodeContents(this.field); r.collapse(false); s.removeAllRanges(); s.addRange(r); }
+    else if (!inside) { const r = document.createRange(); r.selectNodeContents(this.field); r.collapse(false); s.removeAllRanges(); s.addRange(r); }
   }
   setTool(tool) {
     if (!TOOLS.some(t => t.id === tool)) return;
@@ -157,6 +187,8 @@ class PointingMode {
     sheet.className = 'pointing-sheet'; sheet.hidden = true; sheet.setAttribute('aria-hidden', 'true');
     this.viewport.append(sheet);
     this.ctx = sheet.getContext('2d');
+    // The pointer left the board (onto the bar, the header, a panel): the laser dot and the hover outline go with it.
+    sheet.addEventListener('pointerleave', () => { if (this.gesture) return; this.pointer = null; this.hover = null; this.schedule(); });
     new ResizeObserver(() => { if (this.active) this.sizeSheet(); }).observe(this.viewport);
   }
   sizeSheet() {
@@ -187,18 +219,49 @@ class PointingMode {
     }
     for (const el of this.world.querySelectorAll('.workspace-decoration[data-decoration]')) {
       const d = (snap.decorations || []).find(x => x.id === el.dataset.decoration); if (!d) continue;
-      const b = box(el); if (!b) continue;
-      out.push({...b, key: `decoration:${d.id}`, kind: 'decoration', id: d.id, decoration: d, el,
-        line: d.type === 'line', frame: d.type === 'region' && !d.sticker && (!!d.container || !d.shape)});
+      const line = d.type === 'line';
+      // A text box is wider than its words (a heading's box spans the board): what counts is the text as drawn.
+      const b = (d.type === 'text' && this.inkBox(el, v)) || box(el); if (!b) continue;
+      out.push({...b, key: `decoration:${d.id}`, kind: 'decoration', id: d.id, decoration: d, el, line,
+        ...(line ? {points: this.linePoints(el, v)} : {}), frame: d.type === 'region' && !d.sticker && (!!d.container || !d.shape)});
     }
     return out;
   }
-  // The thing under a screen point: the topmost card or drawn element the page hit-tests there.
-  thingAt(x, y, list) {
+  // The words of a text element as drawn, in board units (its text nodes' line boxes, padded a little), or null.
+  inkBox(el, v) {
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), r = document.createRange();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.nodeValue.trim()) continue;
+      r.selectNodeContents(n);
+      for (const b of r.getClientRects()) { if (!b.width) continue; x0 = Math.min(x0, b.left); y0 = Math.min(y0, b.top); x1 = Math.max(x1, b.right); y1 = Math.max(y1, b.bottom); }
+    }
+    if (!(x1 > x0)) return null;
+    const pad = 4, a = this.toBoard(x0 - pad, y0 - pad, v);
+    return {x: a.x, y: a.y, w: (x1 - x0 + 2 * pad) / v.zoom, h: (y1 - y0 + 2 * pad) / v.zoom};
+  }
+  // An arrow's drawn line as a polyline in board units (24 samples along its path), or undefined.
+  linePoints(el, v) {
+    const path = el.querySelector('path.whiteboard-line-stroke, path.whiteboard-line-hit, svg > g path, svg > path');
+    if (!path?.getTotalLength) return undefined;
+    try {
+      const len = path.getTotalLength(), m = path.getScreenCTM(); if (!(len > 0) || !m) return undefined;
+      const out = [];
+      for (let i = 0; i <= 24; i++) { const p = path.getPointAtLength(len * i / 24), b = this.toBoard(m.a * p.x + m.c * p.y + m.e, m.b * p.x + m.d * p.y + m.f, v); out.push([b.x, b.y]); }
+      return out;
+    } catch { return undefined; }
+  }
+  // The thing under a screen point: the topmost card or drawn element the page hit-tests there (a text element only
+  // where its words are drawn; beside them, what is under it).
+  thingAt(x, y, list, v = this.view()) {
     for (const el of document.elementsFromPoint(x, y)) {
       if (el === this.sheet || this.bar.contains(el)) continue;
       const hit = el.closest?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]');
-      if (hit) { const key = hit.dataset.placement ? `placement:${hit.dataset.placement}` : `decoration:${hit.dataset.decoration}`; return list.find(c => c.key === key) || null; }
+      if (hit) {
+        const key = hit.dataset.placement ? `placement:${hit.dataset.placement}` : `decoration:${hit.dataset.decoration}`, c = list.find(x => x.key === key);
+        if (c?.decoration?.type === 'text') { const p = this.toBoard(x, y, v); if (p.x < c.x || p.x > c.x + c.w || p.y < c.y || p.y > c.y + c.h) continue; }
+        return c || null;
+      }
       if (el === this.viewport) break;
     }
     return null;
@@ -206,14 +269,55 @@ class PointingMode {
   target(t) {
     const c = t.candidate, boardId = this.board.snapshot.id;
     if (c.kind === 'placement') {
-      const item = c.item;
+      const item = c.item, frac = t.region || (t.spot ? {...t.spot, w: 0, h: 0} : null), content = frac && this.contentOf(c, frac);
       return {kind: 'placement', id: c.id, boardId, ...(item?.id ? {itemId: item.id} : {}), itemKind: kindOf(item), title: clip(item?.title || 'Untitled', 120),
-        whole: t.whole, ...(t.region ? {region: t.region} : {})};
+        whole: t.whole, ...(t.region ? {region: t.region} : {}), ...(t.spot ? {spot: t.spot} : {}), ...(content ? {content} : {})};
     }
     const d = c.decoration;
     const itemKind = d.type === 'line' ? 'line' : d.type === 'text' ? 'text' : d.sticker ? 'sticker' : d.type !== 'region' ? d.type || 'drawing'
       : d.container ? 'container' : d.shape === 'rectangle' ? 'sticky' : d.shape ? 'shape' : 'region';
-    return {kind: 'decoration', id: c.id, boardId, itemKind, title: clip(d.sticker ? `Sticker ${d.text || ''}` : decorationLabel(d), 120), whole: t.whole, ...(t.region ? {region: t.region} : {})};
+    return {kind: 'decoration', id: c.id, boardId, itemKind, title: clip(d.sticker ? `Sticker ${d.text || ''}` : decorationLabel(d), 120), whole: t.whole,
+      ...(t.region ? {region: t.region} : {}), ...(t.spot ? {spot: t.spot} : {})};
+  }
+  // Where she pointed in the item's own content (CONTRACT "Added after the review"), from `frac` (fractions of the card's
+  // box; w = h = 0 for a spot): an HTML page in CSS px of the page at the width the card renders it, an image in px of
+  // its file, anything else as fractions of the content area under the card's title. Null when the gesture misses the
+  // content area (only the title, say) or the card has none.
+  contentOf(c, frac) {
+    const card = c.el?.getBoundingClientRect(), area = c.el?.querySelector('.workspace-card-preview');
+    if (!card?.width || !area) return null;
+    const want = {x: card.left + frac.x * card.width, y: card.top + frac.y * card.height, w: frac.w * card.width, h: frac.h * card.height};
+    const spot = !frac.w && !frac.h;
+    // `want` inside a screen box `b`: the clipped part, or for a spot the point if it is inside.
+    const within = b => {
+      if (spot) return want.x >= b.x && want.x <= b.x + b.w && want.y >= b.y && want.y <= b.y + b.h ? {x: want.x, y: want.y, w: 0, h: 0} : null;
+      const i = intersectRect(want, b); return i && i.w >= 1 && i.h >= 1 ? i : null;
+    };
+    const kind = kindOf(c.item), px = n => Math.max(0, Math.round(n));
+    const img = kind === 'image' && area.querySelector('img');
+    if (img?.naturalWidth > 0) {
+      // Where the picture's pixels are inside the <img> box (object-fit), as the crop reads them (pointing-crop.js).
+      const shown = img.getBoundingClientRect(), nw = img.naturalWidth, nh = img.naturalHeight, fit = getComputedStyle(img).objectFit || 'fill';
+      let cw = shown.width, ch = shown.height;
+      if (fit === 'contain' || fit === 'scale-down' || fit === 'cover') { const k0 = (fit === 'cover' ? Math.max : Math.min)(shown.width / nw, shown.height / nh), k = fit === 'scale-down' ? Math.min(1, k0) : k0; cw = nw * k; ch = nh * k; }
+      else if (fit === 'none') { cw = nw; ch = nh; }
+      const pic = {x: shown.left + (shown.width - cw) / 2, y: shown.top + (shown.height - ch) / 2, w: cw, h: ch};
+      const box = intersectRect(pic, {x: shown.left, y: shown.top, w: shown.width, h: shown.height}) || pic, part = within(box); if (!part) return null;
+      const kx = nw / pic.w, ky = nh / pic.h;
+      return {x: px((part.x - pic.x) * kx), y: px((part.y - pic.y) * ky), w: px(part.w * kx), h: px(part.h * ky), unit: 'px', of: `image ${nw} × ${nh} px`};
+    }
+    const frame = kind === 'html' && area.querySelector('iframe');
+    if (frame?.offsetWidth > 0) {
+      // The page's own CSS px: the frame's layout width is the page's width; the card shows it scaled.
+      const r = frame.getBoundingClientRect(), k = frame.offsetWidth / r.width, part = within({x: r.left, y: r.top, w: r.width, h: r.height}); if (!part) return null;
+      let sx = 0, sy = 0; try { sx = frame.contentWindow?.scrollX || 0; sy = frame.contentWindow?.scrollY || 0; } catch {}
+      return {x: px((part.x - r.left) * k + sx), y: px((part.y - r.top) * k + sy), w: px(part.w * k), h: px(part.h * k), unit: 'px', of: `page ${frame.offsetWidth} px wide`};
+    }
+    const a = area.getBoundingClientRect(); if (!(a.width > 0 && a.height > 0)) return null;
+    const part = within({x: a.left, y: a.top, w: a.width, h: a.height}); if (!part) return null;
+    const f = v => Math.min(1, Math.max(0, Math.round(v * 1000) / 1000));
+    const x = f((part.x - a.left) / a.width), y = f((part.y - a.top) / a.height);
+    return {x, y, w: Math.min(1 - x, f(part.w / a.width)), h: Math.min(1 - y, f(part.h / a.height)), unit: 'fraction', of: 'content area'};
   }
 
   // ---------- entering and leaving ----------
@@ -227,10 +331,12 @@ class PointingMode {
     this.bar.hidden = false; this.sheet.hidden = false; this.layer.hidden = false;
     this.hoverList = null; this.hover = null;
     // The @ list is made on first use, so a board that never points has only the comment card's.
-    this.picker ||= attachPicker(this.field, this.board, {onChange: () => this.adoptPicked()});
+    this.picker ||= attachPicker(this.field, this.board, {onChange: () => this.adoptPicked(), first: () => this.pickFirst()});
     this.sizeSheet(); this.renderMarks();
     pointingGuard.handler = this.onGuard;
+    this.syncSelectionKey();
     this.focusField();
+    this.saveSoon();
     this.announce('Pointing on. Type your message and point at the board; Escape leaves.');
   }
   leave() {
@@ -247,6 +353,7 @@ class PointingMode {
     const back = this.returnFocus;
     if (back?.isConnected && back !== document.body) back.focus({preventScroll: true});
     else this.viewport.focus({preventScroll: true});
+    this.saveSoon();
     this.announce('Pointing off.');
   }
   announce(text) {
@@ -259,7 +366,7 @@ class PointingMode {
     if (this.board.snapshot.id !== this.boardId || this.board.mode !== 'canvas') { this.leave(); return false; }
     if (e.type === 'keydown') return this.key(e);
     const onSheet = e.target === this.sheet;
-    if (!onSheet) return false;
+    if (!onSheet) return this.chrome(e);
     if (e.type === 'pointerdown') this.down(e);
     else if (e.type === 'pointermove') this.move(e);
     else if (e.type === 'pointerup') this.up(e);
@@ -267,13 +374,27 @@ class PointingMode {
     else e.preventDefault(); // mousedown, click, dblclick, contextmenu: nothing of the board's
     return true;
   }
+  // A press on the mode's own bar is the mode's: no panel or menu outside takes it for a click-away (brief § 1), and a
+  // press anywhere on the bar but the field keeps focus in the field (no focus move; after the click it is put back).
+  // The @ list (a popup inside the bar) handles its own presses.
+  chrome(e) {
+    if (e.type !== 'pointerdown' && e.type !== 'mousedown') return false;
+    const t = e.target;
+    if (!(t instanceof Node) || !this.bar.contains(t) || t.closest?.('.cref-picker')) return false;
+    if (!this.field.contains(t)) { this.barPress = true; if (e.type === 'mousedown') e.preventDefault(); }
+    return true;
+  }
   key(e) {
     if (e.isComposing || e.keyCode === 229) return false;
     const inField = this.field.contains(e.target), inBar = this.bar.contains(e.target);
     // Tools: ⌥ + letter, by key position (⌥M types µ on a Mac), from anywhere.
-    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.repeat) {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       const tool = TOOLS.find(t => t.code === e.code);
-      if (tool) { e.preventDefault(); this.setTool(tool.id); return true; }
+      if (tool) { e.preventDefault(); if (!e.repeat) this.setTool(tool.id); return true; }
+      // ⌥R: a reference to what is selected on the board (else the item that had focus), without a pointer.
+      if (e.code === 'KeyR') { e.preventDefault(); if (!e.repeat) this.pointSelection(); return true; }
+      // Zoom without leaving the composer: ⌥ with the board's + − 0, and ⌥1 fits the board.
+      if (ZOOM[e.code] && !inPopup(e)) { e.preventDefault(); if (!e.repeat || ZOOM[e.code] === '+' || ZOOM[e.code] === '-') this.board.hooks.zoomKey?.(ZOOM[e.code]); return true; }
     }
     if (e.key === 'Escape') {
       if (this.gesture) { e.preventDefault(); this.cancelGesture(); return true; }
@@ -286,6 +407,7 @@ class PointingMode {
       if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !this.picker?.open) { e.preventDefault(); this.send(); return true; }
       return false;
     }
+    if (MODIFIER.has(e.key)) return false; // a chord's first key (Shift of Shift+Tab) moves nothing
     if (inBar) {
       // The bar's own keys keep Tab, arrows, Space and Enter; anything else is typing, and goes to the composer.
       if (['Tab', 'Enter', ' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key) || e.ctrlKey || e.metaKey) return false;
@@ -297,7 +419,7 @@ class PointingMode {
     // On the map or a side panel (not in one of its fields or menus), their keys stay theirs; a letter is typing, and
     // goes to the composer rather than being lost there.
     if (e.target.closest?.('.calm-side,.board-map,.feedback-panel') && (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.key === ' ')) return false;
-    if (e.key === 'Tab' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta' || e.key === 'Control') return false;
+    if (e.key === 'Tab') return false;
     if ((e.metaKey || e.ctrlKey) && ['d', 'g', 'i', 'k'].includes(e.key.toLowerCase())) e.preventDefault();
     this.focusField(); return true;
   }
@@ -341,7 +463,8 @@ class PointingMode {
         this.trail.push(p); g.loop.push(p);
         // Detection keeps its own copy of the trail: a closed circle starts a fresh one, the drawn trail fades as drawn.
         const loop = g.moved && closedLoop(g.loop);
-        if (loop) { this.circled(loop, ev.timeStamp, v); g.loop = [p]; }
+        // The trail from where this loop began stays in play, so a bigger circle closing later is still seen.
+        if (loop) { this.circled(loop, ev.timeStamp, v); g.loop = g.loop.slice(Math.max(0, loop.index)); }
       }
     }
     g.current = this.toBoard(e.clientX, e.clientY, v);
@@ -376,22 +499,36 @@ class PointingMode {
     this.gesture = null; this.sheet?.classList.remove('pointing-panning');
     this.schedule();
   }
-  // A circle the laser drew: what it encloses is a reference (lasso rules). Circling the same thing again at once
-  // is emphasis, not a second reference.
+  // A circle the laser drew: what it encloses is a reference (lasso rules, loose: a circle round a thing's centre that
+  // holds most of it is the whole thing). Circling the same thing again at once is emphasis, not a second reference;
+  // a bigger circle round it (the first loop closed early, on the way in) takes the place of the smaller one.
   circled({loop}, t, v) {
     const g = this.gesture;
     const points = simplify(loop.map(([x, y]) => { const p = this.toBoard(x, y, v); return [p.x, p.y]; }), 1 / v.zoom, 400);
-    const hits = pathHits(points, g.list), keys = hits.targets.map(h => h.candidate.key).sort().join(' ');
-    const last = this.lastLaser;
-    if (last && last.keys === keys && keys && t - last.t < 2500) { last.t = t; return; }
-    this.lastLaser = {keys, t};
-    this.addMark({tool: 'laser', at: g.at, end: this.stamp(t), shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, hits, empty: 'Board area'});
+    const hits = pathHits(points, g.list, {loose: true}), keys = hits.targets.map(h => h.candidate.key).sort().join(' ');
+    const last = this.lastLaser, size = polygonArea(points);
+    if (last && last.keys === keys && keys && t - last.t < 2500) {
+      last.t = t;
+      const mark = this.marks.get(last.id), chip = mark && this.field.querySelector(`[data-mark="${mark.id}"]`);
+      if (chip && size > last.size * 1.3) {
+        last.size = size;
+        Object.assign(mark, {shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, targets: hits.targets.map(h => this.target(h)),
+          boxes: hits.targets.map(h => dataBox(h.candidate.placement || h.candidate.decoration)), end: this.stamp(t)});
+        chip.dataset.tip = describe(mark);
+        this.renderMarks(); this.saveSoon();
+      }
+      return;
+    }
+    if (this.full()) return;
+    const made = this.addMark({tool: 'laser', at: g.at, end: this.stamp(t), shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, hits, empty: 'Board area'});
+    if (made) this.lastLaser = {keys, t, id: made.id, size};
     g.at = this.stamp(t);
   }
   // A click: the thing under the pointer, or the board at that spot.
   pointAt(x, y, at, end, tool) {
-    const v = this.view(), list = this.candidates(v), p = this.toBoard(x, y, v), hit = this.thingAt(x, y, list);
-    const targets = hit ? [pointTarget(hit, p, {zoom: v.zoom})] : [];
+    const v = this.view(), list = this.candidates(v), p = this.toBoard(x, y, v), hit = this.thingAt(x, y, list, v);
+    // The whole thing under the click, with the spot she clicked (a part needs a drag).
+    const targets = hit ? [pointTarget(hit, p)] : [];
     this.addMark({tool, at, end, shape: {kind: 'point', x: ROUND(p.x), y: ROUND(p.y)}, hits: {targets, more: 0}, empty: 'Board point'});
   }
   hoverAt(x, y) {
@@ -400,16 +537,26 @@ class PointingMode {
     this.hoverFrame = requestAnimationFrame(() => {
       this.hoverFrame = 0;
       if (!this.active || this.gesture || !this.pointer) return;
-      const v = this.view(), hit = this.thingAt(this.pointer.x, this.pointer.y, this.hoverList ||= this.candidates(v));
+      const v = this.view(), hit = this.thingAt(this.pointer.x, this.pointer.y, this.hoverList ||= this.candidates(v), v);
       const key = hit?.key || null;
       if (key !== this.hover?.key) { this.hover = hit; this.draw(v); }
     });
   }
 
   // ---------- marks and chips ----------
+  // Marks on screen now (the chips in the composer); at the limit, a new one is not taken and the bar says why.
+  full() {
+    if (this.chips().length < MAX_MARKS) return false;
+    this.notify(`A message can have at most ${MAX_MARKS} marks. Send this one, or delete a mark first.`);
+    return true;
+  }
+  // The next mark's number: one past every mark of this draft, deleted ones too (Undo can bring a chip back), so a
+  // number on screen is never used twice. Sending numbers them 1..n in reading order.
+  newN() { let n = 0; for (const m of this.marks.values()) n = Math.max(n, m.n); return n + 1; }
   addMark({tool, at, end, shape, hits, empty}) {
+    if (this.full()) return null;
     const targets = hits.targets.map(t => this.target(t));
-    const n = this.nextN++;
+    const n = this.newN();
     const id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const label = targets.length === 0 ? empty : targets.length === 1 && !hits.more ? targets[0].title : `${targets.length + hits.more} items`;
     // `boxes`: where each target was when she pointed (its saved box), so the draft's marks can tell when one moved.
@@ -418,7 +565,9 @@ class PointingMode {
     this.marks.set(id, mark);
     this.hoverList = null;
     this.insertChip(mark);
+    this.notice = null; this.syncStatus();
     this.renderMarks();
+    this.saveSoon();
     this.announce(`${n}: ${describe(mark)}`);
     return mark;
   }
@@ -446,22 +595,70 @@ class PointingMode {
   // A chip the @ picker inserted becomes a mark made by the keyboard.
   adoptPicked() {
     const v = this.view(), list = this.candidates(v);
+    let last = null;
     for (const chip of this.field.querySelectorAll('.cref[data-ref]:not([data-mark])')) {
       let ref; try { ref = JSON.parse(chip.dataset.ref); } catch { chip.remove(); continue; }
+      if (this.full()) { chip.nextSibling?.nodeType === 3 && chip.nextSibling.nodeValue.startsWith(' ') && (chip.nextSibling.nodeValue = chip.nextSibling.nodeValue.slice(1)); chip.remove(); continue; }
       const key = ref.kind === 'item' ? `placement:${ref.placementId || (this.board.snapshot.placements.find(p => p.itemId === ref.id && !p.removedAt)?.id)}` : `${ref.kind}:${ref.id}`;
       let c = list.find(x => x.key === key);
       if (!c && ref.kind === 'board') c = list.find(x => x.item?.childBoardId === ref.id);
-      const t = this.stamp(), n = this.nextN++, id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const t = this.stamp(), n = this.newN(), id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       const centre = this.toBoard(this.sheetRect.left + this.sheetRect.width / 2, this.sheetRect.top + this.sheetRect.height / 2, v);
       const targets = c ? [this.target({candidate: c, whole: true})]
         : ref.kind === 'board' ? [{kind: 'board', id: ref.id, boardId: this.board.snapshot.id, itemKind: 'board', title: clip(ref.label, 120), whole: true}] : [];
       const shape = c ? {kind: 'rect', x: ROUND(c.x), y: ROUND(c.y), w: ROUND(c.w), h: ROUND(c.h)} : {kind: 'point', x: ROUND(centre.x), y: ROUND(centre.y)};
       const mark = {id, n, tool: 'keyboard', at: t, end: t, boardId: this.board.snapshot.id, shape, targets, boxes: c ? [dataBox(c.placement || c.decoration)] : [], more: 0, label: targets[0]?.title || ref.label || 'Board point'};
-      this.marks.set(id, mark);
+      this.marks.set(id, mark); last = mark;
       const tpl = document.createElement('template'); tpl.innerHTML = this.chipHTML(mark);
       chip.replaceWith(tpl.content.firstElementChild);
     }
     this.renderMarks();
+    if (last) { this.reveal(last); this.announce(`${last.n}: ${describe(last)}`); }
+    this.saveSoon();
+  }
+  // The @ list's first group: what is selected on the board (else the item that had focus).
+  pickFirst() {
+    const {from, list} = this.selectionTargets(), boardId = this.board.snapshot.id;
+    const refs = list.map(c => c.kind === 'placement'
+      ? (c.item?.childBoardId && !c.item.content ? {kind: 'board', id: c.item.childBoardId, label: itemLabel(c.item)} : {kind: 'item', id: c.item?.id || c.id, boardId, placementId: c.id, label: itemLabel(c.item)})
+      : {kind: 'decoration', id: c.id, boardId, label: decorationLabel(c.decoration)}).filter(r => r.id);
+    return refs.length ? {label: from, refs} : null;
+  }
+  // What ⌥R and the bar's Point at the selection key point at: the board's selection (cards and drawn elements), else
+  // the item that had focus when she entered. The mode never changes either.
+  selectionTargets(v = this.view()) {
+    const list = this.candidates(v), keys = [...(this.board.selection || [])].map(id => `placement:${id}`);
+    for (const d of this.board.whiteboard?.selectedDecorations?.() || []) keys.push(`decoration:${d.id}`);
+    let from = 'Selected';
+    if (!keys.length) {
+      const f = this.returnFocus?.closest?.('#world .workspace-card[data-placement], #world .workspace-decoration[data-decoration]');
+      if (f) { keys.push(f.dataset.placement ? `placement:${f.dataset.placement}` : `decoration:${f.dataset.decoration}`); from = 'Focused'; }
+    }
+    return {from, list: [...new Set(keys)].map(k => list.find(c => c.key === k)).filter(Boolean)};
+  }
+  syncSelectionKey() {
+    const none = !this.selectionTargets().list.length;
+    this.selButton.setAttribute('aria-disabled', String(none));
+    this.selButton.dataset.tip = none ? 'Point at the selection (nothing is selected)' : 'Point at the selection';
+  }
+  // A reference to the selection without a pointer (brief § 6): one mark over all of it, whole.
+  pointSelection() {
+    if (!this.active) return;
+    const v = this.view(), {list} = this.selectionTargets(v);
+    if (!list.length) { this.notify('Nothing is selected on the board. Select something before pointing, or type @ and its name.'); this.focusField(); return; }
+    const b = boundsOf(list.flatMap(c => [[c.x, c.y], [c.x + c.w, c.y + c.h]])), t = this.stamp();
+    const mark = this.addMark({tool: 'keyboard', at: t, end: t, shape: {kind: 'rect', x: ROUND(b.x), y: ROUND(b.y), w: ROUND(b.w), h: ROUND(b.h)},
+      hits: {targets: list.slice(0, 12).map(c => ({candidate: c, whole: true})), more: Math.max(0, list.length - 12)}, empty: 'Board area'});
+    if (mark) this.reveal(mark);
+  }
+  // A mark made without the pointer that is off screen: the board brings it into view (leaving puts the view back).
+  reveal(mark) {
+    const g = this.geometry(mark, true), pts = g.shapes.flatMap(r => r.kind === 'path' ? r.points : [[r.x, r.y], [r.x + r.w, r.y + r.h]]);
+    if (!pts.length) return;
+    const b = boundsOf(pts), v = this.view(), [x0, y0] = this.toScreen(b.x, b.y, v), [x1, y1] = this.toScreen(b.x + b.w, b.y + b.h, v);
+    const r = this.sheetRect, bar = this.bar.getBoundingClientRect();
+    if (x1 > 0 && x0 < r.width && y1 > 0 && y0 < Math.min(r.height, bar.top - r.top)) return;
+    this.board.hooks.revealPlacements?.([{id: 'pointing', x: b.x, y: b.y, width: Math.max(b.w, 40), height: Math.max(b.h, 40)}]);
   }
   chips() { return [...this.field.querySelectorAll('.pointing-chip[data-mark]')].filter(c => this.marks.has(c.dataset.mark)); }
   typed(e) {
@@ -477,7 +674,8 @@ class PointingMode {
     }
     // Chips deleted (Backspace) or brought back (Undo): the board shows the marks of the chips present.
     this.renderMarks();
-    if (!this.chips().length && !this.field.textContent.trim()) { this.nextN = 1; }
+    if (this.notice) { this.notice = null; this.syncStatus(); }
+    this.saveSoon();
   }
 
   // ---------- drawing ----------
@@ -503,7 +701,8 @@ class PointingMode {
       if (g.dot) badges += `<span class="pointing-dot${g.gone ? ' pointing-gone' : ''}" style="left:${g.dot.x + o.x}px;top:${g.dot.y + o.y}px"></span>`;
       badges += `<span class="pointing-badge${g.gone ? ' pointing-gone' : ''}" data-n="${m.n}" style="left:${g.badge.x + o.x}px;top:${g.badge.y + o.y}px"><b>${m.n}</b>${g.note ? `<span class="pointing-note">${esc(g.note)}</span>` : ''}</span>`;
       if (!sent) { // the chip says so too
-        const chip = this.field.querySelector(`[data-mark="${m.id}"]`);
+        const chip = this.field.querySelector(`[data-mark="${m.id}"]`), num = chip?.querySelector('.pointing-n');
+        if (num && num.textContent !== String(m.n)) num.textContent = String(m.n); // a chip Undo brought back shows its mark's number
         if (chip && chip.classList.contains('missing') !== !!g.gone) { chip.classList.toggle('missing', !!g.gone); chip.dataset.tip = g.gone ? `Deleted: ${describe(m)}` : describe(m); }
       }
     }
@@ -614,7 +813,7 @@ class PointingMode {
       for (const h of hits?.targets || []) outline(h.candidate, v, !h.whole);
     }
     if (!g && this.hover && this.tool !== 'laser') { v ||= this.view(); outline(this.hover, v, true); }
-    if (this.tool === 'laser' && this.pointer) {
+    if (this.tool === 'laser' && (this.pointer || this.trail.length)) {
       const fade = 700, trail = this.trail.filter(p => now - p[2] < fade + 50);
       this.trail = g ? this.trail : trail;
       const r = this.sheetRect;
@@ -632,7 +831,7 @@ class PointingMode {
         ctx.globalAlpha = hi * .85; ctx.lineWidth = 2 + 2.5 * hi; ctx.stroke();
       }
       ctx.globalAlpha = 1; ctx.fillStyle = red;
-      ctx.beginPath(); ctx.arc(this.pointer.x - r.left, this.pointer.y - r.top, 5, 0, Math.PI * 2); ctx.fill();
+      if (this.pointer) { ctx.beginPath(); ctx.arc(this.pointer.x - r.left, this.pointer.y - r.top, 5, 0, Math.PI * 2); ctx.fill(); }
       // Fading needs frames of its own only while she holds still: a frame requested from a frame while she moves
       // holds her next move back a frame (measured: 32 ms against 17 ms), so moves drive the frames then.
       if (trail.length > 1 && trail.some(p => now - p[2] < fade)) {
@@ -688,6 +887,11 @@ class PointingMode {
     const board = this.board, snap = board.snapshot, boardId = snap.id;
     const label = m => `${m.n} ${clip(m.label, 60)}`;
     const body = parts.map(p => 'mark' in p ? `@${label(marks[p.mark - 1])}` : p.text).join('').replace(/[ \t]{2,}/g, ' ').trim() || marks.map(m => `@${label(m)}`).join(' ');
+    // Too long to send: said now, and the message stays where it is.
+    if (body.length > MAX_TEXT) {
+      this.notify(`A message can be at most ${MAX_TEXT.toLocaleString('en-US')} characters. This one has ${body.length.toLocaleString('en-US')}: shorten it and send again.`);
+      this.focusField(); return null;
+    }
     // Flat refs: every object hit, once; a mark with one object labels it with the mark's chip text, so the thread
     // card's existing chips render the sentence (comment-refs.js renderBody).
     const refs = [], seen = new Set();
@@ -699,7 +903,10 @@ class PointingMode {
     const first = marks[0];
     // The thread's pin sits at the first mark's top-right corner (its number badge is top-left), so it never covers
     // what she pointed at.
-    const anchorPoint = first ? pinPointOf(first.shape) : this.toBoard(this.sheetRect.left + this.sheetRect.width / 2, this.sheetRect.top + this.sheetRect.height / 2);
+    // A click's mark is the whole thing outlined: the pin goes at that outline's top-right, not on the spot clicked.
+    const drawn = first && first.shape.kind === 'point' ? this.geometry(first, true).shapes : [];
+    const anchorPoint = drawn.length ? pinPointOf({kind: 'path', points: drawn.flatMap(r => r.kind === 'path' ? r.points : [[r.x, r.y], [r.x + r.w, r.y + r.h]])})
+      : first ? pinPointOf(first.shape) : this.toBoard(this.sheetRect.left + this.sheetRect.width / 2, this.sheetRect.top + this.sheetRect.height / 2);
     const t0 = first?.targets[0];
     const anchor = pointAnchorAt(anchorPoint, snap, t0?.kind === 'placement' ? {placementId: t0.id} : t0?.kind === 'decoration' ? {decorationId: t0.id} : {});
     if (anchor.relative) anchor.relative = {x: Math.min(1, Math.max(0, anchor.relative.x)), y: Math.min(1, Math.max(0, anchor.relative.y))};
@@ -711,7 +918,8 @@ class PointingMode {
       marks: marks.map(m => ({n: m.n, tool: m.tool, at: m.at, end: m.end, boardId: m.boardId, shape: m.shape, targets: m.targets, crop: null})),
     };
     const fb = board.feedback?.actor, author = fb?.id ? {id: fb.id, label: fb.label || 'You', kind: 'human'} : {id: 'human-local', label: 'You', kind: 'human'};
-    const job = {draft: this.takeDraft(), operation: {boardId, author, body: body.slice(0, 20000), to: {kind: 'agent'}, status: 'sent', ...(refs.length ? {refs} : {}), anchor, pointing}, count: marks.length};
+    const job = {draft: this.takeDraft(), operation: {boardId, author, body, to: {kind: 'agent'}, status: 'sent', ...(refs.length ? {refs} : {}), anchor, pointing}, count: marks.length};
+    this.notice = null;
     this.clear();
     this.field.dataset.placeholder = 'Type the next message.';
     this.outbox.push(job); this.failure = null; this.syncStatus();
@@ -736,6 +944,7 @@ class PointingMode {
       }
       const result = await board.client.write('addComment', job.operation);
       this.outbox.splice(this.outbox.indexOf(job), 1);
+      this.saveSoon();
       this.lastSent = job.count;
       this.syncStatus();
       this.announce('Sent to the agent.');
@@ -750,7 +959,7 @@ class PointingMode {
   // The composer's content as it stands, to send and, if sending fails, to give back.
   takeDraft() {
     return {nodes: [...this.field.childNodes].map(n => n.cloneNode(true)), marks: new Map(this.marks), words: new Map(this.words.times),
-      t0: this.t0, startedAt: this.startedAt, nextN: this.nextN};
+      t0: this.t0, startedAt: this.startedAt};
   }
   // A message that did not go: back in the composer. If she has started the next one, the old one goes before it on
   // its own line, and the marks are numbered again in reading order.
@@ -758,7 +967,7 @@ class PointingMode {
     const empty = !this.chips().length && !this.field.textContent.trim();
     if (empty) {
       this.field.replaceChildren(...draft.nodes);
-      this.marks = draft.marks; this.words.times = draft.words; this.t0 = draft.t0; this.startedAt = draft.startedAt; this.nextN = draft.nextN;
+      this.marks = draft.marks; this.words.times = draft.words; this.t0 = draft.t0; this.startedAt = draft.startedAt;
     } else {
       // Times are from the old message's start; the new one's are moved onto that clock.
       const shift = this.t0 != null && draft.t0 != null ? Math.max(0, Math.round(this.t0 - draft.t0)) : 0;
@@ -773,10 +982,15 @@ class PointingMode {
       for (const [id, m] of draft.marks) this.marks.set(id, m);
       this.field.prepend(...draft.nodes, document.createTextNode('\n'));
       this.t0 = draft.t0 ?? this.t0; this.startedAt = draft.startedAt || this.startedAt;
-      this.chips().forEach((chip, i) => { const m = this.marks.get(chip.dataset.mark); m.n = i + 1; chip.querySelector('.pointing-n').textContent = String(i + 1); });
-      this.nextN = this.chips().length + 1;
+      const chips = this.chips(), live = new Set(chips.map(c => c.dataset.mark));
+      chips.forEach((chip, i) => { const m = this.marks.get(chip.dataset.mark); m.n = i + 1; chip.querySelector('.pointing-n').textContent = String(i + 1); });
+      // Marks whose chips were deleted (Undo can bring them back) take the numbers after, so none is on screen twice.
+      let n = chips.length; for (const [id, m] of this.marks) if (!live.has(id)) m.n = ++n;
     }
-    this.failure = `Not sent: ${String(error?.message || error || 'the server did not answer').replace(/\.$/, '')}. Your message is back in the field${empty ? '' : ', before the one you were writing'}.`;
+    // Plain reasons: the app not answering, or what the server said (lib/feedback.mjs words its refusals for her).
+    const said = String(error?.message || error || '').trim().replace(/\.$/, ''), back = `Your message is back in the field${empty ? '' : ', before the one you were writing'}.`;
+    this.failure = !said || NOT_ANSWERING.test(said) || error?.name === 'TypeError' ? `The app isn't answering. ${back}` : `Not sent: ${said}. ${back}`;
+    this.saveSoon();
     this.syncStatus();
     this.renderMarks();
     if (this.active) this.focusField();
@@ -786,8 +1000,8 @@ class PointingMode {
   // The line on the bar: what is sending, what failed; after a send, the placeholder says it went.
   syncStatus() {
     const n = this.outbox.length, el = this.status;
-    const text = this.failure || (n ? (n === 1 ? 'Sending…' : `Sending ${n} messages…`) : '');
-    el.textContent = text; el.hidden = !text; el.toggleAttribute('data-error', !!this.failure && !n);
+    const text = this.notice || this.failure || (n ? (n === 1 ? 'Sending…' : `Sending ${n} messages…`) : '');
+    el.textContent = text; el.hidden = !text; el.toggleAttribute('data-error', !!this.notice || (!!this.failure && !n));
     if (!n && !this.failure && this.lastSent != null) {
       const k = this.lastSent; this.lastSent = null;
       this.field.dataset.placeholder = `Sent to the agent${k ? ` with ${k} reference${k === 1 ? '' : 's'}` : ''}. Type the next message.`;
@@ -795,8 +1009,76 @@ class PointingMode {
   }
   clear() {
     this.field.replaceChildren(); this.caret = null;
-    this.marks = new Map(); this.nextN = 1; this.t0 = null; this.startedAt = null; this.words = new TypedWords(); this.lastLaser = null;
+    this.marks = new Map(); this.t0 = null; this.startedAt = null; this.words = new TypedWords(); this.lastLaser = null;
     this.renderMarks();
+    this.saveSoon();
+  }
+  // A line on the bar that explains why something was not taken (the mark limit, a message too long, nothing
+  // selected); it goes at her next keystroke or mark.
+  notify(text) { this.notice = text; this.syncStatus(); this.announce(text); }
+
+  // ---------- the draft, kept per board for the session ----------
+  // Words (the composer's own markup, chips included), marks, typing times and whether the mode was on. Messages still
+  // sending when the page goes are kept too: on return, one the server does not have comes back into the composer.
+  draftState() {
+    const html = this.field.innerHTML, has = !!this.field.textContent.trim() || !!this.field.querySelector('.pointing-chip');
+    const pending = this.outbox.map(job => ({html: job.draft.nodes.map(n => n.nodeType === 1 ? n.outerHTML : esc(n.nodeValue || '')).join(''),
+      marks: [...job.draft.marks.values()], words: [...job.draft.words], startedAt: job.operation.pointing.startedAt}));
+    if (!has && !pending.length) return null;
+    return {v: 1, html: has ? html : '', marks: has ? [...this.marks.values()] : [], words: has ? [...this.words.times] : [], startedAt: this.startedAt,
+      elapsed: this.t0 == null ? null : performance.now() - this.t0, savedAt: Date.now(), active: this.active, pending};
+  }
+  saveDraft() {
+    clearTimeout(this.saveTimer); this.saveTimer = 0;
+    const id = this.boardId || this.board.snapshot?.id; if (!id || this.restoring) return;
+    try { const state = this.draftState(); if (state) sessionStorage.setItem(DRAFT(id), JSON.stringify(state)); else sessionStorage.removeItem(DRAFT(id)); } catch {}
+  }
+  saveSoon() { if (!this.saveTimer) this.saveTimer = setTimeout(() => this.saveDraft(), 250); }
+  async restoreDraft() {
+    const id = this.board.snapshot?.id; let state = null;
+    try { state = JSON.parse(sessionStorage.getItem(DRAFT(id)) || 'null'); } catch {}
+    if (!state || state.v !== 1) return;
+    this.boardId = id;
+    const clock = (elapsed, savedAt) => elapsed == null ? null : performance.now() - elapsed - Math.max(0, Date.now() - savedAt);
+    if (state.html) {
+      this.field.innerHTML = state.html;
+      for (const chip of this.field.querySelectorAll('.pointing-chip')) chip.removeAttribute('data-ref');
+      this.marks = new Map(state.marks.map(m => [m.id, m]));
+      this.words.times = new Map(state.words);
+      this.startedAt = state.startedAt; this.t0 = clock(state.elapsed, state.savedAt);
+    }
+    if (state.active) requestAnimationFrame(() => this.enter());
+    // Messages that were still sending as she left: the server has them, or they come back, before her draft.
+    if (state.pending?.length) {
+      this.restoring = true;
+      let have = new Set();
+      try {
+        const data = await this.board.client.get(`/api/feedback?${new URLSearchParams({boardId: id, includeBodies: 'true', limit: '100'})}`);
+        have = new Set((data.threads || []).map(t => t.pointing?.startedAt).filter(Boolean));
+      } catch { /* unknown: give them back rather than lose them */ }
+      this.restoring = false;
+      for (const job of state.pending.reverse()) {
+        if (have.has(job.startedAt)) continue;
+        const tpl = document.createElement('template'); tpl.innerHTML = job.html;
+        this.giveBack({nodes: [...tpl.content.childNodes], marks: new Map(job.marks.map(m => [m.id, m])), words: new Map(job.words), t0: clock(0, Date.now()), startedAt: job.startedAt},
+          new Error('It was still sending when you left the page'));
+      }
+      this.saveDraft();
+    }
+    if (!this.active) this.renderMarks();
+  }
+
+  // The open thread's marks on screen, as a client box {left, top, right, bottom}, so its card can sit clear of them
+  // (comment-thread.js); null when none show. A whole thing's outline is left out (a big card cannot be cleared; its
+  // number and the spot clicked can).
+  sentScreenBox(threadId) {
+    if (!this.sent || this.sent.threadId !== threadId || this.layer.hidden) return null;
+    let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+    for (const el of this.layer.querySelectorAll('.pointing-shape:not(.pointing-outline), .pointing-badge, .pointing-dot')) {
+      const r = el.getBoundingClientRect(); if (!r.width && !r.height) continue;
+      left = Math.min(left, r.left); top = Math.min(top, r.top); right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
+    }
+    return right > left ? {left, top, right, bottom} : null;
   }
 
   // ---------- a sent message, shown on the board while its thread card is open ----------

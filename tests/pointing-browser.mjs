@@ -5,15 +5,21 @@
 // her sentence with chips. At 1280 also: a sent mark follows a card an agent moves or resizes, an edited target's chip
 // takes its new text, a deleted target's mark stays where it was drawn labelled Deleted, a draft mark follows a card
 // moved while she types, and Send clears at once, lets her type on while it sends, and gives a failed message back.
+// The review's fixes (team/pointing/STATUS.md, 2026-11-25): an @ name with spaces keeps the list open and Enter picks;
+// a press on the bar keeps focus in the field; a number on screen is never used twice; ⌥R, the @ list's Selected
+// group, ⌥ zoom and Tab out of the bar; panels stay open; the laser dot goes with the pointer; the 20-mark and length
+// limits and an app that isn't answering said plainly; the draft survives a reload. At 1280 also: a click points at the
+// whole thing with its spot and content coordinates (page px, image px), text counts where its words are drawn, an
+// arrow by its line, a slow laser circle round a sticky is the whole sticky, and an open thread card clears its marks.
 // Light at 1280 and a phone at 390. Isolated fixture, headless, port 0.
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,mkdir} from 'node:fs/promises';
+import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {main} from '../cli.mjs';
 import {loadConfig} from '../lib/config.mjs';
-import {applyOperation} from '../lib/workspace.mjs';
+import {applyOperation,getBoardSnapshot} from '../lib/workspace.mjs';
 import {listFeedback} from '../lib/feedback.mjs';
 import {createAppServer,closeAppServer} from '../server.mjs';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
@@ -21,13 +27,20 @@ const fixture=await mkdtemp(path.join(os.tmpdir(),'tinka-pointing-'));
 const evidence=process.env.TINKA_EVIDENCE_DIR||path.join(fixture,'evidence');await mkdir(evidence,{recursive:true});
 const MOD=process.platform==='darwin'?'Meta':'Control';
 let server,browser,config,url;const results=[];
+const listBoard=id=>getBoardSnapshot(config,id);
 const until=async(fn,ms=5000)=>{const end=Date.now()+ms;let last;while(Date.now()<end){try{last=await fn();if(last)return last;}catch(e){last=e;}await new Promise(r=>setTimeout(r,80));}return last;};
-async function check(name,body){try{await body();results.push({name,pass:true});}catch(e){results.push({name,pass:false,error:String(e.message).split('\n').slice(0,8).join(' | ')});}}
+let shoot=null;
+async function check(name,body){try{await body();results.push({name,pass:true});}catch(e){results.push({name,pass:false,error:String(e.message).split('\n').slice(0,8).join(' | ')});await shoot?.(`fail-${results.length}`).catch(()=>{});}}
 try{
   const configFile=path.join(fixture,'local/config.json');
   await main(['init','--config',configFile,'--boards',path.join(fixture,'boards'),'--label','Pointing fixture']);
   config=await loadConfig(configFile);
   server=createAppServer(config);await new Promise(r=>server.listen(0,'127.0.0.1',r));url=`http://127.0.0.1:${server.address().port}`;
+  // Content for the click, content-coordinate, text and arrow checks: a page, a picture, a wide heading and an arrow.
+  const assets=path.join(config.boardsRoot,'assets');await mkdir(assets);
+  await writeFile(path.join(assets,'page.html'),'<!doctype html><body style="margin:0;font:16px sans-serif"><h1 style="margin:20px">Page</h1><button style="margin:20px">Submit</button></body>');
+  await writeFile(path.join(assets,'pic.svg'),'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#678"/></svg>');
+  await applyOperation(config,{type:'updateWorkspace',patch:{resourceRoots:{assets:{path:'../assets'}}}});
   browser=await chromium.launch({headless:true,args:['--mute-audio'],...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
   for(const width of [1280,390]){
     const boardId=(await applyOperation(config,{type:'createBoard',title:`Pointing ${width}`})).result.boardId;
@@ -37,6 +50,7 @@ try{
     await applyOperation(config,{type:'createDecoration',boardId,decoration:{id:'note1',type:'region',shape:'rectangle',x:narrow?240:0,y:narrow?0:240,width:narrow?120:160,height:120,color:'#f6e6a4',text:'A sticky'}});
     const context=await browser.newContext({viewport:{width,height:width>600?860:800},reducedMotion:'reduce'}),page=await context.newPage(),errors=[];
     page.setDefaultTimeout(8000);page.on('pageerror',e=>errors.push(e.message));
+    shoot=name=>page.screenshot({path:path.join(evidence,`${name}-${width}.png`)});
     await page.goto(`${url}/boards/${boardId}/`);await page.waitForSelector('#world .workspace-card');await page.waitForSelector('[data-pointing-enter]',{state:'attached'});await page.waitForTimeout(400);
     const tag=`${width}:`,field=page.locator('.pointing-field'),chips=()=>field.locator('.pointing-chip').allTextContents();
     const centre=async sel=>{const b=await page.locator(sel).first().boundingBox();return {x:b.x+b.width/2,y:b.y+b.height/2,b};};
@@ -66,8 +80,8 @@ try{
       const b=await centre(card('Hero B'));await page.mouse.click(b.x,b.y);
       await page.keyboard.type('please');
       const all=await chips();
-      assert.equal(all.length,2,`two chips: ${all}`);assert.match(all[0],/^1\s*Login mock/);assert.match(all[1],/^2\s*Hero B/);
-      assert.match((await field.textContent()).replace(/\s+/g,' '),/^change this 1 ?Login mock to look more like this 2 ?Hero B please$/);
+      assert.equal(all.length,2,`two chips: ${all}`);assert.match(all[0],/^2\s*Login mock/);assert.match(all[1],/^3\s*Hero B/);
+      assert.match((await field.textContent()).replace(/\s+/g,' '),/^change this 2 ?Login mock to look more like this 3 ?Hero B please$/,'mark 1 was deleted: its number is not used again in this draft');
       assert.equal(await page.locator('.pointing-marks .pointing-badge').count(),2,'two marks on the board');
     });
     await check(`${tag} Backspace takes a chip and its mark; Undo brings both back`,async()=>{
@@ -93,7 +107,7 @@ try{
       await page.mouse.up();
       await page.keyboard.type(' @pric');await page.locator('.cref-picker[data-open]').waitFor();await page.keyboard.press('Enter');
       const all=await chips();
-      assert.equal(all.length,5,`five chips: ${all}`);assert.match(all[2],/^3\s*Pricing/);assert.match(all[3],/^4\s*A sticky|^4\s*Sticky/);assert.match(all[4],/^5\s*Pricing/);
+      assert.equal(all.length,5,`five chips: ${all}`);assert.match(all[2],/^4\s*Pricing/);assert.match(all[3],/^5\s*A sticky|^5\s*Sticky/);assert.match(all[4],/^6\s*Pricing/);
     });
     let threadId;
     await check(`${tag} Enter sends one thread to the agent with the pointing record`,async()=>{
@@ -203,6 +217,163 @@ try{
         assert.match(sent.body,/^this @1 Pricing\s*next one$/);
         assert.deepEqual(sent.pointing.marks.map(m=>m.n),[1]);
         assert.ok(await until(async()=>page.locator('.pointing-status').isHidden()),'the line goes once nothing is sending');
+        await page.keyboard.press('Escape');
+      });
+    }
+    // ---- the review's fixes ----
+    if(!narrow){ // the checks above moved, resized and deleted things: put the board back as it began
+      const snap=(await listBoard(boardId));
+      for(const [i,title] of ['Login mock','Hero B','Pricing'].entries()){const p=snap.placements.find(x=>!x.removedAt&&snap.items[x.itemId]?.title===title);await applyOperation(config,{type:'updatePlacement',boardId,placementId:p.id,patch:{x:i*260,y:0,width:220,height:170}});}
+      await applyOperation(config,{type:'createDecoration',boardId,decoration:{id:'note2',type:'region',shape:'rectangle',x:0,y:240,width:160,height:120,color:'#f6e6a4',text:'A sticky'}});
+      await until(async()=>(await page.locator('#world [data-decoration="note2"]').count())===1,6000);
+      await page.evaluate(()=>document.getElementById('viewport').focus());await page.keyboard.press('Shift+Digit0');await page.waitForTimeout(300);
+    }
+    const on=()=>page.evaluate(()=>document.body.classList.contains('pointing-on'));
+    const enterMode=async()=>{if(!(await on())){await page.evaluate(()=>document.getElementById('viewport').focus());await page.keyboard.press('p');await until(on);}};
+    const emptyField=async()=>{await page.locator('.pointing-field').focus();await page.keyboard.press(`${MOD}+a`);await page.keyboard.press('Backspace');};
+    const inField=()=>page.evaluate(()=>document.activeElement?.classList.contains('pointing-field'));
+    const pointingThreads=async()=>(await listFeedback(config,{boardId,includeBodies:true})).threads.filter(x=>x.pointing).length;
+    await check(`${tag} an @ name with spaces: the list stays open, Enter picks and never sends; "No match" only when nothing matches`,async()=>{
+      await enterMode();await emptyField();const before=await pointingThreads();
+      await page.keyboard.type('see @pric');await page.locator('.cref-picker[data-open]').waitFor();
+      assert.equal(await page.locator('.cref-picker[data-open] .cref-empty').isVisible(),false,'no "No match" above matching rows');
+      await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+      await page.keyboard.type('sticky · a st');await page.waitForTimeout(150);
+      assert.equal(await page.locator('.cref-picker[data-open]').count(),1,'open across the spaces');
+      await page.keyboard.press('Enter');
+      assert.match((await chips()).at(-1)||'',/sticky/i,'Enter picked the sticky');
+      assert.equal(await on(),true);assert.equal(await pointingThreads(),before,'Enter did not send');
+      await page.keyboard.type('and @zz top');await until(async()=>(await page.locator('.cref-picker[data-open]').count())===0,2000);
+      assert.equal(await page.locator('.cref-picker[data-open]').count(),0,'a space that matches nothing closes the list');
+      assert.match((await field.textContent()).replace(/\s+/g,' '),/and @zz top$/,'the rest is plain text');
+      await emptyField();
+    });
+    await check(`${tag} a pointer press on a bar key keeps focus in the composer; a number on screen is never used twice`,async()=>{
+      await enterMode();await emptyField();
+      await page.locator('[data-pointing-tool="lasso"]').click();
+      assert.equal(await inField(),true,'focus stayed in the composer');
+      await page.keyboard.type('ab ');assert.match(await field.textContent(),/ab\s$/);
+      await page.keyboard.press('Alt+KeyP');
+      for(const title of ['Login mock','Hero B','Pricing']){const c=await centre(card(title));await page.mouse.click(c.x,c.y);}
+      await page.keyboard.press(`${MOD}+a`);await page.keyboard.press('Backspace');await page.keyboard.press(`${MOD}+z`);
+      await until(async()=>(await chips()).length===3);
+      await page.keyboard.press('End');const c=await centre(card('Login mock'));await page.mouse.click(c.x,c.y);
+      const nums=(await field.locator('.pointing-chip .pointing-n').allTextContents());
+      assert.equal(new Set(nums).size,nums.length,`numbers unique: ${nums}`);
+      const badges=await page.locator('.pointing-marks .pointing-badge b').allTextContents();
+      assert.deepEqual([...badges].sort(),[...nums].sort(),'the board shows the same numbers');
+      await emptyField();
+    });
+    await check(`${tag} keyboard: ⌥R points at the selection; @ lists it first; ⌥= ⌥0 zoom; Tab leaves the bar to the next control`,async()=>{
+      await enterMode();await emptyField();
+      assert.equal(await page.locator('.pointing-selected').getAttribute('aria-keyshortcuts'),'Alt+R');
+      await page.keyboard.press('Alt+KeyR');
+      const sel=await page.locator('#world .workspace-card.selected').first().textContent();
+      assert.equal((await chips()).length,1,'one chip');assert.ok(sel.includes((await chips())[0].replace(/^\d+/,'').trim().slice(0,8)),`the selected card: ${await chips()}`);
+      await page.keyboard.type(' @');await page.locator('.cref-picker[data-open]').waitFor();
+      assert.equal(await page.locator('.cref-picker[data-open] ui-trigger-menu-group-label').first().textContent(),'Selected');
+      await page.keyboard.press('Escape');await page.keyboard.press('Backspace');
+      const zoom=()=>page.locator('#zoom-menu-toggle').textContent();
+      const z0=await zoom();await page.keyboard.press('Alt+Equal');await until(async()=>(await zoom())!==z0,2000);
+      assert.notEqual(await zoom(),z0,'⌥= zoomed');await page.keyboard.press('Alt+Digit0');await until(async()=>(await zoom())==='100%',2000);
+      assert.equal(await zoom(),'100%');assert.match(await field.textContent(),/^\d+\S/,'no = or º typed');
+      await page.locator('.pointing-leave').focus();await page.keyboard.press('Tab');
+      const next=await page.evaluate(()=>{const a=document.activeElement,bar=document.querySelector('.pointing-bar');return a&&a!==document.body&&!bar.contains(a)&&!!(bar.compareDocumentPosition(a)&Node.DOCUMENT_POSITION_FOLLOWING);});
+      assert.equal(next,true,'Tab from Leave goes on to the next control');
+      await emptyField();
+    });
+    if(!narrow)await check(`${tag} panels stay: the rail key and the bar's keys never close an open Inspector`,async()=>{
+      if(await on()){await page.keyboard.press('Escape');await until(async()=>!(await on()));}
+      await page.evaluate(()=>document.getElementById('viewport').focus());await page.keyboard.press(`${MOD}+i`); // the selected card's Inspector
+      const inspector=()=>page.evaluate(()=>[...document.querySelectorAll('.calm-side')].some(e=>e.getBoundingClientRect().width>0));
+      await until(inspector);assert.equal(await inspector(),true,'Inspector open');
+      await page.locator('[data-pointing-enter]').click();
+      await until(on);assert.equal(await inspector(),true,'still open after the rail key');
+      await page.locator('[data-pointing-tool="marquee"]').click();assert.equal(await inspector(),true,'still open after a tool key');
+      assert.equal(await inField(),true);
+      await page.keyboard.press('Escape');await until(async()=>!(await on()));assert.equal(await inspector(),true,'still open after leaving');
+      await page.locator('.calm-side [data-context-close]').first().click();await until(async()=>!(await inspector()));
+    });
+    await check(`${tag} the laser dot goes when the pointer leaves the board`,async()=>{
+      await enterMode();await page.keyboard.press('Alt+KeyK');
+      const ink=()=>page.evaluate(()=>{const c=document.querySelector('.pointing-sheet'),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;});
+      const c=await centre(card('Pricing'));await page.mouse.move(c.x,c.y);await page.mouse.move(c.x+10,c.y+5);
+      assert.ok(await until(async()=>(await ink())>0,1000),'a dot on the board');
+      const b=await page.locator('.pointing-bar').boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:4});
+      assert.ok(await until(async()=>(await ink())===0,2000),'nothing left on the board');
+      await page.keyboard.press('Alt+KeyP');
+    });
+    await check(`${tag} limits and failures in plain words: the 21st mark, a message too long, the app not answering`,async()=>{
+      await enterMode();await emptyField();
+      const {b}=await centre(card('Login mock'));for(let i=0;i<21;i++)await page.mouse.click(b.x+30+(i%10)*12,b.y+50+Math.floor(i/10)*12);
+      assert.equal((await chips()).length,20,'the 21st was not taken');
+      assert.equal(await page.locator('.pointing-status').textContent(),'A message can have at most 20 marks. Send this one, or delete a mark first.');
+      await emptyField();
+      await page.evaluate(()=>document.execCommand('insertText',false,'x'.repeat(25000)));
+      await page.keyboard.press('Enter');
+      assert.equal(await page.locator('.pointing-status').textContent(),'A message can be at most 20,000 characters. This one has 25,000: shorten it and send again.');
+      assert.equal((await field.textContent()).length,25000,'kept in the field');
+      await emptyField();
+      await page.route('**/api/operations',route=>route.request().postDataJSON()?.type==='addComment'?route.abort('failed'):route.continue());
+      await page.keyboard.type('offline');await page.keyboard.press('Enter');
+      assert.ok(await until(async()=>(await page.locator('.pointing-status').textContent())==="The app isn't answering. Your message is back in the field.",4000),`said plainly: ${await page.locator('.pointing-status').textContent()}`);
+      assert.equal(await field.textContent(),'offline');
+      await page.unroute('**/api/operations');await emptyField();
+    });
+    await check(`${tag} the draft survives leaving the page: words, chips and marks, and the mode, come back`,async()=>{
+      await enterMode();await emptyField();await page.keyboard.press('Alt+KeyP');
+      await page.keyboard.type('kept ');const c=await centre(card('Hero B'));await page.mouse.click(c.x,c.y);await page.keyboard.type('here');
+      const text=await field.textContent();await page.waitForTimeout(400);
+      await page.evaluate(()=>history.replaceState(null,'',location.pathname));await page.reload();await page.waitForSelector('#world .workspace-card');await until(on,6000);
+      assert.equal(await field.textContent(),text);assert.equal((await chips()).length,1);
+      assert.ok(await until(async()=>(await page.locator('.pointing-marks .pointing-badge').count())===1),'its mark');
+      await page.keyboard.type('!');assert.equal(await field.textContent(),text+'!','typing goes on at the end');
+      await emptyField();await page.keyboard.press('Escape');await until(async()=>!(await on()));
+    });
+    if(!narrow){
+      const cb=(await applyOperation(config,{type:'createBoard',title:'Pointing content'})).result.boardId;
+      await applyOperation(config,{type:'createItem',boardId:cb,item:{title:'A page',content:{kind:'html',resource:{rootId:'assets',path:'page.html'}}},placement:{x:0,y:0,width:420,height:320}});
+      await applyOperation(config,{type:'createItem',boardId:cb,item:{title:'A picture',content:{kind:'image',resource:{rootId:'assets',path:'pic.svg'}}},placement:{x:480,y:0,width:420,height:260}});
+      await applyOperation(config,{type:'createDecoration',boardId:cb,decoration:{id:'head',type:'text',x:0,y:380,width:900,height:60,text:'Heading',color:'#333333'}});
+      await applyOperation(config,{type:'createDecoration',boardId:cb,decoration:{id:'arr',type:'line',text:'',x:0,y:480,width:300,height:100,from:{x:0,y:480},to:{x:300,y:580},color:'#333333',endArrow:true,route:'straight'}});
+      await applyOperation(config,{type:'createDecoration',boardId:cb,decoration:{id:'stk',type:'region',shape:'rectangle',x:420,y:480,width:200,height:140,color:'#f6e6a4',text:'Round me'}});
+      await page.goto(`${url}/boards/${cb}/`);await page.waitForSelector('#world .workspace-card iframe');await page.waitForTimeout(800);
+      await check(`${tag} a click points at the whole thing with its spot and content (page px, image px); text by its words, arrows by their line`,async()=>{
+        await page.keyboard.press('p');await until(on);await page.keyboard.press('Alt+KeyP');
+        const pageCard=await page.locator(card('A page')).boundingBox(),pic=await page.locator(card('A picture')).boundingBox();
+        await page.keyboard.type('this ');await page.mouse.click(pageCard.x+pageCard.width*.3,pageCard.y+pageCard.height*.5);
+        await page.keyboard.type('like this ');await page.mouse.click(pic.x+pic.width*.5,pic.y+pic.height*.6);
+        await page.keyboard.press('Alt+KeyM');await page.keyboard.type('part ');
+        await page.mouse.move(pic.x+40,pic.y+80);await page.mouse.down();await page.mouse.move(pic.x+200,pic.y+180,{steps:6});await page.mouse.up();
+        const head=await page.locator('#world [data-decoration="head"]').boundingBox();
+        await page.keyboard.type(' beside the heading ');await page.mouse.move(head.x+300,head.y+5);await page.mouse.down();await page.mouse.move(head.x+500,head.y+head.height-5,{steps:5});await page.mouse.up();
+        const arr=await page.locator('#world [data-decoration="arr"]').boundingBox();
+        await page.keyboard.type(' across the arrow ');await page.mouse.move(arr.x+arr.width/2-15,arr.y-10);await page.mouse.down();await page.mouse.move(arr.x+arr.width/2+15,arr.y+arr.height+10,{steps:5});await page.mouse.up();
+        await page.keyboard.type(' off its line ');await page.mouse.move(arr.x+arr.width*.75,arr.y+2);await page.mouse.down();await page.mouse.move(arr.x+arr.width-2,arr.y+arr.height*.35,{steps:5});await page.mouse.up();
+        // the laser: a slow circle (about 2.5 s) round the sticky
+        const stk=await page.locator('#world [data-decoration="stk"]').boundingBox(),cx=stk.x+stk.width/2,cy=stk.y+stk.height/2,rx=stk.width*.62,ry=stk.height*.62;
+        await page.keyboard.press('Alt+KeyK');await page.keyboard.type(' round ');
+        await page.mouse.move(cx+rx,cy);await page.mouse.down();for(let d=0;d<=380;d+=10){await page.mouse.move(cx+rx*Math.cos(d*Math.PI/180),cy+ry*Math.sin(d*Math.PI/180));await page.waitForTimeout(65);}await page.mouse.up();
+        const all=await chips();
+        assert.equal(all.length,7,`seven chips: ${all}`);
+        assert.match(all[3],/Board area/,'beside the heading\'s words is the board');assert.match(all[4],/Arrow/);assert.match(all[5],/Board area/,'off the arrow\'s line is the board');
+        assert.match(all[6],/Round me/);
+        const tips=await field.locator('.pointing-chip').evaluateAll(cs=>cs.map(c=>c.dataset.tip));
+        assert.ok(!/^Part of/.test(tips[0])&&!/^Part of/.test(tips[1]),`clicks are whole: ${tips}`);assert.ok(!/^Part of/.test(tips[6]),`the circle is the whole sticky: ${tips[6]}`);
+        await page.keyboard.press('Enter');
+        const t=await until(async()=>(await listFeedback(config,{boardId:cb,includeBodies:true})).threads.find(x=>x.pointing));
+        const [m1,m2,m3]=t.pointing.marks,a=m1.targets[0],b=m2.targets[0],part=m3.targets[0];
+        assert.equal(a.whole,true);assert.ok(a.spot.x>.25&&a.spot.x<.35,`spot ${JSON.stringify(a.spot)}`);
+        assert.equal(a.content.unit,'px');assert.match(a.content.of,/^page \d+ px wide$/);assert.equal(a.content.w,0);
+        assert.equal(b.whole,true);assert.equal(b.content.of,'image 400 × 200 px');assert.ok(b.content.x>150&&b.content.x<250,`image x ${b.content.x}`);
+        assert.equal(part.whole,false);assert.equal(part.content.unit,'px');assert.ok(part.content.w>0&&part.content.x+part.content.w<=400);
+        await page.keyboard.press('Escape');await until(async()=>!(await on()));
+        // the open thread card sits clear of its marks' numbers, parts and spots
+        await page.evaluate(id=>{location.hash=`#comments/${encodeURIComponent(id)}`;},t.id);await page.locator('.ct-card').waitFor();
+        await until(async()=>(await page.locator('.pointing-marks .pointing-badge').count())===7);await page.waitForTimeout(600);
+        const over=await page.evaluate(()=>{const c=document.querySelector('.ct-card').getBoundingClientRect();return [...document.querySelectorAll('.pointing-marks :is(.pointing-shape:not(.pointing-outline),.pointing-badge,.pointing-dot)')].map(e=>e.getBoundingClientRect()).filter(m=>m.width&&m.right>c.left&&m.left<c.right&&m.bottom>c.top&&m.top<c.bottom).length;});
+        await page.screenshot({path:path.join(evidence,`pointing-card-clear-${width}.png`)});
+        assert.equal(over,0,'the card covers no mark');
         await page.keyboard.press('Escape');
       });
     }
