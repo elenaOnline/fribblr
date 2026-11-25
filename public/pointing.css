@@ -1,0 +1,71 @@
+/* Pointing mode (pointing-mode.js). Role tokens and the depth model only: the composer floats (data-height="float"),
+   its keys are raised, the field is sunken. Pointing is her voice, so it is drawn in her red (--mark-red), as her
+   comments are: a pointing message becomes one of her comment threads. */
+
+/* While pointing, the board's editing chrome steps aside; it comes back as it was. */
+body.pointing-on :is(#edit-tools, #workspace-selection, .whiteboard-toolbar, .whiteboard-menu, .whiteboard-connect-hint) { display: none !important; }
+
+/* The composer sits where the canvas tools were. */
+.pointing-bar {
+  position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); z-index: 37;
+  width: min(760px, calc(100vw - 32px)); box-sizing: border-box;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: end; gap: 6px;
+  padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-bar);
+  font: var(--type-ui)/1.4 var(--type-sans);
+}
+.pointing-bar[hidden] { display: none; }
+body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-width, 340px)) / 2); width: min(760px, calc(100vw - var(--navigator-dock-width, 340px) - 32px)); }
+.pointing-bar[data-busy] .pointing-send { opacity: .6; pointer-events: none; }
+.pointing-tools { display: flex; gap: 1px; align-self: center; }
+.pointing-tools .tk-btn { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; display: grid; place-items: center; }
+.pointing-tools .tk-btn:not([aria-pressed="true"]) { background: transparent; }
+.pointing-tools .tk-btn:not([aria-pressed="true"]):hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.pointing-bar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pointing-field-wrap { min-width: 0; }
+.pointing-field-wrap > ui-trigger-menu { display: block; }
+.pointing-field {
+  min-height: 36px; max-height: 132px; overflow: auto; box-sizing: border-box; padding: 8px 10px;
+  border-radius: var(--shape-key); color: var(--mark-red); --sink-focus: var(--mark-red);
+  white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; outline: none; line-height: 20px;
+}
+.pointing-field:empty::before { content: attr(data-placeholder); color: var(--ink-2); pointer-events: none; }
+.pointing-send, .pointing-leave { height: 36px; min-height: 36px; }
+.pointing-send { padding: 0 12px; }
+.pointing-leave { width: 36px; min-width: 36px; padding: 0; display: grid; place-items: center; }
+
+/* A mark's number: the same red square on the chip and on the board. */
+.pointing-n, .pointing-badge {
+  display: inline-grid; place-items: center; box-sizing: border-box; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: var(--shape-cap); background: var(--mark-red); color: var(--ink-on-mark);
+  font: 600 11px/1 var(--type-mono);
+}
+.cref.pointing-chip { padding-left: 2px; gap: 5px; vertical-align: 1px; color: var(--ink); cursor: default; }
+.cref.pointing-chip .cref-label { max-width: 220px; white-space: nowrap; }
+
+/* The sheet over the board: it takes every press while pointing. */
+.pointing-sheet { position: fixed; z-index: 25; display: block; touch-action: none; cursor: crosshair; }
+.pointing-sheet[hidden] { display: none; }
+.pointing-sheet[data-tool="laser"] { cursor: none; }
+.pointing-sheet[data-tool="point"] { cursor: default; }
+.pointing-sheet.pointing-panning { cursor: grabbing; }
+
+/* Marks on the board, in world units: strokes and numbers keep their screen size at any zoom. */
+.pointing-marks { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 10006; }
+.pointing-marks[hidden] { display: none; }
+.pointing-marks-svg { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+.pointing-shape { fill: color-mix(in srgb, var(--mark-red) 8%, transparent); stroke: var(--mark-red); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.pointing-shape.pointing-outline { fill: none; }
+.pointing-badge { position: absolute; transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-2px, calc(-100% - 3px)); }
+.pointing-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; corner-shape: round; background: var(--mark-red); transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-50%, -50%); }
+
+/* The rail gains one key (Point and type): on a phone its keys share the width ten ways, not nine (workspace.css). */
+@media (max-width: 600px) { .edit-tools:has([data-pointing-enter]) { --edit-tool-size: clamp(26px, calc((100vw - 48px) / 10), 38px); } }
+@media (max-width: 640px) {
+  .pointing-bar { grid-template-columns: auto 1fr auto auto; grid-template-areas: "tools . send leave" "field field field field"; width: calc(100vw - 32px); }
+  .pointing-tools { grid-area: tools; }
+  .pointing-field-wrap { grid-area: field; }
+  .pointing-send { grid-area: send; }
+  .pointing-leave { grid-area: leave; }
+}
+/* The mark a chip in an open thread was pressed for. */
+.pointing-shape.pointing-focus { stroke-width: 3px; }

@@ -152,6 +152,7 @@ async function fetchBoard() {
   if (data.schemaVersion === 2) {
     if (!graph) graph = new WorkspaceBoard(appConfig, data, { concepts:()=>all, active:()=>active, zoom:()=>zoom, shiftOrigin:(dx,dy)=>{if(dx||dy){view.x-=dx*zoom;view.y-=dy*zoom;resting=false;shiftSavedViews(dx,dy);}}, shiftViewport:(dx,dy)=>{if(dx||dy)moveView(view.x+dx,view.y+dy);}, holdView:()=>{resting=false;}, revealPlacements:revealPlacements, revealTarget:placement=>{const fit=Math.min((viewport.clientWidth-80)/placement.width,(viewport.clientHeight-80)/placement.height,1);changeZoom(fit);const rect=world.getBoundingClientRect(),region=viewport.getBoundingClientRect();moveView(view.x+region.left+viewport.clientWidth/2-(rect.left+(placement.x+graph.origin.x+placement.width/2)*zoom),view.y+region.top+viewport.clientHeight/2-(rect.top+(placement.y+graph.origin.y+placement.height/2)*zoom));}, preview:(c,version)=>previewHref(c,version,'paper',100,versionStamp(version,liveSnapshot?.items?.[c.graphItem.id])), layout:()=>{ if(resting)rest();else applyView(); contentChanged(); }, mode:mode=>{ if(mode==='canvas'){zoom=1;settleCushion();}else{viewport.scrollLeft=0;viewport.scrollTop=0;} requestAnimationFrame(syncMapAvailability); }, fit:(kind,area)=>runFit(kind==='smart'?smartFitTarget():kind,area), toggleMap:()=>setMapOpen(!boardMap.visible,{remember:true}), reloadReader:()=>loadRevision(), saveStatus:setSaveStatus, openOwner:()=>{const c=graph.ownerConcept();if(c)openReader(c.key);}, closeReader:()=>closeReader(), flushNotes:flushNoteEdits, liveReady:()=>{void drainLiveUpdates().catch(()=>{});}, data:acceptGraphData, editNote:(key,anchor)=>openTileNote(key,anchor), readerChanged:()=>{if(active&&dialog.open)renderReaderChrome();}, currentView:()=>({zoom,x:view.x,y:view.y,resting,round:rounds[currentRound]?.id}), zoomOutChanged:()=>{boardMinusState=null;applyView();}, viewOnly:overview });
     graph.hooks.revealBox = revealBox;
+    graph.hooks.restoreView = restoreBoardView;
     if (overview) graph.mode = 'canvas';
     return graph.adapt(data);
   }
@@ -313,6 +314,14 @@ function rest() {
   resting = true;
   Object.assign(view, restingView());
   applyView();
+}
+
+// Back to a view kept earlier (currentView()), in one step: leaving pointing mode puts the board where it was.
+function restoreBoardView(saved) {
+  if (!saved || graph?.mode === 'grid') return;
+  stopGlide();
+  zoom = clampZoom(saved.zoom);
+  moveView(saved.x, saved.y);
 }
 
 // The reader's own pan or zoom: the quiet round status follows it.

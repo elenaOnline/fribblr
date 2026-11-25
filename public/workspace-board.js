@@ -499,6 +499,8 @@ export class WorkspaceBoard {
     this.feedback.reload().catch(error=>console.warn("Feedback unavailable:",error.message));
     // The Comment tool: pins, the comments layer menu and Send to agent.
     if (!this.hooks.viewOnly) { this.commentPins = new CommentPins(this); this.commentPins.mount(); this.commentPins.reload(); }
+    // Pointing mode (P): type to the agent and point at the board at the same time (pointing-mode.js).
+    if (!this.hooks.viewOnly) import("./pointing-mode.js").then(m => m.mountPointing(this)).catch(error => console.warn("Pointing unavailable:", error.message));
     this.arrangeInspector(bar);
     this.setMode(this.mode, false);
     this.loadCrumb();
@@ -1123,6 +1125,7 @@ export class WorkspaceBoard {
       <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
       <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment, or press Enter on the focused one · Show or hide comments</dd>
       <dt>N</dt><dd>Quick jot: type a line, Enter adds it as a sticky; Escape closes</dd>
+      <dt>P</dt><dd>Point and type: write to the agent and point at the board as you go. ⌥/Alt with M · L · K · P picks Marquee · Lasso · Laser pointer · Point; Enter sends; Escape leaves</dd>
       <dt>?</dt><dd>Show keyboard shortcuts</dd>
       <dt>⌘/Ctrl-C · X · V</dt><dd>Copy · Cut · Paste</dd>
       <dt>Shift-⌘/Ctrl-C</dt><dd>Copy this board's notes as Markdown (text, stickies and linked item titles)</dd>
