@@ -2,7 +2,10 @@
 // pointing interleave (marquee, lasso, point, the laser's circle, @), chips land at the caret, Backspace and Undo take
 // a chip and its mark away and back, the board is never selected or edited, Enter sends one thread to the agent with
 // the pointing record, Escape leaves with the view and selection as they were, and the sent thread's card reads as
-// her sentence with chips. Light at 1280 and a phone at 390. Isolated fixture, headless, port 0.
+// her sentence with chips. At 1280 also: a sent mark follows a card an agent moves or resizes, an edited target's chip
+// takes its new text, a deleted target's mark stays where it was drawn labelled Deleted, a draft mark follows a card
+// moved while she types, and Send clears at once, lets her type on while it sends, and gives a failed message back.
+// Light at 1280 and a phone at 390. Isolated fixture, headless, port 0.
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,mkdir} from 'node:fs/promises';
 import os from 'node:os';
@@ -104,7 +107,9 @@ try{
       assert.deepEqual(p.marks.map(m=>m.tool),['marquee','point','lasso','laser','keyboard']);
       const m1=p.marks[0];assert.equal(m1.targets[0].title,'Login mock');assert.equal(m1.targets[0].whole,false);assert.ok(m1.targets[0].region.w>0&&m1.targets[0].region.w<1);
       assert.equal(p.marks[1].targets[0].whole,true);assert.equal(p.marks[3].targets[0].kind,'decoration');
-      for(const m of p.marks){assert.equal(m.crop,null);assert.ok(m.cropNote);assert.ok(m.end>=m.at);}
+      assert.equal(p.appearance,'light','the board\'s appearance goes with the message');
+      // Every mark has a crop file or a plain note saying why not (the server renders them before the thread exists).
+      for(const m of p.marks){assert.ok(m.crop?.path||m.cropNote,`mark ${m.n}: a crop or a note`);assert.ok(m.end>=m.at);}
       assert.ok(p.parts.every(x=>'mark' in x||(Number.isInteger(x.at)&&x.end>=x.at)),'every typed run has its times');
       assert.equal(t.anchor.kind,'point');
       assert.equal(await field.textContent(),'','the composer cleared');
@@ -130,6 +135,77 @@ try{
       await page.keyboard.press('Escape');await cardEl.waitFor({state:'detached'});
       await until(()=>page.evaluate(()=>document.querySelector('.pointing-marks').hidden));
     });
+    if(!narrow){
+      const t=(await listFeedback(config,{boardId,includeBodies:true})).threads.find(x=>x.id===threadId),marks=t.pointing.marks;
+      const shapeBox=n=>page.evaluate(n=>{const e=document.querySelector(`.pointing-marks [data-n="${n}"]:is(rect,path)`);if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};},n);
+      const cardBox=async title=>{const b=await page.locator(card(title)).first().boundingBox();return b&&{x:b.x,y:b.y,w:b.width,h:b.height};};
+      const close=(a,b,tol=3)=>!!a&&!!b&&['x','y','w','h'].every(k=>Math.abs(a[k]-b[k])<=tol);
+      const openCard=async()=>{await page.evaluate(id=>{history.replaceState(null,'',location.pathname+location.search);window.dispatchEvent(new HashChangeEvent('hashchange'));location.hash=`#comments/${encodeURIComponent(id)}`;},threadId);await page.locator('.ct-card').waitFor();await until(async()=>(await page.locator('.pointing-marks .pointing-badge').count())===5);
+        // The board holds an agent's changes while a field it does not own has focus (the card's reply box); off it, they come.
+        await page.evaluate(()=>document.activeElement?.blur());};
+      await check(`${tag} a sent mark follows its card when it is moved and resized; a part keeps its place on the card`,async()=>{
+        await openCard();
+        assert.ok(close(await shapeBox(2),await cardBox('Hero B'),4),'mark 2 outlines Hero B before the move');
+        const hero=marks[1].targets[0].id,login=marks[0].targets[0].id,region=marks[0].targets[0].region;
+        await applyOperation(config,{type:'updatePlacement',boardId,placementId:hero,patch:{x:300,y:430,width:300,height:200}});
+        await applyOperation(config,{type:'updatePlacement',boardId,placementId:login,patch:{width:330,height:250}});
+        const moved=await until(async()=>{const c=await cardBox('Hero B'),m=await shapeBox(2);return close(m,c,4)&&c.w>280?{c,m}:null;},6000);
+        assert.ok(moved?.c,`mark 2 followed Hero B: card ${JSON.stringify(await cardBox('Hero B'))} mark ${JSON.stringify(await shapeBox(2))}`);
+        const part=await until(async()=>{const c=await cardBox('Login mock'),m=await shapeBox(1);if(!c||!m||c.w<300)return null;
+          const f={x:(m.x-c.x)/c.w,y:(m.y-c.y)/c.h,w:m.w/c.w,h:m.h/c.h};return ['x','y','w','h'].every(k=>Math.abs(f[k]-region[k])<.03)?f:null;},6000);
+        assert.ok(part?.w,`mark 1 is the same part of the resized card (${JSON.stringify(region)} vs ${JSON.stringify(part)})`);
+      });
+      let drawn4;
+      await check(`${tag} an edited target: the chip shows its new text and the mark its new size`,async()=>{
+        drawn4=await shapeBox(4);
+        await applyOperation(config,{type:'updateDecoration',boardId,decorationId:'note1',patch:{text:'Renamed sticky',width:220}});
+        assert.ok(await until(async()=>/Renamed sticky/.test(await page.locator('.ct-card .pointing-chip[data-point-n="4"]').textContent())),'the chip has the new text');
+        const ok=await until(async()=>{const d=await page.locator('#world [data-decoration="note1"]').boundingBox(),m=await shapeBox(4);return d&&m&&d.width>200&&m.w>d.width?true:null;});
+        assert.ok(ok,'the laser circle widened with the sticky');
+      });
+      await check(`${tag} a deleted target: its mark stays where it was drawn, plain, labelled Deleted; the chip says so`,async()=>{
+        await applyOperation(config,{type:'removeDecoration',boardId,decorationId:'note1'});
+        assert.ok(await until(async()=>(await page.locator('.pointing-marks .pointing-badge[data-n="4"].pointing-gone').count())===1,6000),'mark 4 shows as gone');
+        assert.match(await page.locator('.pointing-marks .pointing-badge[data-n="4"]').textContent(),/^4\s*Deleted$/);
+        assert.equal(await page.evaluate(()=>document.querySelector('.pointing-marks [data-n="4"]:is(rect,path)').classList.contains('pointing-gone')),true);
+        assert.ok(close(await shapeBox(4),drawn4,2),'the gone mark is where it was drawn');
+        assert.ok(await until(async()=>(await page.locator('.ct-card .pointing-chip.missing').count())===1),'the open card\'s chip 4 says Deleted');
+        assert.equal(await page.locator('.ct-card .pointing-chip.missing').getAttribute('data-tip'),'Deleted');
+        await page.screenshot({path:path.join(evidence,`pointing-followed-${width}.png`)});
+        await page.locator('.ct-card [data-act="close"]').click();await page.locator('.ct-card').waitFor({state:'detached'});
+      });
+      await check(`${tag} a draft mark follows a card an agent moves while she types`,async()=>{
+        await page.keyboard.press('p');await until(()=>page.evaluate(()=>document.body.classList.contains('pointing-on')));
+        await page.keyboard.press('Alt+KeyP');await page.keyboard.type('this ');
+        const c=await centre(card('Pricing'));await page.mouse.click(c.x,c.y);
+        assert.ok(close(await shapeBox(1),await cardBox('Pricing'),5),'outlines Pricing');
+        await applyOperation(config,{type:'updatePlacement',boardId,placementId:marks[2].targets[0].id,patch:{x:640,y:300}});
+        const ok=await until(async()=>{const b=await cardBox('Pricing'),m=await shapeBox(1);return b&&b.y>c.b.y+100&&close(m,b,5);},6000);
+        assert.ok(ok===true,`the draft mark followed Pricing: card ${JSON.stringify(await cardBox('Pricing'))} mark ${JSON.stringify(await shapeBox(1))} was ${JSON.stringify(c.b)}`);
+      });
+      await check(`${tag} Send clears at once; the next message can be typed while it sends; a failure gives the message back`,async()=>{
+        let posts=0;
+        await page.route('**/api/operations',async route=>{const body=route.request().postDataJSON();if(body?.type!=='addComment')return route.continue();posts++;await new Promise(r=>setTimeout(r,1200));await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'The server is restarting.'})});});
+        await page.keyboard.press('Enter');
+        assert.equal(await field.textContent(),'','cleared at once');
+        assert.ok(await until(async()=>(await page.locator('.pointing-status').textContent())==='Sending…',1000),'Sending… on the bar');
+        assert.equal(await page.locator('.pointing-marks .pointing-badge').count(),0,'its marks went with it');
+        await page.keyboard.type('next one');
+        assert.equal(await field.textContent(),'next one','typing goes on while it sends');
+        assert.ok(await until(async()=>/^Not sent: The server is restarting\. Your message is back/.test(await page.locator('.pointing-status').textContent()),5000),'the reason, plainly');
+        assert.equal(posts,1);
+        assert.match((await field.textContent()).replace(/ /g,' '),/^this 1Pricing\s*\nnext one$/,`the message is back, before the new one: ${JSON.stringify(await field.textContent())}`);
+        assert.deepEqual(await chips(),['1Pricing'],'its chip, numbered');
+        assert.equal(await page.locator('.pointing-marks .pointing-badge').count(),1,'and its mark');
+        await page.unroute('**/api/operations');
+        await page.keyboard.press('Enter');
+        const sent=await until(async()=>(await listFeedback(config,{boardId,includeBodies:true})).threads.find(x=>x.pointing&&x.id!==threadId));
+        assert.match(sent.body,/^this @1 Pricing\s*next one$/);
+        assert.deepEqual(sent.pointing.marks.map(m=>m.n),[1]);
+        assert.ok(await until(async()=>page.locator('.pointing-status').isHidden()),'the line goes once nothing is sending');
+        await page.keyboard.press('Escape');
+      });
+    }
     assert.deepEqual(errors,[],`${tag} page errors`);
     await context.close();
   }

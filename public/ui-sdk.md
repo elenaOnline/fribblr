@@ -1374,9 +1374,28 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
 - Marks live in `.pointing-marks`, a layer re-appended to `#world` after each render (a `childList` observer on
   `#world`, not per card); strokes are `vector-effect: non-scaling-stroke` and numbers scale by `1 / --canvas-zoom`.
   The live gesture is drawn on the sheet in rAF; nothing is drawn per card.
+- Colour: the marks and their numbered chips are her red (`--mark-red`); the words she types are ordinary `--ink`,
+  in the composer and in the sent thread card (`.pointing-words`).
+- Marks follow what they point at (`geometry`, redrawn from `syncGeometry` on every render and drag frame): nothing
+  moved, the shape as drawn; one target moved or resized, the drawn shape carried with it (from its saved box when she
+  pointed, or the server's `placed` box for a sent one); otherwise each target where it is now, whole ones outlined,
+  parts as their `region`. Every target gone: the drawn shape plain and dashed in `--ink-2`, its number labelled
+  Deleted (some gone: "1 of 3 deleted"); the chip turns plain too. Empty-space marks are board positions and stay.
+- The composer is `[data-live-safe]`: a field outside the board that a render cannot disturb, so the board keeps
+  taking an agent's changes while she types (`canvas.js` and `liveBlocked` otherwise hold live updates while any
+  field has focus).
+- Send never waits: the message leaves the composer at once (she can write the next), goes in order behind any still
+  sending, and a quiet line on the bar's top edge (`.pointing-status`, `role=status`) says Sending…; after it, the
+  empty composer's placeholder says it went. A failure puts the message back (words, chips, marks; before a new one
+  she has started, renumbered) and the line says why. A mark on one image item carries `crop.dataUrl` cut from the
+  item's own file at full resolution (`imageCropFull`); the server renders the rest. `pointing.appearance` is the
+  board's look.
 - A sent message is a feedback thread with `pointing` (`team/pointing/CONTRACT.md`). Its card renders the sentence
-  with numbered chips (`pointingBody`) and shows its marks on the board while open (`showPointing` / `hidePointing`);
-  a chip press brings its mark into view, ⌘/Ctrl-press opens its first target.
+  with numbered chips (`pointingBody`; names and Deleted kept current by `syncPointingChips`) and shows its marks on
+  the board while open (`showPointing` / `hidePointing`); a chip press brings its mark into view, ⌘/Ctrl-press opens
+  its first target.
+- Keys typed while focus is on the map or a side panel (not in one of its fields or menus) are letters for the
+  composer; the caret is kept at each input and as focus leaves, so they land where she left off.
 - Checked in `tests/pointing-browser.mjs` (1280 and 390) and `tests/pointing.test.mjs` (geometry, the server record).
 
 **Quick jot.** `quick-jot.js`: a non-modal `ui-dialog` (a persistent bar; the board stays usable). Escape closes it from
