@@ -125,7 +125,10 @@ try{
  ok(b1.opacity>0&&b2.opacity>b1.opacity&&b2.scale>b1.scale,`The band grows with the pinch (${b1.opacity.toFixed(2)} → ${b2.opacity.toFixed(2)})`);
  await ctrlWheel(-8);const b3=await band();
  ok(b3.opacity<b2.opacity&&Math.abs(b3.opacity-b1.opacity)<.01,'Reversing the pinch makes it recede');eq((await plane()).zoom,fit.zoom,'…before anything zooms in');
- await newGesture();eq((await band()).opacity,0,'The pinch ending below the threshold drops the band');
+ // Chrome sends no pinch end: a lifted pinch leaves the band as it was, still, until her next input.
+ await newGesture();eq(await band(),b3,'A pause changes nothing: the band stays still');
+ await ctrlWheel(8);eq(await band(),b1,'A new pinch after the pause starts from its own progress');
+ await newGesture();await page.mouse.move(cx+6,cy);eq((await band()).opacity,0,'Moving the pointer clears it');
  for(let i=0;i<5;i++)await ctrlWheel(8);
  ok(await isOpen()&&(await band()).opacity>.8,'Five pinch steps (about 33%) fill it nearly to the threshold');
  await ctrlWheel(8);

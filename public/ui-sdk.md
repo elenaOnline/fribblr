@@ -851,19 +851,26 @@ expands and increases opacity until the threshold is reached, at which point the
   the opened item's dialog. `pointer-events: none`, `aria-hidden`, `contain: strict`. It means "go on and you go up".
 - **What drives it**: the zoom-out gate's `progress` (0 to 1), nothing else. Progress is how far the current gesture is
   past the floor (pinch: ln(floor / zoom asked for) over `LEAVE_FILL`), plus half per step. At 1 she leaves and it goes.
+  One pinch, trackpad-scroll or Safari gesture event adds at most a fifth (`LEAVE_EVENT_MAX`), so the band shows for
+  four events and the fifth leaves, however brisk the pinch (a fast Chrome pinch sends 30 px a frame, which filled three
+  quarters in one event and left on the second).
 - **Each input.** Pinch and trackpad Control-scroll fill it smoothly, frame for frame. Reversing empties it first; only
-  when it is empty does the reverse zoom in. A gesture ending below the threshold drops it at once: fingers up (touch
-  `pointerup`, Safari `gestureend`) at that event; a Chrome trackpad pinch, which sends no end, when `GESTURE_GAP`
-  passes with no event (the same boundary the gate always used). A step (−, the − button, a notch) shows it half way and
+  when it is empty does the reverse zoom in. Fingers lifting below the threshold drop it at once (touch `pointerup`,
+  Safari `gestureend`). **On Chrome a lifted pinch leaves the band visible, still, until the pointer or a key moves**:
+  Chrome reports a trackpad pinch as Control-wheel events and sends nothing when the fingers lift, and clearing it after
+  a silence would be the band moving with no input from her. Her next input clears it (a pointer move, also over the
+  opened item's content frames; a click; a key other than the zoom keys and modifiers; a pan; leaving the window), and a
+  new pinch after the pause starts the band from that pinch's own progress (the gate's new-gesture rule). A step (−, the − button, a notch) shows it half way and
   it stays, still, until the next step leaves; + empties it without zooming; any other input (a click, a pan, another
   key, leaving the window: `clearLeave`) clears it. A gesture or spin that arrives at the floor, a held −, Expand, and a
   gesture still running after leaving the place below (`hold`) show nothing.
 - **Why two steps.** With one, a notch or press at the floor would leave with the band never seen, the snap she
   described. Keyboard and pointer agree: every step input takes two at the floor, the first one shown.
 - **Why a third, and the 300 ms rule kept.** A fifth (the old threshold) is about 22 units of Chrome pinch delta, too
-  short to see a band grow and reverse; a third is about 40, a short deliberate pinch. The 300 ms gap stays: Chrome
-  reports a trackpad pinch as wheel events with no begin or end, so the gap is the only way to know a gesture ended (to
-  drop the band and start the next one fresh) and to keep a pinch that reached the floor from above from spilling over.
+  short to see a band grow and reverse; a third is about 40, a short deliberate pinch. The 300 ms gap stays as the
+  gate's gesture boundary: Chrome reports a trackpad pinch as wheel events with no begin or end, so the gap is how a new
+  pinch is told from the last one (it starts the band from its own progress) and how a pinch that reached the floor from
+  above is kept from spilling over. The gap never changes the band by itself.
 - **Screen readers.** The band is hidden; its appearance is announced once per gesture, politely: "Zoom out again to go
   up to <parent>" (or Home) on a board, "Zoom out again to go back to the board" in an opened item; the − button at the
   floor already names where it goes.

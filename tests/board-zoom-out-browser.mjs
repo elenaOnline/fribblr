@@ -104,7 +104,11 @@ try{
  eq([p2.pe,p2.hidden],['none','true'],'It takes no pointer events and is aria-hidden');
  ok((await page.locator('#view-announce').textContent()).includes('Zoom out again to go up to Top board'),'Its appearance is announced, naming where it goes');
  await ctrlWheel(-8);ok((await band()).opacity<p2.opacity,'Reversing makes it recede');eq(await zoom(),floor,'…before anything zooms in');
- await newGesture();eq((await band()).opacity,0,'The pinch ending below the threshold drops it');
+ const p3=await band();await newGesture();eq(await band(),p3,'A pause changes nothing (Chrome sends no pinch end)');
+ await page.keyboard.press('Shift');eq((await band()).opacity,p3.opacity,'A modifier key alone leaves it');
+ await page.keyboard.press('Escape');eq((await band()).opacity,0,'Another key clears it');
+ await ctrlWheel(8);ok((await band()).opacity>0,'A new pinch fills it again from its own progress');
+ await page.mouse.move(700,460);eq((await band()).opacity,0,'Moving the pointer clears it');
  await page.locator('#viewport').focus();await page.keyboard.press('=');await page.keyboard.press('=');
  await page.keyboard.press('-');eq((await band()).opacity,0,'Zooming out above the floor shows no band');
  await page.keyboard.press('-');eq(boardPath(),'/boards/kid/','A press arriving at the floor stops there');eq(await zoom(),floor,'…at the floor');eq((await band()).opacity,0,'…and shows nothing');

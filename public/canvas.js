@@ -1214,16 +1214,17 @@ function showLeaveBand(progress, where) {
     else announceView(`Zoom out again to go up to ${graph?.zoomOutParent?.()?.title || 'Home'}`);
   }
 }
-// Any other input clears a shown band: a pan, a click, another key, leaving the window. Zoom steps and the − / + buttons
+// Any other input clears a shown band: a pointer move, a pan, a click, another key, leaving the window. Zoom steps and the − / + buttons
 // are the gates' own (a zoom-out fills it, a zoom-in empties it first); a touch pinch ends with its fingers (end()).
 function clearLeave(event) {
   if (event?.type === 'keydown' && ['-', '_', '+', '=', 'Control', 'Meta', 'Shift', 'Alt', 'CapsLock'].includes(event.key)) return;
-  if (event?.type === 'pointerdown' && (event.pointerType === 'touch' || event.target?.closest?.('#zoom-minus,#reader-zoom-minus,#zoom-plus,#reader-zoom-plus'))) return;
+  if ((event?.type === 'pointerdown' || event?.type === 'pointermove') && (event.pointerType === 'touch' || event.target?.closest?.('#zoom-minus,#reader-zoom-minus,#zoom-plus,#reader-zoom-plus'))) return;
   if (event?.type === 'wheel' && (event.ctrlKey || event.metaKey)) return;
   if (!boardGate.progress && !readerCanvas.gate.progress) return;
   boardGate.reset(); readerCanvas.gate.reset();
 }
-for (const type of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(type, clearLeave, { capture: true, passive: true });
+// Chrome sends no end for a trackpad pinch, so a lifted pinch leaves the band as it was until the pointer or a key moves.
+for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel']) document.addEventListener(type, clearLeave, { capture: true, passive: true });
 addEventListener('blur', () => clearLeave());
 // Zoomed out of an opened Tinka: the board comes back as she opened it from (closeReader has restored that view), with
 // the card selected and focused, so Enter opens it again. If the card isn't in that view (she stepped to another
@@ -1566,6 +1567,8 @@ function forwardFrame(frame) {
   try { win = frame.contentWindow; doc = frame.contentDocument; } catch { return; }
   if (!win || !doc || doc[FORWARDED]) return;
   doc[FORWARDED] = true;
+  // Input inside the content clears a shown leave band too (the pointer is usually over the content).
+  for (const type of ['pointerdown', 'pointermove', 'keydown']) win.addEventListener(type, event => clearLeave(event), { capture: true, passive: true });
   win.addEventListener('keydown', event => {
     if (readerBlocked() || event.defaultPrevented || event.key === 'Escape') return;
     const command = readerCommand(event, { mac: readerKeysMac, editable: readerEditable(event.target), fromFrame: true });
