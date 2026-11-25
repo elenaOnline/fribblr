@@ -1466,9 +1466,9 @@ function readerShortcuts() {
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
     <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
-    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out; − at fit goes back to the board</dd>
+    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out; at fit, − shows a blue band at the edge and a second − goes back to the board</dd>
     <dt>Shift-F</dt><dd>Expand: fill the screen, zoom out off (again, or Escape, to turn it off)</dd>
-    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms. Zooming out again at fit goes back to the board</dd>
+    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms. At fit, zooming out fills a blue band at the edge; a third smaller goes back to the board</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
     <dt>⌘/Ctrl-I</dt><dd>Inspector for this Tinka</dd>
