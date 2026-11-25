@@ -1,6 +1,6 @@
 /* Pointing mode (pointing-mode.js). Role tokens and the depth model only: the composer floats (data-height="float"),
-   its keys are raised, the field is sunken. Pointing is her voice, so it is drawn in her red (--mark-red), as her
-   comments are: a pointing message becomes one of her comment threads. */
+   its keys are raised, the field is sunken. Pointing is her voice, so the marks and their numbered chips are drawn in
+   her red (--mark-red); the words she types are ordinary ink, as in any composer. */
 
 /* While pointing, the board's editing chrome steps aside; it comes back as it was. */
 body.pointing-on :is(#edit-tools, #workspace-selection, .whiteboard-toolbar, .whiteboard-menu, .whiteboard-connect-hint) { display: none !important; }
@@ -15,7 +15,6 @@ body.pointing-on :is(#edit-tools, #workspace-selection, .whiteboard-toolbar, .wh
 }
 .pointing-bar[hidden] { display: none; }
 body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-width, 340px)) / 2); width: min(760px, calc(100vw - var(--navigator-dock-width, 340px) - 32px)); }
-.pointing-bar[data-busy] .pointing-send { opacity: .6; pointer-events: none; }
 .pointing-tools { display: flex; gap: 1px; align-self: center; }
 .pointing-tools .tk-btn { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; display: grid; place-items: center; }
 .pointing-tools .tk-btn:not([aria-pressed="true"]) { background: transparent; }
@@ -25,7 +24,7 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 .pointing-field-wrap > ui-trigger-menu { display: block; }
 .pointing-field {
   min-height: 36px; max-height: 132px; overflow: auto; box-sizing: border-box; padding: 8px 10px;
-  border-radius: var(--shape-key); color: var(--mark-red); --sink-focus: var(--mark-red);
+  border-radius: var(--shape-key); color: var(--ink);
   white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; outline: none; line-height: 20px;
 }
 .pointing-field:empty::before { content: attr(data-placeholder); color: var(--ink-2); pointer-events: none; }
@@ -39,6 +38,16 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
   border-radius: var(--shape-cap); background: var(--mark-red); color: var(--ink-on-mark);
   font: 600 11px/1 var(--type-mono);
 }
+.pointing-badge { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.pointing-badge b { font: inherit; }
+/* What a mark's targets became: "Deleted", "1 of 3 deleted". Words, so sans. */
+.pointing-note { font: 500 11px/1 var(--type-sans); }
+/* Every target gone: the mark stays where it was drawn, plain (no fill, dashed, ink-2), so it never reads as still
+   pointing at something. */
+.pointing-badge.pointing-gone { background: var(--surface-frame); color: var(--ink-2); box-shadow: 0 0 0 1px var(--line-edge); }
+.pointing-shape.pointing-gone { fill: none; stroke: var(--ink-2); stroke-dasharray: 5 4; }
+.pointing-dot.pointing-gone { background: var(--ink-2); }
+.cref.pointing-chip.missing .pointing-n { background: var(--surface-frame); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-edge); }
 .cref.pointing-chip { padding-left: 2px; gap: 5px; vertical-align: 1px; color: var(--ink); cursor: default; }
 .cref.pointing-chip .cref-label { max-width: 220px; white-space: nowrap; }
 
@@ -69,5 +78,15 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
   .pointing-send { grid-area: send; }
   .pointing-leave { grid-area: leave; }
 }
+/* What is sending, or why a message came back: one quiet line on the bar's top edge, over the board. */
+.pointing-status {
+  position: absolute; right: 10px; bottom: 100%; margin: 0; max-width: calc(100% - 20px); box-sizing: border-box;
+  padding: 4px 10px 3px; background: var(--surface-frame); color: var(--ink-2); border-radius: var(--shape-bar) var(--shape-bar) 0 0;
+  font: 12px/16px var(--type-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pointing-status[hidden] { display: none; }
+.pointing-status[data-error] { color: var(--ink); white-space: normal; }
+/* Her words in a sent pointing message are ordinary ink, as in the composer; the chips carry her red. */
+.ct-msg .pointing-words { color: var(--ink); }
 /* The mark a chip in an open thread was pressed for. */
 .pointing-shape.pointing-focus { stroke-width: 3px; }
