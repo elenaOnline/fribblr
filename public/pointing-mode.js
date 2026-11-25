@@ -108,7 +108,6 @@ class PointingMode {
     bar.querySelector('.pointing-leave').addEventListener('click', () => this.leave());
     // A press on the bar's keys keeps the caret in the composer.
     bar.addEventListener('mousedown', e => { if (e.target.closest('button') && document.activeElement === this.field) e.preventDefault(); });
-    this.picker = attachPicker(this.field, this.board, {onChange: () => this.adoptPicked()});
     this.field.addEventListener('input', e => this.typed(e));
     this.field.addEventListener('paste', e => { // plain text only, so a pasted chip can never be a mark without data
       e.preventDefault(); document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
@@ -219,6 +218,8 @@ class PointingMode {
     document.body.classList.add('pointing-on');
     this.bar.hidden = false; this.sheet.hidden = false; this.layer.hidden = false;
     this.hoverList = null; this.hover = null;
+    // The @ list is made on first use, so a board that never points has only the comment card's.
+    this.picker ||= attachPicker(this.field, this.board, {onChange: () => this.adoptPicked()});
     this.sizeSheet(); this.renderMarks();
     pointingGuard.handler = this.onGuard;
     this.focusField();

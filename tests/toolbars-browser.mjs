@@ -51,8 +51,10 @@ try{
  await key('ArrowRight');eq(await focused(),'pan','an arrow moves along the rail');
  eq(await page.locator('#edit-tools [data-edit-tool=pointer]').getAttribute('aria-pressed'),'true','moving focus did not press Pan');
  await key('ArrowRight',2);eq(await focused(),'sticky','arrows pass from the navigation tools to the drawing tools');
- await key('End');eq(await focused(),'comment');await key('ArrowRight');eq(await focused(),'pointer','arrows wrap');
- await key('ArrowLeft');eq(await focused(),'comment','arrows wrap backwards');
+ // the last key is Point and type (pointing-mode.js adds it to the rail)
+ await key('End');eq(await focused(),'Point and type');await key('ArrowLeft');eq(await focused(),'comment','the comment tool before it');
+ await key('ArrowRight',2);eq(await focused(),'pointer','arrows wrap');
+ await key('ArrowLeft');eq(await focused(),'Point and type','arrows wrap backwards');
  await key('Home');await key('ArrowRight');await key('Space');
  eq(await page.locator('#edit-tools [data-edit-tool=pan]').getAttribute('aria-pressed'),'true','Space presses the focused tool');
  eq(await page.locator('#edit-tools [data-edit-tool=pointer]').getAttribute('aria-pressed'),'false','one navigation tool at a time');

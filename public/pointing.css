@@ -58,8 +58,10 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 .pointing-badge { position: absolute; transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-2px, calc(-100% - 3px)); }
 .pointing-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; corner-shape: round; background: var(--mark-red); transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-50%, -50%); }
 
-/* The rail gains one key (Point and type): on a phone its keys share the width ten ways, not nine (workspace.css). */
+/* The rail gains one key (Point and type): on a phone its keys share the width ten ways, not nine (workspace.css);
+   under 360 px ten keys do not fit beside each other, so the rail keeps its own nine. */
 @media (max-width: 600px) { .edit-tools:has([data-pointing-enter]) { --edit-tool-size: clamp(26px, calc((100vw - 48px) / 10), 38px); } }
+@media (max-width: 359px) { .edit-tools .edit-tool-group:has([data-pointing-enter]) { display: none; } }
 @media (max-width: 640px) {
   .pointing-bar { grid-template-columns: auto 1fr auto auto; grid-template-areas: "tools . send leave" "field field field field"; width: calc(100vw - 32px); }
   .pointing-tools { grid-area: tools; }

@@ -105,7 +105,7 @@ try{
     assert.equal(await page.locator('[class*=quick-add],[data-quick-add]').count(),0,'no quick-add strip in the top bar');
     const palette=page.locator('#edit-tools'),toggle=page.locator('#edit-tools-toggle');
     await palette.waitFor({state:'visible'});
-    assert.deepEqual(await palette.getByRole('group').evaluateAll(groups=>groups.map(group=>group.getAttribute('aria-label'))),['Navigation','Draw','Feedback']);
+    assert.deepEqual(await palette.getByRole('group').evaluateAll(groups=>groups.map(group=>group.getAttribute('aria-label'))),['Navigation','Draw','Feedback','Pointing']);
     const pointer=palette.getByRole('button',{name:'Pointer'}),pan=palette.getByRole('button',{name:'Pan'});
     assert.equal(await pointer.getAttribute('aria-pressed'),'true');
     await pointer.focus();await page.keyboard.press('ArrowRight');
