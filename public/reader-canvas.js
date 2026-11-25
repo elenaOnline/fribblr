@@ -8,11 +8,11 @@
 // or pinch) goes back to the board the Tinka lives on (onLeave; canvas.js lands on its card), as pinching in on a fitted
 // photo returns to the grid in Photos. Expanded, the window fills the stage, past 100% if need be, and
 // the floor is a wall: zooming out stops there and never leaves (ui-sdk.md § Opened item).
-import {clampZoom, MAX_ZOOM, sameView, wheelZoomFactor, zoomOutGate, LEAVE_RATIO, GESTURE_GAP} from './canvas-zoom.js';
+import {clampZoom, MAX_ZOOM, sameView, wheelZoomFactor, wheelSource, zoomOutGate, LEAVE_RATIO, GESTURE_GAP} from './canvas-zoom.js';
 
 // A fitted Tinka shows its window at its true size or smaller.
 export const READER_FIT_MAX_ZOOM = 1;
-// Leaving takes one zoom step below the floor, by the same gate as a board's (canvas-zoom.js zoomOutGate).
+// Leaving is the same gate as a board's (canvas-zoom.js zoomOutGate): the leave band shows it building (onLeaveProgress).
 export {LEAVE_RATIO, GESTURE_GAP};
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -64,12 +64,12 @@ export function resourceSize(width, height) {
 }
 
 export class ReaderCanvas {
-  constructor(stage, plane, sheet, { onChange = () => {}, onBack = () => {}, onLeave = () => {}, reserveBottom = () => 0 } = {}) {
+  constructor(stage, plane, sheet, { onChange = () => {}, onBack = () => {}, onLeave = () => {}, onLeaveProgress = () => {}, reserveBottom = () => 0 } = {}) {
     Object.assign(this, { stage, plane, sheet, onChange, onBack, onLeave, reserveBottom });
     this.view = { zoom: 1, x: 0, y: 0 };
     this.fitted = true;
     this.expanded = false;
-    this.gate = zoomOutGate();
+    this.gate = zoomOutGate({ onProgress: onLeaveProgress });
     this.floorKey = '';
     this.floorZoom_ = 1;
     this.backView = null;
@@ -224,11 +224,16 @@ export class ReaderCanvas {
     this.view = { zoom: z, x: sx - (sx - x) * z / z0, y: sy - (sy - y) * z / z0 };
     this.apply();
   }
-  // Zoom by `factor` about the stage point (sx, sy). `source` is 'step' (a key, a button: each press counts on its own)
-  // or 'wheel' / 'pinch' (a gesture); `repeat` marks a held key. Returns 'zoomed', 'held' (at the floor, nothing moved)
-  // or 'leave' (onLeave has been called).
+  // Zoom by `factor` about the stage point (sx, sy). `source` is 'step' (a key, a button), 'notch' (a mouse-wheel
+  // click) or 'wheel' / 'pinch' (a gesture); `repeat` marks a held key. Returns 'zoomed', 'held' (at the floor: nothing
+  // zoomed, the leave band may have moved) or 'leave' (onLeave has been called).
   zoomBy(factor, sx, sy, { source = 'step', repeat = false } = {}) {
-    if (!(factor < 1)) { this.gate.reset(); this.zoomTo(this.view.zoom * factor, sx, sy); return 'zoomed'; }
+    if (!(factor < 1)) {
+      const rest = this.gate.back(factor, { source });
+      if (!(rest > 1)) return 'held';
+      this.zoomTo(this.view.zoom * rest, sx, sy);
+      return 'zoomed';
+    }
     const verdict = this.gate.out(factor, { above: !this.atFloor(), source, repeat, locked: this.expanded });
     if (verdict === 'zoom') {
       this.zoomTo(this.view.zoom * factor, sx, sy);
@@ -274,7 +279,7 @@ export class ReaderCanvas {
   bind() {
     const stage = this.stage;
     stage.addEventListener('wheel', event => {
-      if (event.ctrlKey || event.metaKey) { event.preventDefault(); this.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY, { source: 'wheel' }); return; }
+      if (event.ctrlKey || event.metaKey) { event.preventDefault(); this.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY, { source: wheelSource(event) }); return; }
       // The window's own edge and padding pan too; wheel over content is handled where it lands.
       if (!this.background(event.target) && event.target !== this.sheet) return;
       event.preventDefault();
@@ -314,7 +319,7 @@ export class ReaderCanvas {
     });
     const end = event => {
       if (!this.pointers.delete(event.pointerId)) return;
-      if (this.pointers.size < 2) this.pinch = null;
+      if (this.pointers.size < 2) { if (this.pinch) this.gate.end(); this.pinch = null; }  // fingers up: the band goes
       if (!this.pointers.size) { this.pan = null; stage.classList.remove('panning'); }
     };
     stage.addEventListener('pointerup', end);
@@ -327,5 +332,6 @@ export class ReaderCanvas {
       this.zoomAtClient(scale / gestureScale, event.clientX, event.clientY, { source: 'pinch' });
       gestureScale = scale;
     });
+    stage.addEventListener('gestureend', () => this.gate.end());
   }
 }

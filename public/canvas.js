@@ -9,7 +9,8 @@ import { WorkspaceBoard } from './workspace-board.js';
 import { contentURL, enableOrganization, makeDialog } from './workspace.js';
 import { validTextAnchor } from './markdown-document.js';
 import {bindCommitShortcut,commitShortcutLabel,setCommitHint} from './interaction.js';
-import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, stepSliderZoom, wheelZoomFactor, zoomOutGate, boardZoomFloor} from './canvas-zoom.js';
+import {clampZoom, FIT_MAX_ZOOM, LARGE_BOARD_ZOOM, sameView, sliderFromZoom, zoomFromSlider, stepSliderZoom, wheelZoomFactor, wheelSource, zoomOutGate, boardZoomFloor} from './canvas-zoom.js';
+import {LeaveBand} from './leave-band.js';
 import {BoardMap} from './board-map.js';
 import {decorationBounds} from './whiteboard-geometry.js';
 import {ReaderCanvas, contentScrolls} from './reader-canvas.js';
@@ -368,7 +369,7 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
 // ---- The board's zoom floor: zooming out stops where all of the board fits; a fresh zoom-out there goes up to the board
 // it lives on (its parent), or Home for a board on Home. The opened item's model (canvas-zoom.js zoomOutGate; ui-sdk.md §
 // Zoom floor). Fit, the map's Fit and app-chosen moves use changeZoom directly; every zoom-out she makes goes through here.
-var boardGate = zoomOutGate();
+var boardGate = zoomOutGate({ onProgress: p => showLeaveBand(p, 'board') });
 var boardFloor = null, leavingBoard = false, boardMinusState = null;  // var: applyView may run before this line
 // Only a canvas board on its own page has a floor: not Grid view, the overview render, or while the reader is open.
 const boardHasFloor = () => !!board && !overview && graph?.mode !== 'grid' && !dialog.open;
@@ -417,7 +418,7 @@ const atBoardFloor = floor => zoom <= floor * (1 + 1e-3);
 // 'wheel' or 'pinch' (a gesture); `repeat`: a held key.
 function boardZoomTarget(factor, { source = 'step', repeat = false } = {}) {
   if (leavingBoard) return zoom;
-  if (!(factor < 1)) { boardGate.reset(); return clampZoom(zoom * factor); }
+  if (!(factor < 1)) return clampZoom(zoom * boardGate.back(factor, { source }));
   const floor = measureBoardFloor();
   if (floor == null) return clampZoom(zoom * factor);
   const verdict = boardGate.out(factor, { above: !atBoardFloor(floor), source, repeat });
@@ -798,6 +799,7 @@ const readerCanvas = new ReaderCanvas(readerStage, $('reader-plane'), $('reader-
   onChange: syncReaderZoom,
   onBack: shown => { $('reader-view-back').hidden = !shown; },
   onLeave: () => leaveToBoard(),
+  onLeaveProgress: p => showLeaveBand(p, 'reader'),
   reserveBottom: () => { const pill = dialog.querySelector('.reader-footer .zoom-pill'); return pill ? pill.offsetHeight + 20 : 0; },
 });
 const readerResource = new ReaderResourceSurface($('active-reader'), {
@@ -1200,6 +1202,30 @@ function closeReader({ history: mode = 'push', land = null } = {}) {
   });
 }
 var readerFromBoardItem = false;  // var: openReader may run before this line during start-up
+// ---- The leave band (leave-band.js): one at the board's edge, one inside the opened item's dialog (the top layer) ----
+var leaveBands = null;
+function showLeaveBand(progress, where) {
+  leaveBands ||= { board: new LeaveBand(document.body), reader: new LeaveBand(dialog) };
+  const band = leaveBands[where], was = band.progress;
+  band.set(progress);
+  // Said once as it appears (the band itself is hidden from assistive technology).
+  if (!was && progress > 0) {
+    if (where === 'reader') announceReaderView('Zoom out again to go back to the board');
+    else announceView(`Zoom out again to go up to ${graph?.zoomOutParent?.()?.title || 'Home'}`);
+  }
+}
+// Any other input clears a shown band: a pointer move, a pan, a click, another key, leaving the window. Zoom steps and the − / + buttons
+// are the gates' own (a zoom-out fills it, a zoom-in empties it first); a touch pinch ends with its fingers (end()).
+function clearLeave(event) {
+  if (event?.type === 'keydown' && ['-', '_', '+', '=', 'Control', 'Meta', 'Shift', 'Alt', 'CapsLock'].includes(event.key)) return;
+  if ((event?.type === 'pointerdown' || event?.type === 'pointermove') && (event.pointerType === 'touch' || event.target?.closest?.('#zoom-minus,#reader-zoom-minus,#zoom-plus,#reader-zoom-plus'))) return;
+  if (event?.type === 'wheel' && (event.ctrlKey || event.metaKey)) return;
+  if (!boardGate.progress && !readerCanvas.gate.progress) return;
+  boardGate.reset(); readerCanvas.gate.reset();
+}
+// Chrome sends no end for a trackpad pinch, so a lifted pinch leaves the band as it was until the pointer or a key moves.
+for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel']) document.addEventListener(type, clearLeave, { capture: true, passive: true });
+addEventListener('blur', () => clearLeave());
 // Zoomed out of an opened Tinka: the board comes back as she opened it from (closeReader has restored that view), with
 // the card selected and focused, so Enter opens it again. If the card isn't in that view (she stepped to another
 // Tinka, or the view was never hers), the zoom stays and the card is centred; with no board view of her own (a direct
@@ -1441,9 +1467,9 @@ function readerShortcuts() {
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
     <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
     <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
-    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out; − at fit goes back to the board</dd>
+    <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out; at fit, − shows a blue band at the edge and a second − goes back to the board</dd>
     <dt>Shift-F</dt><dd>Expand: fill the screen, zoom out off (again, or Escape, to turn it off)</dd>
-    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms. Zooming out again at fit goes back to the board</dd>
+    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms. At fit, zooming out fills a blue band at the edge; a third smaller goes back to the board</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
     <dt>⌘/Ctrl-I</dt><dd>Inspector for this Tinka</dd>
@@ -1478,7 +1504,7 @@ function runReaderCommand(command, { fromFrame = false, repeat = false } = {}) {
   // board announces its own (UI SDK viewport: "Zoom 150%").
   if (command === 'fit') { readerCanvas.fit(); announceReaderView('Fitted this Tinka'); return true; }
   if (command === 'actual-size') { readerCanvas.zoomTo(1); announceReaderView(); return true; }
-  if (command === 'zoom-in') { readerCanvas.zoomBy(1.25); announceReaderView(); return true; }
+  if (command === 'zoom-in') { if (readerCanvas.zoomBy(1.25) === 'zoomed') announceReaderView(); return true; }
   if (command === 'zoom-out') {
     const result = readerCanvas.zoomBy(1 / 1.25, undefined, undefined, { repeat });
     if (result === 'zoomed') announceReaderView();
@@ -1541,6 +1567,8 @@ function forwardFrame(frame) {
   try { win = frame.contentWindow; doc = frame.contentDocument; } catch { return; }
   if (!win || !doc || doc[FORWARDED]) return;
   doc[FORWARDED] = true;
+  // Input inside the content clears a shown leave band too (the pointer is usually over the content).
+  for (const type of ['pointerdown', 'pointermove', 'keydown']) win.addEventListener(type, event => clearLeave(event), { capture: true, passive: true });
   win.addEventListener('keydown', event => {
     if (readerBlocked() || event.defaultPrevented || event.key === 'Escape') return;
     const command = readerCommand(event, { mac: readerKeysMac, editable: readerEditable(event.target), fromFrame: true });
@@ -1552,7 +1580,7 @@ function forwardFrame(frame) {
     if (!(event.ctrlKey || event.metaKey) || readerBlocked()) return;
     event.preventDefault();
     const point = framePoint(win, event.clientX, event.clientY);
-    readerCanvas.zoomAtClient(wheelZoomFactor(event), point.x, point.y, { source: 'wheel' });
+    readerCanvas.zoomAtClient(wheelZoomFactor(event), point.x, point.y, { source: wheelSource(event) });
   }, { passive: false, capture: true });
   win.addEventListener('wheel', event => {
     if (event.ctrlKey || event.metaKey || event.defaultPrevented || readerBlocked()) return;
@@ -2340,7 +2368,7 @@ function ensureBoardMap() {
     panBy: (dx, dy) => moveView(view.x - dx * zoom, view.y - dy * zoom),
     panScreen: (fx, fy) => moveView(view.x + fx * viewport.clientWidth, view.y + fy * viewport.clientHeight),
     zoomAt: (factor, wx, wy) => { if (graph) graph.revealedPlacement = null; boardZoomBy(factor, view.x + wx * zoom, view.y + wy * zoom, { source: 'wheel' }); },
-    zoomBy: factor => { if (graph) graph.revealedPlacement = null; if (boardZoomBy(factor) != null) announceView(`Zoom ${Math.round(zoom * 100)}%`); },
+    zoomBy: factor => { if (graph) graph.revealedPlacement = null; const before = zoom; if (boardZoomBy(factor) != null && zoom !== before) announceView(`Zoom ${Math.round(zoom * 100)}%`); },
     actualSize: () => { if (graph) graph.revealedPlacement = null; boardZoomTo(1); announceView('Zoom 100%'); },
     close: () => setMapOpen(false, { remember: true, focus: true }),
   });
@@ -2653,7 +2681,7 @@ viewport.addEventListener('pointermove', event => {
 function endPointer(event) {
   if (!pointers.has(event.pointerId)) return;
   pointers.delete(event.pointerId);
-  if (pointers.size < 2) pinch = null;
+  if (pointers.size < 2) { if (pinch) boardGate.end(); pinch = null; }  // fingers up: the leave band goes
   if (pointers.size === 1) {
     const [id, point] = [...pointers.entries()][0];
     pan = graph && !point.canPan ? null : { id, x: point.x, y: point.y, left: view.x, top: view.y, active: true };
@@ -2678,7 +2706,7 @@ viewport.addEventListener('wheel', event => {
   if (graph?.mode === 'grid') return;
   if (event.ctrlKey || event.metaKey) {
     event.preventDefault();
-    boardZoomBy(wheelZoomFactor(event), ...viewportPoint(event.clientX, event.clientY), { source: 'wheel' });
+    boardZoomBy(wheelZoomFactor(event), ...viewportPoint(event.clientX, event.clientY), { source: wheelSource(event) });
     return;
   }
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
@@ -2699,7 +2727,7 @@ viewport.addEventListener('gesturechange', event => {
   boardZoomBy(scale / gestureScale, ...viewportPoint(event.clientX, event.clientY), { source: 'pinch' });
   gestureScale = scale;
 });
-viewport.addEventListener('gestureend', event => event.preventDefault());
+viewport.addEventListener('gestureend', event => { event.preventDefault(); boardGate.end(); });
 // A pinch over the board's floating chrome (header, panels, zoom pill) zooms the
 // board too, rather than magnifying the whole page. The reader and open dialogs
 // keep the browser's own zoom.
@@ -2714,11 +2742,11 @@ function viewportPinchPoint(event) {
 document.addEventListener('wheel', event => {
   // Over an opened Tinka's header, panels or pill, ⌘/Ctrl-scroll zooms its canvas, never the page.
   if ((event.ctrlKey || event.metaKey) && dialog.open && !readerStage.contains(event.target) && !document.querySelector('.workspace-dialog:is([open],[data-open])')) {
-    event.preventDefault(); readerCanvas.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY, { source: 'wheel' }); return;
+    event.preventDefault(); readerCanvas.zoomAtClient(wheelZoomFactor(event), event.clientX, event.clientY, { source: wheelSource(event) }); return;
   }
   if (!(event.ctrlKey || event.metaKey) || !boardOwnsPinch(event)) return;
   event.preventDefault();
-  boardZoomBy(wheelZoomFactor(event), ...viewportPinchPoint(event), { source: 'wheel' });
+  boardZoomBy(wheelZoomFactor(event), ...viewportPinchPoint(event), { source: wheelSource(event) });
 }, { passive: false });
 const readerOwnsPinch = event => dialog.open && !readerStage.contains(event.target) && !document.querySelector('.workspace-dialog:is([open],[data-open])');
 document.addEventListener('gesturestart', event => { if (boardOwnsPinch(event) || readerOwnsPinch(event)) { event.preventDefault(); gestureScale = 1; } });
@@ -2744,9 +2772,11 @@ viewport.addEventListener('keydown', event => {
   // + / − zoom and 0 shows 100% (UI SDK viewport keys) from the canvas or a focused card or drawn element; announced.
   const zoomKeys = onCanvas || !!event.target.matches?.('#world .workspace-card, #world .workspace-decoration');
   if (zoomKeys && ['+', '=', '-', '_', '0'].includes(key)) {
+    // The zoom is announced only when it changed: at the floor the leave band's own announcement stands (showLeaveBand).
+    const before = zoom;
     if (key === '0') boardZoomTo(1);
     else if (boardZoomBy(key === '+' || key === '=' ? 1.15 : 1 / 1.15, undefined, undefined, { repeat: event.repeat }) == null) { event.preventDefault(); return; }
-    announceView(`Zoom ${Math.round(zoom * 100)}%`);
+    if (zoom !== before) announceView(`Zoom ${Math.round(zoom * 100)}%`);
   }
   else if (key.startsWith('Arrow') && step) moveView(view.x + step[0], view.y + step[1]);
   else if (step) { const from = glideTarget || view; glideTo({ x: from.x + step[0], y: from.y + step[1] }, { track: true }); }

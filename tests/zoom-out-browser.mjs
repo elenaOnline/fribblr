@@ -61,6 +61,8 @@ try{
  // A Control-wheel event of deltaY (a mouse notch is 100, clipped to the 1.35× step; a trackpad pinch sends a few units).
  const ctrlWheel=async(dy,gap=30)=>{await page.keyboard.down('Control');await page.mouse.wheel(0,dy);await page.keyboard.up('Control');await page.waitForTimeout(gap);};
  const newGesture=()=>page.waitForTimeout(400);  // longer than GESTURE_GAP
+ // The opened item's leave band (inside its dialog): opacity and the top strip's scale (its width over the 12 px maximum).
+ const band=()=>page.evaluate(()=>{const b=document.querySelector('#reader-dialog .leave-band');if(!b)return {opacity:0,scale:0};const top=b.querySelector('[data-edge="top"]');return {opacity:+(+getComputedStyle(b).opacity).toFixed(3),scale:+(+new DOMMatrix(getComputedStyle(top).transform).d).toFixed(3)};});
  // The landing: the board, the card selected, focused and in view. 'same': the board view she opened from, unchanged.
  // 'centred': that view's zoom, the card centred (it wasn't in that view). 'direct': no board view of hers, the board's
  // opening zoom (never above 100%), the card centred. Nothing zooms in.
@@ -99,6 +101,11 @@ try{
  ok(await isOpen()&&(await plane()).zoom===fit.zoom,'Pressing it changes nothing');
  await page.keyboard.press('Escape');await page.locator('#reader-zoom-menu').waitFor({state:'hidden'});
  await page.mouse.move(cx,cy);await newGesture();
+ // The leave band: a mouse-wheel notch at fit shows it half way (one of two steps); the next notch leaves.
+ eq(await band(),{opacity:0,scale:0},'No leave band above the floor or at rest');
+ await ctrlWheel(100);
+ ok(await isOpen(),'The first notch at fit does not leave');
+ {const b=await band();ok(Math.abs(b.opacity-.6)<.01&&Math.abs(b.scale-7/12)<.01,`…it shows the leave band half way (${JSON.stringify(b)})`);}
  await ctrlWheel(100);
  await landed(imageId,'same','Wheel notch');
  // Enter opens it again: zooming out and opening are each other's reverse.
@@ -109,13 +116,32 @@ try{
  eq(await boardView(),opened,'Enter then Escape returns to the board view, not a zoomed-in one');
  await openFromBoard(imageId);
 
- // (2) Pinch as Control-wheel (Chrome's trackpad pinch): small steps accumulate; a fifth smaller leaves, less does not.
+ // (2) Pinch as Control-wheel (Chrome's trackpad pinch): the band grows with the pinch, recedes when it reverses and
+ // goes when it ends below the threshold; a third smaller leaves.
  await page.mouse.move(cx,cy);await newGesture();
- await ctrlWheel(8);await ctrlWheel(8);
+ await ctrlWheel(8);const b1=await band();await ctrlWheel(8);const b2=await band();
  ok(await isOpen(),'A small pinch at fit (about 15%) stays');
  eq((await plane()).zoom,fit.zoom,'…and nothing moves under it');
+ ok(b1.opacity>0&&b2.opacity>b1.opacity&&b2.scale>b1.scale,`The band grows with the pinch (${b1.opacity.toFixed(2)} → ${b2.opacity.toFixed(2)})`);
+ await ctrlWheel(-8);const b3=await band();
+ ok(b3.opacity<b2.opacity&&Math.abs(b3.opacity-b1.opacity)<.01,'Reversing the pinch makes it recede');eq((await plane()).zoom,fit.zoom,'…before anything zooms in');
+ // Chrome sends no pinch end: a lifted pinch leaves the band as it was, still, until her next input.
+ await newGesture();eq(await band(),b3,'A pause changes nothing: the band stays still');
+ await ctrlWheel(8);eq(await band(),b1,'A new pinch after the pause starts from its own progress');
+ await newGesture();await page.mouse.move(cx+6,cy);eq((await band()).opacity,0,'Moving the pointer clears it');
+ for(let i=0;i<5;i++)await ctrlWheel(8);
+ ok(await isOpen()&&(await band()).opacity>.8,'Five pinch steps (about 33%) fill it nearly to the threshold');
  await ctrlWheel(8);
  await landed(imageId,'same','Pinch (Control-wheel)');
+ // A brisk pinch (30 px an event, 16 ms apart): each event fills a fifth at most, so the band shows for four events
+ // and the fifth leaves; it never flashes and cuts.
+ await openFromBoard(imageId);await page.mouse.move(cx,cy);await newGesture();
+ const brisk=[];for(let i=0;i<4;i++){await ctrlWheel(30,16);brisk.push((await band()).opacity);}
+ ok(await isOpen(),'Four brisk pinch events stay');
+ eq(brisk,[.42,.54,.66,.78],'…each a fifth of the band');
+ await ctrlWheel(30,16);
+ await landed(imageId,'same','Brisk pinch');
+ eq((await band()).opacity,0,'Leaving clears the band');
 
  // (3) Touch pinch on the stage (pointer events) and Safari's gesture events.
  await openFromBoard(imageId);
@@ -123,7 +149,7 @@ try{
   const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+40;
   const send=(type,id,px)=>el.dispatchEvent(new PointerEvent(type,{pointerId:id,pointerType:'touch',isPrimary:id===21,clientX:px,clientY:y,bubbles:true,cancelable:true}));
   send('pointerdown',21,x-from/2);send('pointerdown',22,x+from/2);
-  for(let k=1;k<=4;k++){const d=from+(to-from)*k/4;send('pointermove',21,x-d/2);send('pointermove',22,x+d/2);}
+  for(let k=1;k<=8;k++){const d=from+(to-from)*k/8;send('pointermove',21,x-d/2);send('pointermove',22,x+d/2);}
   send('pointerup',21,x-to/2);send('pointerup',22,x+to/2);
  },[from,to]);
  await pinch(200,500);ok((await plane()).zoom>2,'Spreading two fingers zooms in');
@@ -131,14 +157,18 @@ try{
  ok(await isOpen(),'A pinch from 250% to below fit stops at fit');
  eq((await plane()).zoom,fit.zoom,'…at the fitted view');
  await newGesture();await pinch(200,180);ok(await isOpen(),'A slight pinch at fit stays');
- await newGesture();await pinch(200,150);
+ await newGesture();await pinch(200,150);ok(await isOpen(),'A pinch a quarter smaller stays (it takes a third)');
+ eq((await band()).opacity,0,'…and lifting the fingers drops the band at once');
+ await newGesture();await pinch(200,120);
  await landed(imageId,'same','Touch pinch');
  await openFromBoard(imageId);
  
- await page.locator('#reader-stage').evaluate(el=>{el.dispatchEvent(new Event('gesturestart',{cancelable:true}));const r=el.getBoundingClientRect();el.dispatchEvent(Object.assign(new Event('gesturechange',{cancelable:true}),{scale:.7,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));});
+ await page.locator('#reader-stage').evaluate(el=>{el.dispatchEvent(new Event('gesturestart',{cancelable:true}));const r=el.getBoundingClientRect();el.dispatchEvent(Object.assign(new Event('gesturechange',{cancelable:true}),{scale:.6,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));});
+ ok(await isOpen()&&Math.abs((await band()).opacity-(.3+.6*.2))<.01,'One brisk Safari pinch event fills a fifth of the band at most');
+ await page.locator('#reader-stage').evaluate(el=>{const r=el.getBoundingClientRect();for(const scale of [.5,.4,.3,.2])el.dispatchEvent(Object.assign(new Event('gesturechange',{cancelable:true}),{scale,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));});
  await landed(imageId,'same','Safari pinch');
 
- // (4) −: a press that reaches fit stops there; the next press leaves; a held − never leaves.
+ // (4) −: a press that reaches fit stops there; at fit a press shows the band, the next leaves; a held − never leaves.
  await openFromBoard(imageId);
  await page.keyboard.press('=');await page.keyboard.press('=');
  await page.keyboard.press('-');await page.keyboard.press('-');
@@ -146,7 +176,10 @@ try{
  await page.keyboard.press('=');await page.keyboard.press('=');
  for(let i=0;i<6;i++)await page.keyboard.down('-');await page.keyboard.up('-');
  ok(await isOpen(),'A held − stops at fit and never leaves');eq((await plane()).zoom,fit.zoom,'…at fit');
- await page.keyboard.press('-');
+ await page.keyboard.press('-');ok(await isOpen()&&Math.abs((await band()).opacity-.6)<.01,'A press at fit shows the band half way');
+ eq(await page.locator('#reader-view-announce').textContent(),'Zoom out again to go back to the board','…announced once, not replaced by a zoom readout');
+ await page.keyboard.press('=');eq((await band()).opacity,0,'+ clears it');eq((await plane()).zoom,fit.zoom,'…without zooming in');
+ await page.keyboard.press('-');await page.keyboard.press('-');
  await landed(imageId,'same','− key');
 
  // (5) The zoom control: the pill's − stops at fit, and at fit goes back to the board.
@@ -154,6 +187,7 @@ try{
  await page.locator('#reader-zoom-plus').click();await page.locator('#reader-zoom-plus').click();
  await page.locator('#reader-zoom-minus').click();await page.locator('#reader-zoom-minus').click();
  ok(await isOpen(),'The − button above fit zooms to fit and stops');eq((await plane()).zoom,fit.zoom,'…at fit');
+ await page.locator('#reader-zoom-minus').click();ok(await isOpen()&&(await band()).opacity>0,'A click at fit shows the band');
  await page.locator('#reader-zoom-minus').click();
  await landed(imageId,'same','− button');
 
@@ -175,7 +209,7 @@ try{
  eq(await page.locator('#reader-zoom-minus').getAttribute('aria-disabled'),'true','Expanded at its size, − is unavailable (aria-disabled)');
  await page.mouse.move(cx,cy);await newGesture();
  for(let i=0;i<3;i++)await ctrlWheel(100);
- ok(await isOpen(),'Expanded, Control-wheel out does not leave');eq((await plane()).zoom,big.zoom,'…and does not zoom out');
+ ok(await isOpen(),'Expanded, Control-wheel out does not leave');eq((await band()).opacity,0,'…and shows no leave band');eq((await plane()).zoom,big.zoom,'…and does not zoom out');
  await page.locator('#reader-stage').focus();
  await page.keyboard.press('-');ok(await isOpen()&&(await plane()).zoom===big.zoom,'− does nothing');
  await page.locator('#reader-zoom-minus').click({force:true});ok(await isOpen()&&(await plane()).zoom===big.zoom,'Pressing the − button does nothing');
@@ -219,7 +253,7 @@ try{
  ok(await page.evaluate(id=>{const r=document.querySelector(`#world .workspace-card[data-placement="${id}"]`).getBoundingClientRect();return r.left>=innerWidth||r.right>innerWidth;},docId),'The short note is outside that view');
  await openFromBoard(imageId);
  await page.keyboard.press('j');await page.waitForFunction(()=>document.querySelector('#reader-name').textContent.trim()==='Short note');await ready();
- await page.locator('#reader-stage').focus();await page.keyboard.press('-');
+ await page.locator('#reader-stage').focus();await page.keyboard.press('-');await page.keyboard.press('-');
  await landed(docId,'centred','After stepping',zoomedBoard);
 
  // (8) An item with its own board, opened in the view: the same floor, landing and Expand.
@@ -229,14 +263,14 @@ try{
  eq(await page.locator('#reader-zoom-minus').getAttribute('aria-disabled'),'true','…and − is unavailable');
  await page.locator('#reader-stage').focus();await page.keyboard.press('-');ok(await isOpen(),'Expanded, − does not leave it');
  await expand.click();await page.locator('#reader-stage').focus();
- await page.keyboard.press('-');
+ await page.keyboard.press('-');await page.keyboard.press('-');
  await landed(ownerId,'same','Item with its own board');
 
  // (9) A direct link: zooming out lands on the item's board, on its card.
  await page.goto('about:blank');  // a fresh load, not a hash change on the board already shown
  await page.goto(`${base}/boards/zb/#items/${docId}`,{waitUntil:'load'});await page.locator('#reader-dialog[open]').waitFor();await ready();
  await page.mouse.move(cx,cy);await newGesture();
- await ctrlWheel(100);
+ await ctrlWheel(100);await ctrlWheel(100);
  await landed(docId,'direct','Direct link');
  ok(!new URL(page.url()).hash.startsWith('#items/'),'The address is the board again');
  await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();

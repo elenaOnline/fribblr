@@ -685,3 +685,13 @@ body:is(.workspace-box-fit, .workspace-box-zoom) #workspace-marquee { border-sty
    prefix outweighs depth.css's key rule and its hover / press, which only step aside for :disabled. */
 html :is(#canvas-header, #reader-header) .tk-btn[aria-disabled="true"] { --key-d: 0px; --key-face: var(--surface-frame); --key-rim: var(--line-hair); color: color-mix(in srgb, var(--ink-2) 40%, var(--surface-frame)); opacity: 1; cursor: default; }
 html :is(#canvas-header, #reader-header) .tk-btn[aria-disabled="true"]:is(:hover, :active):not(:disabled) { background-color: var(--surface-frame); box-shadow: inset 0 0 0 1px var(--line-hair); translate: none; }
+
+/* The leave band (leave-band.js): a flat band of the blue mark at the screen's edge, its width and opacity set from the
+   zoom-out gate's progress. No blur, glow or transition; never a pointer target. On the board it sits above the canvas
+   and chrome; in the opened item, inside its dialog. */
+.leave-band { position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; opacity: 0; contain: strict; }
+.leave-band > i { position: absolute; display: block; background: var(--mark-blue); will-change: transform; }
+.leave-band > [data-edge="top"] { top: 0; left: 0; right: 0; height: 12px; transform-origin: top; transform: scaleY(0); }
+.leave-band > [data-edge="bottom"] { bottom: 0; left: 0; right: 0; height: 12px; transform-origin: bottom; transform: scaleY(0); }
+.leave-band > [data-edge="left"] { top: 0; bottom: 0; left: 0; width: 12px; transform-origin: left; transform: scaleX(0); }
+.leave-band > [data-edge="right"] { top: 0; bottom: 0; right: 0; width: 12px; transform-origin: right; transform: scaleX(0); }

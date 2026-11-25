@@ -58,6 +58,8 @@ try{
  const load=async url=>{await page.goto(url,{waitUntil:'load'});await page.locator('#world .workspace-card').first().waitFor().catch(()=>{});await page.waitForTimeout(500);};
  const ctrlWheel=async(dy,gap=30)=>{await page.keyboard.down('Control');await page.mouse.wheel(0,dy);await page.keyboard.up('Control');await page.waitForTimeout(gap);};
  const newGesture=()=>page.waitForTimeout(400);
+ // The board's leave band (on the page): opacity and the top strip's scale (its width over the 12 px maximum).
+ const band=()=>page.evaluate(()=>{const b=document.querySelector('body > .leave-band');if(!b)return {opacity:0,scale:0};const top=b.querySelector('[data-edge="top"]');return {opacity:+(+getComputedStyle(b).opacity).toFixed(3),scale:+(+new DOMMatrix(getComputedStyle(top).transform).d).toFixed(3),pe:getComputedStyle(b).pointerEvents,hidden:b.getAttribute('aria-hidden')};});
  const centre=()=>page.mouse.move(720,450);
  const waitBoard=async id=>{await page.waitForURL(u=>new URL(u).pathname===`/boards/${id}/`,{timeout:10000});await page.waitForTimeout(600);};
  const clearReturn=()=>page.evaluate(()=>{for(const k of Object.keys(sessionStorage))if(k.endsWith('/return-to-tile'))sessionStorage.removeItem(k);});
@@ -92,7 +94,27 @@ try{
  eq(boardPath(),'/boards/kid/','− back down to the floor stops there');
 
  // (2) Leaving with a known view: Top opens in the view she entered Kid from, Kid's tile selected and focused.
- await centre();await newGesture();await ctrlWheel(100);
+ // The board's leave band: absent above the floor; a pinch at the floor grows it, reversing makes it recede, the end of
+ // the pinch drops it; it never takes a pointer and is hidden from assistive technology.
+ eq((await band()).opacity,0,'No band at the floor before a new gesture');
+ await centre();await newGesture();
+ await ctrlWheel(8);const p1=await band();await ctrlWheel(8);const p2=await band();
+ eq(boardPath(),'/boards/kid/','A small pinch at the floor stays');eq(await zoom(),floor,'…and nothing zooms');
+ ok(p1.opacity>0&&p2.opacity>p1.opacity&&p2.scale>p1.scale,`The band grows with the pinch (${p1.opacity} → ${p2.opacity})`);
+ eq([p2.pe,p2.hidden],['none','true'],'It takes no pointer events and is aria-hidden');
+ ok((await page.locator('#view-announce').textContent()).includes('Zoom out again to go up to Top board'),'Its appearance is announced, naming where it goes');
+ await ctrlWheel(-8);ok((await band()).opacity<p2.opacity,'Reversing makes it recede');eq(await zoom(),floor,'…before anything zooms in');
+ const p3=await band();await newGesture();eq(await band(),p3,'A pause changes nothing (Chrome sends no pinch end)');
+ await page.keyboard.press('Shift');eq((await band()).opacity,p3.opacity,'A modifier key alone leaves it');
+ await page.keyboard.press('Escape');eq((await band()).opacity,0,'Another key clears it');
+ await ctrlWheel(8);ok((await band()).opacity>0,'A new pinch fills it again from its own progress');
+ await page.mouse.move(700,460);eq((await band()).opacity,0,'Moving the pointer clears it');
+ await page.locator('#viewport').focus();await page.keyboard.press('=');await page.keyboard.press('=');
+ await page.keyboard.press('-');eq((await band()).opacity,0,'Zooming out above the floor shows no band');
+ await page.keyboard.press('-');eq(boardPath(),'/boards/kid/','A press arriving at the floor stops there');eq(await zoom(),floor,'…at the floor');eq((await band()).opacity,0,'…and shows nothing');
+ await centre();await newGesture();
+ await ctrlWheel(100);eq(boardPath(),'/boards/kid/','A notch at the floor shows the band');ok(Math.abs((await band()).opacity-.6)<.01,'…half way');
+ await ctrlWheel(100);
  await waitBoard('top');
  eq(await boardView(),topView,'Top opens in the view she entered Kid from');
  await landed(kidTile,'Kid → Top (view known)');
@@ -122,7 +144,8 @@ try{
  eq(await page.locator('#zoom-slider').evaluate(el=>Number(el.min)),sliderFromZoom(1),'Its floor is 100%');
  await page.locator('#viewport').focus();await page.keyboard.press('=');await page.keyboard.press('-');
  eq(boardPath(),'/boards/empty/','+ then − comes back to 100% and stops');
- await page.keyboard.press('-');await waitBoard('top');
+ await page.keyboard.press('-');eq(boardPath(),'/boards/empty/','At 100% one − shows the band');
+ ok((await page.locator('#view-announce').textContent()).includes('Zoom out again to go up to Top board'),'…and its announcement stands (no zoom announced over it)');await page.keyboard.press('-');await waitBoard('top');
  await landed(empty.placementIds[0],'Empty → Top');
 
  // (6) A board on Home goes Home: Top's tile selected and focused.
