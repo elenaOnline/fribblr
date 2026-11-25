@@ -926,6 +926,7 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | E | Edit the selected (or focused) Markdown document |
 | C, ⇧C | Comment tool (Enter or Space on a focused item drops the pin), show or hide comments |
 | N | Quick jot |
+| P | Point and type (`pointing-mode.js`): inside it ⌥/Alt + M · L · K · P pick Marquee · Lasso · Laser pointer · Point, Enter sends, Escape leaves |
 | ? | Keyboard shortcuts |
 | Shift+F10, context-menu key | Card menu on a focused card; board menu on the focused canvas |
 | ⌥ / Alt + F10 | The drawn-object bar, from anywhere outside a field (`whiteboard.js` `focusBarKey`); Escape on the bar returns to its object |
@@ -1350,6 +1351,33 @@ in-place editor has no toolbar.
 **Tile notes.** `tile-ui.js` `TileNotes`: a non-modal `ui-popover` in the body, anchored by a temporary
 `data-note-anchor` attribute on the opener, so card handlers never hear it. Saving holds it open; Escape, a press
 outside, Tab out and × keep the draft; Cancel drops it. Focus returns to the opener control.
+
+**Point and type.** `pointing-mode.js`, `pointing-guard.js`, `pointing-geometry.js`, `pointing-thread.js`, `pointing.css`.
+A mode, not a popup: P (or the rail's Point and type key, its own `ui-toolbar-group` appended to `#edit-tools`) shows
+a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `<canvas>` sheet over `#viewport`.
+- Keys stay in the composer (a contenteditable `role=textbox`, `data-height="sunken"`, with the comment card's @
+  picker, `attachPicker`). Plain letters type, so the tools take ⌥/Alt + a letter, matched by `event.code` (⌥M types
+  µ on a Mac): `aria-keyshortcuts="Alt+M"` etc. on the tool keys, a single-choice `ui-toggle-group` (`choiceHTML`,
+  `onChoose`); the chosen tool gets `data-height="raised"` so it is a raised key that is on, as on the rail.
+- `pointing-guard.js` is loaded by `board.html` before `canvas.js`, so its window-capture listeners run before the
+  board's (press focus, Whiteboard, the marquee, outside-press closing of side panels, the Escape ladder). While the
+  mode is on it hands presses on the sheet and every keydown to the mode; the mode stops what it takes. Presses on the
+  sheet are `preventDefault`ed, so focus never leaves the composer. Wheel and pinch are not taken: the sheet is a child
+  of `#viewport`, so they reach the board's own handlers and pan and zoom. A middle-button drag, and a drag with the
+  Point tool, pan through `hooks.shiftViewport`.
+- Keys outside the composer while on: in a panel, menu, dialog or field they stay theirs; on the bar, Tab, arrows,
+  Space and Enter stay the bar's; anything else (on the board too) moves focus to the composer and types there, and
+  never reaches a board shortcut (Delete, ⌘Z and letters do nothing to the board).
+- Escape, one layer: a gesture in progress, then the open @ list, then a tooltip (yields), then the mode. Leaving puts
+  the view back in one step (`hooks.restoreView`, `canvas.js`) and focus where it was; the selection and panels were
+  never touched (the selection bar, the drawn-object bar and the rail are hidden by a body class while on).
+- Marks live in `.pointing-marks`, a layer re-appended to `#world` after each render (a `childList` observer on
+  `#world`, not per card); strokes are `vector-effect: non-scaling-stroke` and numbers scale by `1 / --canvas-zoom`.
+  The live gesture is drawn on the sheet in rAF; nothing is drawn per card.
+- A sent message is a feedback thread with `pointing` (`team/pointing/CONTRACT.md`). Its card renders the sentence
+  with numbered chips (`pointingBody`) and shows its marks on the board while open (`showPointing` / `hidePointing`);
+  a chip press brings its mark into view, ⌘/Ctrl-press opens its first target.
+- Checked in `tests/pointing-browser.mjs` (1280 and 390) and `tests/pointing.test.mjs` (geometry, the server record).
 
 **Quick jot.** `quick-jot.js`: a non-modal `ui-dialog` (a persistent bar; the board stays usable). Escape closes it from
 inside and focus returns to where it came from.
