@@ -221,8 +221,9 @@ class PointingMode {
       const d = (snap.decorations || []).find(x => x.id === el.dataset.decoration); if (!d) continue;
       const line = d.type === 'line';
       // A text box is wider than its words (a heading's box spans the board): what counts is the text as drawn.
-      const b = (d.type === 'text' && this.inkBox(el, v)) || box(el); if (!b) continue;
-      out.push({...b, key: `decoration:${d.id}`, kind: 'decoration', id: d.id, decoration: d, el, line,
+      const own = box(el); if (!own) continue;
+      const b = (d.type === 'text' && this.inkBox(el, v)) || own;
+      out.push({...b, own, key: `decoration:${d.id}`, kind: 'decoration', id: d.id, decoration: d, el, line,
         ...(line ? {points: this.linePoints(el, v)} : {}), frame: d.type === 'region' && !d.sticker && (!!d.container || !d.shape)});
     }
     return out;
@@ -276,8 +277,13 @@ class PointingMode {
     const d = c.decoration;
     const itemKind = d.type === 'line' ? 'line' : d.type === 'text' ? 'text' : d.sticker ? 'sticker' : d.type !== 'region' ? d.type || 'drawing'
       : d.container ? 'container' : d.shape === 'rectangle' ? 'sticky' : d.shape ? 'shape' : 'region';
+    // Hits are measured on what is drawn (a text element's words); regions and spots are fractions of its own box.
+    const own = c.own && c.own !== c && (c.own.x !== c.x || c.own.w !== c.w || c.own.y !== c.y || c.own.h !== c.h) ? c.own : null;
+    const f = v => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
+    const re = !own ? null : (r, w) => ({x: f((c.x + r.x * c.w - own.x) / own.w), y: f((c.y + r.y * c.h - own.y) / own.h), ...(w ? {w: f(r.w * c.w / own.w), h: f(r.h * c.h / own.h)} : {})});
+    const region = t.region && (re ? re(t.region, true) : t.region), spot = t.spot && (re ? re(t.spot, false) : t.spot);
     return {kind: 'decoration', id: c.id, boardId, itemKind, title: clip(d.sticker ? `Sticker ${d.text || ''}` : decorationLabel(d), 120), whole: t.whole,
-      ...(t.region ? {region: t.region} : {}), ...(t.spot ? {spot: t.spot} : {})};
+      ...(region ? {region} : {}), ...(spot ? {spot} : {})};
   }
   // Where she pointed in the item's own content (CONTRACT "Added after the review"), from `frac` (fractions of the card's
   // box; w = h = 0 for a spot): an HTML page in CSS px of the page at the width the card renders it, an image in px of
@@ -734,7 +740,9 @@ class PointingMode {
     if (t.kind === 'decoration') {
       const d = (snap.decorations || []).find(x => x.id === t.id); if (!d) return {gone: true};
       const now = dataBox(d);
-      return {now, box: this.elementBox(this.world.querySelector(`.workspace-decoration[data-decoration="${CSS.escape(t.id)}"]`), v) || now};
+      const el = this.world.querySelector(`.workspace-decoration[data-decoration="${CSS.escape(t.id)}"]`);
+      // A whole text element is outlined round its words as drawn; a part is a region of its own box.
+      return {now, box: this.elementBox(el, v) || now, ink: d.type === 'text' && el ? this.inkBox(el, v) : null};
     }
     return {};
   }
@@ -758,7 +766,7 @@ class PointingMode {
     if (!live.length) return drawn;
     const note = gone ? `${gone} of ${placed.length} deleted` : '';
     // A click names its target, outlined or as the spot clicked; the dot is where she clicked.
-    const ofTarget = ({t, box}) => t.whole || !t.region ? {kind: 'outline', ...box}
+    const ofTarget = ({t, box, ink}) => t.whole || !t.region ? {kind: 'outline', ...(ink || box)}
       : {kind: 'rect', x: box.x + t.region.x * box.w, y: box.y + t.region.y * box.h, w: t.region.w * box.w, h: t.region.h * box.h};
     const near = (a, b) => a && b && ['x', 'y', 'w', 'h'].every(k => Math.abs(a[k] - b[k]) <= .5);
     const still = !gone && placed.every(x => near(x.then, x.now));
