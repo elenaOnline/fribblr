@@ -1,0 +1,97 @@
+/* Pointing mode (pointing-mode.js). Role tokens and the depth model only: the composer floats (data-height="float"),
+   its keys are raised, the field is sunken. Pointing is her voice, so the marks and their numbered chips are drawn in
+   her red (--mark-red); the words she types are ordinary ink, as in any composer. */
+
+/* While pointing, the board's editing chrome steps aside; it comes back as it was. */
+body.pointing-on :is(#edit-tools, #workspace-selection, .whiteboard-toolbar, .whiteboard-menu, .whiteboard-connect-hint) { display: none !important; }
+
+/* The composer sits where the canvas tools were. */
+.pointing-bar {
+  position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); z-index: 37;
+  width: min(760px, calc(100vw - 32px)); box-sizing: border-box;
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: end; gap: 6px;
+  padding: 6px; background: var(--surface-frame); color: var(--ink); border-radius: var(--shape-bar);
+  font: var(--type-ui)/1.4 var(--type-sans);
+}
+.pointing-bar[hidden] { display: none; }
+body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-width, 340px)) / 2); width: min(760px, calc(100vw - var(--navigator-dock-width, 340px) - 32px)); }
+.pointing-tools { display: flex; gap: 1px; align-self: center; }
+.pointing-tools .tk-btn { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; display: grid; place-items: center; }
+.pointing-tools .tk-btn:not([aria-pressed="true"]) { background: transparent; }
+.pointing-tools .tk-btn:not([aria-pressed="true"]):hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.pointing-bar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pointing-field-wrap { min-width: 0; }
+.pointing-field-wrap > ui-trigger-menu { display: block; }
+.pointing-field {
+  min-height: 36px; max-height: 132px; overflow: auto; box-sizing: border-box; padding: 8px 10px;
+  border-radius: var(--shape-key); color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; outline: none; line-height: 20px;
+}
+.pointing-field:empty::before { content: attr(data-placeholder); color: var(--ink-2); pointer-events: none; }
+.pointing-send, .pointing-leave, .pointing-selected { height: 36px; min-height: 36px; }
+.pointing-send { padding: 0 12px; }
+.pointing-leave, .pointing-selected { width: 36px; min-width: 36px; padding: 0; display: grid; place-items: center; }
+/* Point at the selection: a quiet key beside the tools (an action, not a tool); with nothing selected it says so. */
+.pointing-selected { align-self: center; border: 0; background: transparent; }
+.pointing-selected:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.pointing-selected[aria-disabled="true"] { color: var(--ink-2); }
+
+/* A mark's number: the same red square on the chip and on the board. */
+.pointing-n, .pointing-badge {
+  display: inline-grid; place-items: center; box-sizing: border-box; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: var(--shape-cap); background: var(--mark-red); color: var(--ink-on-mark);
+  font: 600 11px/1 var(--type-mono);
+}
+.pointing-badge { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.pointing-badge b { font: inherit; }
+/* What a mark's targets became: "Deleted", "1 of 3 deleted". Words, so sans. */
+.pointing-note { font: 500 11px/1 var(--type-sans); }
+/* Every target gone: the mark stays where it was drawn, plain (no fill, dashed, ink-2), so it never reads as still
+   pointing at something. */
+.pointing-badge.pointing-gone { background: var(--surface-frame); color: var(--ink-2); box-shadow: 0 0 0 1px var(--line-edge); }
+.pointing-shape.pointing-gone { fill: none; stroke: var(--ink-2); stroke-dasharray: 5 4; }
+.pointing-dot.pointing-gone { background: var(--ink-2); }
+.cref.pointing-chip.missing .pointing-n { background: var(--surface-frame); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-edge); }
+.cref.pointing-chip { padding-left: 2px; gap: 5px; vertical-align: 1px; color: var(--ink); cursor: default; }
+.cref.pointing-chip .cref-label { max-width: 220px; white-space: nowrap; }
+
+/* The sheet over the board: it takes every press while pointing. */
+.pointing-sheet { position: fixed; z-index: 25; display: block; touch-action: none; cursor: crosshair; }
+.pointing-sheet[hidden] { display: none; }
+.pointing-sheet[data-tool="laser"] { cursor: none; }
+.pointing-sheet[data-tool="point"] { cursor: default; }
+.pointing-sheet.pointing-panning { cursor: grabbing; }
+
+/* Marks on the board, in world units: strokes and numbers keep their screen size at any zoom. */
+.pointing-marks { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 10006; }
+.pointing-marks[hidden] { display: none; }
+.pointing-marks-svg { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+.pointing-shape { fill: color-mix(in srgb, var(--mark-red) 8%, transparent); stroke: var(--mark-red); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.pointing-shape.pointing-outline { fill: none; }
+.pointing-badge { position: absolute; transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-2px, calc(-100% - 3px)); }
+.pointing-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; corner-shape: round; background: var(--mark-red); transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-50%, -50%); }
+
+/* The rail gains one key (Point and type): on a phone its keys share the width ten ways, not nine (workspace.css);
+   under 360 px ten keys do not fit beside each other, so the rail keeps its own nine. */
+@media (max-width: 600px) { .edit-tools:has([data-pointing-enter]) { --edit-tool-size: clamp(26px, calc((100vw - 48px) / 10), 38px); } }
+@media (max-width: 359px) { .edit-tools .edit-tool-group:has([data-pointing-enter]) { display: none; } }
+@media (max-width: 640px) {
+  .pointing-bar { grid-template-columns: auto auto 1fr auto auto; grid-template-areas: "tools sel . send leave" "field field field field field"; width: calc(100vw - 32px); }
+  .pointing-tools { grid-area: tools; }
+  .pointing-selected { grid-area: sel; }
+  .pointing-field-wrap { grid-area: field; }
+  .pointing-send { grid-area: send; }
+  .pointing-leave { grid-area: leave; }
+}
+/* What is sending, or why a message came back: one quiet line on the bar's top edge, over the board. */
+.pointing-status {
+  position: absolute; right: 10px; bottom: 100%; margin: 0; max-width: calc(100% - 20px); box-sizing: border-box;
+  padding: 4px 10px 3px; background: var(--surface-frame); color: var(--ink-2); border-radius: var(--shape-bar) var(--shape-bar) 0 0;
+  font: 12px/16px var(--type-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pointing-status[hidden] { display: none; }
+.pointing-status[data-error] { color: var(--ink); white-space: normal; }
+/* Her words in a sent pointing message are ordinary ink, as in the composer; the chips carry her red. */
+.ct-msg .pointing-words { color: var(--ink); }
+/* The mark a chip in an open thread was pressed for. */
+.pointing-shape.pointing-focus { stroke-width: 3px; }

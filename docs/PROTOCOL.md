@@ -757,6 +757,32 @@ Operations: `setCommentStatus {threadId,actor,status?,to?|null,note?}` (feedback
 resolve or reopen a human-authored thread (403). A person's reply on a question or
 addressed thread for an agent moves it to sent. An unchanged status commits nothing.
 Refs and changes in list results add `exists`, `state` and `currentLabel`.
+Pointing messages (fribblr): `addComment` accepts an optional `pointing` object
+(`v:1`, `source` typed|voice, `startedAt`, `sentAt`, `appearance` light|dark, `parts`
+of at most 60 text runs and `{mark:n}`, `marks` of at most 20 with `n`, `tool`
+marquee|lasso|laser|point|keyboard, `at`, `end`, `boardId`, `shape` rect|path (at most
+400 points)|point, `targets` of at most 12 with `kind` placement|decoration|board, `id`,
+`boardId`, `itemId`, `itemKind`, `title`, `whole`, `region` as 0..1 fractions of the
+object's box, `spot:{x,y}` as 0..1 fractions of the object's box where she clicked (a click is
+`whole:true` with `spot`), and `content:{x,y,w,h,unit,of}`: the region or spot in the item's
+own coordinates, `unit` `px` (CSS px of an HTML page, pixels of an image file; 0 to
+10,000,000) or `fraction` (0..1 of the content area under the card's title, inside it),
+`w` and `h` 0 for a spot, `of` a name of at most 80 characters such as `page 1280 px wide`;
+unknown keys are refused). A `board` target is a board she picked with @ and has no card on
+the board, so it gets no crop of its own. Refusals state the limit in words (`A message can
+be at most 20,000 characters.`, `A message can have at most 20 references.`). A mark may carry `crop:{dataUrl,from?,box?}`, PNG or JPEG of at most 2 MB
+whose bytes are checked. Through `POST /api/operations` the server renders any other
+mark's crop (headless Chrome-family browser, `CHROMIUM_EXECUTABLE`; one render at a
+time), writes the files to `<workspaceRoot>/pointing/<threadId>/<n>.png|jpg` and only
+then writes the thread, removing the files if that fails; stored marks keep
+`crop:{path (relative to the workspace root),width,height,from,box}` or `crop:null` with
+`cropNote`, and each placement or drawing target keeps `placed`, its box when sent. Any
+other writer (CLI, tools) gets `crop:null` and a note. `feedback.list` with bodies adds
+`pointing.read` (plain text), absolute `crop.path`, `crop.url` and each target's `now`
+(state, current label and box). `GET /api/pointing/<threadId>/<n>` serves a crop image
+read-only. A request body over 1 MB is accepted (up to 16 MB) only for a pointing
+`addComment`.
+
 GET `/api/feedback` accepts boardId,itemId,threadId,resolved,limit,cursor and
 includeBodies. It also accepts status (comma-separated), to, toId, authorKind,
 updatedAfter, since (an inbox position: `""` to start, then `nextSince`; unrelated writes

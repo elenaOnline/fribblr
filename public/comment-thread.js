@@ -9,6 +9,7 @@ import "./vendor/ui-sdk/web/popover.js";
 import {defined} from "./ui-sdk.js";
 import "./tips.js"; // the comment card is a tooltip zone: its hints use the delegate
 import {esc, attachPicker, bindChips, chipElement, chipLabel, composerEmpty, composerValue, renderBody, setComposerValue, decorationLabel, itemLabel, refState} from "./comment-refs.js";
+import {pointingBody, showPointing, hidePointing} from "./pointing-thread.js";
 
 const STATUS = {open:"Open", sent:"Sent to agent", working:"Agent working", addressed:"Addressed · check it", question:"Agent asks you", resolved:"Resolved"};
 const ICON = {
@@ -98,6 +99,14 @@ function liveRect(board, thread, anchor) {
   }
   return null;
 }
+// A pointing message's card sits clear of its marks as well as its pin (pointing-mode.js sentScreenBox): the anchor is
+// their union while it is small enough for the card to fit beside; marks spread wider keep the pin alone.
+function withMarks(board, thread, box) {
+  const marks = thread?.id && board.pointing?.sentScreenBox?.(thread.id);
+  if (!marks || !box) return box;
+  const u = {left:Math.min(box.left, marks.left), top:Math.min(box.top, marks.top), right:Math.max(box.right, marks.right), bottom:Math.max(box.bottom, marks.bottom)};
+  return u.right - u.left <= innerWidth * .55 && u.bottom - u.top <= innerHeight * .85 ? u : box;
+}
 // Narrow windows get a bottom sheet (the SDK's sheet presentation, styled by .ct-sheet); wider ones a popover beside
 // the pin. The SDK places the popover against the anchor rect, on the right when it fits, else the left, below, above,
 // and never over the anchor (it flips; it only shifts along the anchor's edge).
@@ -137,7 +146,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   const draftKey = () => thread ? `thread:${thread.id}` : `new:${board.snapshot?.id}:${JSON.stringify(anchor || {})}:${itemId || ""}`;
   let composer = null;
   // The pin's rect as given, or (when none, or not laid out) the live pin or target on the board.
-  const currentRect = () => { const t = thread || (threadId ? {id:threadId} : null); return livePin(t) || pinBox(rect) || liveRect(board, t, anchor); };
+  const currentRect = () => { const t = thread || (threadId ? {id:threadId} : null); return withMarks(board, t, livePin(t) || pinBox(rect) || liveRect(board, t, anchor)); };
   // Opened from a list or a link, the board may still be panning to the pin: the anchor follows it until it stops
   // moving (a few frames), then stays put, so the card does not trail the board once she pans.
   let settling = 0, frozen = null;
@@ -226,7 +235,9 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
         box.after(row); attachPicker(box, board); continue;
       }
       if (m.deletedAt) { body.innerHTML = '<span class="ct-gone">Comment deleted</span>'; continue; }
-      body.append(renderBody(board, m.body, m.refs || []));
+      // A pointing message (pointing-mode.js) shows its sentence with numbered mark chips, and its marks on the board.
+      body.append(m.root && thread.pointing ? pointingBody(board, thread) : renderBody(board, m.body, m.refs || []));
+      if (m.root && thread.pointing) showPointing(board, thread);
       const ch = card.querySelector(`[data-changes="${CSS.escape(m.id)}"]`);
       if (ch) for (const c of m.changes) ch.append(chipElement({...c, label:chipLabel(board, c)}, {state:refState(board, c)}));
     }
@@ -351,6 +362,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     persist(); picker?.close();
     removeEventListener("resize", onResize);
     if (current?.card === card) current = null;
+    if (threadId) hidePointing(board, threadId);
     returnFocus(); setTimeout(() => pop.remove(), 600);
     settle({created, threadId});
   }

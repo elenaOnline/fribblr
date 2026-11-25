@@ -970,6 +970,7 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | E | Edit the selected (or focused) Markdown document |
 | C, ⇧C | Comment tool (Enter or Space on a focused item drops the pin), show or hide comments |
 | N | Quick jot |
+| P | Point and type (`pointing-mode.js`): inside it ⌥/Alt + M · L · K · P pick Marquee · Lasso · Laser pointer · Point; ⌥/Alt + R points at the selection (else the item that had focus); ⌥/Alt + = · − · 0 · 1 zoom in, out, 100%, fit; Enter sends (never while the @ list is open); Escape leaves |
 | ? | Keyboard shortcuts |
 | Shift+F10, context-menu key | Card menu on a focused card; board menu on the focused canvas |
 | ⌥ / Alt + F10 | The drawn-object bar, from anywhere outside a field (`whiteboard.js` `focusBarKey`); Escape on the bar returns to its object |
@@ -1394,6 +1395,86 @@ in-place editor has no toolbar.
 **Tile notes.** `tile-ui.js` `TileNotes`: a non-modal `ui-popover` in the body, anchored by a temporary
 `data-note-anchor` attribute on the opener, so card handlers never hear it. Saving holds it open; Escape, a press
 outside, Tab out and × keep the draft; Cancel drops it. Focus returns to the opener control.
+
+**Point and type.** `pointing-mode.js`, `pointing-guard.js`, `pointing-geometry.js`, `pointing-thread.js`, `pointing.css`.
+A mode, not a popup: P (or the rail's Point and type key, its own `ui-toolbar-group` appended to `#edit-tools`) shows
+a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `<canvas>` sheet over `#viewport`.
+- Keys stay in the composer (a contenteditable `role=textbox`, `data-height="sunken"`, with the comment card's @
+  picker, `attachPicker`). Plain letters type, so the tools take ⌥/Alt + a letter, matched by `event.code` (⌥M types
+  µ on a Mac): `aria-keyshortcuts="Alt+M"` etc. on the tool keys, a single-choice `ui-toggle-group` (`choiceHTML`,
+  `onChoose`); the chosen tool gets `data-height="raised"` so it is a raised key that is on, as on the rail. Letters
+  that are dead keys on a Mac (E, I, N, U) or browser menus off one (Alt + D, E, F, H, S, T, V, B) are not taken.
+- A click with any tool (no drag) points at the whole thing under it (`pointTarget`: `whole: true` and the `spot`
+  clicked); a part needs a marquee or lasso drag. Each part or spot on a card also carries `content`, where she pointed
+  in the item's own coordinates (`contentOf`): an HTML page in CSS px at the width the card renders it (the frame's
+  layout width, plus its scroll), an image in px of its file (object-fit mapped as the crop does), anything else as
+  fractions of `.workspace-card-preview`; none when the gesture misses the content area. Text counts where its words
+  are drawn (`inkBox`, its text nodes' line boxes), so a press beside a heading's words falls through to what is under
+  it; an arrow by its drawn line (`linePoints`, 24 samples of its path): crossed, it counts when nothing else was hit,
+  enclosed, alongside the rest.
+- The laser references a loop only (`closedLoop`: round, at least 40 × 24 px, drawn within 3.5 s); the loop holds as
+  the mark; a loop round an object's centre covering 60 % of it is the whole object (`pathHits(…, {loose: true})`); a
+  bigger circle round the same thing within 2.5 s replaces one that closed early. The dot and the hover outline go
+  when the pointer leaves the sheet (`pointerleave`).
+- Keyboard-only: ⌥R (and the bar's Point at the selection key, `aria-keyshortcuts="Alt+R"`, `aria-disabled` with
+  nothing to point at) makes one whole mark over the board's selection, else the item that had focus when she entered;
+  the @ list's first group is that selection (`attachPicker` `first()`), and an @ name may hold spaces (the list stays
+  open while it matches and closes once a space has made it match nothing). A mark made by keys that is off screen is
+  brought into view (`hooks.revealPlacements`). ⌥ + = · − · 0 · 1 zoom (`hooks.zoomKey`, `canvas.js`); inside the mode
+  zooming out stops at the floor and never leaves the board (the zoom-out gate's `locked`). No keyboard pan: every
+  arrow chord moves or selects text in the composer, and keyboard references do not need the view.
+- `pointing-guard.js` is loaded by `board.html` before `canvas.js`, so its window-capture listeners run before the
+  board's (press focus, Whiteboard, the marquee, outside-press closing of side panels, the Escape ladder). While the
+  mode is on it hands presses on the sheet and every keydown to the mode; the mode stops what it takes. Presses on the
+  sheet are `preventDefault`ed, so focus never leaves the composer. Wheel and pinch are not taken: the sheet is a child
+  of `#viewport`, so they reach the board's own handlers and pan and zoom. A middle-button drag, and a drag with the
+  Point tool, pan through `hooks.shiftViewport`.
+- Keys outside the composer while on: in a panel, menu, dialog or field they stay theirs; on the bar, Tab, arrows,
+  Space and Enter stay the bar's (a lone modifier moves nothing, so Shift+Tab walks back); anything else (on the board
+  too) moves focus to the composer and types there, and never reaches a board shortcut (Delete, ⌘Z and letters do
+  nothing to the board). The bar sits in the page just before `.canvas-footer`, so Tab from Leave goes on to the view
+  controls.
+- Presses on the mode's own chrome are the mode's (`chrome()` in the guard): no panel or menu outside takes them for a
+  click-away, and a press anywhere on the bar but the field is `preventDefault`ed on mousedown (no focus move); after
+  its click the caret is put back. The rail's Point and type key does the same while the mode is off
+  (`pointingGuard.entry`): an open Inspector or comments panel stays; an open menu closes and the same press enters.
+- Escape, one layer: a gesture in progress, then the open @ list, then a tooltip (yields), then the mode. Leaving puts
+  the view back in one step (`hooks.restoreView`, `canvas.js`) and focus where it was; the selection and panels were
+  never touched (the selection bar, the drawn-object bar and the rail are hidden by a body class while on).
+- Marks live in `.pointing-marks`, a layer re-appended to `#world` after each render (a `childList` observer on
+  `#world`, not per card); strokes are `vector-effect: non-scaling-stroke` and numbers scale by `1 / --canvas-zoom`.
+  The live gesture is drawn on the sheet in rAF; nothing is drawn per card.
+- Colour: the marks and their numbered chips are her red (`--mark-red`); the words she types are ordinary `--ink`,
+  in the composer and in the sent thread card (`.pointing-words`).
+- Marks follow what they point at (`geometry`, redrawn from `syncGeometry` on every render and drag frame): nothing
+  moved, the shape as drawn; one target moved or resized, the drawn shape carried with it (from its saved box when she
+  pointed, or the server's `placed` box for a sent one); otherwise each target where it is now, whole ones outlined,
+  parts as their `region`. Every target gone: the drawn shape plain and dashed in `--ink-2`, its number labelled
+  Deleted (some gone: "1 of 3 deleted"); the chip turns plain too. Empty-space marks are board positions and stay.
+- The composer is `[data-live-safe]`: a field outside the board that a render cannot disturb, so the board keeps
+  taking an agent's changes while she types (`canvas.js` and `liveBlocked` otherwise hold live updates while any
+  field has focus).
+- A mark's number is one past every mark of the draft, deleted ones too (Undo can bring a chip back), so no number is
+  on screen twice; sending numbers them 1..n. At 20 marks a new one is not taken and the bar's line says why; a message
+  over 20,000 characters is not sent and the line gives the limit; an app that isn't answering is said so.
+- The unsent draft is kept per board for the session (`sessionStorage` `tinka/pointing-draft/<board>`: the composer's
+  markup, marks, typing times, whether the mode was on), so leaving the page and coming back loses nothing; a message
+  still sending as the page went comes back unless the server has a thread with its `startedAt`.
+- Send never waits: the message leaves the composer at once (she can write the next), goes in order behind any still
+  sending, and a quiet line on the bar's top edge (`.pointing-status`, `role=status`) says Sending…; after it, the
+  empty composer's placeholder says it went. A failure puts the message back (words, chips, marks; before a new one
+  she has started, renumbered) and the line says why. A mark on one image item carries `crop.dataUrl` cut from the
+  item's own file at full resolution (`imageCropFull`); the server renders the rest. `pointing.appearance` is the
+  board's look.
+- A sent message is a feedback thread with `pointing` (`team/pointing/CONTRACT.md`). Its card renders the sentence
+  with numbered chips (`pointingBody`; names and Deleted kept current by `syncPointingChips`) and shows its marks on
+  the board while open (`showPointing` / `hidePointing`); a chip press brings its mark into view, ⌘/Ctrl-press opens
+  its first target. The card's anchor is its pin joined with the marks' numbers, parts and spots
+  (`sentScreenBox`, `comment-thread.js` `withMarks`) while that fits beside it, so it sits clear of them; a click's
+  pin goes at the outline's top-right.
+- Keys typed while focus is on the map or a side panel (not in one of its fields or menus) are letters for the
+  composer; the caret is kept at each input and as focus leaves, so they land where she left off.
+- Checked in `tests/pointing-browser.mjs` (1280 and 390) and `tests/pointing.test.mjs` (geometry, the server record).
 
 **Quick jot.** `quick-jot.js`: a non-modal `ui-dialog` (a persistent bar; the board stays usable). Escape closes it from
 inside and focus returns to where it came from.
