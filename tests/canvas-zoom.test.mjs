@@ -32,7 +32,7 @@ test('Control-wheel follows a Chromium trackpad pinch 1:1 and caps a mouse notch
   assert.ok(Math.abs(wheelZoomFactor({deltaMode:1, deltaY:-3}) - Math.exp(.3)) < 1e-9);
 });
 
-import {zoomOutGate,boardZoomFloor,wheelSource,LEAVE_FILL,LEAVE_STEPS,GESTURE_GAP} from '../public/canvas-zoom.js';
+import {zoomOutGate,boardZoomFloor,wheelSource,LEAVE_FILL,LEAVE_STEPS,LEAVE_EVENT_MAX,GESTURE_GAP} from '../public/canvas-zoom.js';
 // A gate with a manual clock for the end of a gesture, recording the band's progress.
 function gateWith() {
   const shown = [];let pending = null;
@@ -42,17 +42,22 @@ function gateWith() {
 test('the zoom-out gate fills the leave band from the floor: a pinch a third smaller leaves, reversing empties it, lifting drops it', () => {
   const {gate, shown, gap} = gateWith();let t = 0;
   const pinch = f => gate.out(f, {above: false, source: 'pinch', now: t += 16});
-  assert.equal(pinch(.9), 'held');assert.ok(Math.abs(gate.progress - Math.log(1 / .9) / LEAVE_FILL) < 1e-9, 'progress is how far past the floor, over a third');
-  assert.equal(pinch(.9), 'held');const p2 = gate.progress;
-  assert.equal(gate.back(1 / .9, {source: 'pinch', now: t += 16}), 1, 'reversing first empties the band, nothing zooms in');
+  assert.equal(pinch(.95), 'held');assert.ok(Math.abs(gate.progress - Math.log(1 / .95) / LEAVE_FILL) < 1e-9, 'progress is how far past the floor, over a third');
+  assert.equal(pinch(.95), 'held');const p2 = gate.progress;
+  assert.equal(gate.back(1 / .95, {source: 'pinch', now: t += 16}), 1, 'reversing first empties the band, nothing zooms in');
   assert.ok(gate.progress < p2, 'the band recedes');
-  assert.ok(Math.abs(gate.back(1 / .81, {source: 'pinch', now: t += 16}) - 1 / .9) < 1e-9, 'past empty, the rest zooms in');
+  assert.ok(Math.abs(gate.back(1 / .9025, {source: 'pinch', now: t += 16}) - 1 / .95) < 1e-9, 'past empty, the rest zooms in');
   assert.equal(gate.progress, 0);
   pinch(.9);gap();assert.equal(gate.progress, 0, 'the gesture ending (no event for the gap) drops the band at once');
   let v;for (let i = 0; i < 20 && (v = pinch(.95)) === 'held'; i++);
   assert.equal(v, 'leave', 'going on to a third smaller leaves');assert.equal(gate.progress, 0, 'leaving clears the band');
   assert.ok(Math.log(1 / .95) * 7 < LEAVE_FILL && Math.log(1 / .95) * 8 >= LEAVE_FILL);
   assert.ok(shown.every(p => p >= 0 && p <= 1));
+  // However brisk: a 30 px Chrome pinch event (×0.74) fills a fifth at most, so the band shows for five events first.
+  const brisk = gateWith();let n = 0;
+  while (brisk.gate.out(.74, {above: false, source: 'wheel', now: t += 16}) === 'held') n++;
+  assert.equal(n, 4, 'four events show the band (0.2 to 0.8), the fifth leaves');
+  assert.deepEqual(brisk.shown.slice(0, 4), [.2, .4, .6, .8]);
 });
 test('the zoom-out gate: steps fill half, a gesture that reaches the floor stops there, a held key never leaves', () => {
   let {gate, gap} = gateWith(), t = 0;

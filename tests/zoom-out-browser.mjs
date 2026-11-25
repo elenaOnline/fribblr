@@ -130,6 +130,14 @@ try{
  ok(await isOpen()&&(await band()).opacity>.8,'Five pinch steps (about 33%) fill it nearly to the threshold');
  await ctrlWheel(8);
  await landed(imageId,'same','Pinch (Control-wheel)');
+ // A brisk pinch (30 px an event, 16 ms apart): each event fills a fifth at most, so the band shows for four events
+ // and the fifth leaves; it never flashes and cuts.
+ await openFromBoard(imageId);await page.mouse.move(cx,cy);await newGesture();
+ const brisk=[];for(let i=0;i<4;i++){await ctrlWheel(30,16);brisk.push((await band()).opacity);}
+ ok(await isOpen(),'Four brisk pinch events stay');
+ eq(brisk,[.42,.54,.66,.78],'…each a fifth of the band');
+ await ctrlWheel(30,16);
+ await landed(imageId,'same','Brisk pinch');
  eq((await band()).opacity,0,'Leaving clears the band');
 
  // (3) Touch pinch on the stage (pointer events) and Safari's gesture events.
@@ -138,7 +146,7 @@ try{
   const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+40;
   const send=(type,id,px)=>el.dispatchEvent(new PointerEvent(type,{pointerId:id,pointerType:'touch',isPrimary:id===21,clientX:px,clientY:y,bubbles:true,cancelable:true}));
   send('pointerdown',21,x-from/2);send('pointerdown',22,x+from/2);
-  for(let k=1;k<=4;k++){const d=from+(to-from)*k/4;send('pointermove',21,x-d/2);send('pointermove',22,x+d/2);}
+  for(let k=1;k<=8;k++){const d=from+(to-from)*k/8;send('pointermove',21,x-d/2);send('pointermove',22,x+d/2);}
   send('pointerup',21,x-to/2);send('pointerup',22,x+to/2);
  },[from,to]);
  await pinch(200,500);ok((await plane()).zoom>2,'Spreading two fingers zooms in');
@@ -153,6 +161,8 @@ try{
  await openFromBoard(imageId);
  
  await page.locator('#reader-stage').evaluate(el=>{el.dispatchEvent(new Event('gesturestart',{cancelable:true}));const r=el.getBoundingClientRect();el.dispatchEvent(Object.assign(new Event('gesturechange',{cancelable:true}),{scale:.6,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));});
+ ok(await isOpen()&&Math.abs((await band()).opacity-(.3+.6*.2))<.01,'One brisk Safari pinch event fills a fifth of the band at most');
+ await page.locator('#reader-stage').evaluate(el=>{const r=el.getBoundingClientRect();for(const scale of [.5,.4,.3,.2])el.dispatchEvent(Object.assign(new Event('gesturechange',{cancelable:true}),{scale,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));});
  await landed(imageId,'same','Safari pinch');
 
  // (4) −: a press that reaches fit stops there; at fit a press shows the band, the next leaves; a held − never leaves.

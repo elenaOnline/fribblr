@@ -46,7 +46,7 @@ export const sameView = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.
 //
 // The way out is shown as it builds: `progress` (0 to 1) drives the leave band at the screen's edge (leave-band.js), and
 // at 1 she leaves. A pinch or trackpad scroll fills it smoothly: a zoom-out a third smaller than the floor (LEAVE_FILL)
-// fills it, and zooming back in empties it again before anything zooms in. A step (a −, the − button, a mouse-wheel
+// fills it (one event fills at most LEAVE_EVENT_MAX of it), and zooming back in empties it again before anything zooms in. A step (a −, the − button, a mouse-wheel
 // notch) fills half: the first step at the floor shows the band, the second leaves. A wheel or pinch gesture is its
 // events with no gap of GESTURE_GAP ms (Chrome reports a trackpad pinch as wheel events with no begin or end); one that
 // reaches the floor from above stops there and shows nothing, and a mouse-wheel spin likewise. When a gesture ends (the
@@ -54,6 +54,9 @@ export const sameView = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.
 // other input (reset). A held key (repeat) never fills or leaves. Expand (`locked`) shows nothing and never leaves.
 export const LEAVE_FILL = Math.log(1.5);
 export const LEAVE_STEPS = 2;
+// One pinch or scroll event fills at most a fifth of the band, so it always shows for five events before leaving,
+// however brisk the pinch (a fast Chrome pinch sends 30 px a frame, which would fill three quarters in one).
+export const LEAVE_EVENT_MAX = .2;
 export const GESTURE_GAP = 300;
 // One zoom step of the opened item's keys and button, kept for callers that size steps by it.
 export const LEAVE_RATIO = 1 / 1.25;
@@ -92,7 +95,7 @@ export function zoomOutGate({ onProgress = () => {}, schedule = (fn, ms) => setT
       begin(source, now);
       if (above) { if (steps || fill) { steps = 0; fill = 0; emit(); } return 'zoom'; }
       if (locked || repeat || (g.fromAbove && source !== 'step')) return 'held';
-      if (continuous(source)) fill += Math.log(1 / factor); else steps += 1;
+      if (continuous(source)) fill += Math.min(Math.log(1 / factor), LEAVE_EVENT_MAX * LEAVE_FILL); else steps += 1;
       if (progress() >= 1 - 1e-9) { stopTimer(); g = null; steps = 0; fill = 0; emit(); return 'leave'; }
       emit();
       return 'held';
