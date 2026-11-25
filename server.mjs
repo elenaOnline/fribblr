@@ -13,6 +13,8 @@ import {readWorkspace,workspaceHeader,workspaceView,getBoardSnapshot,getItemSnap
 import {listTools,callTool,toolDefinition} from './lib/tools.mjs';
 import {discoveryCatalog,searchWorkspace} from './lib/discovery.mjs';
 import {listFeedback} from './lib/feedback.mjs';
+import {addPointingComment} from './lib/pointing-send.mjs';
+import {findCrop,pointingRoot} from './lib/pointing-files.mjs';
 import {listHighlights} from './lib/highlights.mjs';
 import {migrateLegacy} from './lib/migrate.mjs';
 import {resolveResource,resourceUrl} from './lib/resources.mjs';
@@ -44,11 +46,14 @@ export function closeAppServer(server){
 function sendJson(res,status,value){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8',...noStore});res.end(JSON.stringify(value));}
 function decodeSegment(value){try{return decodeURIComponent(value);}catch{throw new HttpError(400,'Invalid URL encoding.');}}
 function sendError(res,error){if(res.headersSent){res.destroy();return;}const status=Number.isInteger(error.status)&&error.status>=400&&error.status<=599?error.status:500;sendJson(res,status,{error:status===500?'Request failed.':error.message,...(error.revision!==undefined?{revision:error.revision}:{}),...(typeof error.currentRevision==='string'?{currentRevision:error.currentRevision}:{}),...(error.code==='WORKSPACE_REVISION_CHANGED'?{code:error.code}:{})});}
-async function requestJson(req){
+// `large`: a body over 1 MB is allowed up to `limit` only when large(parsed) says so (a pointing message carrying crop pixels).
+async function requestJson(req,{limit=1_000_000,large=null}={}){
   if(!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type']||''))throw new HttpError(415,'Content-Type must be application/json.');
   let total=0;const chunks=[];
-  for await(const chunk of req){total+=chunk.length;if(total>1_000_000)throw new HttpError(413,'Request too large.');chunks.push(chunk);}
-  try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new HttpError(400,'Invalid JSON.');}
+  for await(const chunk of req){total+=chunk.length;if(total>limit)throw new HttpError(413,'Request too large.');chunks.push(chunk);}
+  let parsed;try{parsed=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new HttpError(400,'Invalid JSON.');}
+  if(total>1_000_000&&!large?.(parsed))throw new HttpError(413,'Request too large.');
+  return parsed;
 }
 const loopbackOrigins=server=>{const port=server.address()?.port;return new Set([`http://127.0.0.1:${port}`,`http://localhost:${port}`]);};
 // Every request must be addressed to this loopback listener by name. Binding to
@@ -206,7 +211,10 @@ export function createAppServer(config,{updates=createUpdateService(config)}={})
       if(documentApi&&method==='PUT'){await checkWrite(req,server,config);sendJson(res,200,await saveDocument(config,documentApi[1],await requestJson(req)));return;}
       if(pathname==='/api/link-preview'&&method==='POST'){await checkWrite(req,server,config);const input=await requestJson(req);sendJson(res,200,await createLinkPreview(input?.url));return;}
       if(pathname==='/api/workspace/migrate'&&method==='POST'){await checkWrite(req,server,config);const input=await requestJson(req);if(!input||typeof input!=='object'||Array.isArray(input)||typeof input.dryRun!=='boolean')throw new HttpError(400,'Provide dryRun: true or false explicitly.');sendJson(res,200,await migrateLegacy(config,{dryRun:input.dryRun}));return;}
-      if(pathname==='/api/operations'&&method==='POST'){await checkWrite(req,server,config);const operation=await requestJson(req);if(!operation||typeof operation!=='object'||Array.isArray(operation)||typeof operation.type!=='string')throw new HttpError(400,'Provide an operation object with type.');sendJson(res,200,await applyOperation(config,operation));return;}
+      if(pathname==='/api/operations'&&method==='POST'){await checkWrite(req,server,config);const operation=await requestJson(req,{limit:16_000_000,large:body=>body?.type==='addComment'&&!!body.pointing});if(!operation||typeof operation!=='object'||Array.isArray(operation)||typeof operation.type!=='string')throw new HttpError(400,'Provide an operation object with type.');sendJson(res,200,operation.type==='addComment'&&operation.pointing?await addPointingComment(config,operation,{url:`http://127.0.0.1:${server.address().port}/`}):await applyOperation(config,operation));return;}
+      // A pointing message's crop pictures, for the thread card: only files in that thread's own crop folder.
+      const cropRoute=/^\/api\/pointing\/([^/]+)\/(\d{1,2})$/.exec(pathname);
+      if(cropRoute&&(method==='GET'||method==='HEAD')){const found=await findCrop(config,decodeSegment(cropRoute[1]),cropRoute[2]);await sendFile(req,res,pointingRoot(config),path.relative(pointingRoot(config),found.file).split(path.sep).join('/'));return;}
       // Covers load from a document-like frame path; the older API path stays an alias.
       const thumbnail=/^\/(?:api\/items\/([^/]+)\/cover-thumbnail|frames\/items\/([^/]+)\/cover\.html)$/.exec(pathname);
       if(thumbnail&&method==='GET'){
