@@ -140,7 +140,8 @@ try{
  eq(await page.locator('#zoom-slider').evaluate(el=>Number(el.min)),sliderFromZoom(1),'Its floor is 100%');
  await page.locator('#viewport').focus();await page.keyboard.press('=');await page.keyboard.press('-');
  eq(boardPath(),'/boards/empty/','+ then − comes back to 100% and stops');
- await page.keyboard.press('-');eq(boardPath(),'/boards/empty/','At 100% one − shows the band');await page.keyboard.press('-');await waitBoard('top');
+ await page.keyboard.press('-');eq(boardPath(),'/boards/empty/','At 100% one − shows the band');
+ ok((await page.locator('#view-announce').textContent()).includes('Zoom out again to go up to Top board'),'…and its announcement stands (no zoom announced over it)');await page.keyboard.press('-');await waitBoard('top');
  await landed(empty.placementIds[0],'Empty → Top');
 
  // (6) A board on Home goes Home: Top's tile selected and focused.

@@ -164,6 +164,7 @@ try{
  for(let i=0;i<6;i++)await page.keyboard.down('-');await page.keyboard.up('-');
  ok(await isOpen(),'A held − stops at fit and never leaves');eq((await plane()).zoom,fit.zoom,'…at fit');
  await page.keyboard.press('-');ok(await isOpen()&&Math.abs((await band()).opacity-.6)<.01,'A press at fit shows the band half way');
+ eq(await page.locator('#reader-view-announce').textContent(),'Zoom out again to go back to the board','…announced once, not replaced by a zoom readout');
  await page.keyboard.press('=');eq((await band()).opacity,0,'+ clears it');eq((await plane()).zoom,fit.zoom,'…without zooming in');
  await page.keyboard.press('-');await page.keyboard.press('-');
  await landed(imageId,'same','− key');

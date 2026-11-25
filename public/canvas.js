@@ -1503,7 +1503,7 @@ function runReaderCommand(command, { fromFrame = false, repeat = false } = {}) {
   // board announces its own (UI SDK viewport: "Zoom 150%").
   if (command === 'fit') { readerCanvas.fit(); announceReaderView('Fitted this Tinka'); return true; }
   if (command === 'actual-size') { readerCanvas.zoomTo(1); announceReaderView(); return true; }
-  if (command === 'zoom-in') { readerCanvas.zoomBy(1.25); announceReaderView(); return true; }
+  if (command === 'zoom-in') { if (readerCanvas.zoomBy(1.25) === 'zoomed') announceReaderView(); return true; }
   if (command === 'zoom-out') {
     const result = readerCanvas.zoomBy(1 / 1.25, undefined, undefined, { repeat });
     if (result === 'zoomed') announceReaderView();
@@ -2365,7 +2365,7 @@ function ensureBoardMap() {
     panBy: (dx, dy) => moveView(view.x - dx * zoom, view.y - dy * zoom),
     panScreen: (fx, fy) => moveView(view.x + fx * viewport.clientWidth, view.y + fy * viewport.clientHeight),
     zoomAt: (factor, wx, wy) => { if (graph) graph.revealedPlacement = null; boardZoomBy(factor, view.x + wx * zoom, view.y + wy * zoom, { source: 'wheel' }); },
-    zoomBy: factor => { if (graph) graph.revealedPlacement = null; if (boardZoomBy(factor) != null) announceView(`Zoom ${Math.round(zoom * 100)}%`); },
+    zoomBy: factor => { if (graph) graph.revealedPlacement = null; const before = zoom; if (boardZoomBy(factor) != null && zoom !== before) announceView(`Zoom ${Math.round(zoom * 100)}%`); },
     actualSize: () => { if (graph) graph.revealedPlacement = null; boardZoomTo(1); announceView('Zoom 100%'); },
     close: () => setMapOpen(false, { remember: true, focus: true }),
   });
@@ -2769,9 +2769,11 @@ viewport.addEventListener('keydown', event => {
   // + / − zoom and 0 shows 100% (UI SDK viewport keys) from the canvas or a focused card or drawn element; announced.
   const zoomKeys = onCanvas || !!event.target.matches?.('#world .workspace-card, #world .workspace-decoration');
   if (zoomKeys && ['+', '=', '-', '_', '0'].includes(key)) {
+    // The zoom is announced only when it changed: at the floor the leave band's own announcement stands (showLeaveBand).
+    const before = zoom;
     if (key === '0') boardZoomTo(1);
     else if (boardZoomBy(key === '+' || key === '=' ? 1.15 : 1 / 1.15, undefined, undefined, { repeat: event.repeat }) == null) { event.preventDefault(); return; }
-    announceView(`Zoom ${Math.round(zoom * 100)}%`);
+    if (zoom !== before) announceView(`Zoom ${Math.round(zoom * 100)}%`);
   }
   else if (key.startsWith('Arrow') && step) moveView(view.x + step[0], view.y + step[1]);
   else if (step) { const from = glideTarget || view; glideTo({ x: from.x + step[0], y: from.y + step[1] }, { track: true }); }
