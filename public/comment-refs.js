@@ -167,8 +167,11 @@ export const composerEmpty = el => !el.textContent.replace(/​/g, "").trim() &&
 
 /** The @ picker for a contenteditable composer: a UI SDK Trigger Menu bound to the composer through an editor
  *  adapter. Chips count as one character (U+FFFC) in the adapter's text, as the SDK reads a token.
+ *  A name may hold spaces (@Round item D): the list stays open while what follows the @ still matches something, and
+ *  closes once a space has made it match nothing, so the rest is plain text (as Slack and Notion mentions do).
+ *  `first()` may return {label, refs}: a group listed before the others (pointing lists the selected items first).
  *  Returns {close, open}. */
-export function attachPicker(el, board, {onChange = () => {}} = {}) {
+export function attachPicker(el, board, {onChange = () => {}, first = null} = {}) {
   const menu = document.createElement("ui-trigger-menu");
   const content = document.createElement("ui-trigger-menu-content");
   content.className = "cref-picker"; content.setAttribute("aria-label", "Reference");
@@ -177,10 +180,11 @@ export function attachPicker(el, board, {onChange = () => {}} = {}) {
   el.before(menu); menu.append(el); // content first: a menu connected without one makes its own
   let flat = [], opened = false;
   const fill = () => {
-    const groups = refCandidates(board);
+    const groups = refCandidates(board), top = first?.(), key = r => `${r.kind}:${r.id}`, lead = new Set((top?.refs || []).map(key));
+    if (lead.size) for (const name of ["items", "drawn", "boards"]) groups[name] = groups[name].filter(r => !lead.has(key(r)));
     flat = [];
     const group = (name, list) => list.length ? `<ui-trigger-menu-group><ui-trigger-menu-group-label>${name}</ui-trigger-menu-group-label>${list.map(r => `<ui-trigger-menu-item value="${flat.push(r) - 1}" label="${esc(r.label)}"><ui-trigger-menu-item-icon>${ICON[r.kind] || ICON.item}</ui-trigger-menu-item-icon><span>${esc(r.label)}</span></ui-trigger-menu-item>`).join("")}</ui-trigger-menu-group>` : "";
-    content.innerHTML = `<ui-trigger-menu-empty class="cref-empty">No match</ui-trigger-menu-empty><ui-trigger-menu-list>${group("Items", groups.items)}${group("Drawn", groups.drawn)}${group("Boards", groups.boards)}</ui-trigger-menu-list>`;
+    content.innerHTML = `<ui-trigger-menu-empty class="cref-empty">No match</ui-trigger-menu-empty><ui-trigger-menu-list>${lead.size ? group(esc(top.label), top.refs) : ""}${group("Items", groups.items)}${group("Drawn", groups.drawn)}${group("Boards", groups.boards)}</ui-trigger-menu-list>`;
   };
   // ---- the editor adapter: the composer as text, chips as one character each
   const CHIP = "\uFFFC";
@@ -267,7 +271,7 @@ export function attachPicker(el, board, {onChange = () => {}} = {}) {
   // the @query before the caret, as a DOM range
   const typed = () => {
     const s = adapter.selection(); if (!s || s.start !== s.end) return null;
-    const before = textOf().slice(0, s.start), m = /(^|[\s(\uFFFC])@([^\s@\uFFFC]{0,40})$/.exec(before); if (!m) return null;
+    const before = textOf().slice(0, s.start), m = /(^|[\s(\uFFFC])@([^@\uFFFC\n]{0,40})$/.exec(before); if (!m) return null;
     return {start:s.start - m[2].length - 1, end:s.start};
   };
   function choose(ref) {
@@ -279,9 +283,14 @@ export function attachPicker(el, board, {onChange = () => {}} = {}) {
     last = textOf(); onChange();
   }
   menu.editor = adapter;
-  menu.triggers = [{char:"@", maxLength:40, pattern:/[^\s@]/, type:"reference"}];
+  menu.triggers = [{char:"@", maxLength:40, pattern:/[^\s@]/, spaces:true, type:"reference"}];
   menu.addEventListener("openchange", event => { opened = !!event.detail.value; if (opened) fill(); });
-  menu.addEventListener("querychange", event => { const empty = content.querySelector("ui-trigger-menu-empty"); if (empty) empty.textContent = `No match for \u201C${event.detail.value}\u201D`; });
+  menu.addEventListener("querychange", event => {
+    const query = String(event.detail.value || ""), empty = content.querySelector("ui-trigger-menu-empty");
+    if (empty) empty.textContent = `No match for \u201C${query}\u201D`;
+    // A space that leaves nothing matching ends the name: the list closes and what she types is plain text.
+    if (/\s/.test(query)) requestAnimationFrame(() => { if (opened && content.querySelector("ui-trigger-menu-empty")?.hasAttribute("data-empty")) menu.api?.close?.({reason:"imperative"}); });
+  });
   menu.addEventListener("itemselect", event => { event.preventDefault(); choose(flat[+event.detail.value]); });
   fill();
   return {close() { menu.api?.close?.({reason:"imperative"}); }, get open() { return opened; }};
