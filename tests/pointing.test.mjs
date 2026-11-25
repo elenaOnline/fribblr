@@ -51,10 +51,33 @@ test('a lasso hits by area inside the drawn shape; a closed loop simplifies with
   assert.ok(polygonArea(clipPolygon(loop,{x:0,y:0,w:200,h:150}))>15000);
 });
 
-test('a click: a small thing whole, a big one at the spot clicked',()=>{
-  assert.equal(pointTarget(card('a',0,0),{x:50,y:50},{zoom:1}).whole,true);
-  const big=pointTarget(card('m',0,0,1000,800),{x:500,y:400},{zoom:1});
-  assert.equal(big.whole,false);assert.deepEqual(big.region,{x:.476,y:.47,w:.048,h:.06});
+test('a click points at the whole thing, small or big, and carries the spot clicked',()=>{
+  const small=pointTarget(card('a',0,0),{x:50,y:50});
+  assert.equal(small.whole,true);assert.deepEqual(small.spot,{x:.25,y:.333});assert.equal(small.region,undefined);
+  const big=pointTarget(card('m',0,0,1000,800),{x:500,y:200});
+  assert.equal(big.whole,true);assert.deepEqual(big.spot,{x:.5,y:.25});
+});
+
+test('arrows go by their drawn line: crossed counts alone, enclosed counts alongside others',()=>{
+  // a diagonal arrow whose box is 200 x 100 but whose line runs corner to corner
+  const arrow={key:'decoration:l',kind:'decoration',id:'l',x:300,y:0,w:200,h:100,line:true,points:[[300,0],[400,50],[500,100]]};
+  const list=[card('a',0,0),arrow];
+  assert.deepEqual(keys(rectHits({x:380,y:20,w:40,h:60},list)),['l'],'a box across the line');
+  assert.equal(rectHits({x:310,y:60,w:40,h:30},list).targets.length,0,'a box in the arrow\'s box but off its line');
+  assert.deepEqual(keys(rectHits({x:-5,y:-5,w:520,h:120},list)).sort(),['a','l'],'enclosed: alongside the card');
+  assert.deepEqual(keys(rectHits({x:-5,y:-5,w:420,h:160},list)),['a'],'crossed while a card is hit: the card alone');
+  const ring=[];for(let d=0;d<360;d+=15)ring.push([400+30*Math.cos(d*Math.PI/180),50+30*Math.sin(d*Math.PI/180)]);
+  assert.deepEqual(keys(pathHits(ring,list)),['l'],'a lasso round the middle of the line');
+});
+
+test('the laser\'s loose circle: round a thing\'s centre and over most of it is the whole thing; a lasso stays exact',()=>{
+  const list=[card('s',0,0,320,220)];
+  const ellipse=[];for(let d=0;d<360;d+=10)ellipse.push([160+170*Math.cos(d*Math.PI/180),110+115*Math.sin(d*Math.PI/180)]);
+  assert.equal(pathHits(ellipse,list,{loose:true}).targets[0].whole,true);
+  assert.equal(pathHits(ellipse,list).targets[0].whole,false);
+  // off-centre: a circle over a corner is still a part
+  const corner=[];for(let d=0;d<360;d+=10)corner.push([40+120*Math.cos(d*Math.PI/180),40+120*Math.sin(d*Math.PI/180)]);
+  assert.equal(pathHits(corner,list,{loose:true}).targets[0].whole,false);
 });
 
 test('the laser: a circle closes a loop, a wave does not',()=>{
@@ -67,6 +90,14 @@ test('the laser: a circle closes a loop, a wave does not',()=>{
   const back=[];for(let i=0,t=0;i<30;i++,t+=16)back.push([i%2?300:100,100+i*0.5,t]);
   let flat=null;for(let i=5;i<=back.length&&!flat;i++)flat=closedLoop(back.slice(0,i));
   assert.equal(flat,null,'back and forth is not a circle');
+  // a deliberate circle drawn slowly (3 s) still counts
+  const slow=[];for(let a=0,t=0;a<=380;a+=5,t+=40)slow.push([200+80*Math.cos(a*Math.PI/180),200+60*Math.sin(a*Math.PI/180),t]);
+  let late=null;for(let i=5;i<=slow.length&&!late;i++)late=closedLoop(slow.slice(0,i));
+  assert.ok(late,'a 3 s circle is found');
+  // a scribble's turnaround: thin loops (a cycloid with loops about 15 x 35 px) are not circles
+  const scribble=[];for(let i=0,t=0;i<60;i++,t+=16)scribble.push([800+i*6+30*Math.cos(i/3),250+30*Math.sin(i/3),t]);
+  let turn=null;for(let i=5;i<=scribble.length&&!turn;i++)turn=closedLoop(scribble.slice(0,i));
+  assert.equal(turn,null,'a turnaround loop is not a circle');
 });
 
 const robin={id:'robin',label:'Robin',kind:'human'};

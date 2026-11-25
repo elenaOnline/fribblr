@@ -1,7 +1,7 @@
 // Pointing mode's geometry: what a gesture hit, in board units. No DOM here (tests import it).
 //
 // A candidate is {key, kind, id, x, y, w, h, line, frame} in board units: a card or a drawn element as rendered.
-// `line` marks an arrow (it counts only when wholly inside a gesture, and only when nothing else was hit);
+// `line` marks an arrow, `points` its drawn line in board units (see decide);
 // `frame` marks a container or plain region (covered whole, it stands for what it holds).
 
 const area = r => Math.max(0, r.w) * Math.max(0, r.h);
@@ -72,47 +72,81 @@ export function simplify(points, tolerance = 1, max = 400) {
   return out;
 }
 const regionOf = (part, box) => ({x: round3((part.x - box.x) / box.w), y: round3((part.y - box.y) / box.h), w: round3(part.w / box.w), h: round3(part.h / box.h)});
+const inRect = ([x, y], r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+/** Whether segment p1–p2 meets segment p3–p4 (ends included). */
+export function segmentsMeet(p1, p2, p3, p4) {
+  const d = (p2[0] - p1[0]) * (p4[1] - p3[1]) - (p2[1] - p1[1]) * (p4[0] - p3[0]);
+  if (!d) return false;
+  const t = ((p3[0] - p1[0]) * (p4[1] - p3[1]) - (p3[1] - p1[1]) * (p4[0] - p3[0])) / d;
+  const u = ((p3[0] - p1[0]) * (p2[1] - p1[1]) - (p3[1] - p1[1]) * (p2[0] - p1[0])) / d;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+const rectEdges = r => { const a = [r.x, r.y], b = [r.x + r.w, r.y], c = [r.x + r.w, r.y + r.h], d = [r.x, r.y + r.h]; return [[a, b], [b, c], [c, d], [d, a]]; };
+const polyEdges = points => points.map((p, i) => [p, points[(i + 1) % points.length]]);
+// An arrow against a gesture, by its drawn line (`points`, a polyline in board units): 'enclosed' when every point is
+// inside, 'crossed' when the line meets the gesture anywhere, else null.
+function lineAgainst(points, inside, edges) {
+  let all = true, any = false;
+  for (const p of points) { if (inside(p)) any = true; else all = false; }
+  if (all) return 'enclosed';
+  if (any) return 'crossed';
+  for (let i = 1; i < points.length; i++) for (const [a, b] of edges) if (segmentsMeet(points[i - 1], points[i], a, b)) return 'crossed';
+  return null;
+}
 
 // What a gesture covering `shapeArea` hit, given each candidate's covered area and the bounds of that covered part.
-// A thing counts when a quarter of it is covered, or a quarter of the gesture lies on it; it is whole at 90 %.
+// A thing counts when a quarter of it is covered, or a quarter of the gesture lies on it; it is whole at 90 %, or, for a
+// loose gesture (the laser's circle, which rounds off corners), when the gesture holds its centre and 60 % of it.
 // Of things stacked inside one another, a partly covered outer one gives way to the inner one (a box drawn on a
 // card inside a container points at the card); a container covered whole stands for its members.
-function decide(candidates, shapeArea, covered) {
+// Arrows go by their drawn line when they have one (`points`): one wholly inside counts alongside everything else; one
+// the gesture only crosses counts when nothing else was hit. Without a line, an arrow counts only wholly inside its box,
+// and only when nothing else was hit.
+function decide(candidates, shapeArea, covered, {loose = false, inside = null, edges = []} = {}) {
   let hits = [];
+  const lines = [];
   for (const c of candidates) {
     const box = {x: c.x, y: c.y, w: c.w, h: c.h}, boxArea = area(box);
+    if (c.line && c.points?.length > 1 && inside) {
+      const how = lineAgainst(c.points, inside, edges);
+      if (how) lines.push({c, box, whole: true, inter: 0, enclosed: how === 'enclosed'});
+      continue;
+    }
     if (!(boxArea > 0)) continue;
     const got = covered(c, box); if (!got || !(got.area > 0)) continue;
     const cover = got.area / boxArea, share = shapeArea > 0 ? got.area / shapeArea : 0;
-    const whole = cover >= 0.9;
+    const whole = cover >= 0.9 || (loose && !c.line && cover >= 0.6 && !!inside?.([c.x + c.w / 2, c.y + c.h / 2]));
     if (c.line ? !whole : cover < 0.25 && share < 0.25) continue;
     hits.push({c, box, whole, inter: got.area, part: got.bounds});
   }
-  const inside = (inner, outer) => { const i = intersectRect(inner.box, outer.box); return !!i && area(i) >= 0.9 * area(inner.box) && area(outer.box) > area(inner.box); };
-  hits = hits.filter(h => !(!h.whole && hits.some(o => o !== h && !o.c.line && inside(o, h))));
-  hits = hits.filter(h => !hits.some(o => o !== h && o.whole && o.c.frame && inside(h, o)));
+  const within = (inner, outer) => { const i = intersectRect(inner.box, outer.box); return !!i && area(i) >= 0.9 * area(inner.box) && area(outer.box) > area(inner.box); };
+  hits = hits.filter(h => !(!h.whole && hits.some(o => o !== h && !o.c.line && within(o, h))));
+  hits = hits.filter(h => !hits.some(o => o !== h && o.whole && o.c.frame && within(h, o)));
   if (hits.some(h => !h.c.line)) hits = hits.filter(h => !h.c.line);
   hits.sort((a, b) => b.inter - a.inter);
+  const others = hits.length > 0;
+  hits.push(...lines.filter(l => l.enclosed || !others));
   const more = Math.max(0, hits.length - 12);
   return {more, targets: hits.slice(0, 12).map(h => ({candidate: h.c, whole: h.whole, ...(h.whole ? {} : {region: regionOf(h.part, h.box)})}))};
 }
 export function rectHits(rect, candidates) {
-  return decide(candidates, area(rect), (c, box) => { const i = intersectRect(rect, box); return i && {area: area(i), bounds: i}; });
+  return decide(candidates, area(rect), (c, box) => { const i = intersectRect(rect, box); return i && {area: area(i), bounds: i}; },
+    {inside: p => inRect(p, rect), edges: rectEdges(rect)});
 }
-export function pathHits(points, candidates) {
+/** A free shape (lasso, or the laser's circle with `loose`): what lies inside it, by area. */
+export function pathHits(points, candidates, {loose = false} = {}) {
   const shapeBox = boundsOf(points);
   return decide(candidates, polygonArea(points), (c, box) => {
     if (!intersectRect(shapeBox, box)) return null;
     const clipped = clipPolygon(points, box); if (clipped.length < 3) return null;
     return {area: polygonArea(clipped), bounds: boundsOf(clipped)};
-  });
+  }, {loose, inside: p => inRect(p, shapeBox) && pointInPolygon(p, points), edges: polyEdges(points)});
 }
-/** A click: the thing under it (found by the page), whole when small on screen, else the spot around the click. */
-export function pointTarget(candidate, point, {radius = 24, zoom = 1, small = 280} = {}) {
+/** A click: the whole thing under it (found by the page), and the spot clicked as fractions of its own box. */
+export function pointTarget(candidate, point) {
   const box = {x: candidate.x, y: candidate.y, w: candidate.w, h: candidate.h};
-  if (candidate.line || box.w * zoom < small || box.h * zoom < small) return {candidate, whole: true};
-  const r = radius / zoom, spot = intersectRect({x: point.x - r, y: point.y - r, w: 2 * r, h: 2 * r}, box);
-  return spot ? {candidate, whole: false, region: regionOf(spot, box)} : {candidate, whole: true};
+  const f = (v, a, l) => round3(Math.min(1, Math.max(0, l > 0 ? (v - a) / l : .5)));
+  return {candidate, whole: true, spot: {x: f(point.x, box.x, box.w), y: f(point.y, box.y, box.h)}};
 }
 
 // ---- the laser's circle: a loop closed by the pointer's own trail ----
@@ -126,9 +160,11 @@ function crossing(p1, p2, p3, p4) {
 /**
  * The newest segment of a trail (screen points [x, y, t]) closing a loop: the loop's points and where it closed, or
  * null. A loop counts when it is round enough to be a circle drawn on purpose (isoperimetric ratio 4πA/P² ≥ 0.3:
- * a circle is 1, a square 0.79, a back-and-forth wave near 0), at least `minSize` px across, drawn within `window` ms.
+ * a circle is 1, a square 0.79, a back-and-forth wave near 0), at least `minSize` px across its long side and `minSide`
+ * across its short one (a scribble's turnaround makes thin loops), drawn within `window` ms (a deliberate circle at a
+ * natural speed takes up to about 3 s).
  */
-export function closedLoop(trail, {minSize = 28, window = 1600, roundness = 0.3} = {}) {
+export function closedLoop(trail, {minSize = 40, minSide = 24, window = 3500, roundness = 0.3} = {}) {
   const n = trail.length; if (n < 5) return null;
   const a = trail[n - 2], b = trail[n - 1];
   for (let i = n - 4; i >= 0; i--) {
@@ -137,7 +173,7 @@ export function closedLoop(trail, {minSize = 28, window = 1600, roundness = 0.3}
     const loop = [hit, ...trail.slice(i + 1, n - 1).map(p => [p[0], p[1]])];
     if (loop.length < 4) return null;
     const box = boundsOf(loop), A = polygonArea(loop), P = polygonLength(loop);
-    if (Math.max(box.w, box.h) < minSize || !P || 4 * Math.PI * A / (P * P) < roundness) return null;
+    if (Math.max(box.w, box.h) < minSize || Math.min(box.w, box.h) < minSide || !P || 4 * Math.PI * A / (P * P) < roundness) return null;
     return {loop, index: i, at: trail[i][2]};
   }
   return null;
