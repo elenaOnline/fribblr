@@ -763,7 +763,14 @@ of at most 60 text runs and `{mark:n}`, `marks` of at most 20 with `n`, `tool`
 marquee|lasso|laser|point|keyboard, `at`, `end`, `boardId`, `shape` rect|path (at most
 400 points)|point, `targets` of at most 12 with `kind` placement|decoration|board, `id`,
 `boardId`, `itemId`, `itemKind`, `title`, `whole`, `region` as 0..1 fractions of the
-object's box). A mark may carry `crop:{dataUrl,from?,box?}`, PNG or JPEG of at most 2 MB
+object's box, `spot:{x,y}` as 0..1 fractions of the object's box where she clicked (a click is
+`whole:true` with `spot`), and `content:{x,y,w,h,unit,of}`: the region or spot in the item's
+own coordinates, `unit` `px` (CSS px of an HTML page, pixels of an image file; 0 to
+10,000,000) or `fraction` (0..1 of the content area under the card's title, inside it),
+`w` and `h` 0 for a spot, `of` a name of at most 80 characters such as `page 1280 px wide`;
+unknown keys are refused). A `board` target is a board she picked with @ and has no card on
+the board, so it gets no crop of its own. Refusals state the limit in words (`A message can
+be at most 20,000 characters.`, `A message can have at most 20 references.`). A mark may carry `crop:{dataUrl,from?,box?}`, PNG or JPEG of at most 2 MB
 whose bytes are checked. Through `POST /api/operations` the server renders any other
 mark's crop (headless Chrome-family browser, `CHROMIUM_EXECUTABLE`; one render at a
 time), writes the files to `<workspaceRoot>/pointing/<threadId>/<n>.png|jpg` and only

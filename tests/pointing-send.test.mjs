@@ -14,6 +14,7 @@ import {applyOperation,getBoardSnapshot} from '../lib/workspace.mjs';
 import {listFeedback} from '../lib/feedback.mjs';
 import {feedbackInbox} from '../lib/inbox.mjs';
 import {addPointingComment,renderQueue} from '../lib/pointing-send.mjs';
+import {markBox} from '../lib/pointing-crop.mjs';
 import {decodeCropDataUrl,pointingRoot} from '../lib/pointing-files.mjs';
 import {listen,closeAppServer} from '../server.mjs';
 
@@ -271,6 +272,22 @@ test('what a person reads when a message is refused names the limit, not a field
   await assert.rejects(()=>f.op(operation(f,message(f,{marks}),{id:'a5'})),{message:'A message can have at most 20 marks.'});
 });
 
+test('crop boxes: context grows with the gesture, a whole-object click shows the object, a picked board has no card to find',()=>{
+  const unit={scale:1,x:0,y:0},layout=new Map([['placement:p1',{x:1000,y:500,w:600,h:400}]]);
+  const rect=(w,h)=>({n:1,tool:'marquee',shape:{kind:'rect',x:0,y:0,w,h},targets:[]});
+  const small=markBox(rect(100,60),layout,unit),large=markBox(rect(400,300),layout,unit),huge=markBox(rect(4000,3000),layout,unit);
+  assert.equal(small.x,-25,'a quarter of the larger side');assert.equal(small.w,150);
+  assert.equal(large.x,-100);assert.equal(large.w,600);
+  assert.equal(markBox(rect(40,20),layout,unit).x,-28,'at least the minimum crop (96 wide), centred');
+  assert.equal(huge.x,-240,'clamped');
+  // a click on a whole object: the object with a thin edge
+  const click=markBox({n:1,tool:'point',shape:{kind:'point',x:1200,y:700},targets:[{kind:'placement',id:'p1'}]},layout,unit);
+  assert.ok(click.x<=1000&&click.x>=1000-30&&click.w>=600&&click.w<=660,JSON.stringify(click));
+  // a board she picked with @ is not found as a placement of the same id
+  const picked=markBox({n:1,tool:'keyboard',shape:{kind:'point',x:50,y:50},targets:[{kind:'board',id:'p1'}]},layout,unit);
+  assert.deepEqual(picked,{x:50-480,y:50-320,w:960,h:640},'the neighbourhood of the point, not the card of a placement that happens to share its id');
+});
+
 test('the inbox says a thread is a pointing message and how many references it has',async t=>{
   const f=await fixture(t);
   await addPointingComment(f.config,operation(f,message(f)),{url:'http://127.0.0.1:1/',cropper:fakeCropper()});
@@ -332,9 +349,11 @@ test('end to end: the server renders the crops of a real board with a headless b
   const server=await listen(f.config,{port:0});t.after(()=>closeAppServer(server));
   const base=`http://127.0.0.1:${server.address().port}/`;
   const post=body=>fetch(`${base}api/operations`,{method:'POST',headers:{'content-type':'application/json',origin:base.slice(0,-1),'x-tinka-workspace':f.config.workspaceId},body:JSON.stringify(body)});
-  const response=await post(operation(f,message(f)));
+  const pointing=message(f);pointing.marks[1].targets[0].spot={x:.44,y:.5};pointing.marks[1].shape={kind:'point',x:532,y:100};
+  const response=await post(operation(f,pointing));
   assert.equal(response.status,200,await response.clone().text());
   const marks=(await threadOf(f)).pointing.marks;
+  assert.match(marks[0].crop.from,/her gesture drawn dashed in red \(#B33830\)/);assert.match(marks[1].crop.from,/the spot she clicked marked with a dot in red/);
   for(const mark of marks){
     assert.ok(mark.crop,`mark ${mark.n} has a crop: ${mark.cropNote}`);
     const bytes=await readFile(mark.crop.path);
