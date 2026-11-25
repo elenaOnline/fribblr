@@ -15,21 +15,27 @@
 
 const MAX_SIDE = 2000, MIN_SIDE = 256;
 
+const MAX_BYTES = 2 * 1024 * 1024; // the contract's limit for a client crop
+
 // `region`: fractions 0..1 of the card's own box (contract `targets[].region`),
 // or omitted for the whole card. Returns the part of the image inside it.
-export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}) {
+// `source`: the same picture at a higher resolution (the item's file when the
+// card shows a smaller preview); the card's <img> still gives the layout.
+export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = null} = {}) {
   const img = card?.querySelector?.('.workspace-card-preview img');
   if (!img || !img.complete || !(img.naturalWidth > 0)) return null;
   const box = card.getBoundingClientRect(), shown = img.getBoundingClientRect();
-  const nw = img.naturalWidth, nh = img.naturalHeight;
+  const pic = source?.naturalWidth > 0 ? source : img;
+  const nw = pic.naturalWidth, nh = pic.naturalHeight;
   // Where the picture's pixels actually are inside the <img> box (object-fit).
   const fit = getComputedStyle(img).objectFit || 'fill';
   let cw = shown.width, ch = shown.height;
+  const iw = img.naturalWidth, ih = img.naturalHeight;
   if (fit === 'contain' || fit === 'scale-down' || fit === 'cover') {
-    const s = (fit === 'cover' ? Math.max : Math.min)(shown.width / nw, shown.height / nh);
+    const s = (fit === 'cover' ? Math.max : Math.min)(shown.width / iw, shown.height / ih);
     const k = fit === 'scale-down' ? Math.min(1, s) : s;
-    cw = nw * k; ch = nh * k;
-  } else if (fit === 'none') { cw = nw; ch = nh; }
+    cw = iw * k; ch = ih * k;
+  } else if (fit === 'none') { cw = iw; ch = ih; }
   const content = {x: shown.left + (shown.width - cw) / 2, y: shown.top + (shown.height - ch) / 2, w: cw, h: ch};
   const want = {x: box.left + region.x * box.width, y: box.top + region.y * box.height, w: region.w * box.width, h: region.h * box.height};
   // Only what is both pointed at and visible on the card (cover clips to the img box).
@@ -43,7 +49,7 @@ export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}) {
   // A vector image has no natural pixels worth keeping: draw it at twice its
   // on-screen size (the canvas re-rasterises the SVG). A tiny raster image is
   // enlarged with hard edges to MIN_SIDE so it stays readable; `from` says so.
-  const vector = /\.svgz?(?:$|[?#])|^data:image\/svg/i.test(img.currentSrc || img.src);
+  const vector = /\.svgz?(?:$|[?#])|^data:image\/svg/i.test(pic.currentSrc || pic.src);
   const onScreen = Math.max((x1 - x0), (y1 - y0)) * (devicePixelRatio || 1);
   let k = Math.min(1, MAX_SIDE / Math.max(sw, sh));
   if (vector) k = Math.min(MAX_SIDE / Math.max(sw, sh), Math.max(1, 2 * onScreen / Math.max(sw, sh)));
@@ -52,11 +58,32 @@ export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}) {
   canvas.width = Math.max(1, Math.round(sw * k)); canvas.height = Math.max(1, Math.round(sh * k));
   const g = canvas.getContext('2d');
   if (!vector && k > 1) g.imageSmoothingEnabled = false;
-  g.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  g.drawImage(pic, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   try {
-    return {dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height,
+    // PNG keeps every pixel; a photo too big for the contract's 2 MB goes as JPEG instead.
+    let dataUrl = canvas.toDataURL('image/png');
+    for (const q of [0.92, 0.85, 0.75]) { if (dataUrl.length * 0.75 <= MAX_BYTES) break; dataUrl = canvas.toDataURL('image/jpeg', q); }
+    if (dataUrl.length * 0.75 > MAX_BYTES) return null;
+    return {dataUrl, width: canvas.width, height: canvas.height,
       from: `image file${vector ? ' (vector, drawn at ' + k.toFixed(1) + '×)' : ''}, natural pixels ${Math.round(sx)},${Math.round(sy)} ${Math.round(sw)}×${Math.round(sh)} of ${nw}×${nh}${!vector && k !== 1 ? `, ${k < 1 ? 'scaled down' : 'enlarged with hard edges'} to ${canvas.width}×${canvas.height}` : ''}`};
   } catch { return null; } // a cross-origin image taints the canvas
+}
+
+// An image card cropped from the item's own file at full resolution (`fileUrl`, same origin) when the card shows a
+// smaller preview of the same picture; the card's picture otherwise. Async: the file may need loading.
+export async function imageCropFull(card, region, fileUrl) {
+  const img = card?.querySelector?.('.workspace-card-preview img');
+  if (!img) return null;
+  if (!img.complete) { try { await img.decode(); } catch { return null; } }
+  let source = null;
+  if (fileUrl && new URL(fileUrl, location.href).href !== img.currentSrc) {
+    source = new Image(); source.src = fileUrl;
+    try { await source.decode(); } catch { source = null; }
+    // Only the same picture: a preview with another shape is not this file.
+    if (source && Math.abs(source.naturalWidth / source.naturalHeight - img.naturalWidth / img.naturalHeight) > 0.02 * (img.naturalWidth / img.naturalHeight)) source = null;
+  }
+  if (!card.isConnected) return null;
+  return imageCrop(card, region, {source});
 }
 
 // One capture of this tab for the length of the mode. start() must run inside
