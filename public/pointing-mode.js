@@ -697,7 +697,9 @@ class PointingMode {
       refs.push({kind, id: t.id, ...(kind === 'board' ? {} : {boardId}), label: (m.targets.length === 1 && !m.more ? label(m) : clip(t.title, 60)).slice(0, 120)});
     }
     const first = marks[0];
-    const anchorPoint = first ? centreOf(first.shape) : this.toBoard(this.sheetRect.left + this.sheetRect.width / 2, this.sheetRect.top + this.sheetRect.height / 2);
+    // The thread's pin sits at the first mark's top-right corner (its number badge is top-left), so it never covers
+    // what she pointed at.
+    const anchorPoint = first ? pinPointOf(first.shape) : this.toBoard(this.sheetRect.left + this.sheetRect.width / 2, this.sheetRect.top + this.sheetRect.height / 2);
     const t0 = first?.targets[0];
     const anchor = pointAnchorAt(anchorPoint, snap, t0?.kind === 'placement' ? {placementId: t0.id} : t0?.kind === 'decoration' ? {decorationId: t0.id} : {});
     if (anchor.relative) anchor.relative = {x: Math.min(1, Math.max(0, anchor.relative.x)), y: Math.min(1, Math.max(0, anchor.relative.y))};
@@ -835,10 +837,9 @@ function topLeft(s) {
   if (s.kind === 'rect') return {x: s.x, y: s.y};
   const top = s.points.reduce((a, p) => p[1] < a[1] ? p : a); return {x: top[0], y: top[1]};
 }
-function centreOf(s) {
+function pinPointOf(s) {
   if (s.kind === 'point') return {x: s.x, y: s.y};
-  if (s.kind === 'rect') return {x: s.x + s.w / 2, y: s.y + s.h / 2};
-  const b = boundsOf(s.points); return {x: b.x + b.w / 2, y: b.y + b.h / 2};
+  const b = s.kind === 'rect' ? s : boundsOf(s.points); return {x: b.x + b.w, y: b.y};
 }
 /** A mark in words, for the chip's hint and the live region. */
 export function describe(mark) {
