@@ -1126,7 +1126,7 @@ export class WorkspaceBoard {
       <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
       <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment, or press Enter on the focused one · Show or hide comments</dd>
       <dt>N</dt><dd>Quick jot: type a line, Enter adds it as a sticky; Escape closes</dd>
-      <dt>P</dt><dd>Point and type: write to the agent and point at the board as you go. ⌥/Alt with M · L · K · P picks Marquee · Lasso · Laser pointer · Point; Enter sends; Escape leaves</dd>
+      <dt>P</dt><dd>Point and type: write to the agent and point at the board as you go. ⌥/Alt with M · L · K · P picks Marquee · Lasso · Laser pointer · Point; ⌥/Alt-R points at the selection; ⌥/Alt with = · − · 0 · 1 zooms in, out, 100%, fit; Enter sends; Escape leaves</dd>
       <dt>?</dt><dd>Show keyboard shortcuts</dd>
       <dt>⌘/Ctrl-C · X · V</dt><dd>Copy · Cut · Paste</dd>
       <dt>Shift-⌘/Ctrl-C</dt><dd>Copy this board's notes as Markdown (text, stickies and linked item titles)</dd>
