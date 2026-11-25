@@ -309,7 +309,7 @@ class PointingMode {
   }
   move(e) {
     const g = this.gesture;
-    this.pointer = {x: e.clientX, y: e.clientY};
+    this.pointer = {x: e.clientX, y: e.clientY}; this.lastMove = performance.now();
     if (!g || g.id !== e.pointerId) {
       if (this.tool === 'point' || this.tool === 'laser' || this.tool === 'marquee' || this.tool === 'lasso') this.hoverAt(e.clientX, e.clientY);
       return;
@@ -542,14 +542,26 @@ class PointingMode {
       this.trail = g ? this.trail : trail;
       const r = this.sheetRect;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = red;
-      for (let i = 1; i < trail.length; i++) {
-        const age = now - trail[i][2], a = Math.max(0, 1 - age / fade); if (!a) continue;
-        ctx.globalAlpha = a * .85; ctx.lineWidth = 2 + 2.5 * a;
-        ctx.beginPath(); ctx.moveTo(trail[i - 1][0] - r.left, trail[i - 1][1] - r.top); ctx.lineTo(trail[i][0] - r.left, trail[i][1] - r.top); ctx.stroke();
+      // Five steps of fade, one stroke each: the newest part strongest and widest.
+      for (let step = 1; step <= 5; step++) {
+        const lo = (step - 1) / 5, hi = step / 5; let open = false;
+        ctx.beginPath();
+        for (let i = 1; i < trail.length; i++) {
+          const a = 1 - (now - trail[i][2]) / fade;
+          if (a <= lo || a > hi) { open = false; continue; }
+          if (!open) { ctx.moveTo(trail[i - 1][0] - r.left, trail[i - 1][1] - r.top); open = true; }
+          ctx.lineTo(trail[i][0] - r.left, trail[i][1] - r.top);
+        }
+        ctx.globalAlpha = hi * .85; ctx.lineWidth = 2 + 2.5 * hi; ctx.stroke();
       }
       ctx.globalAlpha = 1; ctx.fillStyle = red;
       ctx.beginPath(); ctx.arc(this.pointer.x - r.left, this.pointer.y - r.top, 5, 0, Math.PI * 2); ctx.fill();
-      if (trail.length > 1 && (g || trail.some(p => now - p[2] < fade))) this.schedule();
+      // Fading needs frames of its own only while she holds still: a frame requested from a frame while she moves
+      // holds her next move back a frame (measured: 32 ms against 17 ms), so moves drive the frames then.
+      if (trail.length > 1 && trail.some(p => now - p[2] < fade)) {
+        if (g && performance.now() - (this.lastMove || 0) < 50) { clearTimeout(this.fadeTimer); this.fadeTimer = setTimeout(() => this.schedule(), 60); }
+        else this.schedule();
+      }
     }
   }
 
@@ -560,7 +572,8 @@ class PointingMode {
     let text = '', key = '';
     const flush = () => {
       const clean = text.replace(/ /g, ' ').replace(/[ \t]{2,}/g, ' ');
-      if (clean.trim()) { const span = this.words.span(key); parts.push({text: clean, ...(span ? {at: span.at, end: span.end} : {at: null, end: null})}); }
+      // A run of spaces between two marks is kept as one space, so the marks never run together.
+      if (clean) { const span = this.words.span(key); parts.push({text: clean.trim() ? clean : ' ', ...(span ? {at: span.at, end: span.end} : {at: null, end: null})}); }
       text = '';
     };
     const walk = node => {
