@@ -1991,7 +1991,8 @@ function liveBlocked(){
   // Legacy board notes already preserve their exact value and selection during
   // keyed manifest reconciliation. Other editors retain deferred refresh.
   const legacyNote=!graph&&focused?.matches('textarea[data-note]')&&world.contains(focused);
-  const editing=focused?.closest?.('textarea,input,select,[contenteditable]')&&!legacyNote&&!focused?.closest('.tile-notes');
+  // A field outside the board that a render cannot disturb ([data-live-safe]: pointing's composer) holds nothing back.
+  const editing=focused?.closest?.('textarea,input,select,[contenteditable]')&&!legacyNote&&!focused?.closest('.tile-notes,[data-live-safe]');
   return !!(pointers.size||graph?.liveBlocked?.()||graph?.pointerGesture||graph?.decorationGesture||graph?.moveCommitting||graph?.client.pendingWrites||graph?.saving||editing||document.querySelector('.workspace-dialog:is([open],[data-open])'));
 }
 async function drainLiveUpdates(){

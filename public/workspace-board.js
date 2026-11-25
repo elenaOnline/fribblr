@@ -831,7 +831,7 @@ export class WorkspaceBoard {
   liveBlocked() {
     return !!(this.documentEditing || this.pointerGesture || this.decorationGesture || this.decorationCommitting || this.moveCommitting || this.movePending ||
       this.whiteboard?.editing || this.whiteboard?.finishing || this.client.pendingWrites || this.historyBusy || this.history?.busy || this.pasteBusy || this.saving ||
-      document.activeElement?.closest("input,textarea,select,[contenteditable]") || document.querySelector(".workspace-dialog:is([open],[data-open])"));
+      document.activeElement?.closest("input,textarea,select,[contenteditable]") && !document.activeElement.closest("[data-live-safe]") || document.querySelector(".workspace-dialog:is([open],[data-open])"));
   }
   // Arrangement writes survive an unrelated revision change: after a revision-only
   // rejection the affected board is re-read once, and the same operation is
@@ -848,6 +848,7 @@ export class WorkspaceBoard {
     // leaves the old numbered pins off.
     this.commentPins?.sync(overrides);
     this.feedback?.sync(overrides);
+    this.pointing?.sync(); // pointing marks follow what they point at (pointing-mode.js)
   }
   containerCanvasContains(point) {
     const viewport=$("viewport").getBoundingClientRect();
