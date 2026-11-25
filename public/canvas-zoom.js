@@ -40,38 +40,76 @@ export function wheelZoomFactor(event) {
 export const LARGE_BOARD_ZOOM = .4;
 // Two views match when pan and zoom agree to within rounding.
 export const sameView = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1 && Math.abs(a.zoom - b.zoom) < 1e-4;
-// Zooming out stops at a floor, and a fresh zoom-out from the floor leaves for the place above (ui-sdk.md § Zoom floor):
-// an opened Tinka's floor is its fitted view and leaving goes to its board; a board's floor is the zoom at which all of it
-// fits (boardZoomFloor) and leaving goes to its parent board, or Home. One step below the floor leaves: one − press
-// (1.25×), one wheel notch, or wheel / pinch steps that add up to a fifth. A wheel or pinch gesture is its zoom-out events
-// with no gap of GESTURE_GAP ms; one that reaches the floor from above stops there, and only a new gesture started at
-// the floor can leave. A held key (repeat) never leaves.
-export const LEAVE_RATIO = 1 / 1.25;
+// Zooming out stops at a floor, and going on zooming out from the floor leaves for the place above (ui-sdk.md § Zoom
+// floor): an opened Tinka's floor is its fitted view and leaving goes to its board; a board's floor is the zoom at which
+// all of it fits (boardZoomFloor) and leaving goes to its parent board, or Home.
+//
+// The way out is shown as it builds: `progress` (0 to 1) drives the leave band at the screen's edge (leave-band.js), and
+// at 1 she leaves. A pinch or trackpad scroll fills it smoothly: a zoom-out a third smaller than the floor (LEAVE_FILL)
+// fills it, and zooming back in empties it again before anything zooms in. A step (a −, the − button, a mouse-wheel
+// notch) fills half: the first step at the floor shows the band, the second leaves. A wheel or pinch gesture is its
+// events with no gap of GESTURE_GAP ms (Chrome reports a trackpad pinch as wheel events with no begin or end); one that
+// reaches the floor from above stops there and shows nothing, and a mouse-wheel spin likewise. When a gesture ends (the
+// fingers lift, or no event for GESTURE_GAP) a pinch's fill drops at once; a shown step stays until the next step or any
+// other input (reset). A held key (repeat) never fills or leaves. Expand (`locked`) shows nothing and never leaves.
+export const LEAVE_FILL = Math.log(1.5);
+export const LEAVE_STEPS = 2;
 export const GESTURE_GAP = 300;
-export function zoomOutGate() {
-  let g = null;
-  return {
-    reset() { g = null; },
+// One zoom step of the opened item's keys and button, kept for callers that size steps by it.
+export const LEAVE_RATIO = 1 / 1.25;
+// A Control-wheel event: a mouse-wheel notch (lines, or a big pixel step) counts as a step; a trackpad pinch sends small
+// pixel steps (deltaY = −100·ln(scale) per frame) and fills smoothly.
+export const wheelSource = event => event.deltaMode === 1 || event.deltaMode === 2 || Math.abs(event.deltaY) >= 50 ? 'notch' : 'wheel';
+const now_ = () => globalThis.performance?.now?.() ?? Date.now();
+export function zoomOutGate({ onProgress = () => {}, schedule = (fn, ms) => setTimeout(fn, ms), cancel = id => clearTimeout(id) } = {}) {
+  let g = null, steps = 0, fill = 0, timer = 0, shown = 0;
+  const continuous = source => source === 'wheel' || source === 'pinch';
+  const progress = () => Math.min(1, steps / LEAVE_STEPS + fill / LEAVE_FILL);
+  const emit = () => { const p = progress(); if (p !== shown) { shown = p; onProgress(p); } };
+  const stopTimer = () => { if (timer) cancel(timer); timer = 0; };
+  // The end of a wheel gesture is only the absence of events: the fill drops when GESTURE_GAP passes with none.
+  const endLater = () => { stopTimer(); timer = schedule(() => { timer = 0; api.end(); }, GESTURE_GAP); };
+  const begin = (source, now) => {
+    const fresh = !g || (g.source !== source && g.source !== '*') || (source !== 'step' && now - g.last > GESTURE_GAP);
+    if (fresh) { fill = 0; g = { source, fromAbove: false }; }
+    g.source = source; g.last = now;
+    if (continuous(source)) endLater();
+  };
+  const api = {
+    get progress() { return progress(); },
+    // Any other input (a pan, a click, another key, leaving the window): the band goes.
+    reset() { stopTimer(); g = null; steps = 0; fill = 0; emit(); },
+    // The gesture is over (fingers lifted, or no event for GESTURE_GAP): a pinch's fill drops at once; a shown step stays.
+    end() { stopTimer(); if (g && continuous(g.source)) g = null; fill = 0; emit(); },
     // The input that was just applied brought the view down to the floor.
     reachedFloor() { if (g) g.fromAbove = true; },
     // She has just arrived here by zooming out of the place below: a wheel or pinch gesture still running carries on as
     // one that reached the floor from above, so it stops here instead of leaving this place too.
-    hold(now = globalThis.performance?.now?.() ?? Date.now()) { g = { source: '*', ratio: 1, fromAbove: true, last: now }; },
-    // A zoom-out by `factor` (< 1). `above`: the view is above the floor before it. `locked`: the floor never leaves
-    // (Expand). Returns 'zoom' (apply it, down to the floor at most), 'held' (at the floor, nothing moves) or 'leave'.
-    out(factor, { above, source = 'step', repeat = false, locked = false, now = globalThis.performance?.now?.() ?? Date.now() }) {
-      const gesture = source !== 'step';
-      if (!g || !gesture || (g.source !== source && g.source !== '*') || now - g.last > GESTURE_GAP) g = { source, ratio: 1, fromAbove: false };
-      g.source = source;
-      g.last = now;
-      if (above) return 'zoom';
-      if (locked || repeat || g.fromAbove) return 'held';
-      g.ratio *= factor;
-      if (gesture && g.ratio > LEAVE_RATIO * (1 + 1e-6)) return 'held';
-      g = null;
-      return 'leave';
+    hold(now = now_()) { stopTimer(); g = { source: '*', fromAbove: true, last: now }; steps = 0; fill = 0; emit(); },
+    // A zoom-out by `factor` (< 1). `above`: the view is above the floor before it. Returns 'zoom' (apply it, down to the
+    // floor at most), 'held' (at the floor: nothing zooms; the band may have grown) or 'leave'.
+    out(factor, { above, source = 'step', repeat = false, locked = false, now = now_() }) {
+      begin(source, now);
+      if (above) { if (steps || fill) { steps = 0; fill = 0; emit(); } return 'zoom'; }
+      if (locked || repeat || (g.fromAbove && source !== 'step')) return 'held';
+      if (continuous(source)) fill += Math.log(1 / factor); else steps += 1;
+      if (progress() >= 1 - 1e-9) { stopTimer(); g = null; steps = 0; fill = 0; emit(); return 'leave'; }
+      emit();
+      return 'held';
+    },
+    // A zoom-in by `factor` (>= 1): first empties the band (a pinch reversing makes it recede; a step clears it), then
+    // returns what is left to zoom in by (1: nothing zooms).
+    back(factor, { source = 'step', now = now_() } = {}) {
+      if (!steps && !fill) { if (!g || g.source !== '*') g = null; return factor; }
+      if (!continuous(source)) { steps = 0; fill = 0; emit(); return 1; }
+      begin(source, now);
+      const d = Math.log(factor);
+      if (fill >= d) { fill -= d; emit(); return 1; }
+      const rest = d - fill; fill = 0; steps = 0; emit();
+      return Math.exp(rest);
     },
   };
+  return api;
 }
 // A board's floor: the zoom at which all of its content fits the area (fitZoom, uncapped), never above 100%, so a small
 // board can still be seen at 100% and an empty one (fitZoom null) stops at 100%.
