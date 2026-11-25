@@ -757,6 +757,25 @@ Operations: `setCommentStatus {threadId,actor,status?,to?|null,note?}` (feedback
 resolve or reopen a human-authored thread (403). A person's reply on a question or
 addressed thread for an agent moves it to sent. An unchanged status commits nothing.
 Refs and changes in list results add `exists`, `state` and `currentLabel`.
+Pointing messages (fribblr): `addComment` accepts an optional `pointing` object
+(`v:1`, `source` typed|voice, `startedAt`, `sentAt`, `appearance` light|dark, `parts`
+of at most 60 text runs and `{mark:n}`, `marks` of at most 20 with `n`, `tool`
+marquee|lasso|laser|point|keyboard, `at`, `end`, `boardId`, `shape` rect|path (at most
+400 points)|point, `targets` of at most 12 with `kind` placement|decoration|board, `id`,
+`boardId`, `itemId`, `itemKind`, `title`, `whole`, `region` as 0..1 fractions of the
+object's box). A mark may carry `crop:{dataUrl,from?,box?}`, PNG or JPEG of at most 2 MB
+whose bytes are checked. Through `POST /api/operations` the server renders any other
+mark's crop (headless Chrome-family browser, `CHROMIUM_EXECUTABLE`; one render at a
+time), writes the files to `<workspaceRoot>/pointing/<threadId>/<n>.png|jpg` and only
+then writes the thread, removing the files if that fails; stored marks keep
+`crop:{path (relative to the workspace root),width,height,from,box}` or `crop:null` with
+`cropNote`, and each placement or drawing target keeps `placed`, its box when sent. Any
+other writer (CLI, tools) gets `crop:null` and a note. `feedback.list` with bodies adds
+`pointing.read` (plain text), absolute `crop.path`, `crop.url` and each target's `now`
+(state, current label and box). `GET /api/pointing/<threadId>/<n>` serves a crop image
+read-only. A request body over 1 MB is accepted (up to 16 MB) only for a pointing
+`addComment`.
+
 GET `/api/feedback` accepts boardId,itemId,threadId,resolved,limit,cursor and
 includeBodies. It also accepts status (comma-separated), to, toId, authorKind,
 updatedAfter, since (an inbox position: `""` to start, then `nextSince`; unrelated writes

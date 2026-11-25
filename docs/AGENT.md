@@ -277,6 +277,41 @@ agent as watching (`GET /api/agents`). Pins can sit on arrows
 moves a pin to a new target (people any pin, agents only their own), keeping
 `anchorHistory`. Comment and highlight reads take no lock and write nothing.
 
+#### Pointing messages
+
+A pointing message is a comment thread the person typed while pointing at things on
+the board (marquee, lasso, laser, click). It arrives in the inbox like any thread; the
+inbox line says `(pointing message, N references)`. Read it with
+`feedback.list {threadId, includeBodies:true}`. Start with `pointing.read`: plain text
+with her sentence, `[n]` where she pointed, then one line per `[n]`:
+
+```text
+change this [1] to look more like this [2]
+
+[1] marquee, 0.9 s, board landing: part of card "Login mock" (html; placement P, item I), region x 0.10–0.43, y 0.30–0.40 of the card's own box (fractions 0 to 1 from its top left). Now (card): still there, not moved. Crop: /abs/path/1.png (894×655 px; …).
+[2] point, 3.2 s, board landing: card "Hero B" (image; placement P2, item I2), whole. Now (card): removed from the board since. Crop: /abs/path/2.png (…).
+```
+
+Each line says the tool, when (seconds after she began typing), the board, what was hit
+(kind, title, ids you can pass to the workspace tools), whether she covered it whole or
+a part (a region is fractions of that object's own box, so it still means the same part
+after the object is moved or resized), and what the target is now: still there, moved or
+resized (with the old and new box), removed from the board, deleted, archived or renamed.
+Empty space is a valid mark (a board position). The crop is an image file you can open:
+a render of the board around what she pointed at, with her gesture drawn dashed, or for a
+part of an image item the image's own pixels. If there is no picture the line says why
+(`No crop: …`) and the objects and region are still exact; never assume a picture exists.
+
+The same data is structured under `pointing`: `source` (`typed`; later `voice`),
+`startedAt`, `sentAt`, `appearance`, `parts` (her text runs and `{mark:n}` in reading
+order, each run with `at`/`end` in ms from `startedAt`), and `marks` (`n`, `tool`, `at`,
+`end`, `boardId`, `shape` in board coordinates, `targets` with `kind`, `id`, `boardId`,
+`itemId`, `itemKind`, `title`, `whole`, `region`, `now`, and `crop` with absolute `path`,
+`width`, `height`, `from`, `box`). `refs` lists the same objects. Answer in the same
+thread with `feedback.reply`, with `changes` for what you changed, as for any comment.
+Only a message sent from the Tinka page has crops; a pointing thread written through the
+CLI or tools has `crop:null` and a note.
+
 Point comments can follow a target with normalized fractions while retaining a
 creation fallback. For example, after inspecting a board and its placement IDs:
 
