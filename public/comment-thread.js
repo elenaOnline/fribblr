@@ -9,6 +9,7 @@ import "./vendor/ui-sdk/web/popover.js";
 import {defined} from "./ui-sdk.js";
 import "./tips.js"; // the comment card is a tooltip zone: its hints use the delegate
 import {esc, attachPicker, bindChips, chipElement, chipLabel, composerEmpty, composerValue, renderBody, setComposerValue, decorationLabel, itemLabel, refState} from "./comment-refs.js";
+import {pointingBody, showPointing, hidePointing} from "./pointing-thread.js";
 
 const STATUS = {open:"Open", sent:"Sent to agent", working:"Agent working", addressed:"Addressed · check it", question:"Agent asks you", resolved:"Resolved"};
 const ICON = {
@@ -226,7 +227,9 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
         box.after(row); attachPicker(box, board); continue;
       }
       if (m.deletedAt) { body.innerHTML = '<span class="ct-gone">Comment deleted</span>'; continue; }
-      body.append(renderBody(board, m.body, m.refs || []));
+      // A pointing message (pointing-mode.js) shows its sentence with numbered mark chips, and its marks on the board.
+      body.append(m.root && thread.pointing ? pointingBody(board, thread) : renderBody(board, m.body, m.refs || []));
+      if (m.root && thread.pointing) showPointing(board, thread);
       const ch = card.querySelector(`[data-changes="${CSS.escape(m.id)}"]`);
       if (ch) for (const c of m.changes) ch.append(chipElement({...c, label:chipLabel(board, c)}, {state:refState(board, c)}));
     }
@@ -351,6 +354,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
     persist(); picker?.close();
     removeEventListener("resize", onResize);
     if (current?.card === card) current = null;
+    if (threadId) hidePointing(board, threadId);
     returnFocus(); setTimeout(() => pop.remove(), 600);
     settle({created, threadId});
   }
