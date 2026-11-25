@@ -188,7 +188,7 @@ test('pointing.read: her sentence with [n], then each mark with what it hit and 
   await f.op({type:'updatePlacement',boardId:'landing',placementId:f.login.placementId,patch:{x:600,y:40,width:360}});
   await f.op({type:'remove',boardId:'landing',placementIds:[f.hero.placementId]});
   thread=await threadOf(f);read=thread.pointing.read;
-  assert.match(read,/\[1\].*Now \(card\): moved and resized since \(was x 0, y 0, 300×200; now x 600, y 40, 360×200, in board coordinates; her region is still the same part of the object\)\./);
+  assert.match(read,/\[1\].*Now \(card\): moved and resized since \(was x 0, y 0, 300×200; now x 600, y 40, 360×200, in board coordinates; the region is stored as fractions of the box, so after a resize it may not be on the same part of the content\)\./);
   assert.match(read,/\[2\].*Now \(card\): removed from the board since/);
   assert.equal(thread.pointing.marks[0].targets[0].now.state,'active');assert.deepEqual(thread.pointing.marks[0].targets[0].now.at,{x:600,y:40,w:360,h:200});
   assert.equal(thread.pointing.marks[1].targets[0].now.state,'removed');
@@ -210,6 +210,65 @@ test('pointing.read: empty space, several targets, a note instead of a crop',asy
   const read=(await threadOf(f)).pointing.read;
   assert.match(read,/\[1\] lasso, 0\.2–2\.6 s, board landing: card "Login mock" \(html;.*\), whole\. Now \(card\): still there, not moved\. Also card "Hero B"/);
   assert.match(read,/\[2\] point, 3\.0 s, board landing: empty board space at x 1500, y 900 \(board coordinates\), nothing under it\. No crop: the board has nothing drawn/);
+});
+
+test('pointing.read: a click says where, the content region is given in the item\'s own terms, a resize says what to trust',async t=>{
+  const f=await fixture(t);
+  const html={x:120,y:900,w:360,h:110,unit:'px',of:'page 1280 px wide'},img={x:528,y:416,w:0,h:0,unit:'px',of:'image 1200 × 800 px'};
+  const pointing=message(f,{marks:[
+    {n:1,tool:'marquee',at:900,end:1250,boardId:'landing',shape:{kind:'rect',x:30,y:60,w:100,h:20},targets:[target(f.login,'Login mock',{whole:false,region:{x:.1,y:.3,w:.33,h:.1},content:html})],crop:null},
+    {n:2,tool:'point',at:3200,end:3250,boardId:'landing',shape:{kind:'point',x:532,y:104},targets:[target(f.hero,'Hero B',{spot:{x:.44,y:.52},content:img})],crop:null},
+  ]});
+  await addPointingComment(f.config,operation(f,pointing),{url:'http://127.0.0.1:1/',cropper:fakeCropper()});
+  let thread=await threadOf(f);
+  assert.deepEqual(thread.pointing.marks[1].targets[0].spot,{x:.44,y:.52});assert.deepEqual(thread.pointing.marks[0].targets[0].content,html);
+  assert.match(thread.pointing.read,/\[1\].*region x 0\.10–0\.43, y 0\.30–0\.40 of the card's own box \(fractions 0 to 1 from its top left\); in the page \(1280 px wide\): x 120–480 px, y 900–1010 px\./);
+  assert.match(thread.pointing.read,/\[2\].*whole; she clicked at x 0\.44, y 0\.52 of it; in the image \(1200 × 800 px\): at x 528 px, y 416 px\./);
+  await f.op({type:'updatePlacement',boardId:'landing',placementId:f.login.placementId,patch:{width:360}});
+  thread=await threadOf(f);
+  assert.match(thread.pointing.read,/resized since \(was x 0, y 0, 300×200; now x 0, y 0, 360×200, in board coordinates; the region is stored as fractions of the box, so after a resize it may not be on the same part of the content; trust the content coordinates given for it\)/);
+  assert.doesNotMatch(thread.pointing.read,/still the same part/);
+  await f.op({type:'updatePlacement',boardId:'landing',placementId:f.login.placementId,patch:{x:50}});
+  assert.match((await threadOf(f)).pointing.read,/moved and resized since/);
+  // fractions of a content area
+  const frac=message(f,{marks:[{n:1,tool:'marquee',at:900,end:1250,boardId:'landing',shape:{kind:'rect',x:30,y:60,w:100,h:20},targets:[target(f.login,'Login mock',{whole:false,region:{x:.1,y:.3,w:.33,h:.1},content:{x:.1,y:.2,w:.35,h:.3,unit:'fraction',of:'content area'}})],crop:null}]});
+  frac.parts=[{text:'this ',at:0,end:500},{mark:1}];
+  await addPointingComment(f.config,operation(f,frac,{id:'pt2',body:'this @1 Login mock'}),{url:'http://127.0.0.1:1/',cropper:fakeCropper()});
+  assert.match((await threadOf(f,'pt2')).pointing.read,/of its content area: x 0\.10–0\.45, y 0\.20–0\.50\./);
+});
+
+test('spot and content are validated; unknown keys are refused',async t=>{
+  const f=await fixture(t);
+  const refused=async(extra,pattern,count=1)=>{
+    const pointing=message(f,{marks:[{n:1,tool:'point',at:900,end:1250,boardId:'landing',shape:{kind:'point',x:30,y:60},targets:[target(f.hero,'Hero B',extra)],crop:null}]});
+    pointing.parts=[{mark:1}];
+    await assert.rejects(()=>f.op(operation(f,pointing,{id:`bad${count}`})),pattern,JSON.stringify(extra));
+  };
+  const px={x:1,y:2,w:3,h:4,unit:'px',of:'page 1280 px wide'};
+  await refused({spot:{x:1.2,y:.5}},/spot must be between 0 and 1/);
+  await refused({spot:{x:.2,y:Number.NaN}},/spot must be between 0 and 1/,2);
+  await refused({spot:{x:.2,y:.5,z:1}},/Unknown pointing spot field: z/,3);
+  await refused({content:{...px,w:-1}},/content w must be between/,4);
+  await refused({content:{...px,unit:'em'}},/px or fraction/,5);
+  await refused({content:{...px,of:'x'.repeat(81)}},/Invalid pointing content name/,6);
+  await refused({content:{...px,extra:1}},/Unknown pointing content field: extra/,7);
+  await refused({content:{x:.8,y:0,w:.5,h:.1,unit:'fraction',of:'content area'}},/inside the content area/,8);
+  await refused({content:{...px,x:Infinity}},/content x must be/,9);
+  const ok=message(f,{marks:[{n:1,tool:'point',at:900,end:1250,boardId:'landing',shape:{kind:'point',x:30,y:60},targets:[target(f.hero,'Hero B',{spot:{x:0,y:1},content:{...px,w:0,h:0}})],crop:null}]});
+  ok.parts=[{mark:1}];
+  await f.op(operation(f,ok,{id:'fine'}));
+});
+
+test('what a person reads when a message is refused names the limit, not a field',async t=>{
+  const f=await fixture(t);
+  const long=message(f);long.parts[0].text='x'.repeat(20_001);
+  await assert.rejects(()=>f.op(operation(f,long,{id:'a1'})),{message:'A message can be at most 20,000 characters.'});
+  await assert.rejects(()=>f.op({type:'addComment',id:'a2',boardId:'landing',author:robin,body:'y'.repeat(20_001)}),{message:'A message can be at most 20,000 characters.'});
+  await assert.rejects(()=>f.op({type:'addComment',id:'a3',boardId:'landing',author:robin,body:'  '}),{message:'A message cannot be empty.'});
+  const refs=Array.from({length:21},(_,i)=>({kind:'item',id:`item-${i}`,label:'x'}));
+  await assert.rejects(()=>f.op({type:'addComment',id:'a4',boardId:'landing',author:robin,body:'hi',refs}),{message:'A message can have at most 20 references.'});
+  const marks=Array.from({length:21},(_,n)=>({n:n+1,tool:'point',at:0,end:0,boardId:'landing',shape:{kind:'point',x:1,y:1},targets:[],crop:null}));
+  await assert.rejects(()=>f.op(operation(f,message(f,{marks}),{id:'a5'})),{message:'A message can have at most 20 marks.'});
 });
 
 test('the inbox says a thread is a pointing message and how many references it has',async t=>{
