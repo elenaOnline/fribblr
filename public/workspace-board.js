@@ -1120,7 +1120,7 @@ export class WorkspaceBoard {
       <dt>V · H</dt><dd>Pointer · Pan</dd>
       <dt>Arrow keys on a resize corner</dt><dd>Resize the card, shape, text or sticker 1 unit, 10 with Shift</dd>
       <dt>⌥/Alt-F10</dt><dd>Move to the selected drawing's bar (it also follows the drawing's own controls in Tab order); Escape comes back</dd>
-      <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused. Zooming out stops where the whole board is in view; once more goes up to the parent board, or Home</dd>
+      <dt>+ · − · 0</dt><dd>Zoom in · out · to 100%, with the canvas or an item focused. Zooming out stops where the whole board is in view; there a blue band at the edge shows the way up, and zooming on (two −, or a pinch a third smaller) goes up to the parent board, or Home</dd>
       <dt>A</dt><dd>Show or hide the edit tools</dd>
       <dt>T · S · D</dt><dd>Add Text · a Sticky note · a Markdown Document at the pointer</dd>
       <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>

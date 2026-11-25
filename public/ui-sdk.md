@@ -747,15 +747,15 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
   it). Free zoom below fit is gone. The % slider's `min` is the floor; a preset row below it (Zoom to 50% on a Tinka that
   fits at 90%) is unavailable: its toolbar part is disabled, so it says `aria-disabled` and stays reachable, and the
   popover opens on the first row that can act.
-- **The threshold: one zoom step below fit.** At the floor, a zoom-out that would shrink the Tinka by a fifth
-  (`LEAVE_RATIO` = 1 / 1.25, the − step) leaves: one − press, one press of the pill's −, one mouse-wheel notch (1.35×),
-  or Control-wheel / pinch steps that add up to a fifth. Every input runs through `zoomBy(factor, x, y, {source,
-  repeat})`; `source` is `step` (each press counts alone), `wheel` or `pinch` (a gesture: zoom-out events with no gap
-  of `GESTURE_GAP`, 300 ms).
-- **Resistance.** A gesture that reaches fit from above stops there and can't leave; only a new gesture started at the
-  floor can. A press of − that reaches fit stops there; the next press leaves. A held − (key repeat) never leaves.
-  Nothing moves while a gesture is held at the floor and nothing springs back after it: below the threshold the view
-  stays fitted (Elena's rule: nothing moves unless she moved it).
+- **The threshold, shown as it builds** (§ The leave band, below). At the floor, a pinch or trackpad scroll fills the
+  leave band and leaves when the Tinka would be a third smaller (`LEAVE_FILL` = ln 1.5); a step (−, the pill's −, a
+  mouse-wheel notch) fills half, so the first step at fit shows the band and the second leaves. Every input runs
+  through `zoomBy(factor, x, y, {source, repeat})`; `source` is `step` (a key or button), `notch` (a mouse-wheel click,
+  `wheelSource`) or `wheel` / `pinch` (a gesture: events with no gap of `GESTURE_GAP`, 300 ms).
+- **Resistance.** A gesture (or wheel spin) that reaches fit from above stops there and shows nothing; only a new
+  gesture started at the floor fills the band. A press of − that reaches fit stops there. A held − (key repeat) never
+  fills or leaves. Nothing moves while a gesture is held at the floor and nothing springs back after it: below the
+  threshold the view stays fitted (Elena's rule: nothing moves unless she moved it).
 - **The landing** (`landOnCard`). The reader closes onto the board view she opened it from, its zoom and position, as
   Up and Escape do, with the Tinka's card selected (`graph.selectOnly`) and focused (`focusBoardItem`), whatever
   opened the reader, so Enter opens it again (and Escape then returns to the same view); the announcement says so. If
@@ -808,9 +808,9 @@ A board opened as its own page has the same floor and the same gate (`zoomOutGat
   the slider, presets and 0. The suite checks every card is inside the view at the floor, at 1440 and 390, the pointer
   at the centre and in a corner. The floor view is the content's own frame, not Fit board's (world box) view, which can
   differ by its minimum frame.
-- **The threshold and resistance** are the opened item's: a wheel or pinch gesture that reaches the floor stops there,
-  a press of − that reaches it stops, a held − never leaves, and a fresh zoom-out one step below (one press, one notch,
-  pinch steps adding up to a fifth) leaves. Every zoom-out she makes goes through `boardZoomTarget`: Control-wheel and
+- **The threshold and resistance** are the opened item's, with the same leave band: a wheel or pinch gesture that
+  reaches the floor stops there, a press of − that reaches it stops, a held − never leaves; at the floor a pinch a
+  third smaller, or two steps (presses, notches), leave. Every zoom-out she makes goes through `boardZoomTarget`: Control-wheel and
   pinch over the board or its chrome, Safari's gesture events, a two-finger touch pinch (now by each move's change in
   spread, the first board point still under the fingers), − and the pill's −, the map's zoom keys and wheel. The slider,
   the presets and 0 never go below the floor (`boardZoomAtLeast`); a preset below it is `aria-disabled`, as in the
@@ -837,8 +837,52 @@ A board opened as its own page has the same floor and the same gate (`zoomOutGat
   accessible name and its hint (looked up only as the view reaches or leaves the floor).
 - **Kept as they are, to watch in her hands-on pass** (review 2026-11-23): ⌘-scroll at the floor leaves as Control-scroll
   does (one model for both modifiers); landing selects the card, so the selection bar shows, as after leaving an opened
-  item; a press-and-hold of − that starts at the floor leaves on its first keydown (a press is a press; only the repeats
-  never leave).
+  item; a press-and-hold of − that starts at the floor shows the band on its first keydown (a press is a press; the
+  repeats never fill or leave).
+
+**The leave band** (`leave-band.js`, `calm.css` `.leave-band`; the gate's `progress` in `canvas-zoom.js`;
+`showLeaveBand`, `clearLeave` in `canvas.js`). Elena (2026-11-24): "the boards feel like they snap or glitch back to
+board view rather than being an actual part … maybe suggest a thin accent color band around the edge of the screen that
+expands and increases opacity until the threshold is reached, at which point the zoom behavior takes over."
+
+- **What it is.** A flat band of `--mark-blue` at the window's four edges: four strips 12 px wide, scaled by `transform`
+  from 2 px (just past the floor) to 12 px (the threshold), under one `opacity` from 0.3 to 0.9. No blur, glow, shadow,
+  transition or pulse. One on the board page (above the canvas and chrome, `z-index` below the top layer), one inside
+  the opened item's dialog. `pointer-events: none`, `aria-hidden`, `contain: strict`. It means "go on and you go up".
+- **What drives it**: the zoom-out gate's `progress` (0 to 1), nothing else. Progress is how far the current gesture is
+  past the floor (pinch: ln(floor / zoom asked for) over `LEAVE_FILL`), plus half per step. At 1 she leaves and it goes.
+  One pinch, trackpad-scroll or Safari gesture event adds at most a fifth (`LEAVE_EVENT_MAX`), so the band shows for
+  four events and the fifth leaves, however brisk the pinch (a fast Chrome pinch sends 30 px a frame, which filled three
+  quarters in one event and left on the second).
+- **Each input.** Pinch and trackpad Control-scroll fill it smoothly, frame for frame. Reversing empties it first; only
+  when it is empty does the reverse zoom in. Fingers lifting below the threshold drop it at once (touch `pointerup`,
+  Safari `gestureend`). **On Chrome a lifted pinch leaves the band visible, still, until the pointer or a key moves**:
+  Chrome reports a trackpad pinch as Control-wheel events and sends nothing when the fingers lift, and clearing it after
+  a silence would be the band moving with no input from her. Her next input clears it (a pointer move, also over the
+  opened item's content frames; a click; a key other than the zoom keys and modifiers; a pan; leaving the window), and a
+  new pinch after the pause starts the band from that pinch's own progress (the gate's new-gesture rule). A step (−, the − button, a notch) shows it half way and
+  it stays, still, until the next step leaves; + empties it without zooming; any other input (a click, a pan, another
+  key, leaving the window: `clearLeave`) clears it. A gesture or spin that arrives at the floor, a held −, Expand, and a
+  gesture still running after leaving the place below (`hold`) show nothing.
+- **Why two steps.** With one, a notch or press at the floor would leave with the band never seen, the snap she
+  described. Keyboard and pointer agree: every step input takes two at the floor, the first one shown.
+- **Why a third, and the 300 ms rule kept.** A fifth (the old threshold) is about 22 units of Chrome pinch delta, too
+  short to see a band grow and reverse; a third is about 40, a short deliberate pinch. The 300 ms gap stays as the
+  gate's gesture boundary: Chrome reports a trackpad pinch as wheel events with no begin or end, so the gap is how a new
+  pinch is told from the last one (it starts the band from its own progress) and how a pinch that reached the floor from
+  above is kept from spilling over. The gap never changes the band by itself.
+- **Screen readers.** The band is hidden; its appearance is announced once per gesture, politely: "Zoom out again to go
+  up to <parent>" (or Home) on a board, "Zoom out again to go back to the board" in an opened item; the − button at the
+  floor already names where it goes.
+- **Reduced motion.** Unchanged: it moves only with her input, so it is not animation the setting asks to remove.
+- **Cost** (`showcase-dense` at its floor, Control-wheel at a fixed 60 Hz filling and emptying the band, three rounds):
+  wheel handler 0.09–0.10 ms, style recalc 0.08 ms per frame (the band's five elements), paint 0.01 ms, one layout in
+  the whole run (its first showing, 0.24–0.33 ms), EventLatency 31–35 ms. Probe `team/ux/leave/lperf.mjs`.
+- **The moment of leaving.** The band makes the threshold legible; the page change for board → parent is still a page
+  load (the canvas hidden until its landing, then the parent in the view she entered from). Not built: landing the
+  parent zoomed in so the child's card sits where the board was would be the zoom "taking over", but it zooms the
+  parent in (the item landing was moved away from exactly that, 2026-11-23), and a real continuous zoom across boards
+  needs the parent rendered in the same page: a navigation rework.
 - **Not on**: Grid view and the overview render (no canvas zoom), or while the reader is open (it has its own floor).
 - **Cost**: board Control-wheel handler 0.20–0.22 ms against 0.19–0.20 ms on `main`; style per recalc and EventLatency
   equal within run-to-run spread (`showcase-dense`, fixed 60 Hz, three interleaved rounds; `team/ux/bzoom/bperf.mjs`).
@@ -919,8 +963,8 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | Delete / Backspace | Remove the selection (only what is selected) |
 | F; hold F or Z through a selection box | Fit the selection, then the board; fit what the box selected / zoom to the box |
 | ⇧1, ⇧2, ⇧0 | Fit the canvas, fit the selection, 100% |
-| + / =, −, 0 | Zoom in, out, 100% (canvas or an item focused; `canvas.js`). Never below the board's floor (all of it in view, 100% at most); at the floor a fresh − goes up to the parent board, or Home |
-| ⌘/Ctrl-scroll, pinch | Zoom about the pointer, never below the floor; a fresh zoom-out gesture at the floor (a fifth smaller) goes up to the parent board, or Home |
+| + / =, −, 0 | Zoom in, out, 100% (canvas or an item focused; `canvas.js`). Never below the board's floor (all of it in view, 100% at most); at the floor − shows the leave band and a second − goes up to the parent board, or Home; + empties the band |
+| ⌘/Ctrl-scroll, pinch | Zoom about the pointer, never below the floor; at the floor a new zoom-out gesture fills the leave band and, a third smaller, goes up to the parent board, or Home; a mouse-wheel notch is a step, like − |
 | M, A, V, H | Board map, edit tools, Pointer, Pan |
 | T, S, D | Add Text, a Sticky note, a Markdown Document at the pointer |
 | E | Edit the selected (or focused) Markdown document |
@@ -943,10 +987,10 @@ Opened item (`reader-keys.js` `readerCommand`, `canvas.js`):
 | Plain arrows, Shift + arrows | Pan, while zoomed in past fit (part of the Tinka out of view, `ReaderCanvas.overflows`): 80 px a press, a screenful (87.5% of the stage) with Shift; held, they keep panning. They never step while zoomed, not even at an edge |
 | ⌥ ↑ (Ctrl elsewhere), Escape | Up to the board (Escape after the ladder) |
 | ⌥ ↓ (Ctrl elsewhere) | Down into the Tinka's own board |
-| F, ⇧1; 0, ⇧0; + / − | Fit; 100%; zoom (announced in `#reader-view-announce`). Never below fit; at fit, − (a fresh press) goes back to the board, landed on the card |
+| F, ⇧1; 0, ⇧0; + / − | Fit; 100%; zoom (announced in `#reader-view-announce`). Never below fit; at fit − shows the leave band and a second − goes back to the board, landed on the card |
 | ⇧F | Expand: fill the stage; zoom out stops at that size and never leaves. Again (or Escape, or the path) turns it off |
 | ⌘/Ctrl I | Toggle the Inspector |
-| ⌘/Ctrl-scroll, pinch | Zoom about the pointer, never below fit; a fresh zoom-out gesture at fit (a fifth smaller) goes back to the board |
+| ⌘/Ctrl-scroll, pinch | Zoom about the pointer, never below fit; at fit a new zoom-out gesture fills the leave band and, a third smaller, goes back to the board |
 | Space-drag | Pan a magnified resource with the pointer |
 | ? | Shortcuts |
 
