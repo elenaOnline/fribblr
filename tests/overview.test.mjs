@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {chmod,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {chmod,mkdir,mkdtemp,readFile,realpath,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {main} from '../cli.mjs';
 import {loadConfig} from '../lib/config.mjs';
 import {listen} from '../server.mjs';
-import {boardOverview,findBrowser,overviewSize,saveOverview} from '../lib/overview.mjs';
+import {boardOverview,browsersFolder,findBrowser,overviewSize,saveOverview,useConfiguredBrowser} from '../lib/overview.mjs';
 
 const PNG=Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000','hex');
 
@@ -140,6 +140,41 @@ test('the browser comes from CHROMIUM_EXECUTABLE or a known name on PATH',async 
   await writeFile(chromium,'#!/bin/sh\n');await chmod(chromium,0o755);
   assert.equal(await findBrowser({env:{CHROMIUM_EXECUTABLE:chromium},platform:'linux'}),chromium);
   await assert.rejects(findBrowser({env:{CHROMIUM_EXECUTABLE:path.join(root,'missing')},platform:'linux'}),/not an executable/);
-  assert.equal(await findBrowser({env:{PATH:`/nonexistent${path.delimiter}${root}`},platform:'linux'}),chromium);
-  assert.equal(await findBrowser({env:{PATH:root},platform:'win32'}),null);
+  assert.equal(await findBrowser({env:{PATH:`/nonexistent${path.delimiter}${root}`},platform:'linux',home:root}),chromium);
+  assert.equal(await findBrowser({env:{PATH:root},platform:'win32',home:root}),null);
+});
+
+test('the browser search order: environment, config, the fribblr browsers folder, Playwright, installed browsers',async t=>{
+  const home=await realpath(await mkdtemp(path.join(os.tmpdir(),'fribblr-browser-order-')));
+  t.after(()=>rm(home,{recursive:true,force:true}));
+  const make=async file=>{await mkdir(path.dirname(file),{recursive:true});await writeFile(file,'#!/bin/sh\n');await chmod(file,0o755);return file;};
+  const onPath=await make(path.join(home,'bin','chromium'));
+  const env={PATH:path.join(home,'bin')};
+  const find=extra=>findBrowser({platform:'darwin',home,env,...extra});
+  // Installed browsers come last.
+  assert.equal(await findBrowser({platform:'linux',home,env}),onPath);
+  // Playwright's default cache, then PLAYWRIGHT_BROWSERS_PATH ahead of it.
+  const cache=await make(path.join(home,'Library/Caches/ms-playwright/chromium_headless_shell-1100/chrome-mac/headless_shell'));
+  assert.equal(await find(),cache);
+  const custom=await make(path.join(home,'pw/chromium_headless_shell-1150/chrome-mac/headless_shell'));
+  assert.equal(await find({env:{...env,PLAYWRIGHT_BROWSERS_PATH:path.join(home,'pw')}}),custom);
+  // The fribblr browsers folder beats Playwright's; a headless shell beats a full
+  // Chromium there, and the newest revision of each kind wins.
+  const folder=path.join(home,'Library/Application Support/fribblr/browsers');
+  assert.equal(browsersFolder({platform:'darwin',home}),folder);
+  assert.equal(browsersFolder({platform:'linux',home,env:{}}),path.join(home,'.local/share/fribblr/browsers'));
+  const full=await make(path.join(folder,'chromium-1300/chrome-mac/Chromium.app/Contents/MacOS/Chromium'));
+  assert.equal(await find(),full);
+  await make(path.join(folder,'chromium_headless_shell-1194/chrome-mac/headless_shell'));
+  const newest=await make(path.join(folder,'chromium_headless_shell-1200/chrome-headless-shell-mac-arm64/chrome-headless-shell'));
+  assert.equal(await find(),newest);
+  // A config's "browser" beats the folders; CHROMIUM_EXECUTABLE beats the config.
+  const configured=await make(path.join(home,'configured/headless_shell'));
+  assert.equal(await find({config:{browser:configured}}),configured);
+  await assert.rejects(find({config:{browser:path.join(home,'missing')}}),/config's "browser" is not an executable/);
+  assert.equal(await find({config:{browser:configured},env:{...env,CHROMIUM_EXECUTABLE:onPath}}),onPath);
+  // The server's setting stands in for a config when the caller passes none.
+  useConfiguredBrowser(configured);
+  try{assert.equal(await find(),configured);}finally{useConfiguredBrowser(null);}
+  assert.equal(await find(),newest);
 });

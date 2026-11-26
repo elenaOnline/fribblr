@@ -107,11 +107,11 @@ test('item shot checks its arguments and the item before starting a browser',asy
   await assert.rejects(itemShot(f.config,id,{out:path.join(f.root,'a.png')},{running:f.running,find:async()=>null,save:never}),/CHROMIUM_EXECUTABLE.*resources\/work\/page\.html/s);
 });
 
-test('item shot renders the page at the chosen width, at twice the pixels, and prints its Tinka link',async t=>{
+test('item shot renders the page at the chosen width, at twice the pixels, and prints its fribblr link',async t=>{
   const f=await fixture(t),browser=await fakeBrowser(f.root,{height:1500});
   const out=path.join(f.root,'page.png'),placement=f.page.result.placementIds[0];
   const message=await itemShot(f.config,f.page.result.itemId,{out,appearance:'dark'},{running:f.running,find:async()=>browser.file});
-  assert.equal(message,`Saved a shot of "Example page" (page, 2560 × 3000 pixels) to ${out}.\nTinka link: ${f.url}boards/looks/#items/${placement}`);
+  assert.equal(message,`Saved a shot of "Example page" (page, 2560 × 3000 pixels) to ${out}.\nfribblr link: ${f.url}boards/looks/#items/${placement}`);
   assert.deepEqual(await readFile(out),PNG);
   const calls=await browser.calls();
   assert.deepEqual(calls.find(c=>c.method==='Emulation.setDeviceMetricsOverride').params,{width:1280,height:800,deviceScaleFactor:2,mobile:false});
@@ -123,7 +123,7 @@ test('item shot renders the page at the chosen width, at twice the pixels, and p
   // Phone width, a placement ID, and a very long page shown to its first 4000 px.
   const tall=await fakeBrowser(f.root,{height:9000,ready:'partial'}),phone=path.join(f.root,'phone.png');
   const second=await itemShot(f.config,placement,{out:phone,width:'390'},{running:f.running,find:async()=>tall.file});
-  assert.match(second,/\(page, 780 × 8000 pixels\).*Some images had not finished loading.*9000 px tall; the picture shows its first 4000 \(use --height to choose\)\.\nTinka link: .*#items\//s);
+  assert.match(second,/\(page, 780 × 8000 pixels\).*Some images had not finished loading.*9000 px tall; the picture shows its first 4000 \(use --height to choose\)\.\nfribblr link: .*#items\//s);
   assert.deepEqual((await tall.calls()).find(c=>c.method==='Emulation.setDeviceMetricsOverride').params,{width:390,height:844,deviceScaleFactor:2,mobile:false});
 });
 
@@ -133,12 +133,12 @@ test('an image keeps its own pixels, and an item on several boards names the pre
   const out=path.join(f.root,'picture.png');
   const message=await itemShot(f.config,f.picture.result.itemId,{out,board:'shortlist'},{running:f.running,find:async()=>browser.file});
   assert.match(message,/\(image, 1600 × 900 pixels\)/);
-  assert(message.endsWith(`Tinka link: ${f.url}boards/shortlist/#items/${shared.result.placementIds[0]} (also on 1 other board)`));
+  assert(message.endsWith(`fribblr link: ${f.url}boards/shortlist/#items/${shared.result.placementIds[0]} (also on 1 other board)`));
   const sizes=(await browser.calls()).filter(c=>c.method==='Emulation.setDeviceMetricsOverride').map(c=>c.params);
   assert.deepEqual(sizes.at(-1),{width:1600,height:900,deviceScaleFactor:1,mobile:false});
 });
 
-test('changing tool calls return the direct Tinka link to what they changed',async t=>{
+test('changing tool calls return the direct fribblr link to what they changed',async t=>{
   const f=await fixture(t),base=`http://127.0.0.1:${f.config.port}/`;
   const placement=f.page.result.placementIds[0],itemURL=`${base}boards/looks/#items/${placement}`;
   assert.equal(f.page.link,itemURL);
