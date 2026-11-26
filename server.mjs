@@ -14,7 +14,7 @@ import {listTools,callTool,toolDefinition} from './lib/tools.mjs';
 import {discoveryCatalog,searchWorkspace} from './lib/discovery.mjs';
 import {listFeedback} from './lib/feedback.mjs';
 import {addPointingComment} from './lib/pointing-send.mjs';
-import {findCrop,pointingRoot} from './lib/pointing-files.mjs';
+import {findCrop,pointingRoot,sweepCrops} from './lib/pointing-files.mjs';
 import {listHighlights} from './lib/highlights.mjs';
 import {migrateLegacy} from './lib/migrate.mjs';
 import {resolveResource,resourceUrl} from './lib/resources.mjs';
@@ -288,6 +288,8 @@ export function createAppServer(config,{updates=createUpdateService(config)}={})
   return server;
 }
 export async function listen(config,{port=config.port,persist=false,updates}={}){
+  // Pictures of pointing threads that no longer exist: removed before the first request can write a new folder.
+  await sweepCrops(config).catch(()=>{});
   const automatic=persist&&config.portMode==='auto';
   const attempts=automatic?PORT_ATTEMPTS:1;
   for(let attempt=0;attempt<attempts;attempt++){
