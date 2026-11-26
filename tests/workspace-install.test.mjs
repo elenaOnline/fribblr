@@ -35,11 +35,11 @@ test('replacement preserves a custom metadata root and rejects metadata inside o
 test('portable scaffolding preserves custom config deliberately and defaults metadata to durable boards',async t=>{
   const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'tinka-workspace-project-')));t.after(()=>rm(root,{recursive:true,force:true}));
   await main(['project','init','--project',root,'--label','Portable']);
-  const configPath=path.join(root,'tinka/local/config.json'),config=await loadConfig(configPath);
+  const configPath=path.join(root,'fribblr/local/config.json'),config=await loadConfig(configPath);
   assert.equal(config.workspaceRoot,path.join(root,'design/boards/.tinka'));
   const custom=path.join(root,'custom-workspace');
   const source=JSON.parse(await readFile(configPath,'utf8'));const text=JSON.stringify({...source,workspaceRoot:custom},null,2)+'\n';await writeFile(configPath,text);
   await main(['project','init','--project',root]);assert.equal(await readFile(configPath,'utf8'),text);
-  await writeFile(configPath,JSON.stringify({...source,workspaceRoot:path.join(root,'tinka/app/private')}));
+  await writeFile(configPath,JSON.stringify({...source,workspaceRoot:path.join(root,'fribblr/app/private')}));
   await assert.rejects(main(['project','init','--project',root]),/outside the replaceable app/);
 });

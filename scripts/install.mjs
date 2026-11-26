@@ -5,10 +5,18 @@ import { inflateRawSync } from 'node:zlib';
 import { readFile, realpath, lstat, mkdir, rename, rm, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const execFileAsync = promisify(execFile);
-export const DEFAULT_REPO = 'bladnman/tinka';
+export const DEFAULT_REPO = 'elenaOnline/fribblr';
+// The package name, the archive root, the release file prefix and the folder a
+// host project keeps fribblr in. An app folder whose package.json says another
+// name (upstream Tinka's is board-room) is never replaced.
+export const PACKAGE = 'fribblr';
+const PROJECT_FOLDER = 'fribblr';
+// Same as DEFAULT_PORT in lib/config.mjs (this file stays standalone).
+export const DEFAULT_PORT = 45080;
+const CLONE = `git clone https://github.com/${DEFAULT_REPO}.git /absolute/fribblr`;
 // Versions stay X.Y.Z for npm, tags, pins and comparison; people see X.Y (releases bump the
 // minor only). A non-zero patch, from an older release, is kept: 1.1.0 -> 1.1, 1.0.4 -> 1.0.4.
 export const displayVersion = version => String(version ?? '').replace(/^(\d+\.\d+)\.0$/, '$1');
@@ -19,10 +27,12 @@ const maxFileBytes = 20 * 1024 * 1024;
 const maxEntries = 10000;
 const requiredFiles = ['package.json', 'cli.mjs', 'server.mjs', 'public/home.html', 'lib/config.mjs', 'docs/PROTOCOL.md'];
 const usage = `Usage:
-  node tinka-install.mjs --project /absolute/project [--boards design/boards] [--label TEXT] [--version X.Y.Z]
-  node tinka/setup.mjs [--version X.Y.Z | --zip PATH --checksum PATH]
+  node /absolute/fribblr-checkout/scripts/install.mjs --project /absolute/project [--port auto|NUMBER] [--boards design/boards] [--label TEXT]
+      (installs that checkout into the project, then starts it)
+  node fribblr-install.mjs --project /absolute/project [--port auto|NUMBER] [--boards design/boards] [--label TEXT] [--version X.Y.Z]
+  node fribblr/setup.mjs [--version X.Y.Z | --zip PATH --checksum PATH]
   node install.mjs [--repo OWNER/REPO] [--version X.Y.Z] --install-dir /absolute/app [--config /absolute/config.json]
-  node install.mjs --zip /absolute/tinka-vX.Y.Z.zip --checksum /absolute/tinka-vX.Y.Z.zip.sha256 --install-dir /absolute/app [--config /absolute/config.json]`;
+  node install.mjs --zip /absolute/fribblr-vX.Y.Z.zip --checksum /absolute/fribblr-vX.Y.Z.zip.sha256 --install-dir /absolute/app [--config /absolute/config.json]`;
 
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let value = index;
@@ -121,12 +131,13 @@ export function parseArgs(args) {
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index];
     if (name === '--help') return { help: true };
-    if (!['--project', '--boards', '--label', '--repo', '--version', '--zip', '--checksum', '--install-dir', '--config'].includes(name) || options[name] || !args[index + 1] || args[index + 1].startsWith('--')) throw new Error(usage);
+    if (!['--project', '--boards', '--label', '--port', '--repo', '--version', '--zip', '--checksum', '--install-dir', '--config'].includes(name) || options[name] || !args[index + 1] || args[index + 1].startsWith('--')) throw new Error(usage);
     options[name] = args[++index];
   }
   if (!options['--project'] && path.basename(fileURLToPath(import.meta.url)) === 'setup.mjs') options['--project'] = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   if (options['--project'] && (options['--install-dir'] || options['--config'])) throw new Error('Use --project or --install-dir/--config, not both.');
-  if (!options['--project'] && (options['--boards'] || options['--label'])) throw new Error('--boards and --label require --project.');
+  if (!options['--project'] && (options['--boards'] || options['--label'] || options['--port'])) throw new Error('--boards, --label and --port require --project.');
+  if (options['--port'] && options['--port'] !== 'auto' && !(/^\d+$/.test(options['--port']) && Number(options['--port']) >= 1 && Number(options['--port']) <= 65535)) throw new Error('--port is auto or a port number from 1 to 65535.');
   if (options['--version']) options['--version'] = fullVersion(options['--version']);
   if (options['--version'] && !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(options['--version'])) throw new Error('Use a version such as 1.1 (or 1.1.0).');
   if ((!options['--install-dir'] && !options['--project']) || (options['--repo'] && options['--zip']) || Boolean(options['--checksum']) !== Boolean(options['--zip'])) throw new Error(usage);
@@ -145,8 +156,8 @@ function verifyChecksum(bytes, text, filename) {
 }
 
 function safeEntryName(name, directory) {
-  if (!name.startsWith('board-room/')) throw new Error(`Unexpected ZIP root: ${name}`);
-  const relative = name.slice('board-room/'.length);
+  if (!name.startsWith(`${PACKAGE}/`)) throw new Error(`Unexpected ZIP root: ${name}`);
+  const relative = name.slice(PACKAGE.length + 1);
   if (!relative) {
     if (directory) return null;
     throw new Error('ZIP root cannot be a file.');
@@ -259,7 +270,7 @@ export async function installArchive(options) {
   if (!path.isAbsolute(options.installDir)) throw new Error('--install-dir must be absolute.');
   return withAppLock(options.installDir, token => installArchiveLocked({...options, lockToken: token}), {token: options.lockToken});
 }
-async function installArchiveLocked({ zipBytes, checksumText, zipName, installDir, configPath, lockToken, compatibility, fromVersion, allowMajor = false, requirePristine = false, pinPath }) {
+async function installArchiveLocked({ zipBytes, checksumText, zipName, installDir, configPath, lockToken, compatibility, fromVersion, allowMajor = false, requirePristine = false, pinPath, source = null }) {
   if (!path.isAbsolute(installDir)) throw new Error('--install-dir must be absolute.');
   verifyChecksum(zipBytes, checksumText, zipName);
   const entries = readSafeZip(zipBytes);
@@ -277,8 +288,8 @@ async function installArchiveLocked({ zipBytes, checksumText, zipName, installDi
     if (!external) throw new Error('Pass --config for an upgrade so the managed service can be checked and restarted.');
     let installed;
     try { installed = JSON.parse(await readFile(path.join(installDir, 'package.json'), 'utf8')); }
-    catch { throw new Error('Destination is not a recognized Board Room installation.'); }
-    if (installed.name !== 'board-room') throw new Error('Destination is not a recognized Board Room installation.');
+    catch { throw new Error('Destination is not a recognized fribblr installation.'); }
+    if (installed.name !== PACKAGE) throw new Error('Destination is not a recognized fribblr installation.');
   }
   if (requirePristine && (!current || !await installationPristine(installDir))) throw new Error('Installed app is modified or lacks a file baseline; review before replacing it.');
   const pinBefore = pinPath ? await readFile(pinPath, 'utf8') : null;
@@ -294,7 +305,7 @@ async function installArchiveLocked({ zipBytes, checksumText, zipName, installDi
   try {
     await extract(entries, stage);
     const manifest = JSON.parse(await readFile(path.join(stage, 'package.json'), 'utf8'));
-    if (manifest.name !== 'board-room' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version)) throw new Error('ZIP contains an invalid app package.');
+    if (manifest.name !== PACKAGE || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version)) throw new Error('ZIP contains an invalid app package.');
     if (compatibility) {
       const embedded = JSON.parse(await readFile(path.join(stage, 'lib/update-compatibility.json'), 'utf8'));
       if (JSON.stringify(embedded) !== JSON.stringify(compatibility)) throw new Error('Package compatibility does not match the checked release metadata.');
@@ -305,7 +316,7 @@ async function installArchiveLocked({ zipBytes, checksumText, zipName, installDi
       if (manifest.engines?.node !== embedded.runtime.node) throw new Error('Package runtime does not match compatibility metadata.');
     }
     const files = Object.fromEntries(entries.filter(entry => !entry.directory).map(entry => [entry.relative, createHash('sha256').update(entry.content).digest('hex')]));
-    await writeFile(path.join(stage, 'INSTALLATION.json'), `${JSON.stringify({version:manifest.version,archive:zipName,sha256:createHash('sha256').update(zipBytes).digest('hex'),installedAt:new Date().toISOString(),files},null,2)}\n`, {flag:'wx'});
+    await writeFile(path.join(stage, 'INSTALLATION.json'), `${JSON.stringify({version:manifest.version,archive:zipName,sha256:createHash('sha256').update(zipBytes).digest('hex'),installedAt:new Date().toISOString(),...(source?{source}:{}),files},null,2)}\n`, {flag:'wx'});
     if (external) {
       const runtime = await exists(`${external.configPath}.pid.json`);
       if (runtime) {
@@ -363,7 +374,8 @@ export async function verifyInstalledHealth(app, configPath, version) {
   const workspaceRoot=await canonicalFuturePath(config.workspaceRoot||path.join(boardsRoot,'.tinka'));
   const defaultRoot=await canonicalFuturePath(path.join(boardsRoot,'.tinka'));
   const workspaceId=createHash('sha256').update(`${configPath}\0${boardsRoot}${workspaceRoot===defaultRoot?'':`\0${workspaceRoot}`}`).digest('hex').slice(0,24);
-  if (health.app !== 'board-room' || health.version !== version || health.configPath !== configPath || health.boardsRoot !== boardsRoot || health.workspaceId!==workspaceId || health.port!==runtime.port || config.port!==runtime.port || health.projectLabel !== (config.projectLabel?.trim() || path.basename(path.dirname(configPath)))) throw new Error('Installed app health identity/version mismatch.');
+  // A server started before the package was renamed reports board-room.
+  if (![PACKAGE, 'board-room'].includes(health.app) || health.version !== version || health.configPath !== configPath || health.boardsRoot !== boardsRoot || health.workspaceId!==workspaceId || health.port!==runtime.port || config.port!==runtime.port || health.projectLabel !== (config.projectLabel?.trim() || path.basename(path.dirname(configPath)))) throw new Error('Installed app health identity/version mismatch.');
   return runtime;
 }
 export async function fetchLimited(url, headers, limit, timeoutMs = 4000) {
@@ -378,14 +390,20 @@ export async function fetchLimited(url, headers, limit, timeoutMs = 4000) {
 export async function githubRelease(repo, requestedVersion) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || repo.split('/').some(part => part === '.' || part === '..')) throw new Error('--repo must be OWNER/REPO.');
   const token = process.env.GITHUB_TOKEN;
-  const headers = { 'Accept': 'application/vnd.github+json', 'User-Agent': 'tinka-installer' };
+  const headers = { 'Accept': 'application/vnd.github+json', 'User-Agent': 'fribblr-installer' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const endpoint = requestedVersion ? `tags/v${requestedVersion}` : 'latest';
-  const metadata = JSON.parse((await fetchLimited(`https://api.github.com/repos/${repo}/releases/${endpoint}`, headers, 1024 * 1024)).toString('utf8'));
+  let listing;
+  try { listing = await fetchLimited(`https://api.github.com/repos/${repo}/releases/${endpoint}`, headers, 1024 * 1024); }
+  catch (error) {
+    if (/\(404\)/.test(error.message)) throw new Error(`${repo} has no ${requestedVersion ? `release v${requestedVersion}` : 'published release'}. Install from a checkout instead: ${CLONE}, then node /absolute/fribblr/scripts/install.mjs --project /absolute/project`);
+    throw error;
+  }
+  const metadata = JSON.parse(listing.toString('utf8'));
   const version = String(metadata.tag_name || '').replace(/^v/, '');
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error('Latest release has no supported version tag.');
   if (requestedVersion && version !== requestedVersion) throw new Error('Release version does not match the requested pin.');
-  const zipName = `tinka-v${version}.zip`;
+  const zipName = `${PACKAGE}-v${version}.zip`;
   const zip = metadata.assets?.find(asset => asset.name === zipName);
   const checksum = metadata.assets?.find(asset => asset.name === `${zipName}.sha256`);
   if (!zip || !checksum) throw new Error('Latest release lacks the app ZIP or its SHA-256 sidecar.');
@@ -402,32 +420,78 @@ export async function githubRelease(repo, requestedVersion) {
   return { zipBytes, checksumText: checksumBytes.toString('utf8'), zipName };
 }
 
+// The checkout this file belongs to, when it runs from one (scripts/install.mjs
+// beside scripts/package.mjs, in a fribblr package). An installed app or a
+// standalone fribblr-install.mjs has no package.mjs beside it.
+export async function checkoutRoot(file = fileURLToPath(import.meta.url)) {
+  if (path.basename(file) !== 'install.mjs' || path.basename(path.dirname(file)) !== 'scripts') return null;
+  const root = path.dirname(path.dirname(file));
+  if (!await exists(path.join(root, 'scripts/package.mjs'))) return null;
+  const manifest = await readFile(path.join(root, 'package.json'), 'utf8').then(JSON.parse).catch(() => null);
+  return manifest?.name === PACKAGE ? root : null;
+}
+async function gitState(root, paths) {
+  const git = args => execFileAsync('git', ['-C', root, ...args], { timeout: 5000 }).then(result => result.stdout.trim());
+  try {
+    const [commit, branch, changes] = await Promise.all([git(['rev-parse', '--short=12', 'HEAD']), git(['rev-parse', '--abbrev-ref', 'HEAD']), git(['status', '--porcelain', '--', ...paths])]);
+    return { commit, branch, changed: changes !== '' };
+  } catch { return {}; }
+}
+// The checkout's app files, packed exactly as a release packs them, and where they came from.
+export async function checkoutSource(root) {
+  const packaging = await import(pathToFileURL(path.join(root, 'scripts/package.mjs')).href);
+  const app = await packaging.appArchive({ root });
+  return { zipBytes: app.bytes, checksumText: app.checksumText, zipName: app.zipName, source: { kind: 'checkout', path: root, ...await gitState(root, [...packaging.appRoots, ...packaging.publicDocs]) } };
+}
+export function describeSource(source) {
+  if (!source) return '';
+  const at = source.commit ? ` (${source.branch && source.branch !== 'HEAD' ? `${source.branch} at ` : ''}${source.commit}${source.changed ? ', with uncommitted changes' : ''})` : '';
+  return ` from the checkout ${source.path}${at}`;
+}
+// A new project keeps its boards in design/boards. When that folder already holds
+// something (another app's boards, such as upstream Tinka's), fribblr's boards go
+// in design/fribblr-boards instead, so neither app writes the other's boards.
+export async function defaultProjectBoards(project) {
+  const names = await readdir(path.join(project, 'design/boards')).catch(error => { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return error.code === 'ENOENT' ? [] : ['file']; throw error; });
+  return names.some(name => name !== '.DS_Store') ? 'design/fribblr-boards' : 'design/boards';
+}
+
 export async function main(args = process.argv.slice(2)) {
   const options = parseArgs(args);
   if (options.help) return usage;
   let installDir = options['--install-dir'];
   let configPath = options['--config'];
-  let project, settings;
+  let project, settings, boards, label;
+  // Run from a checkout, the installer installs that checkout unless a release is named.
+  const checkout = !options['--zip'] && !options['--version'] && !options['--repo'] ? await checkoutRoot() : null;
   if(options['--project']){
     if(!path.isAbsolute(options['--project']))throw new Error('--project must be absolute.');
     project=await realpath(options['--project']);
-    const directory=path.join(project,'tinka');
-    if(await exists(directory)&&await realpath(directory)!==directory)throw new Error('The project tinka folder must not be a symlink.');
+    const directory=path.join(project,PROJECT_FOLDER);
+    if(await exists(directory)&&await realpath(directory)!==directory)throw new Error(`The project ${PROJECT_FOLDER} folder must not be a symlink.`);
     const manifest=path.join(directory,'project.json');
     settings=await exists(manifest)?JSON.parse(await readFile(manifest,'utf8')):null;
-    if(settings&&(settings.schemaVersion!==1||!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(settings.version)||typeof settings.boards!=='string'||!settings.boards||path.isAbsolute(settings.boards)||typeof settings.projectLabel!=='string'||!settings.projectLabel.trim()))throw new Error('Invalid tinka/project.json.');
-    const boards=options['--boards']||settings?.boards||'design/boards';
-    const boardsPath=path.resolve(project,boards);
-    if(path.isAbsolute(boards)||!inside(project,boardsPath)||inside(directory,boardsPath)||inside(boardsPath,directory))throw new Error('Project boards must use a relative path inside the project, outside tinka/.');
-    if(settings&&((options['--boards']&&options['--boards']!==settings.boards)||(options['--label']&&options['--label']!==settings.projectLabel)))throw new Error('Existing project settings differ.');
-    if(await exists(boardsPath)&&!inside(project,await realpath(boardsPath)))throw new Error('Project boards leave this checkout.');
-    installDir=path.join(directory,'app');
+    if(settings&&(settings.schemaVersion!==1||!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(settings.version)||typeof settings.boards!=='string'||!settings.boards||path.isAbsolute(settings.boards)||typeof settings.projectLabel!=='string'||!settings.projectLabel.trim()))throw new Error(`Invalid ${PROJECT_FOLDER}/project.json.`);
+    // An app installed from a checkout has no release to restore from (unless a
+    // matching package is committed beside the pin).
+    if(!checkout&&settings?.source==='checkout'&&!options['--zip']&&!options['--version']&&!options['--repo']&&!await exists(path.join(directory,'packages',`${PACKAGE}-v${settings.version}.zip`))&&!await exists(path.join(directory,'app/package.json')))throw new Error(`This project's fribblr was installed from a fribblr checkout, and setup has no release to restore it from. Install it from a checkout: ${CLONE}, then node /absolute/fribblr/scripts/install.mjs --project ${project}`);
     const local=path.join(directory,'local');
     if(await exists(local)&&await realpath(local)!==local)throw new Error('The local config folder must not be a symlink.');
     const localConfig=path.join(local,'config.json');
-    if(await exists(localConfig)){
-      const config=JSON.parse(await readFile(localConfig,'utf8'));
-      if(config.boardsRoot!==await realpath(boardsPath)||config.projectLabel!==(options['--label']||settings?.projectLabel||path.basename(project)))throw new Error('Local config belongs to another location or project. Inspect tinka/local before restoring.');
+    const existingConfig=await exists(localConfig)?JSON.parse(await readFile(localConfig,'utf8')):null;
+    // Without a pin, a local config left by an interrupted install names the boards.
+    const configBoards=existingConfig&&typeof existingConfig.boardsRoot==='string'&&inside(project,existingConfig.boardsRoot)?path.relative(project,existingConfig.boardsRoot):null;
+    boards=options['--boards']||settings?.boards||configBoards||await defaultProjectBoards(project);
+    label=options['--label']||settings?.projectLabel||path.basename(project);
+    const boardsPath=path.resolve(project,boards);
+    if(path.isAbsolute(boards)||!inside(project,boardsPath)||inside(directory,boardsPath)||inside(boardsPath,directory))throw new Error(`Project boards must use a relative path inside the project, outside ${PROJECT_FOLDER}/.`);
+    if(settings&&((options['--boards']&&options['--boards']!==settings.boards)||(options['--label']&&options['--label']!==settings.projectLabel)))throw new Error('Existing project settings differ.');
+    if(await exists(boardsPath)&&!inside(project,await realpath(boardsPath)))throw new Error('Project boards leave this checkout.');
+    installDir=path.join(directory,'app');
+    const port=options['--port']&&options['--port']!=='auto'?Number(options['--port']):null;
+    if(existingConfig){
+      if(existingConfig.boardsRoot!==await realpath(boardsPath)||existingConfig.projectLabel!==label)throw new Error(`Local config belongs to another location or project. Inspect ${PROJECT_FOLDER}/local before restoring.`);
+      if(options['--port']&&(port?existingConfig.port!==port||existingConfig.portMode!=='fixed':existingConfig.portMode!=='auto'))throw new Error(`This project's fribblr already uses port ${existingConfig.port} (${existingConfig.portMode||'fixed'}). To change it, stop fribblr and edit "port" and "portMode" in ${localConfig}.`);
       configPath=localConfig;
     }else{
       // Restore machine-local config before candidate acceptance, even when a
@@ -437,29 +501,30 @@ export async function main(args = process.argv.slice(2)) {
       if(!inside(project,canonicalBoards)||inside(directory,canonicalBoards))throw new Error('Project boards leave this checkout.');
       await mkdir(local,{recursive:true});
       if(await realpath(local)!==local)throw new Error('The local config folder must not be a symlink.');
-      await writeFile(localConfig,`${JSON.stringify({schemaVersion:1,port:43821,portMode:'auto',projectLabel:options['--label']||settings?.projectLabel||path.basename(project),boardsRoot:canonicalBoards,title:'Tinka'},null,2)}\n`,{flag:'wx'});
+      await writeFile(localConfig,`${JSON.stringify({schemaVersion:1,port:port||DEFAULT_PORT,portMode:port?'fixed':'auto',projectLabel:label,boardsRoot:canonicalBoards,title:'fribblr'},null,2)}\n`,{flag:'wx'});
       configPath=localConfig;
     }
     const installed=path.join(installDir,'package.json');
-    if(settings&&!options['--zip']&&!options['--version']&&!options['--repo']&&await exists(installed)){
+    if(!checkout&&settings&&!options['--zip']&&!options['--version']&&!options['--repo']&&await exists(installed)){
       const current=JSON.parse(await readFile(installed,'utf8'));
-      if(current.name==='board-room'&&current.version===settings.version){
+      if(current.name===PACKAGE&&current.version===settings.version){
         const prepared=await execFileAsync(process.execPath,[path.join(installDir,'cli.mjs'),'project','init','--project',project],{timeout:12000});
-        return `Tinka ${displayVersion(current.version)} is already installed.\n${prepared.stdout.trim()}`;
+        return `fribblr ${displayVersion(current.version)} is already installed.\n${prepared.stdout.trim()}`;
       }
     }
   }
-  const requestedVersion=options['--version']||settings?.version;
+  const requestedVersion=checkout?null:options['--version']||settings?.version;
   // A project may commit the matching app package for offline restoration.
   // Explicit source options always win; bundles are selected by the version pin.
-  if(project&&requestedVersion&&!options['--zip']&&!options['--repo']){
-    const archive=path.join(project,'tinka/packages',`tinka-v${requestedVersion}.zip`);
+  if(!checkout&&project&&requestedVersion&&!options['--zip']&&!options['--repo']){
+    const archive=path.join(project,PROJECT_FOLDER,'packages',`${PACKAGE}-v${requestedVersion}.zip`);
     if(await exists(archive)){
       if(!await exists(`${archive}.sha256`))throw new Error('Bundled project archive is missing its SHA-256 sidecar.');
       options['--zip']=archive;options['--checksum']=`${archive}.sha256`;
     }
   }
-  const source = !options['--zip']
+  const source = checkout ? await checkoutSource(checkout)
+    : !options['--zip']
     ? await githubRelease(options['--repo']||settings?.repo||DEFAULT_REPO, requestedVersion)
     : {
       zipBytes: await readFile(options['--zip']),
@@ -473,16 +538,25 @@ export async function main(args = process.argv.slice(2)) {
     if(requestedVersion&&version!==requestedVersion)throw new Error('Archive version does not match the project pin or requested version.');
     if(project&&!entries.some(entry=>entry.relative==='lib/project.mjs'))throw new Error('This release predates portable project setup. Use a current release, or --install-dir and --config for a manual layout.');
   }
-  const result = await installArchive({ ...source, installDir, configPath, ...(project && settings && configPath ? {pinPath:path.join(project,'tinka/project.json')} : {}) });
-  let prepared='';
+  // Re-running from an unchanged checkout leaves an unmodified app in place.
+  const receipt=checkout?await readFile(path.join(installDir,'INSTALLATION.json'),'utf8').then(JSON.parse).catch(()=>null):null;
+  const unchanged=receipt?.source?.kind==='checkout'&&receipt.sha256===createHash('sha256').update(source.zipBytes).digest('hex')&&await installationPristine(installDir);
+  const result = unchanged ? {version:receipt.version,installDir,unchanged:true}
+    : await installArchive({ ...source, installDir, configPath, ...(project && settings && configPath ? {pinPath:path.join(project,PROJECT_FOLDER,'project.json')} : {}) });
+  let prepared='',started='';
   if(project){
-    const arguments_=[path.join(result.installDir,'cli.mjs'),'project','init','--project',project];
-    if(options['--boards'])arguments_.push('--boards',options['--boards']);
-    if(options['--label'])arguments_.push('--label',options['--label']);
+    const cli=path.join(result.installDir,'cli.mjs');
+    const arguments_=[cli,'project','init','--project',project,'--boards',boards,'--label',label];
     if(options['--repo'])arguments_.push('--repo',options['--repo']);
     prepared=`\n${(await execFileAsync(process.execPath,arguments_,{timeout:12000})).stdout.trim()}`;
+    if(checkout){
+      try{started=`\n${(await execFileAsync(process.execPath,[cli,'start','--config',configPath],{timeout:20000})).stdout.trim()}`;}
+      catch(error){started=`\nfribblr did not start: ${error.stderr?.trim()||error.message}`;}
+    }
   }
-  return `Installed Tinka ${displayVersion(result.version)} at ${result.installDir}.${result.backup ? ` Backup: ${result.backup}.` : ''}${result.restarted ? ' Managed service restarted.' : ''}${prepared}`;
+  const from=describeSource(source.source);
+  const head=result.unchanged?`fribblr ${displayVersion(result.version)} at ${result.installDir} already matches the checkout${from.replace(' from the checkout','')}; nothing to replace.`:`Installed fribblr ${displayVersion(result.version)}${from} at ${result.installDir}.${result.backup ? ` Backup: ${result.backup}.` : ''}${result.restarted ? ' Managed service restarted.' : ''}`;
+  return `${head}${prepared}${started}`;
 }
 
 if (process.argv[1] && await realpath(path.resolve(process.argv[1])).catch(() => null) === fileURLToPath(import.meta.url)) {
