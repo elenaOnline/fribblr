@@ -71,6 +71,6 @@ the full file and design guidance. Covers are optional and should not delay the
 requested work. Preserve an existing custom cover unless asked to change it.
 
 For app installation and recovery without a skill, see
-https://github.com/bladnman/tinka. A project's `FRIBBLR.md` takes precedence over
+docs/INSTALL.md in https://github.com/elenaOnline/fribblr. A project's `FRIBBLR.md` takes precedence over
 generic placement examples. Never use a different project's instance to resolve
 a port conflict.

@@ -766,7 +766,7 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
   rest of a pinch or wheel run lands on the board and keeps zooming it out. When the item has no card on this board (a
   grid board, a hidden card), the reader closes as Up does.
 - **Up and Escape are unchanged**: they return to the board exactly as it was left, focus on the card last viewed.
-- **Expand** (`#reader-expand`): a `ui-toggle` around our button, first in the "fribblr actions" toolbar (it acts on what
+- **Expand** (`#reader-expand`): a `ui-toggle` around our button, first in the "Item actions" toolbar (it acts on what
   is shown; § Top bars), icon and the label "Expand" (the label drops below 1100 px wide, as Find's does). Pressed state
   through `setPressed` / `onPress`. Key: Shift+F (`aria-keyshortcuts="Shift+F"`; F is Fit, and Shift+F is free on the
   board and in the reader). Expanded:
@@ -1110,7 +1110,7 @@ opener; `tinka:navigator-open` takes `detail.opener`). Dialog, Command, Tree, Se
 Navigator toggle, home, the parent crumb, the board title; in the reader also Up, the path and the stepper): links and
 places, each its own Tab stop, as the SDK's Navigation Menu keeps them. The right acts on what is shown: on a board
 Find, Undo, Redo, Inspector, Add ("Board actions"); in the reader Expand (a `ui-toggle`), Favorite, Notes, Find,
-Inspector ("fribblr actions"):
+Inspector ("Item actions"):
 one toolbar, ↓ opens Add's menu. Undo/Redo with nothing to undo and the reader's Favorite while notes load are
 `aria-disabled` and stay reachable. The board title is a heading, not a field. In the reader, `[` / `]` and ⌥ ← / →
 still step from the toolbar; plain ←/→ step from the stepper and the canvas.

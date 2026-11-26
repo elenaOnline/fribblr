@@ -48,6 +48,6 @@ READMEs describe what else must travel with it. To browse it in fribblr, place t
 complete folder under a configured boards root; do not reinitialize its files.
 
 For app installation and recovery without a skill, see
-https://github.com/bladnman/tinka. A project's `FRIBBLR.md` takes precedence over
+docs/INSTALL.md in https://github.com/elenaOnline/fribblr. A project's `FRIBBLR.md` takes precedence over
 generic placement examples. Never use a different project's instance to resolve
 a port conflict.
