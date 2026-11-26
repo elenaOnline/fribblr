@@ -24,9 +24,11 @@ carry the guidance for that installed version.
 When the user mentions comments, notes or feedback on the boards, run the inbox
 (`node fribblr/app/cli.mjs inbox --config fribblr/local/config.json`; see `FRIBBLR.md`).
 
-If the app is missing, `FRIBBLR.md` says how to install or restore it. A project
-can also have upstream Tinka (a `tinka/` folder and `TINKA.md`); that is a
-separate app with its own boards. Use fribblr's only when the user means fribblr.
+If the app is missing, `FRIBBLR.md` says how to install or restore it.
+<!-- rebrand:off -->
+A project can also have upstream Tinka (a `tinka/` folder and `TINKA.md`); that is
+a separate app with its own boards. Use fribblr's only when the user means fribblr.
+<!-- rebrand:on -->
 
 If no setup exists, `docs/INSTALL.md` in https://github.com/elenaOnline/fribblr
 says how to add fribblr to a project. Preserve existing boards, earlier rounds,

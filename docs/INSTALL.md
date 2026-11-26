@@ -112,6 +112,7 @@ local config. `node fribblr/setup.mjs` restores only from a release, and says so
 
 ## A project that already has upstream Tinka
 
+<!-- rebrand:off -->
 fribblr installs beside it. fribblr never reads, changes or removes `tinka/`,
 `TINKA.md` or the Tinka section of `AGENTS.md`; Tinka never touches `fribblr/`,
 `FRIBBLR.md` or the fribblr section. Tinka's boards are usually in `design/boards`,
@@ -121,6 +122,7 @@ agents that each app has its own boards and to use the app the user names.
 To open Tinka's boards in fribblr instead, pass `--boards design/boards`. Both apps
 then write the same boards; what only fribblr has (whiteboards, pointing messages)
 does not work in Tinka. Run one of the two at a time on those boards.
+<!-- rebrand:on -->
 
 ## Pictures: pointing crops, item shot and board overview
 

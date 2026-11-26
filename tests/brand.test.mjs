@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { listFiles, mentions, HELD_BACK } from '../scripts/rebrand.mjs';
+import { listFiles, mentions } from '../scripts/rebrand.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -36,7 +36,9 @@ export const ALLOWED = [
   { why: 'the metadata folder .tinka/ is the on-disk format; boards open in either app', token: /^(?:[\w$./-]*\/)?\.tinka(?![\w-])/ },
   { why: 'the workspace HTTP header and the clipboard / drag MIME types are the wire format',
     token: /^(?:x-tinka-workspace|application\/x-tinka-[\w+-]+)/i },
-  { why: 'internal environment variables and clipboard envelope prefix (TINKA_OPERATION_TOKEN, TINKA_CLIPBOARD_V1)', token: /^TINKA_[A-Z0-9_]+/ },
+  { why: 'internal environment variables and clipboard envelope prefix (TINKA_OPERATION_TOKEN, TINKA_CLIPBOARD_V1)', token: /^(?:[\w$]+\.)*TINKA_[A-Z0-9_]+/ },
+  { why: 'test file names in the npm scripts (tests/tinka-view-browser.mjs)', token: /^tests\/tinka-[\w-]+\.mjs/ },
+  { why: 'a local helper function in lib/shot.mjs that builds an app page target', file: 'lib/shot.mjs', token: /^(?:\.\.\.)?tinka(?=\(|=)/ },
   { why: 'the per-user legacy workspace list lives at ~/.config/tinka/', token: /^[\w$./~-]*\.config\/tinka\// },
   { why: 'the opt-out for the return mark pages carry (?tinka=off); existing pages use it', token: /^tinka(?==off)/ },
   { why: 'return-mark opt-out query name, read by the server', file: 'lib/return-mark.mjs', line: /searchParams\.get\("tinka"\)/ },
@@ -44,14 +46,12 @@ export const ALLOWED = [
 
   // Credit: what fribblr was forked from, and upstream's own addresses and release numbers.
   { why: 'upstream project address and site', token: /^(?:github\.com\/bladnman\/tinka|[\w./:-]*bladnman\/tinka|tinka\.metal-sole\.com)/ },
+  { why: 'a link to upstream\'s repository, [Tinka](https://github.com/bladnman/tinka)', token: /^Tinka\]\(https:\/\/github\.com\/bladnman\/tinka\)/ },
   { why: 'credit to the project fribblr is forked from', line: /\b(?:[Uu]pstream|forked from|fork of) Tinka\b|Tinka by bladnman/ },
   { why: "upstream's release numbers (Tinka 1.3 is upstream's release, not ours)", line: /\bTinka \d+\.\d+/ },
   { why: 'docs/BRANDING.md explains the old name; it is the one file that names it freely', file: 'docs/BRANDING.md', line: /./ },
 ];
 
-// Files that are not scanned yet. TEMPORARY: the install branch (fribblr-install) owns these while the
-// two branches are open; delete this once they are merged (HELD_BACK in scripts/rebrand.mjs goes too).
-const NOT_SCANNED_YET = HELD_BACK;
 
 function tokenStart(src, index) {
   let a = index;
@@ -99,8 +99,4 @@ test('the guard sees strings and prose but not code comments', () => {
   const sample = 'const a = "Tinka"; // Tinka in a comment\n/* Tinka */ const b = `x Tinkas y`; const c = "https://x.test/Tinka"; // x\n';
   const hits = mentions('x.js', sample).map(m => m.line);
   assert.deepEqual(hits, [1, 2, 2]);
-});
-
-test('the files held back for the install branch are the ones named in the brief', () => {
-  assert.ok(NOT_SCANNED_YET.includes('lib/project.mjs'));
 });

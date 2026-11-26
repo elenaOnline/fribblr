@@ -1,97 +1,58 @@
-# Tinka
+# fribblr
 
-Tinka is a **free, project-local workspace for ideas, resources and experiments created with your AI agent**. Keep title-only ideas, notes, HTML, images, videos, documents, external links and live applications together. Arrange the same item on several boards, open its content or children, and collect review notes without moving its files. Existing design rounds and comparison readers remain supported.
+fribblr is a **project-local workspace for ideas, resources and experiments made with your AI agent**. Your agent lays out its work on boards (to fribble it), and you review it there: title-only ideas, notes, HTML, images, videos, documents, external links and live applications, side by side. The same item can sit on several boards, open into its content or its own board, and collect comments, without its files moving.
 
-Each project gets its own instance. You can run `Tinka / Atlas` and `Tinka / Orchard` at the same time, with separate boards, notes, configuration, processes, and saved URLs. There is no master service or shared port allocator.
+fribblr is a fork of [Tinka](https://github.com/bladnman/tinka) by bladnman, under the same MIT License. It adds its own theme, keyboard and focus behaviour on every control (UI SDK), zoom-out navigation between items and boards, a pointing mode for showing your agent exactly what you mean, and a whiteboard proof of concept.
 
-[See Tinka](https://tinka.metal-sole.com/) · [Try the working examples](https://tinka.metal-sole.com/#example) · [Agent setup guide](https://tinka.metal-sole.com/install.md)
+Each project gets its own instance. You can run `fribblr / Atlas` and `fribblr / Orchard` at the same time, with separate boards, notes, configuration, processes and saved URLs. There is no master service or shared port allocator.
 
-![A Tinka board comparing three Glade reading designs, with a sample essay and example feedback.](https://tinka.metal-sole.com/shared/board.webp?v=glade-20261016)
+![A fribblr board of showcase items: notes, a document, images and an HTML experiment on the canvas.](docs/images/board.png)
 
-## Quick start
+## Add fribblr to a project
 
-Tell the agent you already use for your project:
+fribblr needs **Node.js 22 or newer** on macOS or Linux. It has no npm dependencies and no build step. There are no releases yet; install from a checkout:
+
+```sh
+git clone https://github.com/elenaOnline/fribblr.git ~/fribblr
+node ~/fribblr/scripts/install.mjs --project /absolute/path/to/project
+```
+
+This installs the app into `PROJECT/fribblr/app/`, writes `FRIBBLR.md` and a fribblr section in the project's `AGENTS.md`, creates the boards folder (`design/boards`), and starts the project's instance. The last line it prints is the project's URL. Add `--port 47900` for a fixed port; otherwise fribblr picks a free one from 45080 up. `--label "Atlas"` names the instance; the default is the project folder's name. A second project is the same command with its own path.
+
+To update, run `git -C ~/fribblr pull`, then the same install command. A project that already has upstream Tinka keeps it as it is: fribblr uses its own folder, guide, `AGENTS.md` section, port and boards. Every step, including the headless browser fribblr uses for pictures and the whiteboard, is in [docs/INSTALL.md](docs/INSTALL.md).
+
+A project then has:
 
 ```text
-Add Tinka to this project:
-https://tinka.metal-sole.com
+AGENTS.md                 fribblr section: visual work also goes on boards, share direct links; see FRIBBLR.md
+FRIBBLR.md                where the boards are, how to start fribblr, add work and read comments
+fribblr/
+  project.json            version pin, project label, relative boards path, where the app came from
+  setup.mjs               restore helper to commit with the project
+  .gitignore              ignores only the replaceable app and this computer's state
+  app/                    the replaceable app; ignored
+  local/                  this computer's config, process record and log; ignored
+design/boards/            commit boards, assets, handoffs and .state/notes.json
 ```
 
-Your agent can read the setup instructions, install Tinka and start this project's
-local canvas. No separate agent skill is required. Agents should read the
-[agent guide](docs/AGENT.md) and the manual setup below.
+fribblr keeps its section current in the project-root `AGENTS.md` (read by Codex, Claude Code and other agents), creating the file if needed. The section sits between `<!-- fribblr:start … -->` and `<!-- fribblr:end -->` markers; install and each start of the project replace what is between them and never change anything outside. No other instruction file is written.
 
-Open an experiment, try its interactions, and leave a note for the next round.
-These public examples use sample content.
+Commit the instructions, setup helper, pin and complete boards. Boards and experiment handoffs stay readable without the app. A hidden folder is not automatically excluded by Git: what travels is what you commit, so check ignore rules, especially for `.state/notes.json`.
 
-![The Open book reading design open in Tinka, with the other reading alternatives still on its board.](https://tinka.metal-sole.com/shared/experiment.webp?v=glade-20261016)
-
-### Manual setup
-
-Tinka uses **Node.js 22 or newer**, has **no runtime npm dependencies**, and binds only to `127.0.0.1`. It answers only requests addressed to `127.0.0.1` or `localhost` at its own port, so a web page cannot reach it through a DNS name that resolves to this computer, and board links open only on this computer. Managed start/stop uses `ps`, so use macOS or Linux. The package is internally named `board-room` for compatibility with the original installer; the product is Tinka.
-
-No agent skill is required. Use a visible `tinka/` folder for project tooling and
-`design/boards/` for durable design work. Existing `.tinka` or external layouts
-continue to work; these are placement recommendations, not required names.
-
-Download `tinka-install.mjs` from the [release page](https://github.com/bladnman/tinka/releases/latest), then run:
+Start and stop it from the project root:
 
 ```sh
-node /absolute/tinka-install.mjs --project /absolute/project --label Atlas
-node /absolute/project/tinka/app/cli.mjs start \
-  --config /absolute/project/tinka/local/config.json
+node fribblr/app/cli.mjs start --config fribblr/local/config.json
+node fribblr/app/cli.mjs stop --config fribblr/local/config.json
 ```
 
-For local packages, pass the app ZIP and its matching checksum too:
+**Open the URL printed by `start`.** A new automatic instance tries 45080, 45180, 45280 and so on, at most 20 candidates. It binds the real socket before choosing a port, saves the actual port in this instance's config, and tries that saved port first on restart. If it is occupied, the same bounded sequence continues from there. A numeric `--port` means **fixed**: a collision fails clearly without changing any other process.
 
-```sh
-node /absolute/tinka-install.mjs --project /absolute/project \
-  --zip /absolute/tinka-vVERSION.zip \
-  --checksum /absolute/tinka-vVERSION.zip.sha256
-```
+fribblr binds only to `127.0.0.1`. It answers only requests addressed to `127.0.0.1` or `localhost` at its own port, so a web page cannot reach it through a DNS name that resolves to this computer, and board links open only on this computer. Managed start and stop use `ps`, so use macOS or Linux.
 
-Setup creates an empty boards folder and this project structure:
+For work on fribblr itself, run `node cli.mjs` in the checkout directly; keep config and boards outside it. `node cli.mjs init --config /absolute/config.json --boards /absolute/boards --label Atlas` makes a manual layout.
 
-```text
-AGENTS.md                 Short Tinka section: visual work also goes on boards, share direct links; see TINKA.md
-TINKA.md                  Board location, restore and operating instructions
-tinka/
-  project.json            Version pin, project label, relative boards path
-  setup.mjs               Standalone restore helper to commit with the project
-  .gitignore              Ignores only replaceable app and machine-local state
-  app/                    Replaceable app; ignored by default
-  local/                  This machine's config, process record and log; ignored
-design/boards/            Commit boards, assets, handoffs and .state/notes.json
-```
-
-Tinka keeps that section current in the project-root `AGENTS.md` (read by Codex,
-Claude Code and other agents), creating the file if needed. The section sits
-between `<!-- tinka:start … -->` and `<!-- tinka:end -->` markers: setup, every
-install and update, and each start of a portable project replace what is between
-them and never change anything outside. Earlier unmarked Tinka text is converted
-in place. No other instruction file is written.
-
-Commit the instructions, setup helper, version pin and complete boards. On a new
-machine, the app and local config can be absent. Run from the checked-out root:
-
-```sh
-node tinka/setup.mjs
-node tinka/app/cli.mjs start --config tinka/local/config.json
-```
-
-Setup restores the pinned version rather than silently choosing a newer release.
-It resolves relative project paths on this machine and preserves boards and notes.
-For offline restoration, commit the matching `tinka/packages/tinka-vVERSION.zip`
-and its `.sha256` sidecar. Setup selects that bundle automatically by version pin.
-Without a bundle it needs network access, or `--zip` and `--checksum` for a local package.
-Boards and experiment handoffs remain readable without the app. A hidden folder
-is not automatically excluded by Git: what travels is what you commit. Check
-ignore rules, especially for `.state/notes.json`. You may deliberately vendor an
-app copy for offline use; keep its boards and config outside that replaceable copy.
-
-**Open the URL printed by `start`.** A new automatic instance tries 43821, 43921, 44021, and so on, at most 20 candidates. It binds the real socket before choosing a port, saves the actual port in this instance's config, and tries that saved port first on restart. If it is occupied, the same bounded sequence continues from there. A numeric `init --port 43821` means **fixed**: a collision fails clearly without changing any other process. Omit `--label` to use the current project folder's name.
-
-For a source checkout, run `node cli.mjs` directly; keep config and boards outside the app checkout. No build step or `npm install` is needed. `node cli.mjs project init --project /absolute/target-project` prepares portable project instructions and setup, or use `init --config /absolute/config.json --boards /absolute/boards --label Atlas` for a manual layout. The standalone installer also accepts `--install-dir /absolute/app` and `--config` for existing installations.
+![An item opened from its board in fribblr, with its board's frame around it.](docs/images/item.png)
 
 Create a board that agents fill with the workspace tools (`item.create` and the
 others in the [agent guide](docs/AGENT.md#showing-visual-work)):
@@ -643,6 +604,10 @@ Browser storage keys include an identity derived from this config's canonical pa
 
 ## Updates for one project
 
+An app installed from a checkout updates by `git pull` and the same install command (see
+[docs/INSTALL.md](docs/INSTALL.md#update)); it never checks for releases. The rest of this section
+describes the release updater, which applies once fribblr publishes releases.
+
 Run the normal start command whenever returning to a project's boards, even if
 its server is already running:
 
@@ -728,34 +693,12 @@ old app is restored as above. Commit `tinka/project.json` afterwards as usual.
 folder of `scripts/package.mjs` outputs instead of GitHub, for offline mirrors and
 tests; every other check still applies.
 
-Existing installations receive these commands through a deliberate upgrade:
-
-```sh
-node tinka/setup.mjs --version X.Y
-```
-
-With no version argument, setup always restores its existing pin. `--version 1.1`
-means 1.1.0 for installers and setup helpers from 1.1 on; an older `setup.mjs`
-needs the full `--version 1.1.0`. Custom existing
-`setup.mjs` and `TINKA.md` are preserved. Older setup helpers can install the new
-feature but write receipts without file baselines. To enable future automatic
-replacement safely, review local app modifications, download the **current**
-`tinka-install.mjs` from the release page, and deliberately reinstall the current
-version with it:
-
-```sh
-node /absolute/tinka-install.mjs --install-dir /absolute/project/tinka/app \
-  --config /absolute/project/tinka/local/config.json --version X.Y
-```
-
-This also works when already on the latest version and preserves custom project
-instructions and setup helpers. Default policy remains notify. Keep one installed
-app copy per project when projects need independent upgrades; never share an app
+Keep one installed app copy per project when projects need independent upgrades; never share an app
 copy among configs you intend to update independently.
 
 Config, boards, notes, logs, and PID state must stay outside the app directory. Existing version 0.1 configs remain fixed-port configurations; add `"projectLabel": "Your project"` and optionally `"portMode": "auto"`. The legacy `title` property remains accepted but project identity comes from `projectLabel`.
 
-See [operations](docs/README.md), [release packaging](docs/RELEASE.md), and [maintainer guidance](AGENTS.md). Tinka is open source under the [MIT License](LICENSE).
+See [installing](docs/INSTALL.md), [operations](docs/README.md), [release packaging](docs/RELEASE.md), [branding notes](docs/BRANDING.md) and [maintainer guidance](AGENTS.md). fribblr is open source under the [MIT License](LICENSE), as is [Tinka](https://github.com/bladnman/tinka), which it is forked from.
 
 Boards on Home appear newest-created first, including graph and legacy boards
 together. Nested board cards in Grid use the child board’s creation date within

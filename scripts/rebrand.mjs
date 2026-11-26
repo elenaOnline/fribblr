@@ -4,7 +4,6 @@
 //   node scripts/rebrand.mjs              dry run: prints every change it would make
 //   node scripts/rebrand.mjs --write      rewrites the files
 //   node scripts/rebrand.mjs --residual   lists what is still called Tinka after the rules (hand edits, allow-list)
-//   node scripts/rebrand.mjs --all        also covers the files that are only temporarily left out (see HELD_BACK)
 //   node scripts/rebrand.mjs --quiet      with --write: print only the summary
 //   node scripts/rebrand.mjs path ...     limit to these files
 //
@@ -55,21 +54,6 @@ export const NOT_OURS = [
   'scripts/rebrand.mjs', 'tests/brand.test.mjs', 'docs/BRANDING.md',
 ];
 
-// TEMPORARY. Files another branch (fribblr-install) owns while this one is open, plus the README the lead
-// rewrites by hand. They are skipped unless --all is passed. After the two branches are merged, delete this
-// list (and the matching one in tests/brand.test.mjs) and run `node scripts/rebrand.mjs --write` over the
-// whole tree.
-export const HELD_BACK = [
-  'lib/project.mjs', 'scripts/install.mjs', 'scripts/package.mjs', 'lib/updates.mjs', 'lib/update-browser.mjs',
-  'lib/update-compatibility.json', 'lib/runtime.mjs', 'lib/config.mjs', 'lib/cli.mjs', 'cli.mjs',
-  'lib/overview.mjs', 'lib/shot.mjs', 'lib/drawxide.mjs', 'public/update-notice.js', 'skill/**',
-  'docs/RELEASE.md', 'docs/INSTALL.md', 'package.json', 'README.md',
-  'tests/project.test.mjs', 'tests/agent-section.test.mjs', 'tests/updates.test.mjs',
-  'tests/workspace-install.test.mjs', 'tests/update-browser.test.mjs', 'tests/update-notice-browser.mjs',
-  // Not on the brief's list, but they assert strings that held-back files print ("Installed Tinka", "Tinka link:"),
-  // so they move together with those files.
-  'tests/package.test.mjs', 'tests/shot.test.mjs',
-];
 
 function globToRegExp(glob) {
   let out = '';
@@ -98,16 +82,16 @@ function walk(dir, out = []) {
   return out;
 }
 
-// Files in scope, relative paths, sorted. `all` includes the HELD_BACK files.
-export function listFiles({ all = false } = {}) {
-  const surface = matcher(SURFACES), notOurs = matcher(NOT_OURS), held = matcher(HELD_BACK);
+// Files in scope, relative paths, sorted.
+export function listFiles() {
+  const surface = matcher(SURFACES), notOurs = matcher(NOT_OURS);
   const files = [];
   for (const top of readdirSync(ROOT)) {
     if (top === 'node_modules' || top === '.git') continue;
     const st = statSync(path.join(ROOT, top));
     (st.isDirectory() ? walk(top) : [top]).forEach(f => files.push(f));
   }
-  return files.filter(f => surface(f) && !notOurs(f) && (all || !held(f))).sort();
+  return files.filter(f => surface(f) && !notOurs(f) ).sort();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -187,10 +171,18 @@ function scanHtml(src) {
 
 // [start, end) ranges of comments in a file's text; none for prose and data files.
 export function commentRanges(file, src) {
+  if (/\.md$/.test(file)) return keptRanges(src);
   if (/\.(m?js)$/.test(file)) return collectJs(src);
   if (/\.css$/.test(file)) return scanCss(src);
   if (/\.html?$/.test(file)) return scanHtml(src);
   return [];
+}
+// In Markdown, text between <!-- rebrand:off --> and <!-- rebrand:on --> names upstream Tinka on purpose (how
+// fribblr sits beside an upstream install, for example). The rules and the guard test leave it alone.
+function keptRanges(src) {
+  const out = [], re = /<!-- rebrand:off -->[\s\S]*?(?:<!-- rebrand:on -->|$)/g; let m;
+  while ((m = re.exec(src))) out.push([m.index, m.index + m[0].length]);
+  return out;
 }
 function collectJs(src) { const out = []; scanJs(src, 0, false, out); return out.sort((a, b) => a[0] - b[0]); }
 
@@ -223,7 +215,7 @@ const R = String.raw`(?![\w$-])`;                // right edge
 const either = w => w.replace(/^[A-Za-z]/, c => `[${c.toUpperCase()}${c.toLowerCase()}]`);
 const DET = '(?:' + ['this', 'these', 'that', 'those', 'each', 'every', 'one', 'any', 'another', 'other', 'all of the', 'selected', 'opened', 'open', 'placed', 'whose', 'board-only', 'zoomed', 'fitted', 'loaded', 'copied', 'pasted', 'cut', 'duplicated', 'dragged',
   'previous', 'next', 'first', 'last', 'current', 'focused', 'single', 'its', 'which', 'per', 'their', 'your', 'my', 'same',
-  'new', 'archived', 'active', 'whole', 'the', 'an', "placement's"].map(either).join('|') + ')';
+  'new', 'archived', 'active', 'whole', 'the', 'an', 'cursor', "placement's"].map(either).join('|') + ')';
 
 export const RULES = [
   // 1. Places where Tinka is only ever the product (or a credit), decided before any noun rule.
@@ -253,14 +245,15 @@ export const RULES = [
 
   // 3. Host-project paths and the files a project sees (the install branch writes these names).
   ['TINKA.md', /(?<![\w-])TINKA\.md\b/g, 'FRIBBLR.md'],
-  ['section markers', /<!-- tinka:(start|end) -->/g, '<!-- fribblr:$1 -->'],
+  ['section markers', /<!-- tinka:(start|end)\b/g, '<!-- fribblr:$1'],
   ['host folder paths', /(?<![\w./$-])tinka\/(?=app\b|local\b|project\.json|setup\.mjs|packages\b|\.gitignore|\.pid)/g, 'fribblr/'],
+  ['host folder inside an absolute path', /(?<=[\w.-]\/)tinka\/(?=(?:app|local|packages)\/|project\.json|setup\.mjs)/g, 'fribblr/'],
   ['host folder paths, as written in a regular expression', /(?<![\w./$\\-])tinka\\\/(?=app\\\/|local\\\/)/g, 'fribblr\\/'],
   ['host folder, named alone', /([`'"( ])tinka\/([`'") ,.])/g, '$1fribblr/$2'],
 
   // 4. The product name, last. Not after "upstream" / "fork of" / "forked from" (credit), nor in "Tinka by bladnman", not as a release
-  //    number ("Tinka 1.3" is upstream's release).
-  ['Tinka', new RegExp(`(?<!\\b(?:[Uu]pstream|fork of|forked from) )${L}Tinka(?! \\d+\\.\\d)${R}`, 'g'), 'fribblr'],
+  //    number ("Tinka 1.3" is upstream's release), nor as the text of a link to upstream's repository.
+  ['Tinka', new RegExp(`(?<!\\b(?:[Uu]pstream|fork of|forked from) )${L}Tinka(?! \\d+\\.\\d)(?!\\]\\(https://github\\.com/bladnman/tinka)${R}`, 'g'), 'fribblr'],
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -299,7 +292,7 @@ function main() {
   const args = process.argv.slice(2);
   const flag = f => args.includes(f);
   const only = args.filter(a => !a.startsWith('--'));
-  let files = listFiles({ all: flag('--all') });
+  let files = listFiles();
   if (only.length) files = files.filter(f => only.includes(f));
   const write = flag('--write'), quiet = flag('--quiet');
 
@@ -333,7 +326,7 @@ function main() {
     }
     if (write) writeFileSync(abs, out);
   }
-  console.log(`${write ? 'Changed' : 'Would change'} ${changedLines} lines in ${changedFiles} files (${files.length} files in scope${flag('--all') ? '' : ', held-back files skipped'}).`);
+  console.log(`${write ? 'Changed' : 'Would change'} ${changedLines} lines in ${changedFiles} files (${files.length} files in scope).`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

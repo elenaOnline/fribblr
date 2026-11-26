@@ -12,7 +12,9 @@ saved settings, or turn each upstream merge into hundreds of conflicts, and noth
 
 - **The boards' metadata folder `.tinka/`** (`boardsRoot/.tinka`) and the schema and resource-root names inside it.
   It is the on-disk format, so a folder of boards opens in either app.
-- **The package identity `board-room`** (`package.json`, the archive root).
+- **`board-room` as a value the installer still recognises**: upstream's package name. The package itself is
+  `fribblr`; the installer refuses to replace a `board-room` app (an upstream Tinka install), and health checks
+  accept it from servers started before the rename.
 - **Browser storage keys** such as `tinka/ground`, `tinka/appearance` and `tinka/<workspace>/…`. Renaming them
   would drop every saved preference.
 - **Names inside the code:** DOM ids, CSS classes, data attributes, container and keyframe names
@@ -26,6 +28,10 @@ saved settings, or turn each upstream merge into hundreds of conflicts, and noth
 - **Code comments.** They are developer notes; renaming them would conflict with most upstream changes.
 - **Credit and history:** the licence, the README's note that fribblr is a fork, "upstream Tinka", upstream's
   release numbers ("Tinka 1.3") and links to `github.com/bladnman/tinka`.
+- **Upstream's own files in a host project.** fribblr never touches an upstream Tinka install's `tinka/`,
+  `TINKA.md` or `<!-- tinka:start -->` section; docs that say so fence the passage with `<!-- rebrand:off -->` …
+  `<!-- rebrand:on -->`, which the script and the test leave alone.
+- **`CHROMIUM_EXECUTABLE`** and other generic names that never meant the product.
 - **Vendored files** (`public/vendor/`, `public/drawxide/`, `public/fonts/`) are not edited.
 
 ## After merging upstream
