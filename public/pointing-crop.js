@@ -21,7 +21,9 @@ const MAX_BYTES = 2 * 1024 * 1024; // the contract's limit for a client crop
 // or omitted for the whole card. Returns the part of the image inside it.
 // `source`: the same picture at a higher resolution (the item's file when the
 // card shows a smaller preview); the card's <img> still gives the layout.
-export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = null} = {}) {
+// `overlay(ctx, toCrop)`: drawn over the picture (the wand's glitter, so the crop shows the area she pointed at);
+// toCrop(clientX, clientY) gives that screen point's place in the crop's pixels.
+export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = null, overlay = null} = {}) {
   const img = card?.querySelector?.('.workspace-card-preview img');
   if (!img || !img.complete || !(img.naturalWidth > 0)) return null;
   const box = card.getBoundingClientRect(), shown = img.getBoundingClientRect();
@@ -59,6 +61,8 @@ export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = nul
   const g = canvas.getContext('2d');
   if (!vector && k > 1) g.imageSmoothingEnabled = false;
   g.drawImage(pic, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const kx = canvas.width / sw, ky = canvas.height / sh;
+  if (overlay) { try { overlay(g, (x, y) => [((x - content.x) * nw / content.w - sx) * kx, ((y - content.y) * nh / content.h - sy) * ky]); } catch {} }
   try {
     // PNG keeps every pixel; a photo too big for the contract's 2 MB goes as JPEG instead.
     let dataUrl = canvas.toDataURL('image/png');
@@ -71,7 +75,7 @@ export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = nul
 
 // An image card cropped from the item's own file at full resolution (`fileUrl`, same origin) when the card shows a
 // smaller preview of the same picture; the card's picture otherwise. Async: the file may need loading.
-export async function imageCropFull(card, region, fileUrl) {
+export async function imageCropFull(card, region, fileUrl, overlay = null) {
   const img = card?.querySelector?.('.workspace-card-preview img');
   if (!img) return null;
   if (!img.complete) { try { await img.decode(); } catch { return null; } }
@@ -83,7 +87,7 @@ export async function imageCropFull(card, region, fileUrl) {
     if (source && Math.abs(source.naturalWidth / source.naturalHeight - img.naturalWidth / img.naturalHeight) > 0.02 * (img.naturalWidth / img.naturalHeight)) source = null;
   }
   if (!card.isConnected) return null;
-  return imageCrop(card, region, {source});
+  return imageCrop(card, region, {source, overlay});
 }
 
 // One capture of this tab for the length of the mode. start() must run inside

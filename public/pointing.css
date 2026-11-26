@@ -58,9 +58,15 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 /* The sheet over the board: it takes every press while pointing. */
 .pointing-sheet { position: fixed; z-index: 25; display: block; touch-action: none; cursor: crosshair; }
 .pointing-sheet[hidden] { display: none; }
-.pointing-sheet[data-tool="laser"] { cursor: none; }
+.pointing-sheet[data-tool="wand"] { cursor: none; }
 .pointing-sheet[data-tool="point"] { cursor: default; }
 .pointing-sheet.pointing-panning { cursor: grabbing; }
+
+/* The Wand's glitter (pointing-wand.js): flecks in her red, a pale tone among them, sparkles in the deep red (near white on
+   a dark board). Hard-edged pixels, never blurred: between a zoom and its redraw the canvas scales without smoothing. */
+:root { --wand-ink: var(--mark-red); --wand-pale: color-mix(in srgb, var(--mark-red) 45%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
+html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-pale: color-mix(in srgb, var(--mark-red) 35%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red) 22%, var(--ink-on-mark)); }
+.pointing-swath { position: absolute; pointer-events: none; image-rendering: pixelated; }
 
 /* Marks on the board, in world units: strokes and numbers keep their screen size at any zoom. */
 .pointing-marks { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 10006; }

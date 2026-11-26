@@ -11,15 +11,23 @@
 // Tools (⌥ + letter, so they work while typing; the tooltip shows the keys):
 //   Marquee ⌥M  drag a box; a click points at the thing under it
 //   Lasso   ⌥L  drag a free shape, closed on release; a click points
-//   Laser   ⌥K  a red dot instead of the cursor; drag to draw a trail that fades behind you. A circle drawn around
-//               something is a reference; waving, underlining and passes over things are not. A click points.
+//   Wand    ⌥W  a brush ring instead of the cursor that sheds a few sparkles as it moves. Hold the button and wave,
+//               underline or circle: what the held drag sweeps (a wide band, plus the inside of a loop) is one
+//               reference, drawn as glitter. Moving without the button (travelling, typing, resting) never points.
+//               A new press within 1.2 s where the last drag ended, before any typing, carries on the same reference
+//               (a lift mid-wave). ⌥[ ⌥] change the band's width. A click points.
 //   Point   ⌥P  click a thing; drag pans
-// A click with any tool points at the whole thing under it, and carries the spot clicked; parts come from a drag.
+// A click with any tool points at the whole thing under it, and carries the spot clicked; parts come from a drag. It is
+// recorded as tool "click" with the active tool in `via`.
+// Snapping (pointing-snap.js): a marquee, lasso or wand area that mostly covers a card, drawing, container or text is
+// tidied to it; the snapped outline shows while she drags; holding ⌘ (Ctrl off a Mac) takes exactly what she drew.
 // Keyboard (tool "keyboard"): ⌥R points at what is selected on the board (else the item that had focus); @ in the
 // composer picks an item, drawn element or board by name, the selected ones first. ⌥= ⌥− ⌥0 ⌥1 zoom in, out, 100%, fit.
 // The unsent draft (words, chips, marks, times) is kept per board for the session, so leaving the page loses nothing.
 import {pointingGuard} from './pointing-guard.js';
-import {rectHits, pathHits, pointTarget, simplify, boundsOf, closedLoop, intersectRect, polygonArea} from './pointing-geometry.js';
+import {rectHits, pathHits, areaHits, pointTarget, simplify, boundsOf, intersectRect, polygonArea} from './pointing-geometry.js';
+import {SwathField, WAND, paintField, fleckSize} from './pointing-wand.js';
+import {objectSnap, bestProposal} from './pointing-snap.js';
 import {esc, attachPicker, decorationLabel, itemLabel} from './comment-refs.js';
 import {choiceHTML, setChoice, onChoose} from './ui-toolbar.js';
 import {tips} from './tips.js';
@@ -34,7 +42,7 @@ import {syncPointingChips} from './pointing-thread.js';
 const TOOLS = [
   {id: 'marquee', label: 'Marquee', code: 'KeyM', keys: 'Alt+M', icon: '<rect x="3.5" y="4.5" width="13" height="11" rx="1" stroke-dasharray="2.4 2"/>'},
   {id: 'lasso', label: 'Lasso', code: 'KeyL', keys: 'Alt+L', icon: '<path d="M6.5 14.5C3.6 13.4 2.6 10.7 3.6 8.3 4.9 5.3 9 3.6 12.8 4.6c3.4.9 4.6 3.8 3 6.3-1.4 2.2-4.6 3.3-7.6 2.8"/><path d="M8.3 13.6c-.6 1.3-.3 2.6.9 3.1"/>'},
-  {id: 'laser', label: 'Laser pointer', code: 'KeyK', keys: 'Alt+K', icon: '<circle cx="13.5" cy="6.5" r="2.2" fill="currentColor" stroke="none"/><path d="M3.5 16.5c2.6-.6 4.4-2.2 5.6-4.4" stroke-dasharray="1.6 1.8"/>'},
+  {id: 'wand', label: 'Wand', code: 'KeyW', keys: 'Alt+W', icon: '<path d="m3.5 16.5 7.6-7.6"/><path d="M14 2.6l.9 2.5 2.5.9-2.5.9-.9 2.5-.9-2.5-2.5-.9 2.5-.9z" fill="currentColor" stroke-width="1"/><rect x="16.2" y="11" width="1.7" height="1.7" fill="currentColor" stroke="none"/><rect x="8.6" y="3.2" width="1.7" height="1.7" fill="currentColor" stroke="none"/>'},
   {id: 'point', label: 'Point', code: 'KeyP', keys: 'Alt+P', icon: '<path d="M5 3.5 14.5 9l-4.2 1-2.1 4.3z"/>'},
 ];
 const ICON = {
@@ -48,7 +56,12 @@ const MAX_MARKS = 20, MAX_TEXT = 20000;
 const DRAFT = id => `tinka/pointing-draft/${id}`;
 const MODIFIER = new Set(['Shift', 'Alt', 'Meta', 'Control', 'CapsLock', 'Fn', 'AltGraph', 'OS']);
 const NOT_ANSWERING = /failed to fetch|networkerror|load failed|network request failed/i;
-const STORE = 'tinka/pointing-tool';
+const STORE = 'tinka/pointing-tool', SIZE_STORE = 'tinka/pointing-wand-size';
+// The key that takes exactly what she drew (no snapping), held: ⌘ on a Mac, Ctrl elsewhere.
+const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+const RAW_KEY = MAC ? 'Meta' : 'Control', rawHeld = e => MAC ? !!e.metaKey : !!e.ctrlKey;
+const WAND_SESSION = 1200;       // ms after a wand drag ends in which a new press where it ended carries it on (tldraw's laser session)
+const FRESH = 280;               // ms a newly swept cell sparkles before it settles
 const PLACEHOLDER = 'Message to the agent. Point at things as you type.';
 const ROUND = v => Math.round(v * 10) / 10;
 const clip = (text, n) => { text = String(text || '').replace(/\s+/g, ' ').trim(); return text.length > n ? text.slice(0, n - 1).trimEnd() + '…' : text; };
@@ -80,8 +93,13 @@ class PointingMode {
     this.t0 = null; this.startedAt = null;
     this.words = new TypedWords();
     this.outbox = []; this.line = Promise.resolve(); this.failure = null; // messages being sent, in order
-    this.gesture = null; this.hover = null; this.trail = [];
-    try { this.tool = TOOLS.some(t => t.id === localStorage.getItem(STORE)) ? localStorage.getItem(STORE) : 'marquee'; } catch { this.tool = 'marquee'; }
+    this.gesture = null; this.hover = null;
+    try { const kept = localStorage.getItem(STORE) === 'laser' ? 'wand' : localStorage.getItem(STORE); this.tool = TOOLS.some(t => t.id === kept) ? kept : 'marquee'; } catch { this.tool = 'marquee'; }
+    try { const w = Number(localStorage.getItem(SIZE_STORE)); this.wandWidth = WAND.sizes.includes(w) ? w : WAND.width; } catch { this.wandWidth = WAND.width; }
+    this.snapSources = [];         // sources inside one item (addSnapSource); the board-object source is always on
+    this.raw = false;              // the take-what-I-drew key is held
+    this.sparks = [];              // the wand's hover sparkles: [x, y, born, life] in screen px
+    this.glitter = new Map();      // committed wand marks' canvases, by what they draw
     this.viewport = document.getElementById('viewport');
     this.world = document.getElementById('world');
     this.ensureStyle();
@@ -96,6 +114,16 @@ class PointingMode {
       e.preventDefault(); e.stopImmediatePropagation(); this.enter();
     }, true);
     this.onGuard = event => this.guard(event);
+    // The take-what-I-drew key let go (or the window lost focus with it down): snapping is back on at once.
+    addEventListener('keyup', e => { if (this.active && e.key === RAW_KEY) this.setRaw(false); }, true);
+    addEventListener('blur', () => this.setRaw(false));
+    // Committed wand marks are drawn at the zoom they were last drawn at; after a zoom settles they are drawn again at
+    // the new one, so the flecks keep their size on screen (in between they scale with the board, hard-edged).
+    new MutationObserver(() => {
+      const z = this.viewport.style.getPropertyValue('--canvas-zoom');
+      if (z === this.seenZoom) return; this.seenZoom = z;
+      clearTimeout(this.zoomTimer); this.zoomTimer = setTimeout(() => { if (this.layer && !this.layer.hidden && this.layer.querySelector('.pointing-swath')) this.renderMarks(); }, 160);
+    }).observe(this.viewport, {attributes: true, attributeFilter: ['style']});
     // The rail's Point and type key, pressed while the mode is off: the press is the mode's alone, so an open Inspector,
     // comments panel or menu takes it for neither a click-away nor a focus move (brief § 1: her panels stay as they are).
     // An open menu is not a panel: it closes as it would for any press elsewhere, and the same press enters.
@@ -167,7 +195,7 @@ class PointingMode {
   }
   setTool(tool) {
     if (!TOOLS.some(t => t.id === tool)) return;
-    this.cancelGesture();
+    this.cancelGesture(); this.wandLast = null; this.sparks = [];
     this.tool = tool;
     try { localStorage.setItem(STORE, tool); } catch {}
     this.syncTool();
@@ -187,7 +215,7 @@ class PointingMode {
     sheet.className = 'pointing-sheet'; sheet.hidden = true; sheet.setAttribute('aria-hidden', 'true');
     this.viewport.append(sheet);
     this.ctx = sheet.getContext('2d');
-    // The pointer left the board (onto the bar, the header, a panel): the laser dot and the hover outline go with it.
+    // The pointer left the board (onto the bar, the header, a panel): the wand's ring and the hover outline go with it.
     sheet.addEventListener('pointerleave', () => { if (this.gesture) return; this.pointer = null; this.hover = null; this.schedule(); });
     new ResizeObserver(() => { if (this.active) this.sizeSheet(); }).observe(this.viewport);
   }
@@ -272,7 +300,7 @@ class PointingMode {
     if (c.kind === 'placement') {
       const item = c.item, frac = t.region || (t.spot ? {...t.spot, w: 0, h: 0} : null), content = frac && this.contentOf(c, frac);
       return {kind: 'placement', id: c.id, boardId, ...(item?.id ? {itemId: item.id} : {}), itemKind: kindOf(item), title: clip(item?.title || 'Untitled', 120),
-        whole: t.whole, ...(t.region ? {region: t.region} : {}), ...(t.spot ? {spot: t.spot} : {}), ...(content ? {content} : {})};
+        whole: t.whole, ...(t.region ? {region: t.region} : {}), ...(t.spot ? {spot: t.spot} : {}), ...(content ? {content} : {}), ...(t.element ? {element: t.element} : {})};
     }
     const d = c.decoration;
     const itemKind = d.type === 'line' ? 'line' : d.type === 'text' ? 'text' : d.sticker ? 'sticker' : d.type !== 'region' ? d.type || 'drawing'
@@ -353,7 +381,7 @@ class PointingMode {
     pointingGuard.handler = null;
     document.body.classList.remove('pointing-on');
     this.bar.hidden = true; this.sheet.hidden = true; this.layer.hidden = true;
-    this.hover = null; this.trail = [];
+    this.hover = null; this.sparks = []; this.wandLast = null;
     const v = this.savedView, now = this.board.hooks.currentView?.();
     if (v && now && this.board.snapshot.id === this.boardId && (Math.abs(v.zoom - now.zoom) > 1e-6 || Math.abs(v.x - now.x) > .5 || Math.abs(v.y - now.y) > .5)) this.board.hooks.restoreView?.(v);
     const back = this.returnFocus;
@@ -392,11 +420,14 @@ class PointingMode {
   }
   key(e) {
     if (e.isComposing || e.keyCode === 229) return false;
+    if (e.key === RAW_KEY) { this.setRaw(true); return false; }
     const inField = this.field.contains(e.target), inBar = this.bar.contains(e.target);
     // Tools: ⌥ + letter, by key position (⌥M types µ on a Mac), from anywhere.
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       const tool = TOOLS.find(t => t.code === e.code);
       if (tool) { e.preventDefault(); if (!e.repeat) this.setTool(tool.id); return true; }
+      // ⌥[ ⌥]: the wand's band narrower, wider (the brush-size keys of image editors, with ⌥ since plain ones type).
+      if (e.code === 'BracketLeft' || e.code === 'BracketRight') { e.preventDefault(); this.sizeWand(e.code === 'BracketRight' ? 1 : -1); return true; }
       // ⌥R: a reference to what is selected on the board (else the item that had focus), without a pointer.
       if (e.code === 'KeyR') { e.preventDefault(); if (!e.repeat) this.pointSelection(); return true; }
       // Zoom without leaving the composer: ⌥ with the board's + − 0, and ⌥1 fits the board.
@@ -442,16 +473,29 @@ class PointingMode {
     const v = this.view(), p = this.toBoard(e.clientX, e.clientY, v);
     const pan = e.button === 1 || (e.button === 0 && this.tool === 'point');
     if (e.button !== 0 && !pan) return;
+    this.setRaw(rawHeld(e));
     this.gesture = {id: e.pointerId, tool: this.tool, pan, x0: e.clientX, y0: e.clientY, lastX: e.clientX, lastY: e.clientY,
-      start: p, at: this.stamp(e.timeStamp), moved: false, points: [[p.x, p.y]], list: pan ? null : this.candidates(v), loop: [[e.clientX, e.clientY, e.timeStamp]]};
-    if (this.tool === 'laser' && !pan) this.trail = [[e.clientX, e.clientY, e.timeStamp]];
+      start: p, at: this.stamp(e.timeStamp), moved: false, points: [[p.x, p.y]], list: pan ? null : this.candidates(v), version: 0};
+    if (this.tool === 'wand' && !pan) {
+      // A press where the last wand drag ended, soon and before any typing, carries that reference on (a lift mid-wave).
+      const last = this.wandLast, mark = last && this.marks.get(last.id);
+      const again = mark && performance.now() - last.t < WAND_SESSION && Math.hypot(e.clientX - last.x, e.clientY - last.y) <= this.wandWidth / 2
+        && Math.abs(last.zoom - v.zoom) < 1e-6 && this.field.querySelector(`[data-mark="${mark.id}"]`);
+      const g = this.gesture;
+      if (again) { g.field = last.field; g.continues = mark.id; g.at = mark.at; }
+      else g.field = new SwathField({width: this.wandWidth / v.zoom, cell: WAND.pitch / v.zoom});
+      g.field.add(p.x, p.y, performance.now());
+      this.sparks = [];
+    }
     this.sheet.classList.toggle('pointing-panning', pan && this.tool !== 'point' || false);
   }
   move(e) {
     const g = this.gesture;
     this.pointer = {x: e.clientX, y: e.clientY}; this.lastMove = performance.now();
+    if (rawHeld(e) !== this.raw) this.setRaw(rawHeld(e));
     if (!g || g.id !== e.pointerId) {
-      if (this.tool === 'point' || this.tool === 'laser' || this.tool === 'marquee' || this.tool === 'lasso') this.hoverAt(e.clientX, e.clientY);
+      if (this.tool === 'wand') this.shed(e);
+      else this.hoverAt(e.clientX, e.clientY);
       return;
     }
     const coalesced = e.getCoalescedEvents?.(), events = coalesced?.length ? coalesced : [e];
@@ -463,17 +507,9 @@ class PointingMode {
     }
     const v = this.view();
     if (g.tool === 'lasso') for (const ev of events) { const p = this.toBoard(ev.clientX, ev.clientY, v); g.points.push([p.x, p.y]); }
-    else if (g.tool === 'laser') {
-      for (const ev of events) {
-        const p = [ev.clientX, ev.clientY, ev.timeStamp];
-        this.trail.push(p); g.loop.push(p);
-        // Detection keeps its own copy of the trail: a closed circle starts a fresh one, the drawn trail fades as drawn.
-        const loop = g.moved && closedLoop(g.loop);
-        // The trail from where this loop began stays in play, so a bigger circle closing later is still seen.
-        if (loop) { this.circled(loop, ev.timeStamp, v); g.loop = g.loop.slice(Math.max(0, loop.index)); }
-      }
-    }
+    else if (g.tool === 'wand') { const now = performance.now(); for (const ev of events) { const p = this.toBoard(ev.clientX, ev.clientY, v); g.field.add(p.x, p.y, now); } }
     g.current = this.toBoard(e.clientX, e.clientY, v);
+    g.version++;
     this.schedule();
   }
   up(e) {
@@ -481,22 +517,21 @@ class PointingMode {
     this.gesture = null;
     this.sheet.classList.remove('pointing-panning');
     try { this.sheet.releasePointerCapture(e.pointerId); } catch {}
-    const end = this.stamp(e.timeStamp);
-    if (g.pan) { if (!g.moved && this.tool === 'point' && e.button === 0) this.pointAt(e.clientX, e.clientY, g.at, end, 'point'); this.schedule(); return; }
-    if (!g.moved) { this.pointAt(e.clientX, e.clientY, g.at, end, g.tool); this.schedule(); return; }
+    const end = this.stamp(e.timeStamp), raw = this.raw || rawHeld(e);
+    if (g.pan) { if (!g.moved && this.tool === 'point' && e.button === 0) this.pointAt(e.clientX, e.clientY, g.at, end, 'point', raw); this.schedule(); return; }
+    if (!g.moved && !g.continues) { this.pointAt(e.clientX, e.clientY, g.at, end, g.tool, raw); this.schedule(); return; }
     const v = this.view();
     if (g.tool === 'marquee') {
       const a = g.start, b = this.toBoard(e.clientX, e.clientY, v);
       const rect = {x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y)};
-      const hits = rectHits(rect, g.list);
-      this.addMark({tool: 'marquee', at: g.at, end, shape: {kind: 'rect', x: ROUND(rect.x), y: ROUND(rect.y), w: ROUND(rect.w), h: ROUND(rect.h)}, hits, empty: 'Board area'});
+      const shape = {kind: 'rect', x: ROUND(rect.x), y: ROUND(rect.y), w: ROUND(rect.w), h: ROUND(rect.h)};
+      this.addMark({tool: 'marquee', at: g.at, end, shape, ...this.resolve('marquee', rectHits(rect, g.list), polygonArea([[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.h], [rect.x, rect.y + rect.h]]), raw), empty: 'Board area'});
     } else if (g.tool === 'lasso') {
       const points = simplify(g.points, 1 / v.zoom, 400);
       if (points.length >= 3 && boundsOf(points).w * v.zoom + boundsOf(points).h * v.zoom > 12) {
-        this.addMark({tool: 'lasso', at: g.at, end, shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, hits: pathHits(points, g.list), empty: 'Board area'});
-      } else this.pointAt(e.clientX, e.clientY, g.at, end, 'lasso');
-    }
-    // The laser leaves no mark of its own on release: only its circles count; its trail fades.
+        this.addMark({tool: 'lasso', at: g.at, end, shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, ...this.resolve('lasso', pathHits(points, g.list), polygonArea(points), raw), empty: 'Board area'});
+      } else this.pointAt(e.clientX, e.clientY, g.at, end, 'lasso', raw);
+    } else if (g.tool === 'wand') this.cast(g, end, raw, e);
     this.schedule();
   }
   cancelGesture() {
@@ -505,40 +540,142 @@ class PointingMode {
     this.gesture = null; this.sheet?.classList.remove('pointing-panning');
     this.schedule();
   }
-  // A circle the laser drew: what it encloses is a reference (lasso rules, loose: a circle round a thing's centre that
-  // holds most of it is the whole thing). Circling the same thing again at once is emphasis, not a second reference;
-  // a bigger circle round it (the first loop closed early, on the way in) takes the place of the smaller one.
-  circled({loop}, t, v) {
-    const g = this.gesture;
-    const points = simplify(loop.map(([x, y]) => { const p = this.toBoard(x, y, v); return [p.x, p.y]; }), 1 / v.zoom, 400);
-    const hits = pathHits(points, g.list, {loose: true}), keys = hits.targets.map(h => h.candidate.key).sort().join(' ');
-    const last = this.lastLaser, size = polygonArea(points);
-    if (last && last.keys === keys && keys && t - last.t < 2500) {
-      last.t = t;
-      const mark = this.marks.get(last.id), chip = mark && this.field.querySelector(`[data-mark="${mark.id}"]`);
-      if (chip && size > last.size * 1.3) {
-        last.size = size;
-        Object.assign(mark, {shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, targets: hits.targets.map(h => this.target(h)),
-          boxes: hits.targets.map(h => dataBox(h.candidate.placement || h.candidate.decoration)), end: this.stamp(t)});
-        chip.dataset.tip = describe(mark);
-        this.renderMarks(); this.saveSoon();
-      }
-      return;
-    }
-    if (this.full()) return;
-    const made = this.addMark({tool: 'laser', at: g.at, end: this.stamp(t), shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, hits, empty: 'Board area'});
-    if (made) this.lastLaser = {keys, t, id: made.id, size};
-    g.at = this.stamp(t);
+  // A wand drag ends: the area it swept is one reference. Its shape is the centre line and the band's width (the
+  // field rebuilds the same area from it, loops filled); targets come from the area, then snapping. A drag that carried
+  // a reference on (a lift mid-wave) updates that mark and its chip in place.
+  cast(g, end, raw, e) {
+    const f = g.field;
+    let shape = f.shape(ROUND);
+    if (shape.points.length > 400) shape = {...shape, points: simplify(f.points, f.cell / 4, 400).map(([x, y]) => [ROUND(x), ROUND(y)])};
+    if (shape.points.length < 2) shape.points.push([...shape.points[0]]);
+    const got = this.resolve('wand', areaHits(f, g.list), f.area(), raw, f);
+    const v = this.view();
+    if (got.snap) this.settle = {field: f, t0: performance.now()};
+    const prior = g.continues && this.marks.get(g.continues);
+    let mark = prior;
+    if (prior) {
+      const targets = got.hits.targets.map(t => this.target(t));
+      Object.assign(prior, {shape, end: Math.max(prior.at, end), targets, more: got.hits.more, boxes: got.hits.targets.map(t => dataBox(t.candidate.placement || t.candidate.decoration)),
+        label: labelOf(targets, got.hits.more, 'Board area')});
+      if (got.snap) prior.snap = got.snap; else delete prior.snap;
+      const chip = this.field.querySelector(`[data-mark="${prior.id}"]`);
+      if (chip) { chip.querySelector('.cref-label').textContent = clip(prior.label, 32); chip.dataset.tip = describe(prior); }
+      this.renderMarks(); this.saveSoon(); this.announce(`${prior.n}: ${describe(prior)}`);
+    } else mark = this.addMark({tool: 'wand', at: g.at, end, shape, ...got, empty: 'Board area'});
+    if (mark) this.wandLast = {id: mark.id, field: f, t: performance.now(), x: e.clientX, y: e.clientY, zoom: v.zoom};
   }
-  // A click: the thing under the pointer, or the board at that spot.
-  pointAt(x, y, at, end, tool) {
+  // Snapping: the best proposal (board objects, and sources inside the one card under the gesture) unless she holds the
+  // take-what-I-drew key. Returns {hits, snap}: the targets to keep (the snapped ones when it snapped) and the record's
+  // `snap` ({source, label, shape}), or the raw hits and no snap.
+  resolve(tool, hits, gestureArea, raw, field = null) {
+    if (raw) return {hits, snap: null};
+    const best = this.proposal(tool, hits, gestureArea, field);
+    if (!best) return {hits, snap: null};
+    const shape = best.shape.kind === 'rect' ? {kind: 'rect', x: ROUND(best.shape.x), y: ROUND(best.shape.y), w: ROUND(best.shape.w), h: ROUND(best.shape.h)}
+      : {kind: 'path', points: best.shape.points.slice(0, 400).map(([x, y]) => [ROUND(x), ROUND(y)])};
+    const snap = {source: best.source, label: clip(best.label, 120), shape};
+    if (best.targets) return {hits: {targets: best.targets, more: 0}, snap};
+    // A source inside one card: that card, the part it snapped to (and the element, when it names one).
+    const c = best.candidate, b = best.shape.kind === 'rect' ? best.shape : boundsOf(best.shape.points);
+    const f = v => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
+    const x = f((b.x - c.x) / c.w), y = f((b.y - c.y) / c.h);
+    const region = {x, y, w: Math.min(1 - x, f(b.w / c.w)), h: Math.min(1 - y, f(b.h / c.h))};
+    return {hits: {targets: [{candidate: c, whole: false, region, ...(best.element ? {element: best.element} : {})}], more: 0}, snap};
+  }
+  proposal(tool, hits, gestureArea, field) {
+    const list = [];
+    if (tool !== 'click') list.push(objectSnap(hits, {tool, gestureArea, name: c => this.snapName(c)}));
+    list.push(...this.innerProposals(tool, hits, field));
+    return bestProposal(list);
+  }
+  // How a snap names one thing: its kind, then its title.
+  snapName(c) {
+    const t = this.target({candidate: c, whole: true});
+    const noun = c.kind === 'placement' ? 'card' : {line: 'arrow', text: 'text', sticky: 'sticky', container: 'container', region: 'region', shape: 'shape', sticker: 'sticker'}[t.itemKind] || 'drawing';
+    // A drawn element's own words (its title starts with its kind: "Sticky · …"); one without words is named by kind.
+    const own = c.decoration ? String(c.decoration.text || '').replace(/\s+/g, ' ').trim() : t.title;
+    return own ? `${noun} "${clip(own, 60)}"` : noun;
+  }
+  /**
+   * A snap source inside items (team/pointing/CONTRACT.md § Round 2, the snap-source seam). `source.propose(request)`
+   * is asked when a gesture lies on one card (its only target), on the pointer's path, so it answers in well under a
+   * frame (precompute off the path). The request:
+   *   {kind: 'point' | 'rect' | 'path' | 'swath', geometry, item, el, placement, unit, frame?, img?}
+   *   - geometry, in `unit` coordinates: {x, y} | {x, y, w, h} | {points} | {width, points};
+   *   - unit 'page': CSS px of the card frame's document (scroll included), when the card shows a page in an <iframe>
+   *     (`frame`); 'image': px of the picture's file, when it shows an <img> (`img`); 'card': board units from the
+   *     card's top-left otherwise;
+   *   - item: the item record; el: the card's element; placement: its placement.
+   * It answers {shape: {kind: 'rect' | 'path', …} in the same unit, label, source: 'dom' | 'pixels', score 0..1, element?}
+   * or null. `space: 'board'` instead gives and takes board units.
+   */
+  addSnapSource(source, {space = 'content'} = {}) { if (source?.propose) this.snapSources.push({source, space}); }
+  innerProposals(tool, hits, field) {
+    if (!this.snapSources.length) return [];
+    const ts = hits.targets; if (ts.length !== 1 || ts[0].candidate.kind !== 'placement' || !ts[0].candidate.el) return [];
+    const c = ts[0].candidate, g = this.gestureGeometry(tool, field);
+    if (!g) return [];
+    const out = [];
+    for (const {source, space} of this.snapSources) {
+      const local = space === 'board' ? null : this.localFrame(c);
+      const to = local ? local.toLocal : p => p, back = local ? local.toBoard : p => p;
+      const k = local ? local.scale : 1;
+      const geometry = g.kind === 'point' ? (([x, y]) => ({x, y}))(to([g.x, g.y]))
+        : g.kind === 'rect' ? (([x0, y0], [x1, y1]) => ({x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0)}))(to([g.x, g.y]), to([g.x + g.w, g.y + g.h]))
+        : g.kind === 'swath' ? {width: g.width * k, points: g.points.map(to)} : {points: g.points.map(to)};
+      let p = null;
+      try { p = source.propose({kind: g.kind, geometry, item: c.item, el: c.el, placement: c.placement, unit: local ? local.unit : 'board', frame: local?.frame, img: local?.img}); } catch (error) { console.warn('Snap source failed:', error?.message); }
+      if (!p?.shape) continue;
+      const shape = p.shape.kind === 'rect' ? (([x0, y0], [x1, y1]) => ({kind: 'rect', x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0)}))(back([p.shape.x, p.shape.y]), back([p.shape.x + p.shape.w, p.shape.y + p.shape.h]))
+        : p.shape.points?.length >= 3 ? {kind: 'path', points: p.shape.points.map(back)} : null;
+      if (shape) out.push({...p, shape, candidate: c});
+    }
+    return out;
+  }
+  // The gesture as board geometry for the sources: the live one, or the click just made (this.clickAt).
+  gestureGeometry(tool, field) {
+    const g = this.gesture;
+    if (tool === 'click') return this.clickAt ? {kind: 'point', ...this.clickAt} : null;
+    if (tool === 'wand' && field) return {kind: 'swath', width: field.width, points: field.points};
+    if (!g) return this.lastDrawn || null;
+    if (tool === 'marquee' && g.current) { const a = g.start, b = g.current; return {kind: 'rect', x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y)}; }
+    if (tool === 'lasso') return {kind: 'path', points: g.points};
+    return null;
+  }
+  // A card's own coordinates for the sources: its page (iframe), its picture (img), else board units from its corner.
+  localFrame(c) {
+    const v = this.view(), card = c.el, area = card.querySelector('.workspace-card-preview');
+    const scr = ([x, y]) => [v.left + (x + v.ox) * v.zoom, v.top + (y + v.oy) * v.zoom];
+    const brd = ([x, y]) => { const p = this.toBoard(x, y, v); return [p.x, p.y]; };
+    const frame = area?.querySelector('iframe');
+    if (frame?.offsetWidth > 0) {
+      const r = frame.getBoundingClientRect(), k = frame.offsetWidth / r.width;
+      let sx = 0, sy = 0; try { sx = frame.contentWindow?.scrollX || 0; sy = frame.contentWindow?.scrollY || 0; } catch {}
+      return {unit: 'page', frame, scale: k * v.zoom, toLocal: p => { const [x, y] = scr(p); return [(x - r.left) * k + sx, (y - r.top) * k + sy]; }, toBoard: ([x, y]) => brd([r.left + (x - sx) / k, r.top + (y - sy) / k])};
+    }
+    const img = area?.querySelector('img');
+    if (img?.naturalWidth > 0) {
+      const shown = img.getBoundingClientRect(), nw = img.naturalWidth, nh = img.naturalHeight, fit = getComputedStyle(img).objectFit || 'fill';
+      let cw = shown.width, ch = shown.height;
+      if (fit === 'contain' || fit === 'scale-down' || fit === 'cover') { const k0 = (fit === 'cover' ? Math.max : Math.min)(shown.width / nw, shown.height / nh), k = fit === 'scale-down' ? Math.min(1, k0) : k0; cw = nw * k; ch = nh * k; }
+      else if (fit === 'none') { cw = nw; ch = nh; }
+      const px = shown.left + (shown.width - cw) / 2, py = shown.top + (shown.height - ch) / 2, kx = nw / cw, ky = nh / ch;
+      return {unit: 'image', img, scale: kx * v.zoom, toLocal: p => { const [x, y] = scr(p); return [(x - px) * kx, (y - py) * ky]; }, toBoard: ([x, y]) => brd([px + x / kx, py + y / ky])};
+    }
+    return {unit: 'card', scale: 1, toLocal: ([x, y]) => [x - c.x, y - c.y], toBoard: ([x, y]) => [x + c.x, y + c.y]};
+  }
+  // A click: the thing under the pointer, or the board at that spot. Recorded as tool "click", the active tool in `via`.
+  pointAt(x, y, at, end, via, raw = this.raw) {
     const v = this.view(), list = this.candidates(v), p = this.toBoard(x, y, v), hit = this.thingAt(x, y, list, v);
-    // The whole thing under the click, with the spot she clicked (a part needs a drag).
-    const targets = hit ? [pointTarget(hit, p)] : [];
-    this.addMark({tool, at, end, shape: {kind: 'point', x: ROUND(p.x), y: ROUND(p.y)}, hits: {targets, more: 0}, empty: 'Board point'});
+    // The whole thing under the click, with the spot she clicked (a part needs a drag); a source inside the card may
+    // snap it to the element clicked.
+    const hits = {targets: hit ? [pointTarget(hit, p)] : [], more: 0};
+    this.clickAt = {x: p.x, y: p.y};
+    const got = hit ? this.resolve('click', hits, 0, raw) : {hits, snap: null};
+    this.clickAt = null;
+    this.addMark({tool: 'click', via, at, end, shape: {kind: 'point', x: ROUND(p.x), y: ROUND(p.y)}, ...got, empty: 'Board point'});
   }
   hoverAt(x, y) {
-    if (this.tool === 'laser') { this.schedule(); return; }
     if (this.hoverFrame) return;
     this.hoverFrame = requestAnimationFrame(() => {
       this.hoverFrame = 0;
@@ -547,6 +684,33 @@ class PointingMode {
       const key = hit?.key || null;
       if (key !== this.hover?.key) { this.hover = hit; this.draw(v); }
     });
+  }
+  // The wand moving without the button: a few sparkles shed behind the tip, gone within half a second (her motion
+  // only; nothing is left behind and nothing points).
+  shed(e) {
+    const coalesced = e.getCoalescedEvents?.(), events = coalesced?.length ? coalesced : [e], now = performance.now(), r = this.sheetRect;
+    for (const ev of events) {
+      const d = Math.hypot(ev.clientX - (this.lastShed?.[0] ?? ev.clientX), ev.clientY - (this.lastShed?.[1] ?? ev.clientY));
+      this.lastShed = [ev.clientX, ev.clientY];
+      if (Math.random() > Math.min(0.9, d / 10)) continue;
+      const a = Math.random() * Math.PI * 2, rr = Math.random() * this.wandWidth * 0.32;
+      this.sparks.push([ev.clientX - r.left + rr * Math.cos(a), ev.clientY - r.top + rr * Math.sin(a), now, 160 + Math.random() * 300, Math.random()]);
+    }
+    if (this.sparks.length > 160) this.sparks.splice(0, this.sparks.length - 160);
+    this.schedule();
+  }
+  setRaw(on) {
+    on = !!on; if (on === this.raw) return;
+    this.raw = on;
+    if (this.gesture) { this.gesture.version++; this.schedule(); }
+  }
+  sizeWand(step) {
+    const sizes = WAND.sizes, i = sizes.indexOf(this.wandWidth), next = sizes[Math.max(0, Math.min(sizes.length - 1, (i < 0 ? sizes.indexOf(WAND.width) : i) + step))];
+    if (next === this.wandWidth) return;
+    this.wandWidth = next; this.wandLast = null;
+    try { localStorage.setItem(SIZE_STORE, String(next)); } catch {}
+    this.announce(`Wand ${next} px wide.`);
+    this.schedule();
   }
 
   // ---------- marks and chips ----------
@@ -559,15 +723,16 @@ class PointingMode {
   // The next mark's number: one past every mark of this draft, deleted ones too (Undo can bring a chip back), so a
   // number on screen is never used twice. Sending numbers them 1..n in reading order.
   newN() { let n = 0; for (const m of this.marks.values()) n = Math.max(n, m.n); return n + 1; }
-  addMark({tool, at, end, shape, hits, empty}) {
+  addMark({tool, via, at, end, shape, snap = null, hits, empty}) {
     if (this.full()) return null;
     const targets = hits.targets.map(t => this.target(t));
     const n = this.newN();
     const id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const label = targets.length === 0 ? empty : targets.length === 1 && !hits.more ? targets[0].title : `${targets.length + hits.more} items`;
+    const label = labelOf(targets, hits.more, empty);
     // `boxes`: where each target was when she pointed (its saved box), so the draft's marks can tell when one moved.
     const boxes = hits.targets.map(t => dataBox(t.candidate.placement || t.candidate.decoration));
-    const mark = {id, n, tool, at, end: Math.max(at, end), boardId: this.board.snapshot.id, shape, targets, boxes, more: hits.more, label};
+    // `shape` is always what she drew; `snap` (when it snapped) the outline it was tidied to, which targets follow.
+    const mark = {id, n, tool, ...(via ? {via} : {}), at, end: Math.max(at, end), boardId: this.board.snapshot.id, shape, ...(snap ? {snap} : {}), targets, boxes, more: hits.more, label};
     this.marks.set(id, mark);
     this.hoverList = null;
     this.insertChip(mark);
@@ -659,7 +824,7 @@ class PointingMode {
   }
   // A mark made without the pointer that is off screen: the board brings it into view (leaving puts the view back).
   reveal(mark) {
-    const g = this.geometry(mark, true), pts = g.shapes.flatMap(r => r.kind === 'path' ? r.points : [[r.x, r.y], [r.x + r.w, r.y + r.h]]);
+    const g = this.geometry(mark, true), pts = g.shapes.flatMap(outlinePoints);
     if (!pts.length) return;
     const b = boundsOf(pts), v = this.view(), [x0, y0] = this.toScreen(b.x, b.y, v), [x1, y1] = this.toScreen(b.x + b.w, b.y + b.h, v);
     const r = this.sheetRect, bar = this.bar.getBoundingClientRect();
@@ -670,6 +835,7 @@ class PointingMode {
   typed(e) {
     if (this.field.dataset.placeholder !== PLACEHOLDER) this.field.dataset.placeholder = PLACEHOLDER;
     if (!this.inserting && TYPING.test(e.inputType || 'insert')) {
+      this.wandLast = null; // typing after a wand drag: the next press is a new reference
       const t = this.stamp(e.timeStamp), s = getSelection();
       let key = '';
       if (s.rangeCount && this.field.contains(s.anchorNode)) {
@@ -698,9 +864,10 @@ class PointingMode {
     const marks = sent ? sent.marks : this.chips().map(c => this.marks.get(c.dataset.mark));
     const o = this.board.origin || {x: 0, y: 0}, v = marks.length ? this.view() : null;
     let svg = '', badges = '';
+    const sparkle = [];
     for (const m of marks) {
       const g = this.geometry(m, !sent, v), cls = `pointing-shape${sent && sent.focus === m.n ? ' pointing-focus' : ''}${g.gone ? ' pointing-gone' : ''}`;
-      for (const s of g.shapes) {
+      if (g.glitter && g.shapes.length) { sparkle.push({m, g}); } else for (const s of g.shapes) {
         if (s.kind === 'path') svg += `<path class="${cls}" data-n="${m.n}" d="M${s.points.map(([x, y]) => `${x + o.x} ${y + o.y}`).join('L')}Z"/>`;
         else svg += `<rect class="${cls}${s.kind === 'outline' ? ' pointing-outline' : ''}" data-n="${m.n}" x="${s.x + o.x}" y="${s.y + o.y}" width="${s.w}" height="${s.h}"/>`;
       }
@@ -713,6 +880,13 @@ class PointingMode {
       }
     }
     this.layer.innerHTML = `<svg class="pointing-marks-svg" aria-hidden="true">${svg}</svg>${badges}`;
+    // Wand marks: one canvas each, in world units, drawn at the current zoom and kept while what it draws is the same.
+    const keep = new Map();
+    for (const {m, g} of sparkle) {
+      const c = this.glitterCanvas(m, g, v || this.view(), o);
+      if (c) { this.layer.prepend(c); keep.set(c.dataset.key, c); }
+    }
+    this.glitter = keep;
     this.layer.hidden = !(this.active || sent);
   }
   // The board changed under the marks (a render, or a drag in progress: workspace-board.js syncGeometry).
@@ -754,10 +928,12 @@ class PointingMode {
   //   part as its region (fractions of the target's own box).
   // - Every target gone: the shape as drawn, plain and dashed, labelled Deleted; some gone: "1 of 3 deleted".
   // Empty space (no targets) is a board position and stays where it was drawn.
+  // A snapped mark draws its snapped outline (its targets follow it); a wand mark draws as glitter (`glitter`).
   geometry(m, draft, v = this.view()) {
-    const s = m.shape;
-    const drawnShapes = shape => shape.kind === 'point' ? [] : [shape.kind === 'rect' ? {kind: 'rect', x: shape.x, y: shape.y, w: shape.w, h: shape.h} : {kind: 'path', points: shape.points}];
-    const drawn = {shapes: drawnShapes(s), dot: s.kind === 'point' ? {x: s.x, y: s.y} : null, badge: s.kind === 'point' ? {x: s.x, y: s.y} : topLeft(s), note: '', gone: false};
+    const s = m.snap?.shape || m.shape, glitter = m.tool === 'wand';
+    const drawnShapes = shape => shape.kind === 'point' ? [] : [shape.kind === 'rect' ? {kind: 'rect', x: shape.x, y: shape.y, w: shape.w, h: shape.h}
+      : shape.kind === 'swath' ? {kind: 'swath', width: shape.width, points: shape.points} : {kind: 'path', points: shape.points}];
+    const drawn = {shapes: drawnShapes(s), dot: s.kind === 'point' ? {x: s.x, y: s.y} : null, badge: s.kind === 'point' ? {x: s.x, y: s.y} : topLeft(s), note: '', gone: false, glitter};
     const placed = m.targets.map((t, i) => ({t, then: draft ? m.boxes?.[i] : t.placed, ...this.locate(t, v)})).filter(x => x.t.kind !== 'board');
     if (!placed.length) return drawn;
     const gone = placed.filter(x => x.gone).length;
@@ -775,78 +951,186 @@ class PointingMode {
     if (s.kind === 'point') {
       const shapes = live.map(ofTarget), [dx, dy] = still ? [s.x, s.y] : map ? map([s.x, s.y]) : [];
       const dot = dx != null ? {x: dx, y: dy} : shapes[0].kind === 'rect' ? {x: shapes[0].x + shapes[0].w / 2, y: shapes[0].y + shapes[0].h / 2} : null;
-      return {shapes, dot, badge: {x: Math.min(...shapes.map(r => r.x)), y: Math.min(...shapes.map(r => r.y))}, note, gone: false};
+      return {shapes, dot, badge: {x: Math.min(...shapes.map(r => r.x)), y: Math.min(...shapes.map(r => r.y))}, note, gone: false, glitter: false};
     }
     if (still) return drawn;
     if (map) {
+      const a = live[0].then, b = live[0].now;
       const moved = s.kind === 'rect' ? (([x0, y0], [x1, y1]) => ({kind: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0}))(map([s.x, s.y]), map([s.x + s.w, s.y + s.h]))
-        : {kind: 'path', points: s.points.map(map)};
-      return {shapes: drawnShapes(moved), dot: null, badge: topLeft(moved), note, gone: false};
+        : s.kind === 'swath' ? {kind: 'swath', width: s.width * Math.sqrt((b.w / a.w) * (b.h / a.h)), points: s.points.map(map)} : {kind: 'path', points: s.points.map(map)};
+      return {shapes: drawnShapes(moved), dot: null, badge: topLeft(moved), note, gone: false, glitter};
     }
     const shapes = live.map(ofTarget);
-    return {shapes, dot: null, badge: {x: Math.min(...shapes.map(r => r.x)), y: Math.min(...shapes.map(r => r.y))}, note, gone: false};
+    return {shapes, dot: null, badge: {x: Math.min(...shapes.map(r => r.x)), y: Math.min(...shapes.map(r => r.y))}, note, gone: false, glitter};
   }
   schedule() {
     if (this.frame) return;
     this.frame = requestAnimationFrame(t => { this.frame = 0; this.draw(undefined, t); });
   }
-  // The live gesture, on the sheet, in screen pixels: a box or a free shape with what it hits outlined, the laser's
-  // dot and trail. The trail fades over 0.7 s after her motion; with nothing left to fade, no frame is drawn.
+  // The glitter's colours, from the tokens (pointing.css --wand-*): the mark red, a pale and a sparkle tone; plain ink-2
+  // for a mark whose targets are all gone.
+  tones(gone = false) {
+    const key = `${document.documentElement.dataset.appearance || ''}|${document.documentElement.dataset.theme || ''}|${gone}`;
+    if (this.toneKey === key) return this.toneCache;
+    const probe = document.createElement('span'); probe.style.display = 'none'; this.bar.append(probe);
+    const read = name => { probe.style.color = `var(${name})`; return getComputedStyle(probe).color; };
+    const t = gone ? [read('--ink-2'), read('--ink-2'), read('--ink-2'), read('--ink-2')] : [read('--wand-ink'), read('--wand-ink'), read('--wand-pale'), read('--wand-star')];
+    probe.remove();
+    this.toneKey = key; this.toneCache = t;
+    return t;
+  }
+  // A committed wand mark as a canvas in world units: its swath (or, snapped, its outline filled), drawn at the zoom
+  // of the moment with the flecks' sites on the board, so it lines up exactly with what the sheet drew while casting.
+  glitterCanvas(m, g, v, o) {
+    const zoom = v.zoom, dpr = devicePixelRatio || 1, tones = this.tones(g.gone);
+    const key = `${m.id || m.n}|${zoom.toFixed(4)}|${dpr}|${tones.join()}|${JSON.stringify(g.shapes)}`;
+    let c = this.glitter.get(key);
+    if (!c) {
+      const cell = WAND.pitch / zoom;
+      const fields = g.shapes.map(s => s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s.kind === 'outline' ? {kind: 'rect', x: s.x, y: s.y, w: s.w, h: s.h} : s, cell, 7 / zoom));
+      const boxes = fields.map(f => f.bounds()).filter(Boolean); if (!boxes.length) return null;
+      const pad = (3 * fleckSize(dpr) / dpr + 2) / zoom;
+      const b0 = boundsOf(boxes.flatMap(b => [[b.x, b.y], [b.x + b.w, b.y + b.h]])), b = {x: b0.x - pad, y: b0.y - pad, w: b0.w + 2 * pad, h: b0.h + 2 * pad};
+      const k = Math.min(zoom * dpr, 4096 / Math.max(b.w, b.h));
+      c = document.createElement('canvas'); c.className = `pointing-swath${g.gone ? ' pointing-gone' : ''}`; c.dataset.key = key; c.dataset.n = m.n;
+      c.width = Math.max(1, Math.ceil(b.w * k)); c.height = Math.max(1, Math.ceil(b.h * k));
+      const ctx = c.getContext('2d');
+      for (const f of fields) paintField(ctx, f, {ox: b.x, oy: b.y, k}, {tones, dpr: k / zoom, size: 2, rim: 0.7});
+      c.box = b;
+    }
+    Object.assign(c.style, {left: `${c.box.x + o.x}px`, top: `${c.box.y + o.y}px`, width: `${c.box.w}px`, height: `${c.box.h}px`});
+    return c;
+  }
+  // What the live gesture points at now, with snapping: cached per gesture step, since the frame and the press both ask.
+  preview(g) {
+    if (g.previewAt === g.version && g.previewRaw === this.raw) return g.preview;
+    let hits = null, size = 0;
+    if (g.tool === 'marquee' && g.current) {
+      const a = g.start, b = g.current, r = {x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y)};
+      hits = rectHits(r, g.list); size = r.w * r.h;
+    } else if (g.tool === 'lasso' && g.points.length > 2) {
+      const pts = g.points.length > 600 ? simplify(g.points, 1 / this.view().zoom, 400) : g.points;
+      hits = pathHits(pts, g.list); size = polygonArea(pts);
+    } else if (g.tool === 'wand' && g.field) { hits = areaHits(g.field, g.list); size = g.field.area(); }
+    g.preview = hits ? this.resolve(g.tool, hits, size, this.raw, g.tool === 'wand' ? g.field : null) : null;
+    g.previewAt = g.version; g.previewRaw = this.raw;
+    return g.preview;
+  }
+  // The live gesture, on the sheet, in screen pixels: a box or a free shape, or the wand's glitter, with what it points
+  // at outlined (the snapped outline, solid, when it will snap; else each thing, a part dashed); the wand's ring and
+  // sparkles. With nothing left to settle, no frame is drawn.
   draw(v, now = performance.now()) {
     const ctx = this.ctx; if (!ctx || !this.sheetRect) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, this.sheet.width, this.sheet.height);
     if (!this.active) return;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     const red = this.red ||= getComputedStyle(this.bar).getPropertyValue('--mark-red').trim() || '#B33830';
-    const g = this.gesture;
+    const g = this.gesture, r = this.sheetRect;
+    let more = false;
     const outline = (c, view, dashed) => {
       const [x, y] = this.toScreen(c.x, c.y, view); ctx.save(); ctx.strokeStyle = red; ctx.lineWidth = dashed ? 1 : 2; if (dashed) ctx.setLineDash([4, 3]);
       ctx.strokeRect(x - 3, y - 3, c.w * view.zoom + 6, c.h * view.zoom + 6); ctx.restore();
     };
+    // The outline it will snap to: solid, a little outside the thing, with its corners marked.
+    const snapped = (s, view) => {
+      ctx.save(); ctx.strokeStyle = red; ctx.lineWidth = 2;
+      if (s.kind === 'rect') {
+        const [x, y] = this.toScreen(s.x, s.y, view), w = s.w * view.zoom + 8, h = s.h * view.zoom + 8, X = x - 4, Y = y - 4, t = Math.min(12, w / 3, h / 3);
+        ctx.strokeRect(X, Y, w, h);
+        ctx.lineWidth = 4; ctx.beginPath();
+        for (const [cx, cy, dx, dy] of [[X, Y, 1, 1], [X + w, Y, -1, 1], [X + w, Y + h, -1, -1], [X, Y + h, 1, -1]]) { ctx.moveTo(cx + dx * t, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + dy * t); }
+        ctx.stroke();
+      } else { ctx.beginPath(); s.points.forEach(([px, py], i) => { const [sx, sy] = this.toScreen(px, py, view); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); }); ctx.closePath(); ctx.stroke(); }
+      ctx.restore();
+    };
     const fill = () => { ctx.fillStyle = red; ctx.globalAlpha = .07; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = red; ctx.lineWidth = 1.5; ctx.stroke(); };
     if (g && !g.pan && g.moved && (g.tool === 'marquee' || g.tool === 'lasso')) {
       v ||= this.view();
-      let hits;
       ctx.beginPath();
       if (g.tool === 'marquee' && g.current) {
         const [x0, y0] = this.toScreen(g.start.x, g.start.y, v), [x1, y1] = this.toScreen(g.current.x, g.current.y, v);
         ctx.rect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)); fill();
-        const a = g.start, b = g.current;
-        hits = rectHits({x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y)}, g.list);
       } else if (g.tool === 'lasso') {
         g.points.forEach(([x, y], i) => { const [sx, sy] = this.toScreen(x, y, v); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); });
         ctx.closePath(); fill();
-        if (g.points.length > 2) hits = pathHits(g.points.length > 600 ? simplify(g.points, 1 / v.zoom, 400) : g.points, g.list);
-      }
-      for (const h of hits?.targets || []) outline(h.candidate, v, !h.whole);
-    }
-    if (!g && this.hover && this.tool !== 'laser') { v ||= this.view(); outline(this.hover, v, true); }
-    if (this.tool === 'laser' && (this.pointer || this.trail.length)) {
-      const fade = 700, trail = this.trail.filter(p => now - p[2] < fade + 50);
-      this.trail = g ? this.trail : trail;
-      const r = this.sheetRect;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = red;
-      // Five steps of fade, one stroke each: the newest part strongest and widest.
-      for (let step = 1; step <= 5; step++) {
-        const lo = (step - 1) / 5, hi = step / 5; let open = false;
-        ctx.beginPath();
-        for (let i = 1; i < trail.length; i++) {
-          const a = 1 - (now - trail[i][2]) / fade;
-          if (a <= lo || a > hi) { open = false; continue; }
-          if (!open) { ctx.moveTo(trail[i - 1][0] - r.left, trail[i - 1][1] - r.top); open = true; }
-          ctx.lineTo(trail[i][0] - r.left, trail[i][1] - r.top);
-        }
-        ctx.globalAlpha = hi * .85; ctx.lineWidth = 2 + 2.5 * hi; ctx.stroke();
-      }
-      ctx.globalAlpha = 1; ctx.fillStyle = red;
-      if (this.pointer) { ctx.beginPath(); ctx.arc(this.pointer.x - r.left, this.pointer.y - r.top, 5, 0, Math.PI * 2); ctx.fill(); }
-      // Fading needs frames of its own only while she holds still: a frame requested from a frame while she moves
-      // holds her next move back a frame (measured: 32 ms against 17 ms), so moves drive the frames then.
-      if (trail.length > 1 && trail.some(p => now - p[2] < fade)) {
-        if (g && performance.now() - (this.lastMove || 0) < 50) { clearTimeout(this.fadeTimer); this.fadeTimer = setTimeout(() => this.schedule(), 60); }
-        else this.schedule();
       }
     }
+    if (g && !g.pan && g.tool === 'wand' && g.field) { v ||= this.view(); this.drawField(g.field, v, now); more = true; }
+    // A snapped wand mark just committed: what she swept dissolves while the glitter settles into the snapped outline.
+    if (this.settle) {
+      const p = (now - this.settle.t0) / 220;
+      if (p >= 1) this.settle = null;
+      else { v ||= this.view(); ctx.setTransform(1, 0, 0, 1, 0, 0); paintField(ctx, this.settle.field, this.sheetView(v), {tones: this.tones(), dpr: this.dpr, size: 2 * (1 - p), rim: 0.7 * (1 - p)}); ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); more = true; }
+    }
+    if (g && !g.pan && g.moved && ['marquee', 'lasso', 'wand'].includes(g.tool)) {
+      const got = this.preview(g);
+      if (got?.snap) snapped(got.snap.shape, v ||= this.view());
+      else for (const h of got?.hits.targets || []) outline(h.candidate, v ||= this.view(), !h.whole);
+    }
+    if (!g && this.hover && this.tool !== 'wand') { v ||= this.view(); outline(this.hover, v, true); }
+    if (this.tool === 'wand') more = this.drawTip(now) || more;
+    // Settling needs frames of its own only while she holds still: a frame requested from a frame while she moves holds
+    // her next move back a frame (measured in round 1: 32 ms against 17 ms), so moves drive the frames then.
+    if (more && (this.settle || this.sparks.length || (g?.field && now - (this.lastMove || 0) < FRESH + 40))) {
+      if (g && performance.now() - (this.lastMove || 0) < 50) { clearTimeout(this.fadeTimer); this.fadeTimer = setTimeout(() => this.schedule(), 60); }
+      else this.schedule();
+    }
+  }
+  // Board units -> the sheet's device pixels, as paintField takes it.
+  sheetView(v) { const r = this.sheetRect; return {ox: -v.ox - (v.left - r.left) / v.zoom, oy: -v.oy - (v.top - r.top) / v.zoom, k: v.zoom * this.dpr}; }
+  // The wand's area while casting: settled flecks are kept on a canvas of their own and only the cells that changed
+  // are drawn again; cells swept in the last moments sparkle over them and settle as they age.
+  drawField(f, v, now) {
+    const dpr = this.dpr, ctx = this.ctx, view = this.sheetView(v);
+    let acc = this.acc;
+    if (!acc || acc.width !== this.sheet.width || acc.height !== this.sheet.height) { acc = this.acc = document.createElement('canvas'); acc.width = this.sheet.width; acc.height = this.sheet.height; this.accFor = null; }
+    const a = acc.getContext('2d'), stamp = `${view.ox}|${view.oy}|${view.k}`, tones = this.tones();
+    if (this.accFor !== f || this.accView !== stamp) {
+      a.clearRect(0, 0, acc.width, acc.height); f.takeDirty();
+      paintField(a, f, view, {tones, dpr, size: 2, rim: 0.7});
+      this.accFor = f; this.accView = stamp;
+    } else {
+      const d = f.takeDirty();
+      if (d) {
+        // Redraw the changed cells and their neighbours (a sparkle's arms and the rim reach one cell over).
+        const w = {i0: d.i0 - 2, j0: d.j0 - 2, i1: d.i1 + 2, j1: d.j1 + 2}, c = f.cell;
+        const x0 = Math.floor((w.i0 * c - view.ox) * view.k), y0 = Math.floor((w.j0 * c - view.oy) * view.k);
+        const x1 = Math.ceil(((w.i1 + 1) * c - view.ox) * view.k), y1 = Math.ceil(((w.j1 + 1) * c - view.oy) * view.k);
+        a.save(); a.beginPath(); a.rect(x0, y0, x1 - x0, y1 - y0); a.clip(); a.clearRect(x0, y0, x1 - x0, y1 - y0);
+        paintField(a, f, view, {tones, dpr, size: 2, rim: 0.7, w: {i0: w.i0 - 2, j0: w.j0 - 2, i1: w.i1 + 2, j1: w.j1 + 2}});
+        a.restore();
+        (this.recent ||= []).push({w, t: now});
+      }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(acc, 0, 0);
+    // Fresh cells: denser and with more sparkles, for FRESH ms after they were swept.
+    this.recent = (this.recent || []).filter(x => now - x.t < FRESH);
+    if (this.recent.length) {
+      const w = this.recent.reduce((u, {w}) => ({i0: Math.min(u.i0, w.i0), j0: Math.min(u.j0, w.j0), i1: Math.max(u.i1, w.i1), j1: Math.max(u.j1, w.j1)}), {i0: Infinity, j0: Infinity, i1: -Infinity, j1: -Infinity});
+      paintField(ctx, f, view, {tones, dpr, size: 2, w, fresh: {now, ms: FRESH, only: true}});
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  // The wand's tip: a ring of flecks the band's width across (how wide it casts, as an image editor shows its brush),
+  // a sparkle at the point, and the sparkles it sheds. Returns whether any sparkle is still to settle.
+  drawTip(now) {
+    const ctx = this.ctx, r = this.sheetRect, dpr = this.dpr, red = this.tones()[0], star = this.tones()[3];
+    const u = fleckSize(dpr) / dpr;
+    this.sparks = this.sparks.filter(s => now - s[2] < s[3]);
+    ctx.fillStyle = red; ctx.beginPath();
+    const sq = (x, y, k = 1) => { const s = u * k; ctx.rect(Math.round((x - s / 2) * dpr) / dpr, Math.round((y - s / 2) * dpr) / dpr, s, s); };
+    for (const [x, y, born, life, kind] of this.sparks) { const k = 1 - (now - born) / life; if (kind < 0.3 && k > 0.5) { sq(x - u, y); sq(x + u, y); sq(x, y - u); sq(x, y + u); } sq(x, y, k > 0.6 ? 1 : 0.75); }
+    if (this.pointer && !this.gesture) {
+      const px = this.pointer.x - r.left, py = this.pointer.y - r.top, rad = this.wandWidth / 2, n = Math.max(20, Math.round(rad * 0.9));
+      for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; sq(px + rad * Math.cos(a), py + rad * Math.sin(a)); }
+    }
+    ctx.fill();
+    if (this.pointer) {
+      const px = this.pointer.x - r.left, py = this.pointer.y - r.top;
+      ctx.fillStyle = star; ctx.beginPath(); sq(px, py, 1.5); sq(px - 1.5 * u, py); sq(px + 1.5 * u, py); sq(px, py - 1.5 * u); sq(px, py + 1.5 * u); ctx.fill();
+    }
+    return this.sparks.length > 0;
   }
 
   // ---------- sending ----------
@@ -913,8 +1197,8 @@ class PointingMode {
     // what she pointed at.
     // A click's mark is the whole thing outlined: the pin goes at that outline's top-right, not on the spot clicked.
     const drawn = first && first.shape.kind === 'point' ? this.geometry(first, true).shapes : [];
-    const anchorPoint = drawn.length ? pinPointOf({kind: 'path', points: drawn.flatMap(r => r.kind === 'path' ? r.points : [[r.x, r.y], [r.x + r.w, r.y + r.h]])})
-      : first ? pinPointOf(first.shape) : this.toBoard(this.sheetRect.left + this.sheetRect.width / 2, this.sheetRect.top + this.sheetRect.height / 2);
+    const anchorPoint = drawn.length ? pinPointOf({kind: 'path', points: drawn.flatMap(outlinePoints)})
+      : first ? pinPointOf(first.snap?.shape || first.shape) : this.toBoard(this.sheetRect.left + this.sheetRect.width / 2, this.sheetRect.top + this.sheetRect.height / 2);
     const t0 = first?.targets[0];
     const anchor = pointAnchorAt(anchorPoint, snap, t0?.kind === 'placement' ? {placementId: t0.id} : t0?.kind === 'decoration' ? {decorationId: t0.id} : {});
     if (anchor.relative) anchor.relative = {x: Math.min(1, Math.max(0, anchor.relative.x)), y: Math.min(1, Math.max(0, anchor.relative.y))};
@@ -923,7 +1207,7 @@ class PointingMode {
     const pointing = {
       v: 1, source: 'typed', startedAt: this.startedAt || new Date().toISOString(), sentAt: new Date().toISOString(), appearance,
       parts,
-      marks: marks.map(m => ({n: m.n, tool: m.tool, at: m.at, end: m.end, boardId: m.boardId, shape: m.shape, targets: m.targets, crop: null})),
+      marks: marks.map(m => ({n: m.n, tool: m.tool, ...(m.via ? {via: m.via} : {}), at: m.at, end: m.end, boardId: m.boardId, shape: m.shape, ...(m.snap ? {snap: m.snap} : {}), targets: m.targets, crop: null})),
     };
     const fb = board.feedback?.actor, author = fb?.id ? {id: fb.id, label: fb.label || 'You', kind: 'human'} : {id: 'human-local', label: 'You', kind: 'human'};
     const job = {draft: this.takeDraft(), operation: {boardId, author, body, to: {kind: 'agent'}, status: 'sent', ...(refs.length ? {refs} : {}), anchor, pointing}, count: marks.length};
@@ -947,8 +1231,8 @@ class PointingMode {
         const card = this.world.querySelector(`.workspace-card[data-placement="${CSS.escape(t.id)}"]`);
         const p = board.snapshot.placements.find(x => x.id === t.id), item = p && board.snapshot.items?.[p.itemId];
         const file = item?.content?.kind === 'image' ? resourceURL(item.content.resource) : null;
-        const crop = card ? await imageCropFull(card, t.whole ? undefined : t.region, file).catch(() => null) : null;
-        if (crop) m.crop = {dataUrl: crop.dataUrl, from: `the image item's own file, cropped in the browser: ${crop.from.replace(/^image file,?\s*/, '')}`.slice(0, 600)};
+        const crop = card ? await imageCropFull(card, t.whole ? undefined : t.region, file, m.tool === 'wand' ? this.cropGlitter(m) : null).catch(() => null) : null;
+        if (crop) m.crop = {dataUrl: crop.dataUrl, from: `the image item's own file, cropped in the browser: ${crop.from.replace(/^image file,?\s*/, '')}${m.tool === 'wand' ? '; the wand\'s area drawn over it as red flecks' : ''}`.slice(0, 600)};
       }
       const result = await board.client.write('addComment', job.operation);
       this.outbox.splice(this.outbox.indexOf(job), 1);
@@ -963,6 +1247,17 @@ class PointingMode {
       this.giveBack(job.draft, error);
       return null;
     }
+  }
+  // A wand mark's glitter over its image crop: the same area (the snapped outline filled, or the swath) at the same
+  // density as on the board, scaled with the crop.
+  cropGlitter(m) {
+    return (ctx, toCrop) => {
+      const v = this.view(), scr = (x, y) => [v.left + (x + v.ox) * v.zoom, v.top + (y + v.oy) * v.zoom];
+      const [ax, ay] = toCrop(...scr(0, 0)), [bx] = toCrop(...scr(1, 0)), k = bx - ax; if (!(k > 0)) return;
+      const view = {ox: -ax / k, oy: -ay / k, k}, cell = WAND.pitch / v.zoom, s = m.snap?.shape || m.shape;
+      const field = s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s, cell, 7 / v.zoom);
+      paintField(ctx, field, view, {tones: this.tones(), dpr: Math.max(1, k / v.zoom), size: 2, rim: 0.7});
+    };
   }
   // The composer's content as it stands, to send and, if sending fails, to give back.
   takeDraft() {
@@ -1017,7 +1312,7 @@ class PointingMode {
   }
   clear() {
     this.field.replaceChildren(); this.caret = null;
-    this.marks = new Map(); this.t0 = null; this.startedAt = null; this.words = new TypedWords(); this.lastLaser = null;
+    this.marks = new Map(); this.t0 = null; this.startedAt = null; this.words = new TypedWords(); this.wandLast = null;
     this.renderMarks();
     this.saveSoon();
   }
@@ -1082,7 +1377,7 @@ class PointingMode {
   sentScreenBox(threadId) {
     if (!this.sent || this.sent.threadId !== threadId || this.layer.hidden) return null;
     let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
-    for (const el of this.layer.querySelectorAll('.pointing-shape:not(.pointing-outline), .pointing-badge, .pointing-dot')) {
+    for (const el of this.layer.querySelectorAll('.pointing-shape:not(.pointing-outline), .pointing-swath, .pointing-badge, .pointing-dot')) {
       const r = el.getBoundingClientRect(); if (!r.width && !r.height) continue;
       left = Math.min(left, r.left); top = Math.min(top, r.top); right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
     }
@@ -1098,7 +1393,7 @@ class PointingMode {
   revealSent(thread, n) {
     this.showSent(thread, n);
     const m = this.sent?.marks.find(x => x.n === n); if (!m) return false;
-    const g = this.geometry(m, false), b = g.shapes.length ? boundsOf(g.shapes.flatMap(r => r.kind === 'path' ? r.points : [[r.x, r.y], [r.x + r.w, r.y + r.h]]))
+    const g = this.geometry(m, false), b = g.shapes.length ? boundsOf(g.shapes.flatMap(outlinePoints))
       : {x: g.dot.x - 40, y: g.dot.y - 40, w: 80, h: 80};
     this.board.hooks.revealPlacements?.([{id: `pointing-${n}`, x: b.x, y: b.y, width: Math.max(b.w, 40), height: Math.max(b.h, 40)}]);
     return true;
@@ -1123,19 +1418,29 @@ class PointingMode {
 // A placement's or drawn element's saved box (board units), as the server stores `placed`; null when it has none.
 const dataBox = o => o && [o.x, o.y, o.width, o.height].every(Number.isFinite) ? {x: o.x, y: o.y, w: o.width, h: o.height} : null;
 // Where a mark's number sits for a shape as drawn: its top-left corner, or a path's topmost point.
+const labelOf = (targets, more, empty) => targets.length === 0 ? empty : targets.length === 1 && !more ? targets[0].title : `${targets.length + more} items`;
+// A shape's outline as points in board units: a rect's corners, a path's points, a swath's band (its points' boxes).
+function outlinePoints(s) {
+  if (s.kind === 'rect' || s.kind === 'outline') return [[s.x, s.y], [s.x + s.w, s.y + s.h]];
+  if (s.kind === 'swath') { const r = s.width / 2; return s.points.flatMap(([x, y]) => [[x - r, y - r], [x + r, y + r]]); }
+  if (s.kind === 'point') return [[s.x, s.y]];
+  return s.points;
+}
 function topLeft(s) {
   if (s.kind === 'rect') return {x: s.x, y: s.y};
+  if (s.kind === 'swath') { const top = s.points.reduce((a, p) => p[1] < a[1] ? p : a); return {x: top[0] - s.width * 0.35, y: top[1] - s.width / 2}; }
   const top = s.points.reduce((a, p) => p[1] < a[1] ? p : a); return {x: top[0], y: top[1]};
 }
 function pinPointOf(s) {
   if (s.kind === 'point') return {x: s.x, y: s.y};
-  const b = s.kind === 'rect' ? s : boundsOf(s.points); return {x: b.x + b.w, y: b.y};
+  const b = s.kind === 'rect' ? s : boundsOf(outlinePoints(s)); return {x: b.x + b.w, y: b.y};
 }
 /** A mark in words, for the chip's hint and the live region. */
 export function describe(mark) {
   const t = mark.targets;
   if (!t.length) return mark.shape.kind === 'point' ? 'A point on the board' : 'An empty area of the board';
-  if (t.length === 1 && !mark.more) return `${t[0].whole ? '' : 'Part of '}${t[0].title}`;
+  const snapped = mark.snap ? `, snapped to the ${mark.snap.label.replace(/^\d+ objects$/, 'objects')}` : '';
+  if (t.length === 1 && !mark.more) return `${t[0].whole ? '' : 'Part of '}${t[0].title}${snapped}`;
   const names = t.slice(0, 3).map(x => x.title).join(', ');
-  return `${t.length + (mark.more || 0)} items: ${names}${t.length > 3 || mark.more ? ', …' : ''}`;
+  return `${t.length + (mark.more || 0)} items: ${names}${t.length > 3 || mark.more ? ', …' : ''}${snapped}`;
 }
