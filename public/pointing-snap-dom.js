@@ -237,7 +237,7 @@ function proposeCovered({doc, win}, g) {
   stray = mask.cells > 0 ? stray / (mask.area || 1) : 0;
   if (fill < FILL[g.kind] && !(fill >= .06 && stray < .04)) return null;
   const score = round2(cov * (.55 + .45 * Math.min(1, fill / .6)) * (1 - Math.min(.6, stray * 1.5)));
-  if (score < .35) return null;
+  if (score < (members ? .5 : .35)) return null; // a union of separate things must fit her gesture well
   const shape = {kind: 'rect', x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)};
   if (!members) {
     const info = describeElement(chosen, doc, win);
@@ -497,7 +497,8 @@ export function accessibleName(el, depth = 0) {
     // only a heading that opens it (among its first three elements) is its title
     let seen = 0;
     const h = findFirst(el, e => { if (e === el) return false; seen++; return seen <= 3 && (HEADING_RE.test(tagOf(e)) || attr(e, 'role') === 'heading') && !isHidden(e); });
-    if (h && seen <= 3) return clipName(textAlternative(h, depth + 1));
+    // …and only when it is its one heading of that level (three columns' h2s do not name the row that holds them)
+    if (h && seen <= 3 && findAll(el, e => tagOf(e) === tagOf(h) && e !== h).length === 0) return clipName(textAlternative(h, depth + 1));
   }
   return clipName(attr(el, 'title') || '');
 }
