@@ -169,6 +169,30 @@ try{
     assert.ok(w.shape.width>n.shape.width*1.8,`wide ${w.shape.width} vs narrow ${n.shape.width}`);
     await page.keyboard.press('Alt+BracketRight');
   });
+  await check('the snap-source seam: a source inside a card is asked in the card\'s unit and its answer becomes the snap; a null answer leaves the raw gesture',async()=>{
+    await page.evaluate(async()=>{
+      const {pointingGuard}=await import('/app/pointing-guard.js');
+      window.__asked=[];
+      // a stub in card units (no frame or picture on these cards): "the top-left quarter", for marquees only
+      pointingGuard.mode.addSnapSource({propose:req=>{window.__asked.push({kind:req.kind,unit:req.unit,title:req.item?.title,g:req.geometry});return req.kind==='rect'?{shape:{kind:'rect',x:0,y:0,w:130,h:90},label:'the top-left quarter',source:'dom',score:.9,element:{tag:'section',selector:'#q',path:'main > section#q',box:{x:0,y:0,w:130,h:90},frameUrl:'about:blank'}}:null;}});
+      pointingGuard.mode.addSnapSource({propose:()=>null});
+    });
+    await page.keyboard.press('Alt+KeyM');await page.keyboard.type('quarter ');
+    const c=await box(card('Hero B'));
+    await page.mouse.move(c.x+30,c.y+40);await page.mouse.down();await page.mouse.move(c.x+110,c.y+100,{steps:6});await page.mouse.up();
+    await page.keyboard.press('Alt+KeyP');await page.keyboard.type(' click ');await page.mouse.click(c.cx,c.cy);
+    const asked=await page.evaluate(()=>window.__asked);
+    assert.ok(asked.some(a=>a.kind==='rect'&&a.unit==='card'&&a.title==='Hero B'&&Math.abs(a.g.x-30)<4),`asked in card units: ${JSON.stringify(asked.at(-2))}`);
+    assert.ok(asked.some(a=>a.kind==='point'),'a click asks too');
+    const tips=await field.locator('.pointing-chip').evaluateAll(cs=>cs.map(c=>c.dataset.tip));
+    assert.match(tips[0],/^Part of Hero B, snapped to the the top-left quarter|^Part of Hero B, snapped to the top-left quarter/);
+    assert.doesNotMatch(tips[1],/snapped/);
+    // the server keeps the element only once it accepts that field (CONTRACT § Round 2, target `element`): checked on the client record here
+    const rec=await page.evaluate(async()=>{const {pointingGuard}=await import('/app/pointing-guard.js');const m=pointingGuard.mode;return m.message().marks.map(x=>({snap:x.snap,targets:x.targets}));});
+    assert.equal(rec[0].snap.source,'dom');assert.deepEqual(rec[0].snap.shape.w>0,true);assert.equal(rec[0].targets[0].element.selector,'#q');
+    assert.ok(Math.abs(rec[0].targets[0].region.w-0.5)<0.02&&Math.abs(rec[0].targets[0].region.h-0.5)<0.02,`region follows the snap: ${JSON.stringify(rec[0].targets[0].region)}`);
+    await page.keyboard.press(`${MOD}+a`);await page.keyboard.press('Backspace');
+  });
   assert.deepEqual(errors,[],'page errors');
   await context.close();
 

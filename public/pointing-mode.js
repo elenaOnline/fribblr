@@ -114,6 +114,7 @@ class PointingMode {
       e.preventDefault(); e.stopImmediatePropagation(); this.enter();
     }, true);
     this.onGuard = event => this.guard(event);
+    pointingGuard.mode = this; // the board's mode, for wiring snap sources (addSnapSource) and for tests
     // The take-what-I-drew key let go (or the window lost focus with it down): snapping is back on at once.
     addEventListener('keyup', e => { if (this.active && e.key === RAW_KEY) this.setRaw(false); }, true);
     addEventListener('blur', () => this.setRaw(false));
@@ -525,13 +526,16 @@ class PointingMode {
       const a = g.start, b = this.toBoard(e.clientX, e.clientY, v);
       const rect = {x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y)};
       const shape = {kind: 'rect', x: ROUND(rect.x), y: ROUND(rect.y), w: ROUND(rect.w), h: ROUND(rect.h)};
+      this.lastDrawn = {kind: 'rect', ...rect};
       this.addMark({tool: 'marquee', at: g.at, end, shape, ...this.resolve('marquee', rectHits(rect, g.list), polygonArea([[rect.x, rect.y], [rect.x + rect.w, rect.y], [rect.x + rect.w, rect.y + rect.h], [rect.x, rect.y + rect.h]]), raw), empty: 'Board area'});
     } else if (g.tool === 'lasso') {
       const points = simplify(g.points, 1 / v.zoom, 400);
       if (points.length >= 3 && boundsOf(points).w * v.zoom + boundsOf(points).h * v.zoom > 12) {
+        this.lastDrawn = {kind: 'path', points};
         this.addMark({tool: 'lasso', at: g.at, end, shape: {kind: 'path', points: points.map(([x, y]) => [ROUND(x), ROUND(y)])}, ...this.resolve('lasso', pathHits(points, g.list), polygonArea(points), raw), empty: 'Board area'});
       } else this.pointAt(e.clientX, e.clientY, g.at, end, 'lasso', raw);
     } else if (g.tool === 'wand') this.cast(g, end, raw, e);
+    this.lastDrawn = null;
     this.schedule();
   }
   cancelGesture() {
@@ -607,17 +611,22 @@ class PointingMode {
    *     card's top-left otherwise;
    *   - item: the item record; el: the card's element; placement: its placement.
    * It answers {shape: {kind: 'rect' | 'path', …} in the same unit, label, source: 'dom' | 'pixels', score 0..1, element?}
-   * or null. `space: 'board'` instead gives and takes board units.
+   * or null. `space: 'board'` instead gives and takes board units. `map(el)` replaces the unit above with the source's
+   * own: it returns {toPage(clientX, clientY) -> {x, y}, toClient(x, y) -> {x, y}, scale() (client px per unit)} or
+   * null (then the source is not asked), e.g. pointing-snap-dom.js `pageMapping`, which follows nested item frames.
+   * A source that answers later (a worker) calls refreshSnap() when it has an answer, so a still pointer sees it.
    */
-  addSnapSource(source, {space = 'content'} = {}) { if (source?.propose) this.snapSources.push({source, space}); }
+  addSnapSource(source, {space = 'content', map = null} = {}) { if (source?.propose) this.snapSources.push({source, space, map}); }
+  refreshSnap() { if (this.gesture) { this.gesture.version++; this.schedule(); } }
   innerProposals(tool, hits, field) {
     if (!this.snapSources.length) return [];
     const ts = hits.targets; if (ts.length !== 1 || ts[0].candidate.kind !== 'placement' || !ts[0].candidate.el) return [];
     const c = ts[0].candidate, g = this.gestureGeometry(tool, field);
     if (!g) return [];
     const out = [];
-    for (const {source, space} of this.snapSources) {
-      const local = space === 'board' ? null : this.localFrame(c);
+    for (const {source, space, map} of this.snapSources) {
+      const local = space === 'board' ? null : map ? this.mappedFrame(c, map) : this.localFrame(c);
+      if (map && !local) continue;
       const to = local ? local.toLocal : p => p, back = local ? local.toBoard : p => p;
       const k = local ? local.scale : 1;
       const geometry = g.kind === 'point' ? (([x, y]) => ({x, y}))(to([g.x, g.y]))
@@ -632,7 +641,8 @@ class PointingMode {
     }
     return out;
   }
-  // The gesture as board geometry for the sources: the live one, or the click just made (this.clickAt).
+  // The gesture as board geometry for the sources: the live one, the one just released (lastDrawn), or the click just
+  // made (clickAt).
   gestureGeometry(tool, field) {
     const g = this.gesture;
     if (tool === 'click') return this.clickAt ? {kind: 'point', ...this.clickAt} : null;
@@ -641,6 +651,14 @@ class PointingMode {
     if (tool === 'marquee' && g.current) { const a = g.start, b = g.current; return {kind: 'rect', x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y)}; }
     if (tool === 'lasso') return {kind: 'path', points: g.points};
     return null;
+  }
+  // A source's own coordinates through its mapping (client px <-> its unit).
+  mappedFrame(c, map) {
+    let m = null; try { m = map(c.el); } catch {} if (!m) return null;
+    const v = this.view();
+    return {unit: 'source', scale: v.zoom / (m.scale?.() || 1),
+      toLocal: ([x, y]) => { const q = m.toPage(v.left + (x + v.ox) * v.zoom, v.top + (y + v.oy) * v.zoom); return [q.x, q.y]; },
+      toBoard: ([x, y]) => { const q = m.toClient(x, y), b = this.toBoard(q.x, q.y, v); return [b.x, b.y]; }};
   }
   // A card's own coordinates for the sources: its page (iframe), its picture (img), else board units from its corner.
   localFrame(c) {
