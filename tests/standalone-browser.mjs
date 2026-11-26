@@ -60,7 +60,7 @@ try{
  await page.locator('#reader-info-toggle').click();const info=page.locator('#reader-info');await info.waitFor({state:'visible'});
  ok(await info.getByRole('heading',{name:'Where it lives'}).isVisible(),'Where it lives comes first');
  const standalone=info.getByRole('link',{name:'Open standalone ↗'});
- eq(await standalone.getAttribute('href'),'/resources/assets/calm.html','Open standalone opens the file served by Tinka');
+ eq(await standalone.getAttribute('href'),'/resources/assets/calm.html','Open standalone opens the file served by fribblr');
  eq(await standalone.getAttribute('target'),'_blank');
  await page.waitForFunction(p=>document.querySelector('#reader-file-path')?.textContent===p,filePath);checks++;
  await info.getByRole('button',{name:'Copy path'}).click();
@@ -86,8 +86,8 @@ try{
  await page.screenshot({path:path.join(evidence,'standalone-inspector-1244-dark.png')});
  await seg.getByRole('radio',{name:'Light'}).click();eq(await page.locator('html').getAttribute('data-appearance'),'light');
  // Inside Tinka's frame the page is untouched: no tag, no mark.
- const frame=page.frames().find(f=>f.url().includes('/resources/assets/calm.html'));ok(frame,'The opened Tinka frames the file');
- eq(await frame.evaluate(()=>[!!document.querySelector('tinka-return'),!!document.querySelector('script[src="/app/return-mark.js"]')]),[false,false],'No mark inside Tinka\'s frame');
+ const frame=page.frames().find(f=>f.url().includes('/resources/assets/calm.html'));ok(frame,'The opened item frames the file');
+ eq(await frame.evaluate(()=>[!!document.querySelector('tinka-return'),!!document.querySelector('script[src="/app/return-mark.js"]')]),[false,false],'No mark inside fribblr\'s frame');
 
  // (3) The same file opened standalone, top-level.
  const tab=await context.newPage();tab.on('pageerror',e=>errors.push(e.message));
@@ -97,7 +97,7 @@ try{
  eq(await tab.locator('tinka-return').evaluate(el=>getComputedStyle(el).position),'fixed');
  await tab.screenshot({path:path.join(evidence,'standalone-mark-rest-1244.png')});
  await chip.hover();await tab.waitForTimeout(260);
- eq((await chip.textContent()).trim(),'Back to Tinka01 · Calm form · Design Lab','Hover names the Tinka and its board');
+ eq((await chip.textContent()).trim(),'Back to fribblr01 · Calm form · Design Lab','Hover names the item and its board');
  ok((await chip.boundingBox()).width>150,'Hover widens the mark');
  await tab.screenshot({path:path.join(evidence,'standalone-mark-hover-1244.png')});
  await tab.locator('tinka-return .more').click();
@@ -106,7 +106,7 @@ try{
  await tab.screenshot({path:path.join(evidence,'standalone-mark-menu-1244.png')});
  await tab.keyboard.press('Escape');
  await chip.click();await tab.waitForURL(`${base}/boards/lab/#items/${calm.placementIds[0]}`);await tab.locator('#reader-dialog[open]').waitFor();
- eq(await tab.locator('#reader-name').textContent(),'Calm form','A click returns to the opened Tinka');
+ eq(await tab.locator('#reader-name').textContent(),'Calm form','A click returns to the opened item');
 
  // (4) No last-opened record and several places: the mark asks.
  const fresh=await browser.newContext({viewport:{width:1244,height:860}});await fresh.addInitScript(()=>{const attach=Element.prototype.attachShadow;Element.prototype.attachShadow=function(init){return attach.call(this,{...init,mode:'open'});};});
