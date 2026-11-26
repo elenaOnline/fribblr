@@ -158,7 +158,7 @@ export function createAppServer(config,{updates=createUpdateService(config)}={})
         const board=url.searchParams.get('board');if(board){if(!await loadGraphBoard(config,board,{versionStacks:false}))await boardDirectory(config.boardsRoot,board);}
         push.subscribe(req,res,board);return;
       }
-      if(pathname==='/api/health'&&method==='GET'){sendJson(res,200,{app:'board-room',version:VERSION,configPath:config.configPath,boardsRoot:config.boardsRoot,projectLabel:config.projectLabel,workspaceId:config.workspaceId,port:server.address().port,url:`http://127.0.0.1:${server.address().port}/`});return;}
+      if(pathname==='/api/health'&&method==='GET'){sendJson(res,200,{app:'fribblr',version:VERSION,configPath:config.configPath,boardsRoot:config.boardsRoot,projectLabel:config.projectLabel,workspaceId:config.workspaceId,port:server.address().port,url:`http://127.0.0.1:${server.address().port}/`});return;}
       if(pathname.startsWith('/api/drawxide/')&&await handleDrawxide({req,res,pathname,method,config,checkWrite:()=>checkWrite(req,server,config),sendJson}))return;
       if(pathname==='/api/config'&&method==='GET'){sendJson(res,200,publicConfig(config));return;}
       if(pathname==='/api/tools'&&method==='GET'){sendJson(res,200,listTools());return;}

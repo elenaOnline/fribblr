@@ -53,11 +53,11 @@ function current() {
 // ---- Agent requests: the user's words, with the exact command ----------------
 function request(notice) {
   const command = view.agentCommand, to = notice.display, have = view.display, major = notice.major ? ' --major' : '';
-  const commit = view.pin ? ', then commit the updated tinka/project.json' : '';
-  if (notice.kind === 'review') return `Tinka ${to} is available for this project (${view.project}), but Tinka says this copy needs a review before it can update itself (${notice.reason}).\n\nPlease check what Tinka found, tell me, and update Tinka to ${to} if it is safe${notice.major ? `. It is a major update, so ask me before installing it` : ''}:\n${command} now${major}${view.pin ? '\n\nThen commit the updated tinka/project.json.' : ''}`;
-  if (notice.kind === 'failed') return `Tinka tried to update this project (${view.project}) to ${to} and stopped. It says it is still on ${have}.\nReason: ${notice.reason}\n\nPlease check what happened (${command} status) and, if it is safe, try again${notice.major ? ' with the same consent I gave' : ''}:\n${command} now${major}`;
-  if (notice.major) return `Please update Tinka in this project (${view.project}) to ${to}.\nI know ${to} is a major update, and I agree to install it.\n\nRun:\n${command} now --major\n\nTell me when Tinka is back${commit}.`;
-  return `Please update Tinka in this project (${view.project}) to ${to}.\n\nRun:\n${command} now\n\nTell me when Tinka is back${commit}.`;
+  const commit = view.pin ? ', then commit the updated fribblr/project.json' : '';
+  if (notice.kind === 'review') return `fribblr ${to} is available for this project (${view.project}), but fribblr says this copy needs a review before it can update itself (${notice.reason}).\n\nPlease check what fribblr found, tell me, and update fribblr to ${to} if it is safe${notice.major ? `. It is a major update, so ask me before installing it` : ''}:\n${command} now${major}${view.pin ? '\n\nThen commit the updated fribblr/project.json.' : ''}`;
+  if (notice.kind === 'failed') return `fribblr tried to update this project (${view.project}) to ${to} and stopped. It says it is still on ${have}.\nReason: ${notice.reason}\n\nPlease check what happened (${command} status) and, if it is safe, try again${notice.major ? ' with the same consent I gave' : ''}:\n${command} now${major}`;
+  if (notice.major) return `Please update fribblr in this project (${view.project}) to ${to}.\nI know ${to} is a major update, and I agree to install it.\n\nRun:\n${command} now --major\n\nTell me when fribblr is back${commit}.`;
+  return `Please update fribblr in this project (${view.project}) to ${to}.\n\nRun:\n${command} now\n\nTell me when fribblr is back${commit}.`;
 }
 // The clipboard may be unavailable; then the text is shown, selected, to copy by hand.
 async function copy(text, status, done) {
@@ -125,40 +125,40 @@ function openPopover(anchor, html, label) {
   defined('ui-popover').then(() => { if (popover?.anchor === anchor) root.api.open({anchor}); });
   return content;
 }
-const eyebrow = () => `<p class="update-eyebrow">Tinka for ${esc(view.project)}</p>`;
+const eyebrow = () => `<p class="update-eyebrow">fribblr for ${esc(view.project)}</p>`;
 const notesLink = (label = "What's new") => view.latest?.notes ? `<a class="update-notes" href="${esc(view.latest.notes)}" target="_blank" rel="noopener noreferrer">${label} ${ICON.ext}</a>` : '';
 
 function compatiblePopover(anchor, notice) {
-  const pop = openPopover(anchor, `<div class="update-pop-body">${eyebrow()}<h4>Tinka ${esc(notice.display)} is available</h4><p class="update-copy">You have ${esc(view.display)}. This is a compatible update: your boards, notes and files stay as they are.</p>
+  const pop = openPopover(anchor, `<div class="update-pop-body">${eyebrow()}<h4>fribblr ${esc(notice.display)} is available</h4><p class="update-copy">You have ${esc(view.display)}. This is a compatible update: your boards, notes and files stay as they are.</p>
   <div class="update-row"><button class="tk-btn tk-primary" type="button" data-update="install">Update now</button><button class="tk-btn tk-tonal" type="button" data-update="later">Later</button>${notesLink()}</div>
-  <p class="update-meta">Tinka restarts for a few seconds. Open boards wait, then offer Refresh.</p>
+  <p class="update-meta">fribblr restarts for a few seconds. Open boards wait, then offer Refresh.</p>
   <div class="tk-msep"></div>
-  <label class="update-switch"><input type="checkbox" data-update="auto"${view.policy === 'auto' ? ' checked' : ''}><span>Install compatible updates automatically</span><small>Only as Tinka starts, never in the middle of your work. Major updates always ask.</small></label>
-  <button class="tk-mi" type="button" data-update="agent">${ICON.copy}Copy a request for your agent</button><p class="update-status" role="status"></p></div>`, `Tinka ${notice.display} is available`);
+  <label class="update-switch"><input type="checkbox" data-update="auto"${view.policy === 'auto' ? ' checked' : ''}><span>Install compatible updates automatically</span><small>Only as fribblr starts, never in the middle of your work. Major updates always ask.</small></label>
+  <button class="tk-mi" type="button" data-update="agent">${ICON.copy}Copy a request for your agent</button><p class="update-status" role="status"></p></div>`, `fribblr ${notice.display} is available`);
   const status = pop.querySelector('.update-status');
   pop.querySelector('[data-update=install]').onclick = event => install(notice, {status, button: event.currentTarget});
   pop.querySelector('[data-update=later]').onclick = () => later(status);
   pop.querySelector('[data-update=auto]').onchange = async event => {
     const box = event.currentTarget; box.disabled = true;
-    try { await preference({action: 'policy', policy: box.checked ? 'auto' : 'notify'}); status.textContent = box.checked ? 'Compatible updates now install as Tinka starts.' : 'Tinka asks first again.'; }
+    try { await preference({action: 'policy', policy: box.checked ? 'auto' : 'notify'}); status.textContent = box.checked ? 'Compatible updates now install as fribblr starts.' : 'fribblr asks first again.'; }
     catch (error) { box.checked = !box.checked; status.textContent = error.message; }
     finally { box.disabled = false; }
   };
   pop.querySelector('[data-update=agent]').onclick = () => copy(request(notice), status, 'Request copied. Paste it into your agent conversation.');
 }
 function reviewPopover(anchor, notice) {
-  const pop = openPopover(anchor, `<div class="update-pop-body">${eyebrow()}<h4>Tinka ${esc(notice.display)} needs a quick review</h4><p class="update-copy">Tinka won't replace itself from here this time. Your agent can check what it found and update it.</p>
+  const pop = openPopover(anchor, `<div class="update-pop-body">${eyebrow()}<h4>fribblr ${esc(notice.display)} needs a quick review</h4><p class="update-copy">fribblr won't replace itself from here this time. Your agent can check what it found and update it.</p>
   <p class="update-reason"><b>Reason:</b> ${esc(notice.reason)}</p>
-  <div class="update-row"><button class="tk-btn tk-primary" type="button" data-update="agent">${ICON.copy}<span>Copy request for your agent</span></button><button class="tk-btn tk-tonal" type="button" data-update="later">Later</button>${notesLink()}</div><p class="update-status" role="status"></p></div>`, `Tinka ${notice.display} needs a review`);
+  <div class="update-row"><button class="tk-btn tk-primary" type="button" data-update="agent">${ICON.copy}<span>Copy request for your agent</span></button><button class="tk-btn tk-tonal" type="button" data-update="later">Later</button>${notesLink()}</div><p class="update-status" role="status"></p></div>`, `fribblr ${notice.display} needs a review`);
   const status = pop.querySelector('.update-status');
   pop.querySelector('[data-update=agent]').onclick = () => copy(request(notice), status, 'Request copied. Paste it into your agent conversation.');
   pop.querySelector('[data-update=later]').onclick = () => later(status);
 }
 function failedPopover(anchor, notice) {
   const lost = notice.lost;
-  const pop = openPopover(anchor, `<div class="update-pop-body">${eyebrow()}<h4>Tinka didn't update to ${esc(notice.display)}</h4><p class="update-copy">${lost ? "Tinka hasn't answered since the update started. Your boards, notes and files are on disk, untouched." : `It went back to ${esc(view.display)}, which is running now. Your boards, notes and files are fine.`}</p>
+  const pop = openPopover(anchor, `<div class="update-pop-body">${eyebrow()}<h4>fribblr didn't update to ${esc(notice.display)}</h4><p class="update-copy">${lost ? "fribblr hasn't answered since the update started. Your boards, notes and files are on disk, untouched." : `It went back to ${esc(view.display)}, which is running now. Your boards, notes and files are fine.`}</p>
   <p class="update-reason"><b>Reason:</b> ${esc(notice.reason || 'The update stopped.')}</p>
-  <div class="update-row">${lost ? '' : '<button class="tk-btn tk-primary" type="button" data-update="retry">Try again</button>'}<button class="tk-btn ${lost ? 'tk-primary' : 'tk-tonal'}" type="button" data-update="agent">${ICON.copy}<span>Copy details for your agent</span></button></div><p class="update-status" role="status"></p></div>`, `Tinka didn't update to ${notice.display}`);
+  <div class="update-row">${lost ? '' : '<button class="tk-btn tk-primary" type="button" data-update="retry">Try again</button>'}<button class="tk-btn ${lost ? 'tk-primary' : 'tk-tonal'}" type="button" data-update="agent">${ICON.copy}<span>Copy details for your agent</span></button></div><p class="update-status" role="status"></p></div>`, `fribblr didn't update to ${notice.display}`);
   const status = pop.querySelector('.update-status');
   // Try again repeats the same request; a major one carries the yes already given.
   pop.querySelector('[data-update=retry]')?.addEventListener('click', event => install(notice, {status, button: event.currentTarget, consent: notice.major}));
@@ -177,13 +177,13 @@ function consent(notice) {
   root.innerHTML = '<ui-dialog-backdrop hidden></ui-dialog-backdrop><ui-dialog-content class="update-dialog" hidden></ui-dialog-content>';
   const dialog = root.querySelector('ui-dialog-content');
   // Focus starts on Later (autofocus), so Enter never approves by accident; Escape and a press outside mean Later too, without asking again.
-  dialog.innerHTML = `<ui-dialog-close><button class="close" type="button" aria-label="Close">×</button></ui-dialog-close><p class="eyebrow">Major update · ${esc(view.project)}</p><ui-dialog-title as-child><h2>Update to Tinka ${esc(notice.display)}</h2></ui-dialog-title>
-  <p class="dialog-copy">Tinka ${esc(notice.display)} is a major update, so Tinka asks before installing it. You have ${esc(view.display)}. Some things may look or work differently afterwards.</p>
+  dialog.innerHTML = `<ui-dialog-close><button class="close" type="button" aria-label="Close">×</button></ui-dialog-close><p class="eyebrow">Major update · ${esc(view.project)}</p><ui-dialog-title as-child><h2>Update to fribblr ${esc(notice.display)}</h2></ui-dialog-title>
+  <p class="dialog-copy">fribblr ${esc(notice.display)} is a major update, so fribblr asks before installing it. You have ${esc(view.display)}. Some things may look or work differently afterwards.</p>
   <ul class="update-facts">
   <li>${ICON.check}<span>Your boards, notes and files stay exactly as they are.</span></li>
-  <li>${ICON.check}<span>Tinka keeps a copy of ${esc(view.display)} and goes back to it if ${esc(notice.display)} doesn't start.</span></li>
-  <li>${ICON.check}<span>Tinka restarts for a few seconds. Open boards wait, then offer Refresh.</span></li>
-  <li>${ICON.check}<span>Only ${esc(view.project)} is updated. Other projects keep their own Tinka.</span></li></ul>
+  <li>${ICON.check}<span>fribblr keeps a copy of ${esc(view.display)} and goes back to it if ${esc(notice.display)} doesn't start.</span></li>
+  <li>${ICON.check}<span>fribblr restarts for a few seconds. Open boards wait, then offer Refresh.</span></li>
+  <li>${ICON.check}<span>Only ${esc(view.project)} is updated. Other projects keep their own fribblr.</span></li></ul>
   ${notesLink(`What's new in ${esc(notice.display)}`).replace('class="update-notes"', 'class="update-link"')}
   <div class="dialog-bottom"><span>Later asks again tomorrow.</span><div class="dialog-buttons"><button class="tk-btn tk-tonal" type="button" data-update="later" autofocus>Later</button><button class="tk-btn tk-primary" type="button" data-update="yes">Update to ${esc(notice.display)}</button></div></div>
   <p class="update-status" role="status"></p>
@@ -236,7 +236,7 @@ async function poll() {
   }
   if (Date.now() > giveUpAt) {
     stopWaiting(); phase = 'idle';
-    localFailure = {kind: 'failed', lost: true, version: target, display: target, major: false, reason: "Tinka didn't come back within five minutes."};
+    localFailure = {kind: 'failed', lost: true, version: target, display: target, major: false, reason: "fribblr didn't come back within five minutes."};
     render(); return;
   }
   pollTimer = setTimeout(poll, POLL_MS);
@@ -246,7 +246,7 @@ async function poll() {
 function chipHtml(state) {
   if (state.kind === 'busy') return `<span class="update-pulse" aria-hidden="true"></span><span>Updating to ${esc(state.display)}…<span class="update-long"> changes wait</span></span>`;
   if (state.kind === 'failed') return `<span>Update didn't finish</span>`;
-  return `${state.major ? '' : ICON.up}<span>Tinka ${esc(state.display)}<span class="update-long"> available</span></span>`;
+  return `${state.major ? '' : ICON.up}<span>fribblr ${esc(state.display)}<span class="update-long"> available</span></span>`;
 }
 function open(state, anchor) {
   if (state.kind === 'failed') return failedPopover(anchor, state);
@@ -263,13 +263,13 @@ function render() {
     const refresh = $('#live-refresh');
     if (surface === 'board' && refresh) {
       // The board's own Refresh saves the view and any notes before reloading.
-      refresh.querySelector('.refresh-detail').textContent = `Tinka ${target} is ready · `;
-      refresh.setAttribute('aria-label', `Tinka ${target} is ready · Refresh`);
+      refresh.querySelector('.refresh-detail').textContent = `fribblr ${target} is ready · `;
+      refresh.setAttribute('aria-label', `fribblr ${target} is ready · Refresh`);
       refresh.hidden = false;
     } else if (host) {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'update-refresh';
-      button.innerHTML = `<span class="refresh-detail">Tinka ${esc(target)} is ready · </span>Refresh`;
+      button.innerHTML = `<span class="refresh-detail">fribblr ${esc(target)} is ready · </span>Refresh`;
       button.onclick = () => location.reload();
       host.append(button);
     }
@@ -288,11 +288,12 @@ function render() {
 // The board Inspector's small Tinka section: the version and the update policy.
 function aboutStatus() {
   const have = `<b>${esc(view.display)}</b>`;
+  if (view.checkout) return `${have} · installed from a checkout${view.checkout.commit ? ` (${esc(view.checkout.commit)})` : ''}`;
   if (!view.installed) return `${have} · running from source`;
   if (phase === 'updating') return `${have} · updating to ${esc(target)}…`;
   if (phase === 'ready') return `${have} · ${esc(target)} is ready: Refresh to use it`;
   const notice = view.notice, latest = view.latest;
-  if (notice?.kind === 'deferred') return `${have} · ${esc(notice.display)} installs next time Tinka starts`;
+  if (notice?.kind === 'deferred') return `${have} · ${esc(notice.display)} installs next time fribblr starts`;
   if (notice?.kind === 'failed' || localFailure) return `${have} · the update to ${esc((localFailure || notice).display)} didn't finish`;
   if (notice?.kind === 'review') return `${have} · ${esc(notice.display)} needs a review`;
   if (notice) return `${have} · ${esc(notice.display)} available`;
@@ -307,15 +308,15 @@ function renderAbout() {
   if (!section) { section = document.createElement('section'); section.className = 'update-about'; section.setAttribute('aria-labelledby', 'update-about-title'); inspector.append(section); }
   const actionable = view.installed && phase === 'idle' && (localFailure || view.notice && view.notice.kind !== 'deferred');
   const updated = view.install?.state === 'updated' && phase === 'idle' && Date.now() - view.install.startedAt < 24 * 60 * 60 * 1000;
-  section.innerHTML = `<h3 id="update-about-title">Tinka <span>this project</span></h3>
+  section.innerHTML = `<h3 id="update-about-title">fribblr <span>this project</span></h3>
   <div class="update-about-row"><span class="update-about-status">${aboutStatus()}</span>${view.installed && phase === 'idle' ? `<button class="tk-btn tk-sm" type="button" data-update="${actionable ? 'open' : 'check'}">${actionable ? 'Update…' : 'Check now'}</button>` : ''}</div>
-  ${view.installed ? `<div class="update-about-row"><span>Updates</span>${segmentedHTML({label: 'Tinka updates for this project', value: view.policy, items: [['notify', 'Ask first'], ['auto', 'Automatic'], ['off', 'Off']].map(([value, label]) => ({value, label, disabled: phase !== 'idle', attrs: {'data-policy': value}}))})}</div>
-  <small>Automatic installs compatible updates as Tinka starts. Major updates always ask.</small>` : '<small>A source checkout updates through Git, not from here.</small>'}
-  ${updated && view.pin ? `<small>Updated from ${esc(view.install.from)} on this Mac. Commit the changed tinka/project.json with your project.</small>` : ''}
+  ${view.installed ? `<div class="update-about-row"><span>Updates</span>${segmentedHTML({label: 'fribblr updates for this project', value: view.policy, items: [['notify', 'Ask first'], ['auto', 'Automatic'], ['off', 'Off']].map(([value, label]) => ({value, label, disabled: phase !== 'idle', attrs: {'data-policy': value}}))})}</div>
+  <small>Automatic installs compatible updates as fribblr starts. Major updates always ask.</small>` : view.checkout ? `<small>Updates come from the checkout at ${esc(view.checkout.path)}: bring it up to date, then run its scripts/install.mjs for this project again.</small>` : '<small>A source checkout updates through Git, not from here.</small>'}
+  ${updated && view.pin ? `<small>Updated from ${esc(view.install.from)} on this Mac. Commit the changed fribblr/project.json with your project.</small>` : ''}
   <small class="update-about-message" role="status">${esc(aboutMessage)}</small>`;
   section.querySelector('[data-update=check]')?.addEventListener('click', async event => {
     event.currentTarget.disabled = true; aboutMessage = 'Checking…'; renderAbout();
-    try { await preference({action: 'check'}); aboutMessage = view.checkFailed ? 'Tinka could not reach its releases just now.' : view.latest ? `Tinka ${view.latest.display} is available.` : `Checked just now · ${view.display} is the latest.`; }
+    try { await preference({action: 'check'}); aboutMessage = view.checkFailed ? 'fribblr could not reach its releases just now.' : view.latest ? `fribblr ${view.latest.display} is available.` : `Checked just now · ${view.display} is the latest.`; }
     catch (error) { aboutMessage = error.message; }
     renderAbout();
   });
@@ -326,7 +327,7 @@ function renderAbout() {
   const policySeg = section.querySelector('ui-segmented-control');
   if (policySeg) onSegmented(policySeg, async policy => {
     if (policy === view.policy) return;
-    try { await preference({action: 'policy', policy}); aboutMessage = {notify: 'Tinka asks before installing updates.', auto: 'Compatible updates install as Tinka starts. Major updates still ask.', off: 'Tinka no longer checks for updates.'}[policy]; }
+    try { await preference({action: 'policy', policy}); aboutMessage = {notify: 'fribblr asks before installing updates.', auto: 'Compatible updates install as fribblr starts. Major updates still ask.', off: 'fribblr no longer checks for updates.'}[policy]; }
     catch (error) { aboutMessage = error.message; }
     renderAbout();
     focusSegmented(section.querySelector('ui-segmented-control'));

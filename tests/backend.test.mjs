@@ -204,7 +204,7 @@ test('managed start and stop own only their recorded process',async()=>{
   const cfg=await loadConfig(managedConfig);
   try{
     assert.match(await main(['start','--config',managedConfig]),/started/);
-    assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/health`)).json()).app,'board-room');
+    assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/health`)).json()).app,'fribblr');
     assert.match(await main(['stop','--config',managedConfig]),/stopped/);
   }finally{
     const record=await readFile(runtimePaths(cfg).pid,'utf8').catch(()=>null);

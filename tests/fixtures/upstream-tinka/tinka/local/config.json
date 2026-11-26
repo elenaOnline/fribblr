@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "port": 43821,
+  "portMode": "auto",
+  "projectLabel": "beta",
+  "boardsRoot": "/absolute/beta/design/boards",
+  "title": "Tinka"
+}

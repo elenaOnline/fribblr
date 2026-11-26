@@ -34,9 +34,9 @@ function reset() { Object.assign(S, {version: VERSION, policy: 'notify', offer: 
 function offer(version, kind = null, reason = null) { S.offer = version; S.kind = kind; S.reason = reason; S.snoozed = false; }
 const updates = {
   async view() {
-    const latest = S.offer ? {version: S.offer, display: display(S.offer), major: S.offer === MAJOR, notes: `https://github.com/bladnman/tinka/releases/tag/v${S.offer}`} : null;
+    const latest = S.offer ? {version: S.offer, display: display(S.offer), major: S.offer === MAJOR, notes: `https://github.com/elenaOnline/fribblr/releases/tag/v${S.offer}`} : null;
     const kind = latest && S.policy !== 'off' ? S.kind || (latest.major ? 'major' : S.policy === 'auto' ? 'deferred' : 'compatible') : null;
-    return {installed: true, version: S.version, display: display(S.version), project: 'Field Notes', pin: true, agentCommand: 'node tinka/app/cli.mjs update --config tinka/local/config.json', policy: S.policy, checkedAt: Date.now(), checkFailed: false, latest, notice: kind ? {kind, version: latest.version, display: latest.display, major: latest.major, reason: S.reason, snoozed: S.snoozed} : null, install: S.install};
+    return {installed: true, version: S.version, display: display(S.version), project: 'Field Notes', pin: true, agentCommand: 'node fribblr/app/cli.mjs update --config fribblr/local/config.json', policy: S.policy, checkedAt: Date.now(), checkFailed: false, latest, notice: kind ? {kind, version: latest.version, display: latest.display, major: latest.major, reason: S.reason, snoozed: S.snoozed} : null, install: S.install};
   },
   async install(input) {
     S.posts.push(['install', input]);
@@ -82,15 +82,15 @@ try {
   offer(COMPATIBLE);
   let {context, page} = await open(1440, 'light');
   await chip(page).waitFor();
-  eq(await chip(page).evaluate(b => [b.dataset.kind, b.textContent.trim(), b.closest('.status-line') !== null]), ['minor', `Tinka ${display(COMPATIBLE)} available`, true], 'A compatible update is quiet text on the status line');
+  eq(await chip(page).evaluate(b => [b.dataset.kind, b.textContent.trim(), b.closest('.status-line') !== null]), ['minor', `fribblr ${display(COMPATIBLE)} available`, true], 'A compatible update is quiet text on the status line');
   ok(await chip(page).evaluate(b => getComputedStyle(b).backgroundColor === 'rgba(0, 0, 0, 0)'), 'No fill or dot for a compatible update');
   await chip(page).click();
   const pop = page.locator('.update-pop'); await pop.waitFor();
-  eq(await pop.locator('h4').textContent(), `Tinka ${display(COMPATIBLE)} is available`, 'The popover names the update');
+  eq(await pop.locator('h4').textContent(), `fribblr ${display(COMPATIBLE)} is available`, 'The popover names the update');
   ok(await pop.getByRole('button', {name: 'Update now'}).isVisible() && await pop.getByRole('button', {name: 'Later'}).isVisible(), 'Update now and Later');
   ok(await pop.getByLabel('Install compatible updates automatically').isVisible(), 'Automatic installs are offered');
   await pop.getByRole('button', {name: 'Copy a request for your agent'}).click();
-  ok((await page.evaluate(() => window.__copied)).includes('node tinka/app/cli.mjs update --config tinka/local/config.json now'), 'The agent request carries the command');
+  ok((await page.evaluate(() => window.__copied)).includes('node fribblr/app/cli.mjs update --config fribblr/local/config.json now'), 'The agent request carries the command');
   await shot(page, 'compatible-1440-light');
   // The popover is a UI SDK popover: Escape returns to the chip, a press outside closes it, Tab leaves it and goes on from the chip.
   await page.keyboard.press('Escape'); await pop.waitFor({state: 'hidden'});
@@ -103,13 +103,13 @@ try {
   ok(!await pop.isVisible() && !await page.evaluate(() => document.activeElement?.closest('.update-pop')), 'Tab leaves the popover (it closes) and goes on from the chip');
   await chip(page).click(); await pop.waitFor();
   await pop.getByLabel('Install compatible updates automatically').check();
-  await page.waitForFunction(() => document.querySelector('.update-pop .update-status')?.textContent.includes('as Tinka starts'));
+  await page.waitForFunction(() => document.querySelector('.update-pop .update-status')?.textContent.includes('as fribblr starts'));
   eq(S.posts.at(-1), ['preference', {action: 'policy', policy: 'auto'}], 'Automatic is the auto update policy');
   await page.keyboard.press('Escape'); await pop.waitFor({state: 'hidden'}); ok(!await pop.isVisible(), 'Escape closes the popover');
   ok(!await chip(page).count(), 'With Automatic, a compatible update goes quiet');
   await page.locator('#board-info-toggle').click();
   const about = page.locator('.update-about'); await about.waitFor();
-  ok((await about.textContent()).includes(`${display(COMPATIBLE)} installs next time Tinka starts`), 'The Inspector says when it installs');
+  ok((await about.textContent()).includes(`${display(COMPATIBLE)} installs next time fribblr starts`), 'The Inspector says when it installs');
   eq(await about.locator('[data-policy]').evaluateAll(buttons => buttons.map(b => [b.textContent, b.getAttribute('aria-checked')])), [['Ask first', 'false'], ['Automatic', 'true'], ['Off', 'false']], 'Ask first / Automatic / Off show the policy');
   await about.getByRole('radio', {name: 'Ask first'}).click();
   await page.locator('.update-chip').waitFor();
@@ -124,10 +124,10 @@ try {
   reset(); offer(MAJOR);
   ({context, page} = await open(1440, 'light'));
   await chip(page).waitFor();
-  eq(await chip(page).evaluate(b => [b.dataset.kind, b.textContent.trim(), getComputedStyle(b, '::before').width]), ['major', `Tinka ${display(MAJOR)} available`, '6px'], 'A major update has the accent and a dot');
+  eq(await chip(page).evaluate(b => [b.dataset.kind, b.textContent.trim(), getComputedStyle(b, '::before').width]), ['major', `fribblr ${display(MAJOR)} available`, '6px'], 'A major update has the accent and a dot');
   await chip(page).click();
   const dialog = page.locator('.update-dialog[data-open]'); await dialog.waitFor();
-  eq(await dialog.locator('h2').textContent(), `Update to Tinka ${display(MAJOR)}`, 'The consent title, plain (no question-style titles)');
+  eq(await dialog.locator('h2').textContent(), `Update to fribblr ${display(MAJOR)}`, 'The consent title, plain (no question-style titles)');
   eq(await dialog.locator('.update-facts li').count(), 4, 'Four facts');
   ok(await dialog.getByRole('link', {name: `What's new in ${display(MAJOR)}`}).isVisible(), "What's new");
   eq(await page.evaluate(() => document.activeElement?.dataset.update), 'later', 'Focus starts on Later');
@@ -148,13 +148,13 @@ try {
   await page.locator('.update-chip[data-kind="busy"]').waitFor();
   eq((await chip(page).textContent()).trim(), `Updating to ${display(MAJOR)}… changes wait`, 'The status line says changes wait');
   ok(await page.evaluate(() => document.body.classList.contains('tinka-updating') && getComputedStyle(document.querySelector('.chrome-add')).pointerEvents === 'none'), 'Adding pauses');
-  ok(await page.evaluate(async () => { const hold = await import('/app/update-hold.js'); let done = false; hold.writesReady().then(() => { done = true; }); await new Promise(resolve => setTimeout(resolve, 100)); return !done; }), 'Writes wait while Tinka restarts');
+  ok(await page.evaluate(async () => { const hold = await import('/app/update-hold.js'); let done = false; hold.writesReady().then(() => { done = true; }); await new Promise(resolve => setTimeout(resolve, 100)); return !done; }), 'Writes wait while fribblr restarts');
   await shot(page, 'updating-1440-light');
   finish();
   await page.locator('#live-refresh:not([hidden])').waitFor({timeout: 5000});
-  eq(await page.locator('#live-refresh').textContent(), `Tinka ${display(MAJOR)} is ready · Refresh`, 'Ready ends in the existing Refresh');
+  eq(await page.locator('#live-refresh').textContent(), `fribblr ${display(MAJOR)} is ready · Refresh`, 'Ready ends in the existing Refresh');
   ok(await page.evaluate(() => window.__marker === 'same page' && !document.body.classList.contains('tinka-updating')), 'Nothing reloaded by itself; editing is back');
-  ok(await page.evaluate(async () => { const hold = await import('/app/update-hold.js'); let done = false; hold.writesReady().then(() => { done = true; }); await new Promise(resolve => setTimeout(resolve, 50)); return done; }), 'Held writes go out once Tinka answers');
+  ok(await page.evaluate(async () => { const hold = await import('/app/update-hold.js'); let done = false; hold.writesReady().then(() => { done = true; }); await new Promise(resolve => setTimeout(resolve, 50)); return done; }), 'Held writes go out once fribblr answers');
   await shot(page, 'ready-1440-light');
   await context.close();
 
@@ -178,7 +178,7 @@ try {
   await context.close();
 
   // (5) Needs review: only the agent request; policy Off quiets everything.
-  reset(); offer(COMPATIBLE, 'review', 'This copy of Tinka has local changes or no file baseline, so it does not replace itself from the browser.');
+  reset(); offer(COMPATIBLE, 'review', 'This copy of fribblr has local changes or no file baseline, so it does not replace itself from the browser.');
   ({context, page} = await open(1440, 'light'));
   await chip(page).click(); await page.locator('.update-pop').waitFor();
   eq(await page.locator('.update-pop').getByRole('button').evaluateAll(buttons => buttons.map(b => b.textContent.trim())), ['Copy request for your agent', 'Later'], 'Review offers only the agent request (and Later)');
@@ -202,7 +202,7 @@ try {
   await page.locator('.update-dialog').getByRole('button', {name: `Update to ${display(MAJOR)}`}).click();
   await page.locator('.masthead .live .update-chip[data-kind="busy"]').waitFor();
   finish(); await page.locator('.masthead .live .update-refresh').waitFor({timeout: 5000});
-  eq(await page.locator('.update-refresh').textContent(), `Tinka ${display(MAJOR)} is ready · Refresh`, 'Home: ready · Refresh');
+  eq(await page.locator('.update-refresh').textContent(), `fribblr ${display(MAJOR)} is ready · Refresh`, 'Home: ready · Refresh');
   await shot(page, 'home-ready-1440-light');
   await context.close();
 

@@ -11,7 +11,7 @@ import {main} from '../cli.mjs';
 import {loadConfig,PORT_ATTEMPTS,PORT_STEP} from '../lib/config.mjs';
 import {readRuntime,stopManaged} from '../lib/runtime.mjs';
 import {buildRelease} from '../scripts/package.mjs';
-import {installArchive} from '../skill/tinka/scripts/install.mjs';
+import {installArchive} from '../scripts/install.mjs';
 const exec=promisify(execFile);
 const read=async file=>JSON.parse(await readFile(file,'utf8'));
 const get=async(url,resource='api/health')=>(await fetch(new URL(resource,url))).json();

@@ -16,7 +16,7 @@ import {buildRelease} from '../scripts/package.mjs';
 import {installArchive} from '../scripts/install.mjs';
 import {main} from '../lib/cli.mjs';
 import {loadConfig} from '../lib/config.mjs';
-import {updateContext, checkForUpdates, feedLatest} from '../lib/updates.mjs';
+import {updateContext, checkForUpdates, feedLatest, releaseFeed} from '../lib/updates.mjs';
 import {createUpdateService, installPaths} from '../lib/update-browser.mjs';
 import {createAppServer, closeAppServer} from '../server.mjs';
 
@@ -35,10 +35,10 @@ after(() => rm(root, {recursive: true, force: true}));
 // An installed portable project on this source's version, with an update on offer.
 async function fixture(t, offered = NEXT) {
   const project = await realpath(await mkdtemp(path.join(root, 'project-')));
-  const app = path.join(project, 'tinka/app');
+  const app = path.join(project, 'fribblr/app');
   await installArchive({...archive, installDir: app});
   await main(['project', 'init', '--project', project, '--label', 'Field Notes']);
-  const config = await loadConfig(path.join(project, 'tinka/local/config.json'));
+  const config = await loadConfig(path.join(project, 'fribblr/local/config.json'));
   const context = await updateContext(config, app);
   const spawned = [];
   const spawn = (command, args, options) => { spawned.push({command, args, options}); return {pid: process.pid, unref() {}, on() {}}; };
@@ -60,8 +60,8 @@ test('the update state is read-only, carries no local paths and is empty for a s
   const view = await f.state();
   assert.equal(view.installed, true); assert.equal(view.version, f.config.version); assert.equal(view.policy, 'notify');
   assert.deepEqual(view.notice, {kind: 'compatible', version: NEXT, display: NEXT, major: false, reason: null, snoozed: false});
-  assert.equal(view.latest.notes, `https://github.com/bladnman/tinka/releases/tag/v${NEXT}`);
-  assert.equal(view.agentCommand, 'node tinka/app/cli.mjs update --config tinka/local/config.json'); assert.equal(view.pin, true);
+  assert.equal(view.latest.notes, `https://github.com/elenaOnline/fribblr/releases/tag/v${NEXT}`);
+  assert.equal(view.agentCommand, 'node fribblr/app/cli.mjs update --config fribblr/local/config.json'); assert.equal(view.pin, true);
   assert(!JSON.stringify(view).includes(f.project), 'No absolute project path is exposed');
   const source = await createUpdateService(f.config).view();
   assert.equal(source.installed, false); assert.equal(source.notice, null);
@@ -112,7 +112,7 @@ test('a compatible update sends no consent; policy off refuses; one install at a
   // The process ended without changing this server's version: the update failed.
   const paths = installPaths(f.context);
   await writeFile(paths.record, JSON.stringify({...await json(paths.record), pid: deadPid()}));
-  await writeFile(paths.log, 'Tinka update failed. Download timed out.\nRetry explicitly: node cli.mjs update now\n');
+  await writeFile(paths.log, 'fribblr update failed. Download timed out.\nRetry explicitly: node cli.mjs update now\n');
   const failed = await f.state();
   assert.equal(failed.install.state, 'failed'); assert.equal(failed.install.reason, 'Download timed out.');
   assert.equal(failed.notice.kind, 'failed'); assert.equal(failed.notice.reason, 'Download timed out.');
@@ -145,14 +145,19 @@ test('a local release feed stands in for GitHub; --to installs only the version 
   const offered = await feedLatest(path.join(root, 'release'), '0.7.17');
   assert.equal(offered.version, built.version); assert.equal(offered.feed, true); assert.equal(offered.compatibility.archiveSha256, createHash('sha256').update(archive.zipBytes).digest('hex'));
   assert.deepEqual(await feedLatest(path.join(root, 'release'), built.version), {version: built.version});
-  await assert.rejects(feedLatest(feed, '0.7.17'), /no Tinka release/);
+  await assert.rejects(feedLatest(feed, '0.7.17'), /no fribblr release/);
   const project = await realpath(await mkdtemp(path.join(root, 'feed-project-')));
   t.after(() => rm(project, {recursive: true, force: true}));
   await main(['init', '--config', path.join(project, 'config.json'), '--boards', path.join(project, 'boards'), '--label', 'Feed']);
   const config = {...await loadConfig(path.join(project, 'config.json')), version: '0.7.17'};
-  const context = {app: path.join(project, 'app'), pinPath: null, projectRoot: null, repo: 'bladnman/tinka', statePath: path.join(project, 'config.json.updates.json')};
-  const previous = process.env.TINKA_UPDATE_FEED; process.env.TINKA_UPDATE_FEED = path.join(root, 'release');
-  t.after(() => { if (previous === undefined) delete process.env.TINKA_UPDATE_FEED; else process.env.TINKA_UPDATE_FEED = previous; });
+  const context = {app: path.join(project, 'app'), pinPath: null, projectRoot: null, repo: 'elenaOnline/fribblr', statePath: path.join(project, 'config.json.updates.json')};
+  // FRIBBLR_UPDATE_FEED is the documented name; TINKA_UPDATE_FEED still works, and the new name wins.
+  assert.equal(releaseFeed({}), null);
+  assert.equal(releaseFeed({TINKA_UPDATE_FEED: '/old'}), '/old');
+  assert.equal(releaseFeed({FRIBBLR_UPDATE_FEED: '/new', TINKA_UPDATE_FEED: '/old'}), '/new');
+  assert.throws(() => releaseFeed({FRIBBLR_UPDATE_FEED: 'relative'}), /FRIBBLR_UPDATE_FEED must be an absolute folder/);
+  const previous = process.env.FRIBBLR_UPDATE_FEED; process.env.FRIBBLR_UPDATE_FEED = path.join(root, 'release');
+  t.after(() => { if (previous === undefined) delete process.env.FRIBBLR_UPDATE_FEED; else process.env.FRIBBLR_UPDATE_FEED = previous; });
   let installed = null;
   const install = async options => { installed = options; return {version: built.version, backup: null}; };
   const skipped = await checkForUpdates(config, {context, explicit: true, expectVersion: '9.9.9', install});
