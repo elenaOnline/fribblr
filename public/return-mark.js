@@ -5,8 +5,8 @@
 // with a closed shadow root, no globals, no page CSS in or out.
 (() => {
   if (window.top !== window) return; // inside Tinka, or inside the author's own frame
-  if (document.querySelector('meta[name="tinka-return" i][content="off" i]')) return;
-  if (new URLSearchParams(location.search).get('tinka') === 'off') return;
+  if (document.querySelector('meta[name="fribblr-return" i][content="off" i], meta[name="tinka-return" i][content="off" i]')) return;
+  if ([new URLSearchParams(location.search).get('fribblr'), new URLSearchParams(location.search).get('tinka')].includes('off')) return;
   const HIDDEN = 'tinka/return-hidden';
   try { if (sessionStorage.getItem(HIDDEN)) return; } catch {}
   if (document.querySelector('tinka-return')) return;

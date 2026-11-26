@@ -212,13 +212,13 @@ last opened in this browser, or the only place that shows the file). Its ⋯ men
 lists the other boards that show the file, Copy path, fribblr home and Hide (for the
 rest of the tab). fribblr adds one script tag to the page only when a browser opens it
 as the page itself; fribblr's own previews, curl and agents get the file's exact bytes.
-Turn it off for a page with `<meta name="tinka-return" content="off">`, or for one
-visit with `?tinka=off`. Images, PDFs, video and Markdown open raw, without a mark.
+Turn it off for a page with `<meta name="fribblr-return" content="off">`, or for one
+visit with `?fribblr=off` (upstream's `tinka-return` and `?tinka=off` work too). Images, PDFs, video and Markdown open raw, without a mark.
 
 Hover the title (after a moment), click it or tap it for **where you are**: Home →
 the boards above → this board → this item → its own board, then a numbered list of
-what sits beside it on this board, and any other boards that also show it. A
-fribblr placed on several boards uses the board you came from. Choose a row to go
+what sits beside it on this board, and any other boards that also show it. An
+item placed on several boards uses the board you came from. Choose a row to go
 there; a click outside the panel or Escape closes it. **‹ n / N ›**, which holds still at
 the right end of the title row whatever the title, steps through the board in review order,
 skipping reserved, building and board-only items; the count opens the same list,
@@ -355,7 +355,7 @@ Shift-1 fits the board, Shift-2 fits the selection (by physical key, on any
 layout) and Shift-0 zooms to 100%; M shows or hides the board map. K / J (also Ctrl+← / Ctrl+→ on Windows and
 Linux) select the previous or next item in the same order an opened item steps through,
 and bring it into view; ⌥← / ⌥→ moves the focused item. With nothing selected they continue from the board's current
-fribblr: the one you last opened or stepped to inside it, stepped to on the board or
+item: the one you last opened or stepped to inside it, stepped to on the board or
 selected on its own (remembered per board in this tab). T, S and D add Text, a Sticky note or a Markdown
 Document at the pointer, N opens Quick jot, A shows or hides the edit tools, E
 edits the one selected Markdown document and ⇧⌘C / Ctrl-Shift-C copies the
@@ -384,7 +384,7 @@ latest board before retrying. New successful movement clears the redo branch.
 Select items or drawn elements and use ⌘C / Ctrl-C, then ⌘V / Ctrl-V on the same
 board or another board in this workspace. Copies keep their relative arrangement,
 size, appearance, groups and container contents. A copied arrow stays attached to
-the copies of its selected targets. fribblr copies have independent identities and
+the copies of its selected targets. Item copies have independent identities and
 keep their names, notes, stars and resource references.
 A copied board keeps its layout and references its existing children. Originals
 stay in place. The Inspector also offers Copy selection and a Paste shortcut reminder.
@@ -403,7 +403,7 @@ If source placement layout/order changed, paste rejects the entire move; later
 item content or feedback edits remain current. An uncertain response can retry the
 same destination without creating a second move.
 
-Paste a single HTTP(S) link to make a link fribblr with a title, description and image
+Paste a single HTTP(S) link to make a link item with a title, description and image
 when available, including public tweet metadata. Unavailable pages retain the
 original address and a recognizable fallback. This explicit paste looks up bounded
 public metadata; it never runs the page's HTML. Paste other text to make a document,
@@ -557,7 +557,7 @@ work with `node fribblr/app/cli.mjs inbox --config fribblr/local/config.json` (t
 `feedback.inbox` tool), reply with what they changed, and never resolve or reopen a
 person's thread: only its author does. New `FRIBBLR.md` files and the agent guide tell
 agents to check the inbox when you mention comments or feedback, and before they
-finish an item task.
+finish a fribblr task.
 
 An agent can also wait for comments live: `inbox --watch`, run in the background,
 returns as soon as a comment arrives for it. While one is waiting, **Send to agent**
@@ -650,14 +650,14 @@ version, stable releases within the same app major, supported Node/platform and
 workspace/config schemas, and no migration. Version numbers alone grant nothing,
 including within 0.x.
 
-Releases are numbered X.Y and shown that way (Tinka 1.1); each release bumps the
+Releases are numbered X.Y and shown that way (fribblr 1.1); each release bumps the
 minor number, and there are no patch releases. Machinery keeps the full form
 (1.1.0 in `package.json`, the `v1.1.0` tag, `fribblr/project.json`), and wherever
 you type a version, X.Y means X.Y.0. Older releases with a patch number, such as
 1.0.4, keep showing it.
 
 A new major version (for example 0.7.17 to 1.0) is offered, never refused for
-being major: the notice and `update status` say "Tinka 1.0 is available. This is
+being major: the notice and `update status` say "fribblr 1.0 is available. This is
 a major update; ask the user before updating." and give the one command that
 installs it after the user agrees, `update now --major`. Plain `update now` and
 automatic updates never cross a major version; they show that notice instead.
@@ -689,7 +689,7 @@ when updates are Off, when the app copy has local changes or no file baseline, o
 when compatibility needs review; **Copy a request for your agent** is always there
 and is then the only route. A failed install shows its reason and Try again; the
 old app is restored as above. Commit `fribblr/project.json` afterwards as usual.
-`TINKA_UPDATE_FEED=/absolute/folder` makes the updater read releases from a local
+`FRIBBLR_UPDATE_FEED=/absolute/folder` (or the older `TINKA_UPDATE_FEED`) makes the updater read releases from a local
 folder of `scripts/package.mjs` outputs instead of GitHub, for offline mirrors and
 tests; every other check still applies.
 

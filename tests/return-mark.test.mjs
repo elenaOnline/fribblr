@@ -30,6 +30,7 @@ test('injection adds one tag before the last </body>, keeps bytes elsewhere and 
   assert.equal(injectReturnMark(Buffer.from('<meta content="off" name="tinka-return"><p>x</p>')),null);
   assert.equal(returnMarkOptedOut("<META NAME='tinka-return' CONTENT='OFF'>"),true);
   assert.equal(returnMarkOptedOut('<meta name="tinka-return" content="on">'),false);
+  assert.equal(returnMarkOptedOut('<meta name="fribblr-return" content="off">'),true,'fribblr-return is the documented name');
   assert.equal(injectReturnMark(Buffer.from([0xff,0xfe,0x3c,0x00])),null,'UTF-16 is left alone');
 });
 
@@ -74,6 +75,7 @@ test('only a top-level HTML document gets the mark; frames, curl, ranges, non-HT
   assert.equal(range.status,206);assert.deepEqual(range.body,original.subarray(0,10),'a range is never rewritten');
   const off=await raw(port,'/resources/assets/calm.html?tinka=off',{'sec-fetch-dest':'document'});
   assert.deepEqual(off.body,original,'?tinka=off serves the exact bytes');
+  assert.deepEqual((await raw(port,'/resources/assets/calm.html?fribblr=off',{'sec-fetch-dest':'document'})).body,original,'?fribblr=off serves the exact bytes');
   const quiet=await raw(port,'/resources/assets/quiet.html',{'sec-fetch-dest':'document'});
   assert.deepEqual(quiet.body,await readFile(path.join(assets,'quiet.html')),'the meta opt-out serves the exact bytes');
   const svg=await raw(port,'/resources/assets/shot.svg',{'sec-fetch-dest':'document'});

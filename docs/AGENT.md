@@ -10,15 +10,17 @@ Read the project's `AGENTS.md` and `FRIBBLR.md`. A portable project has a visibl
 path, plus `fribblr/setup.mjs`. Its replaceable app is `fribblr/app`; local absolute
 config, PID and logs are in `fribblr/local`. See the root README for setup.
 
-Existing installations may use `.tinka/app`, a different config or external
-boards. Keep their locations; a dot folder is a convention, not a requirement.
-An optional `~/.config/tinka/workspaces.json` can supply legacy
-`{projectRoot, appPath, configPath}` pointers. Match this project explicitly.
-Do not depend on that machine's registry when preparing a portable project.
+Manual installations may use a different config or external boards. Keep their
+locations.
+<!-- rebrand:off -->
+A `tinka/` or `.tinka/app` folder in a project is upstream Tinka, a separate app
+with its own boards; use it only when the user means Tinka.
+<!-- rebrand:on -->
 The app never reads a registry or discovers other processes.
 
-When the app is missing after checkout, run the project's checked-in setup
-script. It restores the pinned release (using a committed matching archive in
+When the app is missing after checkout, follow `FRIBBLR.md`: an app installed
+from a fribblr checkout is restored by running that checkout's installer again;
+otherwise run the project's checked-in setup script. It restores the pinned release (using a committed matching archive in
 `fribblr/packages/` when present) and creates local config from relative paths.
 Keep all boards and disk notes. If no setup exists, follow the root
 README's installation procedure; do not require a skill. Ask for a location only
