@@ -47,7 +47,7 @@ test('a Git checkout restores its pinned app and board notes at a different path
     assert(tracked.includes('fribblr/setup.mjs'));
     assert(tracked.includes('design/boards/style-guide/.state/notes.json'));
     assert(!tracked.some(file=>file.startsWith('fribblr/app/')||file.startsWith('fribblr/local/')));
-    await exec('git',['-C',project,'-c','user.name=Tinka Test','-c','user.email=test@example.invalid','commit','--quiet','-m','Portable project fixture']);
+    await exec('git',['-C',project,'-c','user.name=Test','-c','user.email=test@example.invalid','commit','--quiet','-m','Portable project fixture']);
     await exec('git',['clone','--quiet','--no-hardlinks',project,checkout]);
     await assert.rejects(readFile(restoredCli),{code:'ENOENT'});
     await assert.rejects(readFile(restoredConfig),{code:'ENOENT'});

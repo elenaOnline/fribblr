@@ -309,7 +309,9 @@ test('every install and portable start keeps the AGENTS.md block current; manual
   // An older fribblr block (any text between the markers) and an upstream Tinka block beside it.
   const oneLiner = `${FRIBBLR_START}\n## fribblr\n\nOlder text.\n${FRIBBLR_END}`;
   const unmarked = `${FRIBBLR_START}\n## fribblr\n\nOther older text.\n${FRIBBLR_END}`;
-  const tinka = '<!-- tinka:start - managed by Tinka; changes between these markers are replaced -->\n## Tinka\n\nTinka text.\n<!-- tinka:end -->';
+  // Upstream Tinka's own block, from the fixture (kept out of the rebrand).
+  const upstream = await readFile(new URL('./fixtures/upstream-tinka/AGENTS.md', import.meta.url), 'utf8');
+  const tinka = upstream.slice(upstream.indexOf('<!--')).trimEnd();
   const f = await fixture(t);
   const agents = path.join(f.project, 'AGENTS.md'), claude = path.join(f.project, 'CLAUDE.md');
   const cli = path.join(f.app, 'cli.mjs'), configPath = f.config.configPath;

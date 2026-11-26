@@ -1,7 +1,8 @@
 import './helpers/offline.mjs';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {mkdtemp,realpath,readFile,readdir,writeFile,rm,access,mkdir} from 'node:fs/promises';
+import {cp,mkdtemp,realpath,readFile,readdir,writeFile,rm,access,mkdir} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import {test} from 'node:test';
@@ -12,8 +13,6 @@ import {DEFAULT_PORT as INSTALLER_PORT} from '../scripts/install.mjs';
 
 const BLOCK=fribblrBlock();
 const OLD=`${FRIBBLR_START}\n## fribblr\n\nAn older text.\n${FRIBBLR_END}`;
-// An upstream Tinka install's own managed block, as Tinka 1.4 writes it.
-const TINKA_BLOCK='<!-- tinka:start - managed by Tinka; changes between these markers are replaced -->\n## Tinka\n\nVisual work in this project belongs on its Tinka boards.\nRead [TINKA.md](TINKA.md).\n<!-- tinka:end -->';
 const crlf=text=>text.replaceAll('\n','\r\n');
 const exists=file=>access(file).then(()=>true,()=>false);
 async function project(files,{pinned=true}={}){
@@ -41,7 +40,7 @@ test('the managed block routes visual work to boards in a few lines',()=>{
   assert.match(FRIBBLR_SECTION,/\(`item shot` or `board overview`/);
   assert.match(FRIBBLR_SECTION,/another board app, each app has its own boards/);
   assert.match(FRIBBLR_SECTION,/\[FRIBBLR\.md\]\(FRIBBLR\.md\)/);
-  assert.doesNotMatch(FRIBBLR_SECTION,/Tinka|tinka/);
+  assert.doesNotMatch(FRIBBLR_SECTION,/tinka/i);
 });
 
 test('setup adds the block to AGENTS.md only; CLAUDE.md is never written',async()=>{
@@ -120,50 +119,62 @@ test('a new FRIBBLR.md says how to start, share the direct link and work comment
     assert.match(text,/## Comments for you\n/);assert.match(text,/node fribblr\/app\/cli\.mjs inbox --config fribblr\/local\/config\.json/);assert.match(text,/Never resolve\na person's comment/);
     assert.match(text,/`update status` prints the exact command/);
     assert.match(text,/Do not copy version numbers or checksums into this file: `fribblr\/project\.json`\nis the record\./);
-    assert.doesNotMatch(text,/Tinka|tinka\//);
+    assert.doesNotMatch(text,/tinka/i);
     assert.equal(await custom.read('FRIBBLR.md'),'# Our own fribblr notes\n');
   }finally{await fresh.done();await custom.done();}
 });
 
-test('fribblr sits beside an upstream Tinka install without reading or changing it',async()=>{
+// An upstream Tinka 1.4 install, as files: its folder, guide and AGENTS.md block
+// (the block is upstream's own text). Kept as a fixture so the rebrand never edits it.
+const UPSTREAM=fileURLToPath(new URL('./fixtures/upstream-tinka/',import.meta.url));
+const BROKEN_UPSTREAM_MARKER=fileURLToPath(new URL('./fixtures/upstream-tinka-broken-marker.md',import.meta.url));
+async function upstreamProject(){
+  const fixture=await project({},{pinned:false});
+  await cp(UPSTREAM,fixture.root,{recursive:true});
+  await mkdir(path.join(fixture.root,'design','boards','sketches'),{recursive:true});
+  await writeFile(path.join(fixture.root,'design','boards','sketches','board.json'),'{"schemaVersion":1,"title":"Sketches"}\n');
+  return fixture;
+}
+// Every file of the upstream install except AGENTS.md, with the boards it uses.
+async function upstreamFiles(root){
+  const files={};
+  for(const [name,digest] of Object.entries(await tree(UPSTREAM)))if(name!=='AGENTS.md')files[name]=digest;
+  const actual=await tree(root),kept={};
+  for(const name of Object.keys(files))kept[name]=actual[name];
+  return {expected:files,kept,boards:await tree(path.join(root,'design','boards'))};
+}
+
+test('fribblr sits beside an install of upstream Tinka without reading or changing it',async()=>{
   assert.equal(DEFAULT_PORT,INSTALLER_PORT);
-  assert.notEqual(DEFAULT_PORT%100,43821%100,'fribblr ports never fall on the Tinka port sequence');
-  const tinkaConfig={schemaVersion:1,port:43821,portMode:'auto',projectLabel:'beta',boardsRoot:'/elsewhere/design/boards',title:'Tinka'};
-  const beta=await project({
-    'AGENTS.md':`# Beta rules\n\n${TINKA_BLOCK}\n`,
-    'TINKA.md':'# Tinka in this project\n',
-    'tinka/project.json':JSON.stringify({schemaVersion:1,version:'1.4.0',projectLabel:'beta',boards:'design/boards',repo:'bladnman/tinka'},null,2),
-    'tinka/setup.mjs':'// upstream setup\n',
-    'tinka/.gitignore':'/app/\n/local/\n',
-    'tinka/app/package.json':JSON.stringify({name:'board-room',version:'1.4.0'}),
-    'tinka/local/config.json':JSON.stringify(tinkaConfig),
-    'design/boards/.tinka/workspace.json':'{"schemaVersion":2}\n',
-    'design/boards/tinka-board/board.json':'{"title":"A Tinka board"}\n'
-  },{pinned:false});
+  assert.notEqual(DEFAULT_PORT%100,43821%100,'fribblr ports are never on the upstream Tinka port sequence');
+  const upstreamAgents=await readFile(path.join(UPSTREAM,'AGENTS.md'),'utf8');
+  const beta=await upstreamProject();
   try{
-    const before={tree:await tree(path.join(beta.root,'tinka')),boards:await tree(path.join(beta.root,'design/boards')),guide:await beta.read('TINKA.md')};
+    const before=await upstreamFiles(beta.root);
+    assert.deepEqual(before.kept,before.expected);
     const message=await beta.init();
-    // Tinka's boards folder is taken, so fribblr's boards get their own folder.
+    // design/boards is taken, so fribblr's boards get their own folder.
     assert.match(message,/design\/fribblr-boards\//);
     const pin=JSON.parse(await beta.read('fribblr/project.json'));
     assert.equal(pin.boards,'design/fribblr-boards');assert.equal(pin.repo,'elenaOnline/fribblr');
     const config=JSON.parse(await beta.read('fribblr/local/config.json'));
     assert.equal(config.port,DEFAULT_PORT);assert.equal(config.portMode,'auto');
     assert.equal(config.boardsRoot,path.join(beta.root,'design/fribblr-boards'));
-    assert.equal(await beta.read('AGENTS.md'),`# Beta rules\n\n${TINKA_BLOCK}\n\n${BLOCK}\n`);
+    assert.equal(await beta.read('AGENTS.md'),`${upstreamAgents}\n${BLOCK}\n`);
     assert(await exists(path.join(beta.root,'FRIBBLR.md')));
-    assert.deepEqual(await tree(path.join(beta.root,'tinka')),before.tree);
-    assert.deepEqual(await tree(path.join(beta.root,'design/boards')),before.boards);
-    assert.equal(await beta.read('TINKA.md'),before.guide);
-    // Again, and with Tinka's block rewritten by Tinka meanwhile: fribblr's block stays, Tinka's is not touched.
-    const rewritten=TINKA_BLOCK.replace('Tinka boards.','Tinka boards, newer text.');
-    await writeFile(path.join(beta.root,'AGENTS.md'),`# Beta rules\n\n${rewritten}\n\n${BLOCK}\n`);
+    const after=await upstreamFiles(beta.root);
+    assert.deepEqual(after.kept,before.expected);assert.deepEqual(after.boards,before.boards);
+    // Again, with the upstream block rewritten meanwhile: fribblr's block stays, the other is not touched.
+    const rewritten=upstreamAgents.replace('where it can be found again','where it can be found again, newer text');
+    assert.notEqual(rewritten,upstreamAgents);
+    await writeFile(path.join(beta.root,'AGENTS.md'),`${rewritten}\n${BLOCK}\n`);
     await beta.init();
-    assert.equal(await beta.read('AGENTS.md'),`# Beta rules\n\n${rewritten}\n\n${BLOCK}\n`);
-    // A broken Tinka marker is Tinka's business; fribblr still manages its own block.
-    await writeFile(path.join(beta.root,'AGENTS.md'),`<!-- tinka:start -->\n## Tinka\n\n${OLD}\n`);
+    assert.equal(await beta.read('AGENTS.md'),`${rewritten}\n${BLOCK}\n`);
+    // An unmatched upstream marker is not fribblr's to fix; fribblr still manages its own block.
+    const broken=await readFile(BROKEN_UPSTREAM_MARKER,'utf8');
+    await writeFile(path.join(beta.root,'AGENTS.md'),`${broken}${OLD}\n`);
     assert.match(await beta.instructions(),/^Updated the fribblr section/);
-    assert.equal(await beta.read('AGENTS.md'),`<!-- tinka:start -->\n## Tinka\n\n${BLOCK}\n`);
+    assert.equal(await beta.read('AGENTS.md'),`${broken}${BLOCK}\n`);
   }finally{await beta.done();}
   // Without anything in design/boards, fribblr uses design/boards.
   const alpha=await project({},{pinned:false});

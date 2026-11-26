@@ -6,6 +6,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
 import {test} from 'node:test';
 
 // One command adds fribblr to a project from a checkout: it installs that
@@ -18,7 +19,7 @@ const exists=file=>access(file).then(()=>true,()=>false);
 async function freePort(){const probe=net.createServer();await new Promise(resolve=>probe.listen(0,'127.0.0.1',resolve));const port=probe.address().port;await new Promise(resolve=>probe.close(resolve));return port;}
 const health=async port=>(await fetch(`http://127.0.0.1:${port}/api/health`)).json();
 
-test('installing from a checkout gives each project its own fribblr, beside an upstream Tinka, and updates from the checkout',async t=>{
+test('installing from a checkout gives each project its own fribblr, beside upstream Tinka, and updates from the checkout',async t=>{
   const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'fribblr-checkout-install-')));
   const checkout=path.join(root,'fribblr-checkout');
   await mkdir(checkout);
@@ -26,15 +27,14 @@ test('installing from a checkout gives each project its own fribblr, beside an u
   const installer=path.join(checkout,'scripts/install.mjs');
   const alpha=path.join(root,'alpha'),beta=path.join(root,'beta');
   await mkdir(alpha);await mkdir(beta);
-  // beta already has upstream Tinka: its folder, guide, AGENTS.md block and boards.
-  const tinkaBlock='<!-- tinka:start - managed by Tinka; changes between these markers are replaced -->\n## Tinka\n\nTinka text.\n<!-- tinka:end -->';
-  await mkdir(path.join(beta,'tinka/local'),{recursive:true});await mkdir(path.join(beta,'design/boards/sketches'),{recursive:true});
-  await writeFile(path.join(beta,'tinka/project.json'),'{"schemaVersion":1,"version":"1.4.0","projectLabel":"beta","boards":"design/boards","repo":"bladnman/tinka"}\n');
-  await writeFile(path.join(beta,'tinka/local/config.json'),'{"schemaVersion":1,"port":43821,"portMode":"auto","projectLabel":"beta","boardsRoot":"/elsewhere","title":"Tinka"}\n');
-  await writeFile(path.join(beta,'TINKA.md'),'# Tinka in this project\n');
-  await writeFile(path.join(beta,'AGENTS.md'),`# Beta\n\n${tinkaBlock}\n`);
-  await writeFile(path.join(beta,'design/boards/sketches/board.json'),'{"title":"Sketches"}\n');
-  const tinkaBefore=await readFile(path.join(beta,'tinka/local/config.json'),'utf8');
+  // beta already has upstream Tinka: its folder, guide and AGENTS.md block (a fixture), and boards in design/boards.
+  const upstream=fileURLToPath(new URL('./fixtures/upstream-tinka/',import.meta.url));
+  await cp(upstream,beta,{recursive:true});
+  await mkdir(path.join(beta,'design','boards','sketches'),{recursive:true});
+  await writeFile(path.join(beta,'design','boards','sketches','board.json'),'{"schemaVersion":1,"title":"Sketches"}\n');
+  const upstreamAgents=await readFile(path.join(upstream,'AGENTS.md'),'utf8');
+  const upstreamFiles=async()=>{const out={};async function walk(dir,prefix=''){for(const entry of await readdir(dir,{withFileTypes:true})){if(entry.isDirectory())await walk(path.join(dir,entry.name),`${prefix}${entry.name}/`);else if(prefix||entry.name!=='AGENTS.md')out[prefix+entry.name]=await readFile(path.join(beta,prefix,entry.name),'utf8');}}await walk(upstream);return out;};
+  const upstreamBefore=await upstreamFiles();
   const [alphaPort,betaPort]=[await freePort(),await freePort()];
   const configs={alpha:path.join(alpha,'fribblr/local/config.json'),beta:path.join(beta,'fribblr/local/config.json')};
   t.after(async()=>{
@@ -62,11 +62,9 @@ test('installing from a checkout gives each project its own fribblr, beside an u
   const second=(await exec(node,[installer,'--project',beta,'--port',String(betaPort)])).stdout;
   assert.match(second,new RegExp(`fribblr / beta started on http://127\\.0\\.0\\.1:${betaPort}/`));
   assert.equal((await json(path.join(beta,'fribblr/project.json'))).boards,'design/fribblr-boards');
-  assert.equal(await readFile(path.join(beta,'tinka/local/config.json'),'utf8'),tinkaBefore);
-  assert.equal(await readFile(path.join(beta,'TINKA.md'),'utf8'),'# Tinka in this project\n');
-  assert(!(await readdir(path.join(beta,'tinka'))).includes('app'));
-  assert.deepEqual(await readdir(path.join(beta,'design/boards')),['sketches']);
-  assert((await readFile(path.join(beta,'AGENTS.md'),'utf8')).startsWith(`# Beta\n\n${tinkaBlock}\n\n<!-- fribblr:start`));
+  assert.deepEqual(await upstreamFiles(),upstreamBefore);
+  assert.deepEqual(await readdir(path.join(beta,'design','boards')),['sketches']);
+  assert((await readFile(path.join(beta,'AGENTS.md'),'utf8')).startsWith(`${upstreamAgents}\n<!-- fribblr:start`));
   // Two independent instances: stopping one leaves the other.
   await exec(node,[path.join(alpha,'fribblr/app/cli.mjs'),'stop','--config',configs.alpha]);
   assert.equal((await health(betaPort)).projectLabel,'beta');
