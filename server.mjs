@@ -60,7 +60,7 @@ const loopbackOrigins=server=>{const port=server.address()?.port;return new Set(
 // 127.0.0.1 alone does not stop a page whose DNS name later resolves to
 // 127.0.0.1 (DNS rebinding) from reading boards, notes and paths.
 function checkHost(req,server){
-  if(!loopbackOrigins(server).has(`http://${String(req.headers.host||'').toLowerCase()}`))throw new HttpError(403,`Tinka answers only requests to http://127.0.0.1:${server.address()?.port}/ on this computer.`);
+  if(!loopbackOrigins(server).has(`http://${String(req.headers.host||'').toLowerCase()}`))throw new HttpError(403,`fribblr answers only requests to http://127.0.0.1:${server.address()?.port}/ on this computer.`);
 }
 function checkWriteOrigin(req,server){
   const allowed=loopbackOrigins(server);
@@ -158,7 +158,7 @@ export function createAppServer(config,{updates=createUpdateService(config)}={})
         const board=url.searchParams.get('board');if(board){if(!await loadGraphBoard(config,board,{versionStacks:false}))await boardDirectory(config.boardsRoot,board);}
         push.subscribe(req,res,board);return;
       }
-      if(pathname==='/api/health'&&method==='GET'){sendJson(res,200,{app:'board-room',version:VERSION,configPath:config.configPath,boardsRoot:config.boardsRoot,projectLabel:config.projectLabel,workspaceId:config.workspaceId,port:server.address().port,url:`http://127.0.0.1:${server.address().port}/`});return;}
+      if(pathname==='/api/health'&&method==='GET'){sendJson(res,200,{app:'fribblr',version:VERSION,configPath:config.configPath,boardsRoot:config.boardsRoot,projectLabel:config.projectLabel,workspaceId:config.workspaceId,port:server.address().port,url:`http://127.0.0.1:${server.address().port}/`});return;}
       if(pathname.startsWith('/api/drawxide/')&&await handleDrawxide({req,res,pathname,method,config,checkWrite:()=>checkWrite(req,server,config),sendJson}))return;
       if(pathname==='/api/config'&&method==='GET'){sendJson(res,200,publicConfig(config));return;}
       if(pathname==='/api/tools'&&method==='GET'){sendJson(res,200,listTools());return;}

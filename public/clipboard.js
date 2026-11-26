@@ -23,14 +23,14 @@ export function readClipboard(data, workspaceId) {
   if (custom || fallback) {
     let clipboard;
     try { clipboard = JSON.parse(custom || text.slice(fallback[0].length)); }
-    catch { throw new Error("This Tinka clipboard could not be read. Copy the selection again."); }
+    catch { throw new Error("This fribblr clipboard could not be read. Copy the selection again."); }
     if (clipboard?.version !== 1 || clipboard.workspaceId !== workspaceId)
-      throw new Error("These Tinkas belong to a different workspace or clipboard version.");
+      throw new Error("These items belong to a different workspace or clipboard version.");
     const {placements, decorations = [], groups = []} = clipboard;
     if (!Array.isArray(placements) || !Array.isArray(decorations) || !Array.isArray(groups) ||
         (!placements.length && !decorations.length) || !clipboard.items || !clipboard.boards ||
         (Object.hasOwn(clipboard,"cut") && (decorations.length || groups.length)))
-      throw new Error("This Tinka clipboard is incomplete. Copy the selection again.");
+      throw new Error("This fribblr clipboard is incomplete. Copy the selection again.");
     return {kind:Object.hasOwn(clipboard,"cut") ? "cut" : "tinkas",clipboard};
   }
   if (!text.trim()) return null;

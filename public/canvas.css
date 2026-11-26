@@ -138,7 +138,7 @@ a{color:inherit}
 #revision-options{display:flex;flex-direction:column;gap:2px}
 
    and Esc tooltip stay. */
-   Tinka, the experiment line takes its own row with its actions at the end, and a reload offer below them. */
+   fribblr, the experiment line takes its own row with its actions at the end, and a reload offer below them. */
 @container (max-width:260px){.refresh-detail{display:none}}
 @media(max-width:760px){
   .canvas-header,.reader-header{padding:8px 16px;min-height:56px}

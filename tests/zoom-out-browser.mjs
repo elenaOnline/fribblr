@@ -195,7 +195,7 @@ try{
  await openFromBoard(imageId);
  const expand=page.locator('#reader-expand');
  eq(await expand.getAttribute('aria-pressed'),'false','Expand starts off');
- eq(await page.locator('#reader-header .chrome-actions #reader-expand').count(),1,'Expand is in the Tinka actions toolbar');
+ eq(await page.locator('#reader-header .chrome-actions #reader-expand').count(),1,'Expand is in the item actions toolbar');
  eq(await expand.getAttribute('aria-keyshortcuts'),'Shift+F','Expand declares Shift+F');
  const announced=()=>page.locator('#reader-view-announce').textContent();
  await expand.click();
@@ -232,7 +232,7 @@ try{
  eq(await expand.getAttribute('aria-pressed'),'true','Expand stays on while stepping');
  await page.keyboard.press('k');await page.waitForFunction(()=>document.querySelector('#reader-name').textContent.trim()==='Small picture');await ready();
  await page.locator('#reader-stage').focus();await page.keyboard.press('Escape');
- ok(await isOpen(),'Escape turns Expand off first and keeps the Tinka open');
+ ok(await isOpen(),'Escape turns Expand off first and keeps the item open');
  eq(await expand.getAttribute('aria-pressed'),'false','…Expand is off');
  eq(await announced(),'Expand off','…announced');
  // The path's exit: Up (the board crumb) leaves Expand with the reader; the next open starts unexpanded.

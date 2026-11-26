@@ -282,7 +282,7 @@ try{
 
  // ---- 6. The % popover's preset rows (Zoom to …, Fit) are one vertical toolbar: ↓ walks them and wraps, Home/End
  // reach the ends, nothing zooms until Enter. The slider after them is its own Tab stop and owns its arrows. ----
- for(const [where,toggle,slider,label,last]of[['board','#zoom-menu-toggle','#zoom-slider','Board zoom','Fit board'],['reader','#reader-zoom-toggle','#reader-zoom-slider','Tinka zoom','Fit this Tinka']]){
+ for(const [where,toggle,slider,label,last]of[['board','#zoom-menu-toggle','#zoom-slider','Board zoom','Fit board'],['reader','#reader-zoom-toggle','#reader-zoom-slider','Item zoom','Fit this item']]){
    if(where==='reader'){await clear();await page.locator(`#world .workspace-card[data-placement="${c.a}"]`).focus();await page.keyboard.press('Enter');await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(500);}
    const zoomText=()=>page.locator(toggle).textContent().then(t=>t.trim());
    const row=()=>page.evaluate(()=>document.activeElement.childNodes[0]?.textContent.trim());

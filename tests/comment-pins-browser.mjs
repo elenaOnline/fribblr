@@ -126,7 +126,7 @@ try{
     const list=await threads(id);
     assert.equal(list.find(t=>t.id===a).to.kind,'agent');assert.equal(list.find(t=>t.id===human).status,'open','the person-to-person thread stays');
     const clip=(await page.evaluate(()=>window.__clips))[0];
-    assert.match(clip,/node tinka\/app\/cli\.mjs inbox --config tinka\/local\/config\.json/);
+    assert.match(clip,/node fribblr\/app\/cli\.mjs inbox --config fribblr\/local\/config\.json/);
     assert.match(clip,/mark (each|it) addressed/);assert.match(clip,/Never resolve/);
     assert.ok(clip.includes(`#comments/${a}`)&&clip.includes(`#comments/${b}`),'thread links');
     assert.match(await page.locator('.workspace-toast').first().textContent(),/Copied: paste into your agent/);

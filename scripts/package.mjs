@@ -7,9 +7,11 @@ import { fileURLToPath } from 'node:url';
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const maxFileBytes = 20 * 1024 * 1024;
 const maxArchiveBytes = 100 * 1024 * 1024;
-const appRoots = ['README.md', 'LICENSE', 'AGENTS.md', 'IMPLEMENTATION_CONTRACT.md', 'package.json', 'cli.mjs', 'server.mjs', 'public', 'lib', 'examples', 'scripts/install.mjs'];
-const publicDocs = ['docs/README.md', 'docs/AGENT.md', 'docs/BOARD.md', 'docs/PROTOCOL.md', 'docs/RELEASE.md'];
-const skillRoots = ['skill/tinka/SKILL.md'];
+export const appRoots = ['README.md', 'LICENSE', 'AGENTS.md', 'IMPLEMENTATION_CONTRACT.md', 'package.json', 'cli.mjs', 'server.mjs', 'public', 'lib', 'examples', 'scripts/install.mjs'];
+export const publicDocs = ['docs/README.md', 'docs/AGENT.md', 'docs/BOARD.md', 'docs/PROTOCOL.md', 'docs/RELEASE.md', 'docs/INSTALL.md'];
+const skillRoots = ['skill/fribblr/SKILL.md'];
+// The package name, the archive root and the prefix of every release file.
+export const PACKAGE_NAME = 'fribblr';
 const excludedNames = new Set(['.DS_Store', '.state', 'boards', 'evidence', 'notes', 'tests', 'test', 'skill', 'scripts', 'node_modules']);
 
 const crcTable = Array.from({ length: 256 }, (_, index) => {
@@ -24,14 +26,14 @@ function crc32(bytes) {
   return (value ^ 0xffffffff) >>> 0;
 }
 
-async function collect(relative, files) {
-  const absolute = path.join(sourceRoot, relative);
+async function collect(relative, files, root = sourceRoot) {
+  const absolute = path.join(root, relative);
   const details = await lstat(absolute);
   if (details.isSymbolicLink()) throw new Error(`Symlink is not allowed in release: ${relative}`);
   if (details.isDirectory()) {
     for (const entry of await readdir(absolute, { withFileTypes: true })) {
       if (entry.name.startsWith('.') || excludedNames.has(entry.name.toLowerCase())) continue;
-      await collect(path.posix.join(relative, entry.name), files);
+      await collect(path.posix.join(relative, entry.name), files, root);
     }
     return;
   }
@@ -91,10 +93,10 @@ function storedZip(entries) {
   return Buffer.concat([...chunks, ...central, end]);
 }
 
-async function archive(files, stripPrefix = '', zipRoot = 'board-room') {
+async function archive(files, stripPrefix = '', zipRoot = PACKAGE_NAME, root = sourceRoot) {
   const entries = [];
   for (const relative of [...new Set(files)].sort()) {
-    const content = await readFile(path.join(sourceRoot, relative));
+    const content = await readFile(path.join(root, relative));
     const name = relative.startsWith(stripPrefix) ? relative.slice(stripPrefix.length) : relative;
     entries.push([`${zipRoot}/${name}`, content]);
   }
@@ -105,18 +107,32 @@ function checksumSidecar(bytes, filename) {
   return `${createHash('sha256').update(bytes).digest('hex')}  ${filename}\n`;
 }
 
+async function readManifest(root) {
+  const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  if (manifest.name !== PACKAGE_NAME || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version)) throw new Error('Invalid package name or version.');
+  return manifest;
+}
+// The app ZIP for the checkout at `root`, in memory: what a release ships, and what
+// the installer installs when it runs from a checkout. The same files give the same
+// bytes (no timestamps), so a re-install from an unchanged checkout changes nothing.
+export async function appArchive({ root = sourceRoot } = {}) {
+  const manifest = await readManifest(root);
+  const files = [];
+  for (const entry of [...appRoots, ...publicDocs]) await collect(entry, files, root);
+  const bytes = await archive(files, '', PACKAGE_NAME, root);
+  const zipName = `${PACKAGE_NAME}-v${manifest.version}.zip`;
+  return { version: manifest.version, zipName, bytes, checksumText: checksumSidecar(bytes, zipName), files: files.length };
+}
+
 export async function buildRelease({ outDir }) {
   if (!outDir || !path.isAbsolute(outDir)) throw new Error('--out must be an absolute path.');
-  const manifest = JSON.parse(await readFile(path.join(sourceRoot, 'package.json'), 'utf8'));
-  if (manifest.name !== 'board-room' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version)) throw new Error('Invalid package name or version.');
-  const appFiles = [];
-  for (const root of [...appRoots, ...publicDocs]) await collect(root, appFiles);
+  const manifest = await readManifest(sourceRoot);
   const skillFiles = [];
   for (const root of skillRoots) await collect(root, skillFiles);
-  const appName = `tinka-v${manifest.version}.zip`;
-  const skillName = 'tinka-skill.zip';
-  const installerName = 'tinka-install.mjs';
-  const compatibilityName = `tinka-v${manifest.version}.compatibility.json`;
+  const appName = `${PACKAGE_NAME}-v${manifest.version}.zip`;
+  const skillName = `${PACKAGE_NAME}-skill.zip`;
+  const installerName = `${PACKAGE_NAME}-install.mjs`;
+  const compatibilityName = `${PACKAGE_NAME}-v${manifest.version}.compatibility.json`;
   const compatibility = JSON.parse(await readFile(path.join(sourceRoot, 'lib/update-compatibility.json'), 'utf8'));
   if(compatibility.version!==manifest.version || compatibility.schemaVersion!==1 || compatibility.runtime?.node!==manifest.engines?.node || !Array.isArray(compatibility.fromVersions) || compatibility.fromVersions.some(version=>!/^\d+\.\d+\.\d+$/.test(version)))throw new Error('Compatibility metadata must explicitly match this package.');
   const outputs = [appName, `${appName}.sha256`, skillName, `${skillName}.sha256`, installerName, `${installerName}.sha256`, compatibilityName, `${compatibilityName}.sha256`].map(name => path.join(outDir, name));
@@ -125,10 +141,11 @@ export async function buildRelease({ outDir }) {
     try { await stat(output); throw new Error(`Release output already exists: ${output}`); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  const appBytes = await archive(appFiles);
-  const skillBytes = await archive(skillFiles, 'skill/tinka/', 'tinka');
+  const app = await appArchive();
+  const appBytes = app.bytes;
+  const skillBytes = await archive(skillFiles, `skill/${PACKAGE_NAME}/`, PACKAGE_NAME);
   await writeFile(outputs[0], appBytes, { flag: 'wx' });
-  await writeFile(outputs[1], checksumSidecar(appBytes, appName), { flag: 'wx' });
+  await writeFile(outputs[1], app.checksumText, { flag: 'wx' });
   await writeFile(outputs[2], skillBytes, { flag: 'wx' });
   await writeFile(outputs[3], checksumSidecar(skillBytes, skillName), { flag: 'wx' });
   const installerBytes=await readFile(path.join(sourceRoot,'scripts/install.mjs'));
@@ -137,7 +154,7 @@ export async function buildRelease({ outDir }) {
   const compatibilityBytes=Buffer.from(`${JSON.stringify({...compatibility,archiveSha256:createHash('sha256').update(appBytes).digest('hex')},null,2)}\n`);
   await writeFile(outputs[6],compatibilityBytes,{flag:'wx'});
   await writeFile(outputs[7],checksumSidecar(compatibilityBytes,compatibilityName),{flag:'wx'});
-  return { version: manifest.version, compatibility:outputs[6], compatibilityChecksum:outputs[7], appZip: outputs[0], appChecksum: outputs[1], skillZip: outputs[2], skillChecksum: outputs[3], installer: outputs[4], installerChecksum: outputs[5], appFiles: appFiles.length, skillFiles: skillFiles.length };
+  return { version: manifest.version, compatibility:outputs[6], compatibilityChecksum:outputs[7], appZip: outputs[0], appChecksum: outputs[1], skillZip: outputs[2], skillChecksum: outputs[3], installer: outputs[4], installerChecksum: outputs[5], appFiles: app.files, skillFiles: skillFiles.length };
 }
 
 if (process.argv[1] && await realpath(path.resolve(process.argv[1])).catch(() => null) === fileURLToPath(import.meta.url)) {

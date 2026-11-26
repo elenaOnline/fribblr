@@ -136,7 +136,7 @@ test('the agent inbox is read-only, reports only new things, and --brief is sile
   await callTool(f.config,'feedback.reply',{threadId:'i4',author:robin,body:'Tighter still, please.'});
   const revision=(await readWorkspace(f.config,{covers:false})).revision,started=performance.now();
   const brief=await cli(['--brief','--actor','design-agent']),elapsed=performance.now()-started;
-  assert.match(brief,/^Tinka: 2 new comments for you on 'Landing page directions' — run `node .+ inbox --config .+ --actor design-agent` for details$/);
+  assert.match(brief,/^fribblr: 2 new comments for you on 'Landing page directions' — run `node .+ inbox --config .+ --actor design-agent` for details$/);
   assert.ok(elapsed<1000,`brief took ${elapsed} ms`);
   const inbox=await feedbackInbox(f.config,{actorId:'design-agent'});
   assert.deepEqual(inbox.threads.map(entry=>[entry.threadId,entry.reason]),[['i1','sent'],['i4','reply']]);

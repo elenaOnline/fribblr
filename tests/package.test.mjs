@@ -40,7 +40,7 @@ test('release archives include app instructions and installer; optional skill is
     assert(names.includes('scripts/install.mjs'));
     assert(names.includes('public/home.html'));
     assert(names.some(name => name.startsWith('lib/')));
-    assert(names.every(name => /^(?:README\.md|LICENSE$|AGENTS\.md|IMPLEMENTATION_CONTRACT\.md|package\.json|cli\.mjs|server\.mjs|public\/|lib\/|examples\/|scripts\/install\.mjs$|docs\/(?:README|AGENT|BOARD|PROTOCOL|RELEASE)\.md)/.test(name)));
+    assert(names.every(name => /^(?:README\.md|LICENSE$|AGENTS\.md|IMPLEMENTATION_CONTRACT\.md|package\.json|cli\.mjs|server\.mjs|public\/|lib\/|examples\/|scripts\/install\.mjs$|docs\/(?:README|AGENT|BOARD|PROTOCOL|RELEASE|INSTALL)\.md)/.test(name)));
     assert(names.every(name => !/(?:^|\/)(?:boards|evidence|notes|skill|tests)(?:\/|$)/.test(name)));
     const digest = createHash('sha256').update(fixture.zipBytes).digest('hex');
     assert.match(fixture.checksumText, new RegExp(`^${digest}  ${fixture.zipName}\\n$`));
@@ -62,7 +62,7 @@ function readSafeZipSkillNames(bytes) {
   for (let offset = 0; offset < bytes.length - 46; offset += 1) {
     if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
     const length = bytes.readUInt16LE(offset + 28);
-    names.push(bytes.subarray(offset + 46, offset + 46 + length).toString('utf8').replace(/^tinka\//, ''));
+    names.push(bytes.subarray(offset + 46, offset + 46 + length).toString('utf8').replace(/^fribblr\//, ''));
     offset += 45 + length + bytes.readUInt16LE(offset + 30) + bytes.readUInt16LE(offset + 32);
   }
   return names;
@@ -74,8 +74,8 @@ test('installer rejects a bad checksum and unsafe archive path before touching d
   try {
     await assert.rejects(installArchive({ ...fixture, installDir: destination, checksumText: `${'0'.repeat(64)}  ${fixture.zipName}\n` }), /SHA-256/);
     const unsafe = Buffer.from(fixture.zipBytes);
-    const original = Buffer.from('board-room/cli.mjs');
-    const replacement = Buffer.from('board-room/../x.xx');
+    const original = Buffer.from('fribblr/server.mjs');
+    const replacement = Buffer.from('fribblr/../xyz.mjs');
     assert.equal(original.length, replacement.length);
     let count = 0;
     for (let index = unsafe.indexOf(original); index >= 0; index = unsafe.indexOf(original, index + replacement.length)) {
@@ -98,7 +98,7 @@ test('full app replacement restarts its managed service and retains external boa
   const port = await freePort();
   let running = false;
   try {
-    assert.match(await main(['--zip', fixture.release.appZip, '--checksum', fixture.release.appChecksum, '--install-dir', app]), /Installed Tinka \d+\.\d+(?:\.\d+)? at /);
+    assert.match(await main(['--zip', fixture.release.appZip, '--checksum', fixture.release.appChecksum, '--install-dir', app]), /Installed fribblr \d+\.\d+(?:\.\d+)? at /);
     const cli = path.join(app, 'cli.mjs');
     await exec(process.execPath, [cli, 'init', '--config', config, '--boards', boards, '--port', String(port)]);
     await exec(process.execPath, [cli, 'board', 'create', 'sample', '--config', config, '--title', 'Sample']);
@@ -109,7 +109,7 @@ test('full app replacement restarts its managed service and retains external boa
     await exec(process.execPath, [cli, 'start', '--config', config]);
     running = true;
     const first = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
-    assert.equal(first.app, 'board-room');
+    assert.equal(first.app, 'fribblr');
     await assert.rejects(installArchive({ ...fixture, installDir: app }), /Pass --config for an upgrade/);
     const result = await installArchive({ ...fixture, installDir: app, configPath: config });
     assert.equal(result.restarted, true);
@@ -119,7 +119,7 @@ test('full app replacement restarts its managed service and retains external boa
     assert.equal(await readFile(notes, 'utf8'), savedNotes);
     assert.equal(JSON.parse(await readFile(config, 'utf8')).boardsRoot, boards);
     const after = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
-    assert.equal(after.app, 'board-room');
+    assert.equal(after.app, 'fribblr');
     assert((await readdir(path.dirname(app))).some(name => name.includes('.backup-')));
   } finally {
     if (running) await exec(process.execPath, [path.join(app, 'cli.mjs'), 'stop', '--config', config]).catch(() => {});

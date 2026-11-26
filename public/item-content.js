@@ -111,7 +111,7 @@ function render() {
       remote &&
       (content?.kind === "url" ||
         ["external", "standalone", "download"].includes(content?.openMode));
-  document.title = item.title + " · Tinka";
+  document.title = item.title + " · fribblr";
   if (
     content?.resource &&
     asset &&
@@ -144,7 +144,7 @@ function render() {
     frame("/app/media.html?" + params);
     return;
   }
-  host.innerHTML = `<article class="item-representation">${preview ? `<img class="item-saved-preview" referrerpolicy="no-referrer" src="${escape(preview)}" alt="Saved representation of ${escape(item.title)}">` : ""}<p class="workspace-eyebrow">${escape(content?.kind || "Idea")}${remote ? " · independent experience" : ""}</p><h1>${escape(item.title)}</h1>${item.preview?.text ? `<p class="item-summary">${escape(item.preview.text)}</p>` : ""}${item.description ? `<p>${escape(item.description)}</p>` : ""}${content?.text ? `<div class="item-text">${escape(content.text)}</div>` : !asset ? '<p class="item-title-only">A title is a useful beginning. Attach primary content or add a board of related material whenever it is ready.</p>' : ""}${remote ? `<p class="item-url">${escape(remote)}</p><div class="workspace-inline-actions"><a class="workspace-button" href="${escape(remote)}" target="_blank" rel="noopener noreferrer">Open externally ↗</a>${!external ? '<button type="button" id="embed">Try embedded preview</button>' : ""}<button type="button" id="retry">Retry / reload</button></div><p class="item-hint">This representation remains available when the application is stopped or embedding is blocked. Opening a frame does not verify that its server is ready.</p>` : asset ? `<a class="workspace-button" href="${escape(asset)}" target="_blank" rel="noopener noreferrer">Open resource ↗</a>` : ""}${content?.startInstructions ? `<details open><summary>Start this application</summary><pre class="item-start">${escape(content.startInstructions)}</pre><button type="button" id="copy-start">Copy start request</button><p class="item-hint">Give the request to your project agent, then retry. Tinka does not execute these instructions.</p></details>` : ""}${
+  host.innerHTML = `<article class="item-representation">${preview ? `<img class="item-saved-preview" referrerpolicy="no-referrer" src="${escape(preview)}" alt="Saved representation of ${escape(item.title)}">` : ""}<p class="workspace-eyebrow">${escape(content?.kind || "Idea")}${remote ? " · independent experience" : ""}</p><h1>${escape(item.title)}</h1>${item.preview?.text ? `<p class="item-summary">${escape(item.preview.text)}</p>` : ""}${item.description ? `<p>${escape(item.description)}</p>` : ""}${content?.text ? `<div class="item-text">${escape(content.text)}</div>` : !asset ? '<p class="item-title-only">A title is a useful beginning. Attach primary content or add a board of related material whenever it is ready.</p>' : ""}${remote ? `<p class="item-url">${escape(remote)}</p><div class="workspace-inline-actions"><a class="workspace-button" href="${escape(remote)}" target="_blank" rel="noopener noreferrer">Open externally ↗</a>${!external ? '<button type="button" id="embed">Try embedded preview</button>' : ""}<button type="button" id="retry">Retry / reload</button></div><p class="item-hint">This representation remains available when the application is stopped or embedding is blocked. Opening a frame does not verify that its server is ready.</p>` : asset ? `<a class="workspace-button" href="${escape(asset)}" target="_blank" rel="noopener noreferrer">Open resource ↗</a>` : ""}${content?.startInstructions ? `<details open><summary>Start this application</summary><pre class="item-start">${escape(content.startInstructions)}</pre><button type="button" id="copy-start">Copy start request</button><p class="item-hint">Give the request to your project agent, then retry. fribblr does not execute these instructions.</p></details>` : ""}${
     item.resources?.length
       ? `<section><h2>Related files</h2>${item.resources
           .map((r) => {
@@ -175,7 +175,7 @@ function render() {
       );
   });
   document.getElementById("copy-start")?.addEventListener("click", async () => {
-    const prompt = `Start the existing preview for Tinka item “${item.title}” (stable ID ${item.id}) in this project. Read the project instructions and supplied handoff. Preserve existing work and report the actual local URL.\n\n${content.startInstructions}\n\nAfter it is ready, I will retry the preview in Tinka. Do not alter unrelated processes.`;
+    const prompt = `Start the existing preview for fribblr item “${item.title}” (stable ID ${item.id}) in this project. Read the project instructions and supplied handoff. Preserve existing work and report the actual local URL.\n\n${content.startInstructions}\n\nAfter it is ready, I will retry the preview in fribblr. Do not alter unrelated processes.`;
     try {
       await navigator.clipboard.writeText(prompt);
       toast("Start request copied. Give it to your project agent.");

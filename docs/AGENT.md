@@ -1,31 +1,33 @@
-# Using Tinka as an agent
+# Using fribblr as an agent
 
-Tinka works through ordinary folders and JSON. An installed skill is optional.
+fribblr works through ordinary folders and JSON. An installed skill is optional.
 Use this installation's README and protocol as the authority for its version.
 
 ## Find this project's boards
 
-Read the project's `AGENTS.md` and `TINKA.md`. A portable project has a visible
-`tinka/project.json` with its pinned version, label and project-relative boards
-path, plus `tinka/setup.mjs`. Its replaceable app is `tinka/app`; local absolute
-config, PID and logs are in `tinka/local`. See the root README for setup.
+Read the project's `AGENTS.md` and `FRIBBLR.md`. A portable project has a visible
+`fribblr/project.json` with its pinned version, label and project-relative boards
+path, plus `fribblr/setup.mjs`. Its replaceable app is `fribblr/app`; local absolute
+config, PID and logs are in `fribblr/local`. See the root README for setup.
 
-Existing installations may use `.tinka/app`, a different config or external
-boards. Keep their locations; a dot folder is a convention, not a requirement.
-An optional `~/.config/tinka/workspaces.json` can supply legacy
-`{projectRoot, appPath, configPath}` pointers. Match this project explicitly.
-Do not depend on that machine's registry when preparing a portable project.
+Manual installations may use a different config or external boards. Keep their
+locations.
+<!-- rebrand:off -->
+A `tinka/` or `.tinka/app` folder in a project is upstream Tinka, a separate app
+with its own boards; use it only when the user means Tinka.
+<!-- rebrand:on -->
 The app never reads a registry or discovers other processes.
 
-When the app is missing after checkout, run the project's checked-in setup
-script. It restores the pinned release (using a committed matching archive in
-`tinka/packages/` when present) and creates local config from relative paths.
+When the app is missing after checkout, follow `FRIBBLR.md`: an app installed
+from a fribblr checkout is restored by running that checkout's installer again;
+otherwise run the project's checked-in setup script. It restores the pinned release (using a committed matching archive in
+`fribblr/packages/` when present) and creates local config from relative paths.
 Keep all boards and disk notes. If no setup exists, follow the root
 README's installation procedure; do not require a skill. Ask for a location only
-when the project gives none. Recommend visible `tinka/` for tooling and
+when the project gives none. Recommend visible `fribblr/` for tooling and
 `design/boards/` for durable content. Installation paths are configurable.
 
-When asked to open or return to boards, always run the normal `node /absolute/app/cli.mjs start --config /absolute/config.json`, even if the server is already healthy. This checks for updates once daily and returns the verified existing URL without restarting it. Relay an available update in one short sentence offering update now, later, or always install compatible updates; do not dump CLI lines or local paths into the user conversation. The CLI notice contains exact commands for the agent. Do not select auto policy without the user's explicit personal consent. When Tinka reports a major update ("This is a major update; ask the user before updating."), tell the user and ask before installing; run the notice's `update now --major` command only after they agree. A request the user copied from Tinka's browser notice that says they agree to the major update is that agreement.
+When asked to open or return to boards, always run the normal `node /absolute/app/cli.mjs start --config /absolute/config.json`, even if the server is already healthy. This checks for updates once daily and returns the verified existing URL without restarting it. Relay an available update in one short sentence offering update now, later, or always install compatible updates; do not dump CLI lines or local paths into the user conversation. The CLI notice contains exact commands for the agent. Do not select auto policy without the user's explicit personal consent. When fribblr reports a major update ("This is a major update; ask the user before updating."), tell the user and ask before installing; run the notice's `update now --major` command only after they agree. A request the user copied from fribblr's browser notice that says they agree to the major update is that agreement.
 
 Before claiming a running workspace, verify `/api/health` matches the selected
 canonical config path and project label. Report the actual URL printed by start.
@@ -33,18 +35,18 @@ Do not kill, adopt or reconfigure another instance to resolve a collision.
 
 ## Showing visual work
 
-In a project with Tinka, visual work you make for the user to look at (designs,
+In a project with fribblr, visual work you make for the user to look at (designs,
 mockups, images, illustrations, diagrams, prototypes, alternatives to compare,
 screenshots for review) goes on a board, where it can be found again, and you
-give the user the Tinka link to that item. The board is added to the usual way of showing
+give the user the fribblr link to that item. The board is added to the usual way of showing
 work, not substituted for it: also send the same image or file in the
 conversation, or show it however you otherwise would. Board links open only on
-this computer (Tinka answers only `127.0.0.1`), so the copy in the conversation
+this computer (fribblr answers only `127.0.0.1`), so the copy in the conversation
 is what reaches someone reading on another device. Send the file the board uses,
 saved in the project, rather than a temporary copy that will not last. A
 requested file, format or destination is provided as asked.
 The project-root `AGENTS.md` (read by Codex, Claude Code and other agents) carries
-this rule in a short Tinka-managed block that setup, installs, updates and
+this rule in a short fribblr-managed block that setup, installs, updates and
 starts keep current. Do not edit between its markers; put project rules outside.
 
 1. Run the normal `start` command and use the URL it prints.
@@ -65,11 +67,11 @@ starts keep current. Do not edit between its markers; put project rules outside.
 
 ### Share the link, and a picture when useful
 
-Always give the user the Tinka link to exactly what you added or changed; it lets
+Always give the user the fribblr link to exactly what you added or changed; it lets
 them review and decide fast. Every changing tool call (and `workspace op` and
-`status`) returns it as `link`. For one Tinka it is
-`URL/boards/BOARD_ID/#items/PLACEMENT_ID`, which opens that Tinka on its board;
-leaving it lands on its tile. When a call changes several Tinkas, `link` is the
+`status`) returns it as `link`. For one item it is
+`URL/boards/BOARD_ID/#items/PLACEMENT_ID`, which opens that item on its board;
+leaving it lands on its tile. When a call changes several items, `link` is the
 board and `links` lists each one (at most 20); an item on several boards gets its
 first place as `link` and every place in `links`. Board-only changes return the
 board's link; deleting or archiving an item returns none. Give one link per
@@ -82,21 +84,21 @@ with your host's file-sharing tool, together with the link, so they can look now
 and jump straight to the item to decide:
 
 ```sh
-node tinka/app/cli.mjs item shot ITEM_ID --config tinka/local/config.json \
+node fribblr/app/cli.mjs item shot ITEM_ID --config fribblr/local/config.json \
   --out /absolute/scratch/pricing-phone.png --width 390
 ```
 
-`item shot ITEM_OR_PLACEMENT --out FILE.png` saves one Tinka's own content, the
+`item shot ITEM_OR_PLACEMENT --out FILE.png` saves one item's own content, the
 thing to decide on, not its small tile: an HTML item rendered as a page 1280 CSS
 pixels wide by default (`--width` 320–2560; 390 is a phone), at twice the pixels
 (`--scale 1` for plain), the whole page down to 4000 CSS pixels (`--height` to
 choose; a longer page is cut there with a note); an image at its own size (at
-most 4000 pixels a side); a Markdown or other document as Tinka's reader shows it,
+most 4000 pixels a side); a Markdown or other document as fribblr's reader shows it,
 without its controls; a note or title-only idea as a card. An item whose only
 content is its board points you to `board overview`. A remote web page is not
 loaded; give the item a saved preview image instead. A local app item
 (`http://127.0.0.1:…`) is loaded only if it is answering. `--appearance dark`
-asks the page for its dark look. It prints the item's Tinka link (`--board` picks
+asks the page for its dark look. It prints the item's fribblr link (`--board` picks
 which board's), uses the same headless browser as `board overview`, never
 overwrites a file and usually takes a few seconds. Save it wherever your chat
 tool can send it; it is a copy for the conversation, not project material.
@@ -113,13 +115,13 @@ to the workspace metadata folder (by default `design/boards/.tinka`), so the
 project's `renders/` folder is `../../../renders`. Register it once:
 
 ```sh
-node tinka/app/cli.mjs tools call workspace.update --config tinka/local/config.json \
+node fribblr/app/cli.mjs tools call workspace.update --config fribblr/local/config.json \
   --json '{"patch":{"resourceRoots":{"renders":{"path":"../../../renders"}}}}'
-node tinka/app/cli.mjs tools call item.create --config tinka/local/config.json \
+node fribblr/app/cli.mjs tools call item.create --config fribblr/local/config.json \
   --json '{"boardId":"art-directions",
   "item":{"title":"Look A","content":{"kind":"image","resource":{"rootId":"renders","path":"look-a.png"}}},
   "placement":{"x":620,"y":0,"width":962,"height":600,"presentation":{"mode":"panel"}}}'
-node tinka/app/cli.mjs tools call item.create --config tinka/local/config.json \
+node fribblr/app/cli.mjs tools call item.create --config fribblr/local/config.json \
   --json '{"boardId":"art-directions",
   "item":{"title":"Which look? Star one, or just tell me.","content":{"kind":"note","text":"My pick is A."}},
   "placement":{"x":0,"y":0,"width":560,"height":300}}'
@@ -137,14 +139,14 @@ cannot open the link), save an overview and send that file with the board link
 (for one item, `item shot` above shows it larger):
 
 ```sh
-node tinka/app/cli.mjs board overview BOARD_ID --config tinka/local/config.json \
+node fribblr/app/cli.mjs board overview BOARD_ID --config fribblr/local/config.json \
   --out /absolute/project/design/BOARD_ID-overview.png
 ```
 
 It renders the board as it looks at its saved geometry, fitted to one PNG at most
 2400 pixels wide (`--width`), light by default (`--appearance dark`), in about ten
-seconds. Other Tinka commands for this app wait while it runs, so do not start it
-alongside a batch of tool calls. It needs this project's Tinka running and an
+seconds. Other fribblr commands for this app wait while it runs, so do not start it
+alongside a batch of tool calls. It needs this project's fribblr running and an
 installed Chrome, Chromium, Edge or Brave (or `CHROMIUM_EXECUTABLE`); without one,
 screenshot `URL/boards/BOARD_ID/?overview`.
 It refuses to overwrite a file, so name each round's image (`-r02`). Everything
@@ -156,16 +158,16 @@ where the question is asked.
 See [the protocol](PROTOCOL.md#items-resources-and-children) for payloads; legacy
 (schema 1) boards use [Start a board](PROTOCOL.md#start-a-board).
 
-### Keep successive HTML versions on one Tinka
+### Keep successive HTML versions on one item
 
 Name the first version `opening-v01.html` in a registered resource folder. Add
-it once with `item.create` and use the returned Tinka link. Keep the same stem
+it once with `item.create` and use the returned fribblr link. Keep the same stem
 and directory for each version, with lowercase `-v` followed by the version
 number just before `.html`.
 
 When feedback calls for changes, save `opening-v02.html` beside `opening-v01.html`
 and keep both files and any assets they need. The existing item discovers the
-new file. Reply to the feedback with what changed and share the same Tinka link.
+new file. Reply to the feedback with what changed and share the same fribblr link.
 Use the version controls on the tile or in the reader to compare the files. The
 default is the highest version number, and **Modified** in the reader shows the
 file's last modification time. To show the same work on another board, use
@@ -232,7 +234,7 @@ content and existing canonical review.note/star. Threads may be general, board
 point/placement/decoration attached, or anchored to item text quotes. Replies and
 resolution retain history. item.vote sets one yes/no/abstain value per actor;
 null clears it. Actors are self-reported local descriptors, not authentication.
-Inspect anchor status after document edits. Saves in Tinka move a saved quote when its
+Inspect anchor status after document edits. Saves in fribblr move a saved quote when its
 exact text occurs once in the new text, or, among repeats, when its saved context picks
 one clear winner; the move is recorded in `reanchored`. Edited quotes and ties stay for review. After editing a document's
 file yourself, call `document.reanchor {itemId}` to persist those moves.
@@ -268,8 +270,8 @@ messages and keep their history. `targetLabel` names what a comment was on, even
 after that target is deleted.
 
 Live pickup: run `node cli.mjs inbox --config PATH --watch [--timeout SECONDS]` as a
-background command. It waits quietly (a long-poll on the running Tinka server, or a
-filesystem watch when Tinka isn't running), then prints the brief line and one line per
+background command. It waits quietly (a long-poll on the running fribblr server, or a
+filesystem watch when fribblr isn't running), then prints the brief line and one line per
 thread with its link and ID, marks them seen and exits 0; on timeout it exits 0 with no
 output. Start it again after working the threads. While it waits, the board shows the
 agent as watching (`GET /api/agents`). Pins can sit on arrows
@@ -317,7 +319,7 @@ order, each run with `at`/`end` in ms from `startedAt`), and `marks` (`n`, `tool
 `itemId`, `itemKind`, `title`, `whole`, `region`, `spot`, `content` (`{x,y,w,h,unit:"px"|"fraction",of}`; `w` and `h` are 0 for a spot), `now`, and `crop` with absolute `path`,
 `width`, `height`, `from`, `box`). `refs` lists the same objects. Answer in the same
 thread with `feedback.reply`, with `changes` for what you changed, as for any comment.
-Only a message sent from the Tinka page has crops; a pointing thread written through the
+Only a message sent from the fribblr page has crops; a pointing thread written through the
 CLI or tools has `crop:null` and a note.
 
 Point comments can follow a target with normalized fractions while retaining a
@@ -477,15 +479,15 @@ Do:
 - **Frame a comparison set the same way.** Crop every variant (v1–v5, A/B/C)
   identically so only the difference changes from tile to tile.
 - **Show a board's contents.** A board cover should be a collage of its real
-  children, or the single best child; Tinka adds the item count.
+  children, or the single best child; fribblr adds the item count.
 - **Use the native size.** Capture at the design's own viewport (for example
-  1000 × 720) and let Tinka scale it; use 2× pixel density for large tiles.
+  1000 × 720) and let fribblr scale it; use 2× pixel density for large tiles.
 
 Don't:
 
 - Use one decorative template (colour band, eyebrow, slogan, glyph) for every
   tile. Templates make siblings identical.
-- Repeat the title as tiny text inside the image; Tinka already shows it.
+- Repeat the title as tiny text inside the image; fribblr already shows it.
 - Use abstract art, gradients or icons in place of content, unless the work *is*
   abstract art.
 - Put meaning near the edges; tiles round their corners and may crop slightly.
@@ -501,7 +503,7 @@ Don't:
 | Markdown or document | The title in large type plus 2–3 key lines, a checklist score or the decision |
 | Data or report | The chart or the headline number, not the table |
 | Video | One telling frame with real content, never the black first frame |
-| Board | A collage of up to 4 real children (or the best one); Tinka shows the count |
+| Board | A collage of up to 4 real children (or the best one); fribblr shows the count |
 | Note or idea | Nothing. A card with readable text is the preview. |
 
 Before marking work ready: open the board at 100% and at 25%, run the two-second
@@ -510,7 +512,7 @@ current revision. Replace it when the work changes.
 
 ### Dates
 
-Store timestamps as ISO 8601 instants (the operations do this for you). Tinka
+Store timestamps as ISO 8601 instants (the operations do this for you). fribblr
 renders every date with one readable formatter in the viewer's local time zone:
 "just now", "N min ago", "N hours ago" (same calendar day), "Yesterday, 3:40 PM",
 a weekday and time for 2–6 days back ("Sat, 9:12 AM"), then "Oct 21" this year or
@@ -524,7 +526,7 @@ than "3 days ago", which hides the time and cannot be placed on a calendar.
 ## Install and upgrade
 
 The app includes `scripts/install.mjs`; releases also provide the same standalone
-`tinka-install.mjs`. It verifies SHA-256 and ZIP paths, stages replacements,
+`fribblr-install.mjs`. It verifies SHA-256 and ZIP paths, stages replacements,
 stops only the verified owned process and retains a backup. The optional skill
 contains no installer or version-specific operations. Project setup updates its
 version pin only after verified successful health. Review and commit that change;
@@ -542,9 +544,9 @@ require review. A major update is offered, never installed automatically or by
 plain `update now`: ask the user, and only after they agree run
 `update now --major`, which keeps every other check. Old installation receipts lack file baselines. Follow
 the root README's current standalone-installer reinstall command to establish a
-baseline even when already current; preserve custom setup.mjs/TINKA.md. Never copy
-version numbers or checksums into TINKA.md: `tinka/project.json` and
-`tinka/packages/*.sha256` are the record, and a copied number goes stale. App setup
+baseline even when already current; preserve custom setup.mjs/FRIBBLR.md. Never copy
+version numbers or checksums into FRIBBLR.md: `fribblr/project.json` and
+`fribblr/packages/*.sha256` are the record, and a copied number goes stale. App setup
 with no arguments remains a pinned restore. Preferences/cache stay local, and
 manual/dotfolder config paths stay in place.
 

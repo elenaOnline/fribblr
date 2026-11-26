@@ -177,7 +177,7 @@ try {
   const readerRow=async to=>{await page.locator('#reader-zoom-toggle').click();await rz(to).click();await settle(600);return readerZoom();};
   const fitRow=await readerRow('fit');const hundredRow=await readerRow('1');
   await page.locator('#reader-stage').focus().catch(()=>{});await page.keyboard.press('f');await settle(600);
-  assert.equal(await readerZoom(),fitRow,'Fit this Tinka by its key');
+  assert.equal(await readerZoom(),fitRow,'Fit this item by its key');
   await page.keyboard.press('Shift+Digit0');await settle(600);assert.equal(await readerZoom(),hundredRow,'Zoom to 100% by its key (reader)');
   keyed.push('reader fit','reader zoom to 100%');
   await page.locator('#close-reader').click();await page.locator('#reader-dialog').waitFor({state:'hidden'});
