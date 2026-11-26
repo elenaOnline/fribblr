@@ -253,6 +253,7 @@ export const RULES = [
   ['TINKA.md', /(?<![\w-])TINKA\.md\b/g, 'FRIBBLR.md'],
   ['section markers', /<!-- tinka:(start|end) -->/g, '<!-- fribblr:$1 -->'],
   ['host folder paths', /(?<![\w./$-])tinka\/(?=app\b|local\b|project\.json|setup\.mjs|packages\b|\.gitignore|\.pid)/g, 'fribblr/'],
+  ['host folder paths, as written in a regular expression', /(?<![\w./$\\-])tinka\\\/(?=app\\\/|local\\\/)/g, 'fribblr\\/'],
   ['host folder, named alone', /([`'"( ])tinka\/([`'") ,.])/g, '$1fribblr/$2'],
 
   // 4. The product name, last. Not after "upstream" / "fork of" / "forked from" (credit), nor in "Tinka by bladnman", not as a release
