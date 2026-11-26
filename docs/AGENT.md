@@ -320,6 +320,35 @@ thread with `feedback.reply`, with `changes` for what you changed, as for any co
 Only a message sent from the Tinka page has crops; a pointing thread written through the
 CLI or tools has `crop:null` and a note.
 
+Round 2 adds the following, all optional on a mark:
+
+- `tool` is also `wand` (she sweeps an area with glitter: `shape` is `{kind:"swath", width, points}`, the centre
+  line and the band's width, in the place's units) or `click` (a click without a drag in any tool; `via` names that
+  tool). The read says `click (with marquee)`, and for a wand what the area covered.
+- Snapping. When a reference was tidied to something she meant, `snap` is `{source, label, shape}`: `source` is
+  `object` (a card or drawing), `dom` (an element of a page) or `pixels` (a region found by edges in a picture),
+  `label` names it (`button "Sign in"`), `shape` is the snapped outline (rect or path). `shape` stays her raw gesture,
+  and the read states both ("Snapped to button "Sign in" (…); what she did before it snapped: a click at x 184, y
+  1239"). Targets, regions and the crop follow the snapped outline. No `snap` means exactly what she drew.
+- `place`: where the mark was made. Absent or `{kind:"board", boardId}` is the board. `{kind:"item", itemId, boardId,
+  placementId?, version?, view:{zoom, scrollX, scrollY, width, height, unit?}}` is inside the opened item: `shape`
+  and `snap` are then in the item's own coordinates (CSS px of the page for an HTML item, px of the image, or
+  fractions of the content area when `view.unit` is `fraction`), and `view` is what she was looking at (her frame
+  in screen px, its zoom, how far the page was scrolled). One message can mix places; each line of the read says its own.
+- Targets may carry `element` (a DOM element of a same-origin or loopback page: `tag`, `role?`, `name?`, `text?`,
+  `id?`, `selector` matching only it, `path`, `box` in page px with scroll included, `frameUrl?`), `elements` (with
+  `element` as their common ancestor, when she meant several: 2 to 12) and `text` (a range in a document:
+  `quote`, `prefix?`, `suffix?`, `start?`, `end?`, as for text comments, so you can find it in the source).
+
+Crops follow. For a mark on the board the render is the board as saved; the wand's area is drawn as the same glitter
+she saw, a snapped mark shows the outline it snapped to (dashed, full red) and her raw gesture faint. For a mark inside
+an opened item the crop is a render of the item itself, not her screen: an HTML page loaded fresh at her frame's size
+divided by her zoom, scrolled where she was, the version she looked at (`place.version`), or, for a snapped or element
+mark, the snapped outline or the element's box with context. Its `from` says what it is and what it cannot reproduce
+(text typed into the page, state its scripts built up, a running app's session). If the version is gone, the item is
+deleted, or it is a PDF or video, there is no crop and the line says why. Deleting a pointing thread removes its crops
+(`<workspaceRoot>/pointing/<threadId>/`); on server start, crop folders of threads that no longer exist are removed.
+
 Point comments can follow a target with normalized fractions while retaining a
 creation fallback. For example, after inspecting a board and its placement IDs:
 
