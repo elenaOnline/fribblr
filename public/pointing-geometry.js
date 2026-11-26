@@ -102,7 +102,7 @@ function lineAgainst(points, inside, edges) {
 // Arrows go by their drawn line when they have one (`points`): one wholly inside counts alongside everything else; one
 // the gesture only crosses counts when nothing else was hit. Without a line, an arrow counts only wholly inside its box,
 // and only when nothing else was hit.
-function decide(candidates, shapeArea, covered, {loose = false, inside = null, edges = []} = {}) {
+function decide(candidates, shapeArea, covered, {loose = false, inside = null, edges = [], span = null} = {}) {
   let hits = [];
   const lines = [];
   for (const c of candidates) {
@@ -116,8 +116,11 @@ function decide(candidates, shapeArea, covered, {loose = false, inside = null, e
     const got = covered(c, box); if (!got || !(got.area > 0)) continue;
     const cover = got.area / boxArea, share = shapeArea > 0 ? got.area / shapeArea : 0;
     const whole = cover >= 0.9 || (loose && !c.line && cover >= 0.6 && !!inside?.([c.x + c.w / 2, c.y + c.h / 2]));
-    if (c.line ? !whole : cover < 0.25 && share < 0.25) continue;
-    hits.push({c, box, whole, inter: got.area, part: got.bounds});
+    // `span` (the wand): a stroke that runs along most of a thing's length while touching it (an underline, a stroke
+    // through a heading) points at it even when it covers little of it.
+    const along = span && !c.line ? span(box) : 0;
+    if (c.line ? !whole : cover < 0.25 && share < 0.25 && !(along >= 0.75 && cover >= 0.08)) continue;
+    hits.push({c, box, whole, inter: got.area, part: got.bounds, cover, along});
   }
   const within = (inner, outer) => { const i = intersectRect(inner.box, outer.box); return !!i && area(i) >= 0.9 * area(inner.box) && area(outer.box) > area(inner.box); };
   hits = hits.filter(h => !(!h.whole && hits.some(o => o !== h && !o.c.line && within(o, h))));
@@ -127,7 +130,9 @@ function decide(candidates, shapeArea, covered, {loose = false, inside = null, e
   const others = hits.length > 0;
   hits.push(...lines.filter(l => l.enclosed || !others));
   const more = Math.max(0, hits.length - 12);
-  return {more, targets: hits.slice(0, 12).map(h => ({candidate: h.c, whole: h.whole, ...(h.whole ? {} : {region: regionOf(h.part, h.box)})}))};
+  // `cover` (how much of the thing the gesture covers) and `along` go with each target for snapping (pointing-snap.js).
+  return {more, targets: hits.slice(0, 12).map(h => ({candidate: h.c, whole: h.whole, cover: h.c.line ? 1 : Math.min(1, h.cover), along: h.along || 0,
+    ...(h.whole ? {} : {region: regionOf(h.part, h.box)})}))};
 }
 export function rectHits(rect, candidates) {
   return decide(candidates, area(rect), (c, box) => { const i = intersectRect(rect, box); return i && {area: area(i), bounds: i}; },
@@ -141,6 +146,15 @@ export function pathHits(points, candidates, {loose = false} = {}) {
     const clipped = clipPolygon(points, box); if (clipped.length < 3) return null;
     return {area: polygonArea(clipped), bounds: boundsOf(clipped)};
   }, {loose, inside: p => inRect(p, shapeBox) && pointInPolygon(p, points), edges: polyEdges(points)});
+}
+/**
+ * The wand's area (a SwathField, pointing-wand.js): what lies inside it, by area, loose as a circle is (a band round a
+ * thing's centre over most of it is the whole thing), and along (an underline points at what it runs under).
+ */
+export function areaHits(field, candidates) {
+  const fb = field.bounds(); if (!fb) return {more: 0, targets: []};
+  return decide(candidates, field.area(), (c, box) => intersectRect(fb, box) ? field.covered(box) : null,
+    {loose: true, inside: p => field.contains(p), edges: [], span: box => field.span(box)});
 }
 /** A click: the whole thing under it (found by the page), and the spot clicked as fractions of its own box. */
 export function pointTarget(candidate, point) {
