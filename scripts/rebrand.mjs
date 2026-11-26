@@ -215,10 +215,13 @@ const R = String.raw`(?![\w$-])`;                // right edge
 const either = w => w.replace(/^[A-Za-z]/, c => `[${c.toUpperCase()}${c.toLowerCase()}]`);
 const DET = '(?:' + ['this', 'these', 'that', 'those', 'each', 'every', 'one', 'any', 'another', 'other', 'all of the', 'selected', 'opened', 'open', 'placed', 'whose', 'board-only', 'zoomed', 'fitted', 'loaded', 'copied', 'pasted', 'cut', 'duplicated', 'dragged',
   'previous', 'next', 'first', 'last', 'current', 'focused', 'single', 'its', 'which', 'per', 'their', 'your', 'my', 'same',
-  'new', 'archived', 'active', 'whole', 'the', 'an', 'cursor', "placement's"].map(either).join('|') + ')';
+  'new', 'archived', 'active', 'whole', 'the', 'an', 'cursor', 'link', "placement's"].map(either).join('|') + ')';
 
 export const RULES = [
   // 1. Places where Tinka is only ever the product (or a credit), decided before any noun rule.
+  ['an opened item\'s own controls (the board has Board actions, Board zoom …)', /(?<=aria-label="|["“'])Tinka (actions|canvas|view controls|zoom)(?=[:"”'])/g, 'Item $1'],
+  ['where to install from, in board guides', /(?<=installation and recovery without a skill, see\s+)https:\/\/github\.com\/bladnman\/tinka(?=\.)/g, 'docs/INSTALL.md in https://github.com/elenaOnline/fribblr'],
+  ['"my 3 Tinka comments" → "my 3 comments"', /(?<=\} )Tinka (?=comments?\b)/g, ''],
   ['link-preview user agent', /Tinka-Link-Preview\//g, 'fribblr-link-preview/'],
   ['heading anchors', /(?<=\]\(#[\w-]*-)tinka(?=[\w-]*\))/g, 'fribblr'],
   ['artifact names', /(?<![\w-])tinka-(install\.mjs|skill\.zip|v(?:VERSION|X\.Y\.Z))/g, 'fribblr-$1'],
@@ -230,10 +233,12 @@ export const RULES = [
   ['Tinkas', new RegExp(`${L}Tinkas${R}`, 'g'), 'items'],
   ['"Tinka" : "items"', /(["'])Tinka\1(?=\s*:\s*["']items["'])/g, '$1item$1'],
   ['Tinka${n === 1 ? "" : "s"}', /Tinka(?=\$\{[^}]*\?\s*(?:""|'')\s*:\s*(?:"s"|'s')\})/g, 'item'],
-  ['Tinka placements', new RegExp(`${L}Tinka (placements?|cards?|tiles?|kinds?)${R}`, 'g'), 'item $1'],
-  ['A Tinka', new RegExp(`${L}A Tinka${R}`, 'g'), 'An item'],
-  ['a Tinka', new RegExp(`${L}a Tinka${R}`, 'g'), 'an item'],
-  ['the/this/... Tinka', new RegExp(`(?<=\\b${DET} )Tinka${R}`, 'g'), 'item'],
+  ['Tinka placements, at the start of a sentence', new RegExp(`(?<=(?:^|[.!?]\\s+))Tinka (placements?|cards?|tiles?|kinds?|copies)${R}`, 'gm'), 'Item $1'],
+  ['Tinka placements', new RegExp(`${L}Tinka (placements?|cards?|tiles?|kinds?|copies)${R}`, 'g'), 'item $1'],
+  ['a Tinka task (the app\'s task, not a thing on a board)', new RegExp(`${L}a(\\s+)Tinka(?=\\s+tasks?\\b)`, 'g'), 'a$1fribblr'],
+  ['A Tinka', new RegExp(`${L}A(\\s+)Tinka${R}`, 'g'), 'An$1item'],
+  ['a Tinka', new RegExp(`${L}a(\\s+)Tinka${R}`, 'g'), 'an$1item'],
+  ['the/this/... Tinka', new RegExp(`(?<=\\b${DET}\\s+)Tinka${R}`, 'g'), 'item'],
   ['opened-Tinka, current-Tinka', /(?<=\b(?:opened|current|selected)-)Tinka(?![\w$-])/g, 'item'],
   ['Tinka-managed', /(?<![\w$#@/.-])Tinka(?=-managed\b)/g, 'fribblr'],
   ['"Removed 1 Tinka"', /(?<=\b\d+ )Tinka(?![\w$-])/g, 'item'],
@@ -247,24 +252,30 @@ export const RULES = [
   ['TINKA.md', /(?<![\w-])TINKA\.md\b/g, 'FRIBBLR.md'],
   ['section markers', /<!-- tinka:(start|end)\b/g, '<!-- fribblr:$1'],
   ['host folder paths', /(?<![\w./$-])tinka\/(?=app\b|local\b|project\.json|setup\.mjs|packages\b|\.gitignore|\.pid)/g, 'fribblr/'],
-  ['host folder inside an absolute path', /(?<=[\w.-]\/)tinka\/(?=(?:app|local|packages)\/|project\.json|setup\.mjs)/g, 'fribblr/'],
+  ['host folder inside an absolute path', /(?<=[\w.-]\/)tinka\/(?=(?:app|local|packages)(?:\/|(?![\w.-]))|project\.json|setup\.mjs)/g, 'fribblr/'],
   ['host folder paths, as written in a regular expression', /(?<![\w./$\\-])tinka\\\/(?=app\\\/|local\\\/)/g, 'fribblr\\/'],
   ['host folder, named alone', /([`'"( ])tinka\/([`'") ,.])/g, '$1fribblr/$2'],
 
-  // 4. The product name, last. Not after "upstream" / "fork of" / "forked from" (credit), nor in "Tinka by bladnman", not as a release
-  //    number ("Tinka 1.3" is upstream's release), nor as the text of a link to upstream's repository.
-  ['Tinka', new RegExp(`(?<!\\b(?:[Uu]pstream|fork of|forked from) )${L}Tinka(?! \\d+\\.\\d)(?!\\]\\(https://github\\.com/bladnman/tinka)${R}`, 'g'), 'fribblr'],
+  // 4. The product name, last. Credits to upstream are held aside before any rule runs (CREDIT, below).
+  ['Tinka', new RegExp(`${L}Tinka${R}`, 'g'), 'fribblr'],
 ];
 
 // ---------------------------------------------------------------------------------------------
+
+// Credits to upstream keep the old name whatever rule would otherwise match: "upstream Tinka", "fork of Tinka",
+// "forked from Tinka", "Tinka by bladnman" and the link text of [Tinka](https://github.com/bladnman/tinka). They are
+// swapped for a placeholder before the rules run and put back after.
+const CREDIT = /\b([Uu]pstream|fork of|forked from) Tinka\b|\bTinka(?= by bladnman\b|\]\(https:\/\/github\.com\/bladnman\/tinka\))/g;
+const HELD = '\u0000TINKA\u0000';
 
 export function rebrandText(file, src) {
   const parts = segments(file, src);
   let changed = false;
   const out = parts.map(p => {
     if (p.comment) return p.text;
-    let t = p.text;
+    let t = p.text.replace(CREDIT, (m, lead) => lead ? `${lead} ${HELD}` : HELD);
     for (const [, re, to] of RULES) t = t.replace(re, to);
+    t = t.replaceAll(HELD, 'Tinka');
     if (t !== p.text) changed = true;
     return t;
   }).join('');

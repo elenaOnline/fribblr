@@ -48,7 +48,6 @@ export const ALLOWED = [
   { why: 'upstream project address and site', token: /^(?:github\.com\/bladnman\/tinka|[\w./:-]*bladnman\/tinka|tinka\.metal-sole\.com)/ },
   { why: 'a link to upstream\'s repository, [Tinka](https://github.com/bladnman/tinka)', token: /^Tinka\]\(https:\/\/github\.com\/bladnman\/tinka\)/ },
   { why: 'credit to the project fribblr is forked from', line: /\b(?:[Uu]pstream|forked from|fork of) Tinka\b|Tinka by bladnman/ },
-  { why: "upstream's release numbers (Tinka 1.3 is upstream's release, not ours)", line: /\bTinka \d+\.\d+/ },
   { why: 'docs/BRANDING.md explains the old name; it is the one file that names it freely', file: 'docs/BRANDING.md', line: /./ },
 ];
 
