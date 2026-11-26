@@ -41,7 +41,12 @@ export function resolveFrame(el) {
     let url; try { url = new URL(doc.URL); } catch { return null; }
     if (url.protocol === 'about:' || (typeof location !== 'undefined' && url.origin !== location.origin)) return null;
     chain.push(frame);
-    if (WRAPPER_PATHS.has(url.pathname)) { frame = doc.querySelector('#item-content > iframe.item-full-frame'); continue; }
+    if (WRAPPER_PATHS.has(url.pathname)) {
+      const inner = doc.querySelector('#item-content > iframe.item-full-frame');
+      // An item with no page of its own (a note, a title) is shown by the wrapper itself: its words are the page.
+      if (!inner && doc.querySelector('#item-content > .item-representation')) return {doc, win, frame, chain};
+      frame = inner; continue;
+    }
     if (url.pathname === '/app/media.html' && MEDIA_ONLY.has(url.searchParams.get('kind'))) return null;
     if (!doc.body) return null;
     return {doc, win, frame, chain};
@@ -520,6 +525,19 @@ function textAlternative(el, depth, skip = null) {
   return INLINE_TAGS.has(t) ? s : ` ${s} `;
 }
 
+// An element's words for `text`: its text with a space between blocks (a heading and the paragraph under it read
+// "Block 3 Middle of the page.", not "Block 3Middle …"), scripts and styles left out, enough for the 80 kept.
+function wordsOf(el, budget = {n: 400}) {
+  if (!el || budget.n <= 0) return '';
+  if (el.nodeType === TEXT) { const v = el.nodeValue ?? el.textContent ?? ''; budget.n -= v.length; return v; }
+  if (el.nodeType !== ELEMENT) return '';
+  const t = tagOf(el);
+  if (t === 'script' || t === 'style' || t === 'template' || t === 'noscript') return '';
+  if (t === 'br') return ' ';
+  let s = '';
+  for (const c of el.childNodes || []) { s += wordsOf(c, budget); if (budget.n <= 0) break; }
+  return INLINE_TAGS.has(t) || t === 'a' || t === 'label' ? s : ` ${s} `;
+}
 function closest(el, pred) { for (let p = el.parentElement; p; p = p.parentElement) if (pred(p)) return p; return null; }
 const collapse = s => String(s || '').replace(/\s+/g, ' ').trim();
 const clipName = s => { const c = collapse(s); return c.length > 120 ? c.slice(0, 119) + '…' : c; };
@@ -630,7 +648,7 @@ function commonAncestor(els) {
 
 export function describeElement(el, doc = el.ownerDocument, win = doc?.defaultView) {
   const t = tagOf(el), role = roleOf(el), name = accessibleName(el);
-  const text = t === 'input' || t === 'textarea' ? collapse(el.value ?? attr(el, 'value') ?? '') : collapse(el.textContent || '');
+  const text = t === 'input' || t === 'textarea' ? collapse(el.value ?? attr(el, 'value') ?? '') : collapse(wordsOf(el));
   const out = {tag: t};
   if (role) out.role = role;
   if (name) out.name = name;
