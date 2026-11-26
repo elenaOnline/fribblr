@@ -3,7 +3,7 @@
 Read `README.md`, `docs/PROTOCOL.md`, `docs/RELEASE.md`, and `IMPLEMENTATION_CONTRACT.md` before changing behavior. This is a small Node >=22 ESM app with no runtime dependencies. Keep it simple.
 
 - One instance per project is normal. No runtime registry lookup, master service, shared notes, or cross-project process discovery. Claim this config before binding; handle EADDRINUSE at bind time; persist the chosen port and report its actual URL.
-- The package and app ZIP root are `fribblr` (migrated from upstream's `board-room` on 2026-11-26, before any fribblr release); the installer replaces only a `fribblr` app, never an upstream Tinka install. Version comes from package.json.
+- The package and app ZIP root are `fribblr` (migrated from upstream's `board-room` on 2026-11-26, before any fribblr release); the installer replaces only a `fribblr` app, never an upstream fribblr install. Version comes from package.json.
 - App code is disposable. Never put personal boards, notes, config, process state, private paths, screenshots, or workspace registry in this repo or the release. `examples/` is generic public content.
 - Preserve prior rounds and stable IDs. Experiments own their assets and run instructions, use target-product styling, and require no fribblr SDK.
 - Preserve unrelated local changes. Stop only owned temporary QA processes. Use a headless browser for QA; do not open or disrupt the user's browser or other apps.
