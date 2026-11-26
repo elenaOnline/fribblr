@@ -18,8 +18,11 @@
 //
 //   import {pixelSnap} from './pointing-snap-pixels.js';
 //   pixelSnap.prepare(item, el)                       // first hover / entering the mode: decodes and caches (async)
-//   pixelSnap.propose({kind, geometry, item, el})     // -> Promise<{shape, label, source: 'pixels', score} | null>
-//   pixelSnap.ready(item, el)                         // true once prepared (propose then answers in one worker trip)
+//   pixelSnap.onReady = (answer, request) => …        // a worker answer arrived (re-propose to show it)
+//   pixelSnap.propose({kind, geometry, item, el})     // sync: the answer for this gesture if the worker has it, else
+//                                                     //   null now and onReady later  -> {shape, label, source: 'pixels', score} | null
+//   pixelSnap.proposeAsync({…})                       // -> Promise of the same
+//   pixelSnap.ready(item, el)                         // true once prepared (an answer then takes one worker trip)
 //
 // Coordinates are image pixels of the file (CONTRACT "content": `unit: 'px'`), both ways. The work runs in a module
 // worker (pointing-snap-pixels-worker.js); without one it runs on the main thread. Everything above the "source"
@@ -572,36 +575,98 @@ async function decode(url) {
   return {data: g.getImageData(0, 0, w, h).data, w, h, nw, nh};
 }
 
-export function createPixelSnap({threshold = .6} = {}) {
-  const prepared = new Map(); // url -> Promise<{key, nw, nh}> (worker) or Promise<PixelPicture> (main thread)
+// Two ways to ask. `proposeAsync` resolves with the answer. `propose` fits the mode's synchronous seam: it answers at
+// once with the last worker answer when that was for (nearly) this gesture, else null, and asks the worker for this
+// gesture (latest wins while one is in flight); when the answer arrives `onReady(answer, request)` is called so the
+// mode can show the snapped outline (and call `propose` again, which then returns it).
+// The card's own decoded <img> drawn at ≤ WORK_MAX px a side (main thread; null if tainted or not loaded).
+function drawImg(img) {
+  if (!img?.naturalWidth) return null;
+  const nw = img.naturalWidth, nh = img.naturalHeight, vector = /\.svgz?(?:$|[?#])|^data:image\/svg/i.test(img.currentSrc || img.src);
+  // a vector picture has no pixels of its own: draw it at 1600 px on its long side
+  const k = vector ? WORK_MAX / Math.max(nw, nh) : Math.min(1, WORK_MAX / Math.max(nw, nh));
+  const w = Math.max(1, Math.round(nw * k)), h = Math.max(1, Math.round(nh * k));
+  try {
+    const c = Object.assign(document.createElement('canvas'), {width: w, height: h}), g = c.getContext('2d', {willReadFrequently: true});
+    g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, w, h);
+    return {data: g.getImageData(0, 0, w, h).data, w, h, nw, nh};
+  } catch { return null; }
+}
+
+export function createPixelSnap({threshold = .6, onReady = null} = {}) {
+  const prepared = new Map(); // url -> Promise<{nw, nh}> (worker) or Promise<PixelPicture> (main thread)
   const done = new Set();
   const prepare = (item, el) => {
     const p = pictureOf(item, el); if (!p) return null;
     if (!prepared.has(p.url)) {
       const job = (async () => {
         const w = getWorker();
-        if (w) { const r = await ask({type: 'prepare', url: new URL(p.url, location.href).href}); done.add(p.url); return r; }
-        const d = await decode(p.url); const pic = new PixelPicture(d.data, d.w, d.h, d.nw, d.nh); done.add(p.url); return pic;
+        const url = new URL(p.url, location.href).href;
+        if (w) {
+          let r;
+          try { r = await ask({type: 'prepare', url}); }
+          catch {
+            // a picture the worker cannot decode (an SVG: createImageBitmap has no document there) is drawn here
+            // from the card's own <img>, once, and handed over
+            const d = drawImg(p.img); if (!d) throw new Error('unreadable');
+            r = await ask({type: 'adopt', url, ...d}, [d.data.buffer]);
+          }
+          done.add(p.url); return r;
+        }
+        const d = drawImg(p.img) || await decode(p.url); const pic = new PixelPicture(d.data, d.w, d.h, d.nw, d.nh); done.add(p.url); return pic;
       })();
       job.catch(() => prepared.delete(p.url));
       prepared.set(p.url, job);
     }
     return prepared.get(p.url);
   };
-  return {
-    prepare: (item, el) => prepare(item, el) || Promise.resolve(null),
-    ready(item, el) { const p = pictureOf(item, el); return !!p && done.has(p.url); },
-    async propose({kind, geometry, item, el} = {}) {
-      kind = kind || geometry?.kind;
-      const p = pictureOf(item, el); if (!p || !geometry) return null;
-      try {
-        const pic = await prepare(item, el); if (!pic) return null;
-        if (pic instanceof PixelPicture) return proposePixels(pic, kind, geometry, {threshold});
-        return await ask({type: 'propose', url: new URL(p.url, location.href).href, kind, geometry, threshold});
-      } catch { return null; }
-    },
-    forget(item, el) { const p = pictureOf(item, el); if (p) { prepared.delete(p.url); done.delete(p.url); ask({type: 'forget', url: new URL(p.url, location.href).href}); } },
+  const proposeAsync = async ({kind, geometry, item, el} = {}) => {
+    kind = kind || geometry?.kind;
+    const p = pictureOf(item, el); if (!p || !geometry) return null;
+    try {
+      const pic = await prepare(item, el); if (!pic) return null;
+      if (pic instanceof PixelPicture) return proposePixels(pic, kind, geometry, {threshold});
+      return await ask({type: 'propose', url: new URL(p.url, location.href).href, kind, geometry, threshold});
+    } catch { return null; }
   };
+  let last = null, inFlight = false, queued = null;
+  const run = req => {
+    inFlight = true;
+    proposeAsync(req).then(answer => {
+      last = {req, answer, url: pictureOf(req.item, req.el)?.url};
+      inFlight = false;
+      if (queued) { const q = queued; queued = null; run(q); }
+      api.onReady?.(answer, req);
+    });
+  };
+  const api = {
+    onReady,
+    prepare: (item, el) => (prepare(item, el) || Promise.resolve(null)).catch(() => null),
+    ready(item, el) { const p = pictureOf(item, el); return !!p && done.has(p.url); },
+    proposeAsync,
+    propose(req = {}) {
+      const kind = req.kind || req.geometry?.kind, p = pictureOf(req.item, req.el);
+      if (!p || !req.geometry) return null;
+      const r = {...req, kind};
+      if (last && last.url === p.url && sameGesture(last.req, r)) return last.answer;
+      if (inFlight) queued = r; else run(r);
+      return null;
+    },
+    forget(item, el) { const p = pictureOf(item, el); if (p) { prepared.delete(p.url); done.delete(p.url); if (last?.url === p.url) last = null; ask({type: 'forget', url: new URL(p.url, location.href).href}); } },
+  };
+  return api;
+}
+
+// Two requests for (nearly) the same gesture: same kind, and boxes overlapping ≥ 92 % (a click: within 4 px).
+export function sameGesture(a, b) {
+  if (a.kind !== b.kind) return false;
+  const g = a.geometry, h = b.geometry;
+  if (a.kind === 'point') return Math.hypot(g.x - h.x, g.y - h.y) <= 4;
+  const bb = q => { if (q.w != null) return {x: q.x, y: q.y, w: q.w, h: q.h}; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of q.points || []) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return {x: x0, y: y0, w: x1 - x0, h: y1 - y0}; };
+  const p = bb(g), o = bb(h);
+  const ix = Math.max(0, Math.min(p.x + p.w, o.x + o.w) - Math.max(p.x, o.x)) * Math.max(0, Math.min(p.y + p.h, o.y + o.h) - Math.max(p.y, o.y));
+  const u = p.w * p.h + o.w * o.h - ix;
+  return u > 0 && ix / u >= .92;
 }
 
 export const pixelSnap = createPixelSnap();

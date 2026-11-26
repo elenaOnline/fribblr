@@ -19,6 +19,7 @@ self.onmessage = async e => {
   const {id, type, url} = e.data;
   try {
     if (type === 'prepare') { const t = performance.now(); const pic = await load(url); self.postMessage({id, result: {nw: pic.nw, nh: pic.nh, bytes: pic.bytes(), ms: performance.now() - t}}); }
+    else if (type === 'adopt') { const pic = new PixelPicture(e.data.data, e.data.w, e.data.h, e.data.nw, e.data.nh); pictures.set(url, Promise.resolve(pic)); self.postMessage({id, result: {nw: pic.nw, nh: pic.nh, bytes: pic.bytes(), ms: 0}}); }
     else if (type === 'propose') { const pic = await load(url); const t = performance.now(); const result = proposePixels(pic, e.data.kind, e.data.geometry, {threshold: e.data.threshold}); if (result) result.ms = Math.round((performance.now() - t) * 10) / 10; self.postMessage({id, result}); }
     else if (type === 'forget') { pictures.delete(url); self.postMessage({id, result: true}); }
   } catch (err) { self.postMessage({id, error: String(err?.message || err)}); }
