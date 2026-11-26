@@ -69,6 +69,7 @@ export class ReaderCanvas {
     this.view = { zoom: 1, x: 0, y: 0 };
     this.fitted = true;
     this.expanded = false;
+    this.locked = false;
     this.gate = zoomOutGate({ onProgress: onLeaveProgress });
     this.floorKey = '';
     this.floorZoom_ = 1;
@@ -234,7 +235,8 @@ export class ReaderCanvas {
       this.zoomTo(this.view.zoom * rest, sx, sy);
       return 'zoomed';
     }
-    const verdict = this.gate.out(factor, { above: !this.atFloor(), source, repeat, locked: this.expanded });
+    // Expanded, or pointing inside it (pointing-mode.js sets `locked`), zooming out stops at the floor and never leaves.
+    const verdict = this.gate.out(factor, { above: !this.atFloor(), source, repeat, locked: this.expanded || this.locked });
     if (verdict === 'zoom') {
       this.zoomTo(this.view.zoom * factor, sx, sy);
       if (this.atLastFloor()) this.gate.reachedFloor();

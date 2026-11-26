@@ -289,7 +289,7 @@ try{
       await page.evaluate(()=>document.getElementById('viewport').focus());await page.keyboard.press(`${MOD}+i`); // the selected card's Inspector
       const inspector=()=>page.evaluate(()=>[...document.querySelectorAll('.calm-side')].some(e=>e.getBoundingClientRect().width>0));
       await until(inspector);assert.equal(await inspector(),true,'Inspector open');
-      await page.locator('[data-pointing-enter]').click();
+      await page.locator('#edit-tools [data-pointing-enter]').click();
       await until(on);assert.equal(await inspector(),true,'still open after the rail key');
       await page.locator('[data-pointing-tool="marquee"]').click();assert.equal(await inspector(),true,'still open after a tool key');
       assert.equal(await inField(),true);

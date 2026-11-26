@@ -90,6 +90,47 @@ export async function imageCropFull(card, region, fileUrl, overlay = null) {
   return imageCrop(card, region, {source, overlay});
 }
 
+// A mark made inside an opened image (pointing-reader.js): the picture's own file, cut round `shape` (the snapped
+// outline, else her gesture; image px of the file) with a margin of a quarter of its size, at the file's resolution,
+// with the outline drawn on it in her red (`red`), the spot she clicked as a dot (`gesture` a point), or the wand's
+// area as glitter (`swath(ctx, toCrop, k)`). Same origin only; a vector picture is drawn at 2×.
+export async function imageFileCrop(fileUrl, shape, {gesture = null, swath = null, red = '#B33830'} = {}) {
+  const img = new Image(); img.src = fileUrl;
+  try { await img.decode(); } catch { return null; }
+  const nw = img.naturalWidth, nh = img.naturalHeight; if (!(nw > 0 && nh > 0)) return null;
+  const pts = shape.kind === 'rect' ? [[shape.x, shape.y], [shape.x + shape.w, shape.y + shape.h]] : shape.kind === 'point' ? [[shape.x, shape.y]]
+    : shape.kind === 'swath' ? shape.points.flatMap(([x, y]) => [[x - shape.width / 2, y - shape.width / 2], [x + shape.width / 2, y + shape.width / 2]]) : shape.points;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const pad = Math.max(24, 0.25 * Math.max(x1 - x0, y1 - y0, shape.kind === 'point' ? 192 : 0));
+  const sx = Math.max(0, Math.floor(x0 - pad)), sy = Math.max(0, Math.floor(y0 - pad));
+  const sw = Math.min(nw, Math.ceil(x1 + pad)) - sx, sh = Math.min(nh, Math.ceil(y1 + pad)) - sy;
+  if (sw < 1 || sh < 1) return null;
+  const vector = /\.svgz?(?:$|[?#])|^data:image\/svg/i.test(fileUrl);
+  let k = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+  if (vector) k = Math.min(2, MAX_SIDE / Math.max(sw, sh));
+  else if (Math.max(sw, sh) < MIN_SIDE) k = Math.min(8, MIN_SIDE / Math.max(sw, sh));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(sw * k)); canvas.height = Math.max(1, Math.round(sh * k));
+  const g = canvas.getContext('2d');
+  if (!vector && k > 1) g.imageSmoothingEnabled = false;
+  g.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const toCrop = (x, y) => [(x - sx) * k, (y - sy) * k], line = Math.max(2, Math.round(Math.max(canvas.width, canvas.height) / 400));
+  g.strokeStyle = red; g.fillStyle = red; g.lineWidth = line; g.lineJoin = 'round';
+  if (swath) { try { swath(g, toCrop, k); } catch {} }
+  else if (shape.kind === 'rect') { const [a, b] = toCrop(shape.x, shape.y); g.strokeRect(a - line / 2, b - line / 2, shape.w * k + line, shape.h * k + line); }
+  else if (shape.kind === 'path') { g.beginPath(); shape.points.forEach(([x, y], i) => { const [a, b] = toCrop(x, y); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.closePath(); g.stroke(); }
+  const dot = gesture?.kind === 'point' ? gesture : shape.kind === 'point' ? shape : null;
+  if (dot) { const [a, b] = toCrop(dot.x, dot.y); g.beginPath(); g.arc(a, b, 2.5 * line, 0, Math.PI * 2); g.fill(); }
+  try {
+    let dataUrl = canvas.toDataURL('image/png');
+    for (const q of [0.92, 0.85, 0.75]) { if (dataUrl.length * 0.75 <= MAX_BYTES) break; dataUrl = canvas.toDataURL('image/jpeg', q); }
+    if (dataUrl.length * 0.75 > MAX_BYTES) return null;
+    return {dataUrl, width: canvas.width, height: canvas.height,
+      from: `natural pixels ${sx},${sy} ${sw}×${sh} of ${nw}×${nh}${k !== 1 ? `, ${k < 1 ? 'scaled down' : vector ? 'drawn' : 'enlarged with hard edges'} to ${canvas.width}×${canvas.height}` : ''}; her mark drawn in red`};
+  } catch { return null; }
+}
+
 // One capture of this tab for the length of the mode. start() must run inside
 // the user's gesture that enters the mode (getDisplayMedia needs transient
 // activation). grab(rect) returns the pixels of `rect` (CSS px of this page's

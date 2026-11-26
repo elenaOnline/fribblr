@@ -156,6 +156,8 @@ async function fetchBoard() {
     graph.hooks.restoreView = restoreBoardView;
     // Pointing mode's zoom chords (⌥= ⌥− ⌥0 ⌥1, pointing-mode.js): the board's own steps, 100% and fit, announced.
     graph.hooks.zoomKey = key => { const before = zoom; if (key === '0') boardZoomTo(1); else if (key === 'fit') runFit('board'); else boardZoomBy(key === '+' ? 1.15 : 1 / 1.15); if (zoom !== before) announceView(`Zoom ${Math.round(zoom * 100)}%`); };
+    // Pointing inside the opened item (pointing-reader.js): what the reader shows, and its view.
+    graph.hooks.reader = readerPointing;
     if (overview) graph.mode = 'canvas';
     return graph.adapt(data);
   }
@@ -831,12 +833,14 @@ function syncReaderZoom(view) {
   input.value = String(sliderFromZoom(view.zoom));
   input.setAttribute('aria-valuetext', `${percent} percent`);
   // − at the floor goes back to the board; expanded, it is unavailable there (aria-disabled through its toolbar part).
-  const floor = readerCanvas.atLastFloor(), state = readerCanvas.expanded && floor ? 'off' : floor ? 'leave' : 'zoom';
+  // Pointing inside it (pointing-mode.js) locks zoom out at the floor too: leaving would drop her draft's place.
+  const floor = readerCanvas.atLastFloor(), state = readerCanvas.expanded && floor ? 'off' : readerCanvas.locked && floor ? 'pointing' : floor ? 'leave' : 'zoom';
   if (state !== readerMinusState) {
     readerMinusState = state;
     const minus = $('reader-zoom-minus'), part = minus.closest('ui-toolbar-button');
-    if (part) part.disabled = state === 'off'; else minus.setAttribute('aria-disabled', String(state === 'off'));
-    setTip(minus, state === 'off' ? 'Zoom out · turn off Expand first' : state === 'leave' ? 'Zoom out to the board' : 'Zoom out');
+    const off = state === 'off' || state === 'pointing';
+    if (part) part.disabled = off; else minus.setAttribute('aria-disabled', String(off));
+    setTip(minus, state === 'off' ? 'Zoom out · turn off Expand first' : state === 'pointing' ? 'Zoom out · leave Point and type first' : state === 'leave' ? 'Zoom out to the board' : 'Zoom out');
   }
 }
 // Expand: the opened Tinka fills the stage and zooming out stops there. The toggle again, or the path (Up, Home, a row
@@ -855,6 +859,18 @@ function leaveToBoard() {
   // The rest of the gesture that left the item zooms the board out; it stops at the board's floor rather than going on up.
   boardGate.hold();
 }
+// Pointing mode inside the opened item (pointing-reader.js): the reader's parts, the item and version shown, and its
+// zoom keys. Null while the reader is closed. pointingFollows() tells the mode the reader changed (opened, closed,
+// stepped, another version, its content loaded).
+function readerPointing() {
+  if (!dialog.open || !active) return null;
+  const versions = readerVersionChoices(), shown = versions.find(v => v.id === activeVariantId);
+  return { dialog, stage: readerStage, plane: $('reader-plane'), window: $('reader-window'), frame: $('active-reader'), canvas: readerCanvas,
+    key: active.key, item: active.graphItem || null, placement: active.placement || null, title: active.name,
+    version: versions.length > 1 ? { id: activeVariantId, name: shown?.name || activeVariantId } : null,
+    zoom: (key, repeat) => runReaderCommand({ '+': 'zoom-in', '-': 'zoom-out', '0': 'actual-size', fit: 'fit' }[key], { repeat }) };
+}
+function pointingFollows() { graph?.pointing?.readerChanged?.(); }
 // Opening a Tinka leaves focus on Tinka's canvas, not inside the content, so its keys work at once.
 function focusTinka() {
   if (dialog.open) readerStage.focus({ preventScroll: true });
@@ -1041,6 +1057,7 @@ function loadRevision({ focus = false } = {}) {
   readerResource.reset(href);
   replaceFrame($('active-reader'), href);
   if (focus) focusTinka();
+  pointingFollows();
 }
 
 // Stepping skips reserved and building slots, and board-only Tinkas (those open their board).
@@ -1174,6 +1191,7 @@ function openReader(key, revision = null, { history: mode = 'push', focus = 'tin
   commitHistory(readerState(), mode);
   updateMetadata();
   applyReaderFocus(focus);
+  pointingFollows();
   return true;
 }
 
@@ -1206,6 +1224,7 @@ function closeReader({ history: mode = 'push', land = null } = {}) {
   applyView();
   const noPriorView = readerWithoutBoardView;
   readerWithoutBoardView = false;
+  pointingFollows();
   if (land && returnKey && landOnCard(returnKey, { noPriorView })) return;
   // Land on the tile last viewed (after any arrowing between siblings).
   if (returnKey) requestAnimationFrame(() => {
@@ -1521,6 +1540,7 @@ function runReaderCommand(command, { fromFrame = false, repeat = false } = {}) {
     const result = readerCanvas.zoomBy(1 / 1.25, undefined, undefined, { repeat });
     if (result === 'zoomed') announceReaderView();
     else if (result === 'held' && readerCanvas.expanded && !repeat) announceReaderView('Expanded: zoom out is off');
+    else if (result === 'held' && readerCanvas.locked && !repeat) announceReaderView('Pointing: zoom out stops here');
     return true;
   }
   if (command === 'expand') { setReaderExpanded(!readerCanvas.expanded); return true; }
@@ -2570,6 +2590,7 @@ $('active-reader').addEventListener('load', () => {
   if (!dialog.open) return;
   forwardFrame($('active-reader'));
   readerResource.prepare();
+  pointingFollows();
   // Key events inside a frame do not reach the surrounding dialog.
   try {
     $('active-reader').contentWindow.addEventListener('keydown', event => {
