@@ -970,7 +970,7 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | E | Edit the selected (or focused) Markdown document |
 | C, ⇧C | Comment tool (Enter or Space on a focused item drops the pin), show or hide comments |
 | N | Quick jot |
-| P | Point and type (`pointing-mode.js`): inside it ⌥/Alt + M · L · K · P pick Marquee · Lasso · Laser pointer · Point; ⌥/Alt + R points at the selection (else the item that had focus); ⌥/Alt + = · − · 0 · 1 zoom in, out, 100%, fit; Enter sends (never while the @ list is open); Escape leaves |
+| P | Point and type (`pointing-mode.js`): inside it ⌥/Alt + M · L · W · P pick Marquee · Lasso · Wand · Point; ⌥/Alt + [ · ] make the wand narrower, wider; ⌘ (Ctrl off a Mac) held while pointing takes exactly what she drew (no snapping); ⌥/Alt + R points at the selection (else the item that had focus); ⌥/Alt + = · − · 0 · 1 zoom in, out, 100%, fit; Enter sends (never while the @ list is open); Escape leaves |
 | ? | Keyboard shortcuts |
 | Shift+F10, context-menu key | Card menu on a focused card; board menu on the focused canvas |
 | ⌥ / Alt + F10 | The drawn-object bar, from anywhere outside a field (`whiteboard.js` `focusBarKey`); Escape on the bar returns to its object |
@@ -1396,7 +1396,7 @@ in-place editor has no toolbar.
 `data-note-anchor` attribute on the opener, so card handlers never hear it. Saving holds it open; Escape, a press
 outside, Tab out and × keep the draft; Cancel drops it. Focus returns to the opener control.
 
-**Point and type.** `pointing-mode.js`, `pointing-guard.js`, `pointing-geometry.js`, `pointing-thread.js`, `pointing.css`.
+**Point and type.** `pointing-mode.js`, `pointing-guard.js`, `pointing-geometry.js`, `pointing-wand.js`, `pointing-snap.js`, `pointing-thread.js`, `pointing.css`.
 A mode, not a popup: P (or the rail's Point and type key, its own `ui-toolbar-group` appended to `#edit-tools`) shows
 a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `<canvas>` sheet over `#viewport`.
 - Keys stay in the composer (a contenteditable `role=textbox`, `data-height="sunken"`, with the comment card's @
@@ -1412,10 +1412,39 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   are drawn (`inkBox`, its text nodes' line boxes), so a press beside a heading's words falls through to what is under
   it; an arrow by its drawn line (`linePoints`, 24 samples of its path): crossed, it counts when nothing else was hit,
   enclosed, alongside the rest.
-- The laser references a loop only (`closedLoop`: round, at least 40 × 24 px, drawn within 3.5 s); the loop holds as
-  the mark; a loop round an object's centre covering 60 % of it is the whole object (`pathHits(…, {loose: true})`); a
-  bigger circle round the same thing within 2.5 s replaces one that closed early. The dot and the hover outline go
-  when the pointer leaves the sheet (`pointerleave`).
+- The Wand (⌥W, Photoshop's Magic Wand key) replaced round 1's laser. One reference is one held drag (the unit every
+  presenter pen and canvas laser uses: PowerPoint's Ctrl-drag laser and pen, ZoomIt's draw mode, tldraw's and
+  Excalidraw's laser; a hover-only laser such as Google Slides' makes no marks at all): waving, underlining and circling
+  all count, and moving without the button (travelling, typing, a resting hand) never does. A press within 1.2 s where
+  the last drag ended, before any typing, carries that reference on (a lift mid-wave; tldraw's laser session is
+  1.2 s). The area is a band `WAND.width` CSS px across (⌥[ ⌥] step through `WAND.sizes`, kept in `localStorage`)
+  plus the inside of any round loop it closes (`SwathField`, board units, one cell per fleck site); a wave that comes
+  back over a place makes it denser. The record keeps `shape: {kind: 'swath', width, points}`, from which
+  `SwathField.fromShape` rebuilds the same area, so the board, the crop and a reader see one area. Targets come from
+  the area (`areaHits`: by area, loose like a circle, and `along`: a stroke along most of a thing's length while
+  touching it, an underline, points at it).
+- The Wand's look: glitter, never glow. Hard-edged flecks (whole device pixels, about 1.5 CSS px) at the cells whose
+  rank in a 64 × 64 blue-noise table is under the cell's strength, a denser rim on the area's edge, the sparsest
+  ranks as four-point sparkles; colours `--wand-ink` (the mark red), `--wand-pale`, `--wand-star` (pointing.css,
+  from tokens). While casting, newly swept cells sparkle denser for 280 ms after her motion and settle; the settled
+  flecks are kept on a canvas of their own and only changed cells are drawn again. Committed, a mark is a still
+  `<canvas class="pointing-swath">` in world units (`image-rendering: pixelated` between a zoom and its redraw at the
+  new zoom, 160 ms after the zoom settles), the same sites the sheet drew. Moving without the button, the cursor is a
+  ring of flecks the band's width across with a sparkle at the point, shedding a few sparkles that are gone within
+  half a second; ring and sparkles go when the pointer leaves the sheet (`pointerleave`). A wand mark on one image
+  item draws its glitter on the client crop too (`imageCrop` `overlay`).
+- Snapping (`pointing-snap.js`), every tool: a marquee, lasso or wand area that mostly covers every thing it hit
+  (half of each, the wand 40 % or along) is tidied to their outline (`objectSnap`: cards, drawings, containers, text
+  by its words, arrows by their line); a part, a mix, or a thing that is a speck in a big gesture is not. While she
+  drags, the outline it will snap to is drawn solid with marked corners in place of the per-thing outlines; holding
+  ⌘ (Ctrl off a Mac; Keynote, tldraw, Miro, Figma turn off snapping with the same key) takes exactly what she drew, at
+  once, and letting go brings the snap back. A snapped mark keeps her raw `shape` and adds `snap: {source, label,
+  shape}`; its targets, regions and the board's drawing follow the snap (a wand mark's glitter settles into the
+  snapped outline, a dense band inside its edge and a light dusting within). The chip's hint ends "snapped to the …".
+  Sources inside one card plug in with `board.pointing.addSnapSource(source, {space, map})` (the request is
+  documented there; `map` takes a source's own coordinates, e.g. `pointing-snap-dom.js` `pageMapping`;
+  `refreshSnap()` for a source that answers later); the best proposal over `SNAP_MIN` wins.
+- A click (no drag) with any tool is recorded as `tool: "click"` with the active tool in `via`.
 - Keyboard-only: ⌥R (and the bar's Point at the selection key, `aria-keyshortcuts="Alt+R"`, `aria-disabled` with
   nothing to point at) makes one whole mark over the board's selection, else the item that had focus when she entered;
   the @ list's first group is that selection (`attachPicker` `first()`), and an @ name may hold spaces (the list stays
@@ -1474,7 +1503,9 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   pin goes at the outline's top-right.
 - Keys typed while focus is on the map or a side panel (not in one of its fields or menus) are letters for the
   composer; the caret is kept at each input and as focus leaves, so they land where she left off.
-- Checked in `tests/pointing-browser.mjs` (1280 and 390) and `tests/pointing.test.mjs` (geometry, the server record).
+- Checked in `tests/pointing-browser.mjs` (1280 and 390), `tests/pointing-wand-browser.mjs` (the wand, snapping,
+  clicks, the look at 1x and 2x, light and dark) and `tests/pointing.test.mjs` (geometry, the wand's area, snapping,
+  the server record).
 
 **Quick jot.** `quick-jot.js`: a non-modal `ui-dialog` (a persistent bar; the board stays usable). Escape closes it from
 inside and focus returns to where it came from.
