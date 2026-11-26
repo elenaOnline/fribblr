@@ -6,7 +6,7 @@ fribblr is a fork of [Tinka](https://github.com/bladnman/tinka) by bladnman, und
 
 Each project gets its own instance. You can run `fribblr / Atlas` and `fribblr / Orchard` at the same time, with separate boards, notes, configuration, processes and saved URLs. There is no master service or shared port allocator.
 
-![A fribblr board of showcase items: notes, a document, images and an HTML experiment on the canvas.](docs/images/board.png)
+![A fribblr board whose cards are boards: each card is a miniature of the board it opens.](docs/images/board.png)
 
 ## Add fribblr to a project
 
@@ -52,7 +52,7 @@ fribblr binds only to `127.0.0.1`. It answers only requests addressed to `127.0.
 
 For work on fribblr itself, run `node cli.mjs` in the checkout directly; keep config and boards outside it. `node cli.mjs init --config /absolute/config.json --boards /absolute/boards --label Atlas` makes a manual layout.
 
-![An item opened from its board in fribblr, with its board's frame around it.](docs/images/item.png)
+![An HTML experiment opened from its board in fribblr, with the board's frame, stepper and zoom controls around it.](docs/images/item.png)
 
 Create a board that agents fill with the workspace tools (`item.create` and the
 others in the [agent guide](docs/AGENT.md#showing-visual-work)):
