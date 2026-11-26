@@ -119,7 +119,10 @@ test('a new FRIBBLR.md says how to start, share the direct link and work comment
     assert.match(text,/## Comments for you\n/);assert.match(text,/node fribblr\/app\/cli\.mjs inbox --config fribblr\/local\/config\.json/);assert.match(text,/Never resolve\na person's comment/);
     assert.match(text,/`update status` prints the exact command/);
     assert.match(text,/Do not copy version numbers or checksums into this file: `fribblr\/project\.json`\nis the record\./);
-    assert.doesNotMatch(text,/tinka/i);
+    // Only the metadata folder keeps its name (.tinka is the boards' format).
+    assert.doesNotMatch(text.replaceAll('.tinka',''),/tinka/i);
+    assert.match(text,/`design\/boards\/\.tinka`, so a\nproject folder `design\/mockups` is `\.\.\/\.\.\/mockups`/);
+    assert.match(text,/tools call board\.create --config fribblr\/local\/config\.json/);
     assert.equal(await custom.read('FRIBBLR.md'),'# Our own fribblr notes\n');
   }finally{await fresh.done();await custom.done();}
 });

@@ -177,6 +177,8 @@ node fribblr/app/cli.mjs tools call item.create --config fribblr/local/config.js
   --json '{"boardId":"BOARD_ID","item":{"title":"Sketch","content":{"kind":"html","resource":{"rootId":"whiteboards","path":"sketch.html"}}},"placement":{"x":0,"y":0,"width":960,"height":600,"presentation":{"mode":"panel"}}}'
 ```
 
+`x` and `y` are its place on the board: pick a spot clear of the board's other items
+(`tools call board.geometry --json '{"boardId":"BOARD_ID"}'` lists where they are).
 The resource root path is relative to the boards' metadata folder
 (`design/boards/.tinka`, or `design/fribblr-boards/.tinka`), so `../../whiteboards`
 is `design/whiteboards` in both cases. For another whiteboard, copy the file under a
