@@ -95,7 +95,7 @@ try{
  await page.waitForFunction(()=>document.querySelectorAll('.workspace-card').length===2);
  assert.equal((await getBoardSnapshot(config,'graph')).placements.filter(p=>!p.removedAt).length,2);
  ok('alert dialog');
- await page.locator('.workspace-toast').filter({hasText:'Removed 1 fribblr'}).first().waitFor();
+ await page.locator('.workspace-toast').filter({hasText:'Removed 1 Tinka'}).first().waitFor();
  await page.locator('.workspace-toast-action').click();
  await page.waitForFunction(()=>document.querySelectorAll('.workspace-card').length===3);
  assert.equal((await getBoardSnapshot(config,'graph')).placements.filter(p=>!p.removedAt).length,3,'the Remove toast has an Undo action that restores the placement');

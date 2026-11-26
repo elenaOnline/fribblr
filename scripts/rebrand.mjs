@@ -244,6 +244,8 @@ export const RULES = [
   ['the/this/... Tinka', new RegExp(`(?<=\\b${DET} )Tinka${R}`, 'g'), 'item'],
   ['opened-Tinka, current-Tinka', /(?<=\b(?:opened|current|selected)-)Tinka(?![\w$-])/g, 'item'],
   ['Tinka-managed', /(?<![\w$#@/.-])Tinka(?=-managed\b)/g, 'fribblr'],
+  ['"Removed 1 Tinka"', /(?<=\b\d+ )Tinka(?![\w$-])/g, 'item'],
+  ['Back to Tinka01 (two elements run together in a test)', /(?<=Back to )Tinka(?=\d)/g, 'fribblr'],
   ['Tinka after a label', new RegExp(`(?<=\\$\\{[^}]*\\} )Tinka${R}`, 'g'), 'item'],
   ['"Tinka N of M"', /(?<=`)Tinka(?= \$\{)/g, 'Item'],
   ['inspector kind placeholder', /(?<=id="reader-info-kind">)Tinka(?=<)/g, 'Item'],
