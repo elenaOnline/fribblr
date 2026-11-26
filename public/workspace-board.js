@@ -364,8 +364,8 @@ export class WorkspaceBoard {
     $("help-panel").innerHTML =
       "<strong>Make yourself at home.</strong> Scroll with your mouse or trackpad, or swipe the background on a touch screen, to move around Canvas; Shift-scroll moves sideways. Pinch, or hold Control or ⌘ while scrolling, to zoom. Drag a card’s body to move it; drop inside a highlighted board to move the item into it. Escape cancels a drag. Notes and buttons keep their usual behavior. A click opens a preview. Tab to the board’s items, then use the arrow keys to go to the nearest item that way; Option (Alt) with an arrow moves the focused item, and anything selected or grouped with it, 1 unit, 10 with Shift. Space selects the focused item and Enter opens it. Enter goes into a container, the arrows then move among its contents, Option with an arrow moves one to another place in it, and Escape comes back out. Drag a card’s corner to resize it, or focus the corner and use the arrow keys. Move… in the selection toolbar also moves items into boards. Double-click text or a region label to edit it. Grid shows newer boards first, keeping other items in comparison order. Open an item to try it, then step with Previous, Next or the dots. Escape returns here. Stars and notes follow the item across references.";
     const bar = document.createElement("section");
-    $("help-panel").append(" Use ⌘/Ctrl-X to cut selected Tinkas, then paste on another board to move them together. Originals stay safe until paste succeeds. Escape or ⌘/Ctrl-Z cancels a pending cut; text fields keep their normal cut.");
-    $("help-panel").append(" Copy selected Tinkas with ⌘/Ctrl-C, then paste here or in another board with ⌘/Ctrl-V. Copies retain their arrangement and use the same files. A pasted link gets a saved representation; pasted text becomes a document. Undo also reverses paste. Text fields keep their normal clipboard.");
+    $("help-panel").append(" Use ⌘/Ctrl-X to cut selected items, then paste on another board to move them together. Originals stay safe until paste succeeds. Escape or ⌘/Ctrl-Z cancels a pending cut; text fields keep their normal cut.");
+    $("help-panel").append(" Copy selected items with ⌘/Ctrl-C, then paste here or in another board with ⌘/Ctrl-V. Copies retain their arrangement and use the same files. A pasted link gets a saved representation; pasted text becomes a document. Undo also reverses paste. Text fields keep their normal clipboard.");
     $("help-panel").append(" Select several cards and drag a selected card to carry them together, into a board or onto Parent. An unselected card, resize or held cover child still acts alone.");
     $("help-panel").append(" With a mouse or pen, drag a box on empty Canvas space to select cards. Hold Shift when starting to add to your selection; Escape cancels. An empty click clears selection. Unused colored-region interiors also work; use a region’s label or border to move it. Touch keeps swiping and pinching.");
     $("help-panel").append(" The bottom name bar also drags; a title click opens the item. Hover a card for its toolbar and selection circle; Shift- or ⌘/Ctrl-click adds it to the selection. Right-click a card for a short menu; Details… (⌘/Ctrl-I) opens the Inspector with notes and appearance. Use ⌘/Ctrl-Z to undo movement and Shift-⌘/Ctrl-Z to redo, or use Undo/Redo in the top bar or Inspector. This tab remembers movements across boards; text fields keep their own undo. Delete or Backspace removes the visible selection from this board; ⌘/Ctrl-Z restores it. New-board creation and canonical deletion are outside movement history.");
@@ -1100,19 +1100,19 @@ export class WorkspaceBoard {
     // An Inspector that opened it stays open behind it (as with Comparison order…), and focus comes back to its button.
     const returnFocus = document.activeElement;
     const dialog = makeDialog("Keyboard shortcuts", `<p>Use these keys while working on a board. Text fields and previews keep their normal keys.</p>
-      <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible Tinkas</dd>
+      <dl><dt>⌘/Ctrl-A</dt><dd>Select all visible items</dd>
       <dt>⌘/Ctrl-D</dt><dd>Duplicate selection (with nothing selected, the focused item)</dd>
       <dt>] / [</dt><dd>Bring the selection (or the focused item) to the front / send it to the back</dd>
       <dt>⌘/Ctrl-G</dt><dd>Group the selected Canvas objects, or ungroup the selected group (select with Space, then ⌘/Ctrl-G)</dd>
       <dt>${isMacPlatform() ? "Option" : "Alt"}-drag</dt><dd>Place another copy on this canvas. Cards share their item; drawn elements have their own content.</dd>
-      <dt>${isMacPlatform() ? "K · J" : `${MOD}← · ${MOD}→ or K · J`}</dt><dd>Select the previous · next Tinka, in the same order as an opened Tinka steps, and bring it into view</dd>
+      <dt>${isMacPlatform() ? "K · J" : `${MOD}← · ${MOD}→ or K · J`}</dt><dd>Select the previous · next item, in the same order as an opened item steps, and bring it into view</dd>
       <dt>Tab, then arrow keys</dt><dd>Go to the board’s items: the arrows move to the nearest item that way; Home · End go to the first · last</dd>
       <dt>Space</dt><dd>Select or deselect the focused item (a grouped item brings its group)</dd>
-      <dt>Enter</dt><dd>Open the focused Tinka, or the one selected; on a container, go in among its contents</dd>
+      <dt>Enter</dt><dd>Open the focused item, or the one selected; on a container, go in among its contents</dd>
       <dt>Escape on an item in a container</dt><dd>Back out to the container</dd>
       <dt>⌘/Ctrl-K or /</dt><dd>Find across this project (Navigator)</dd>
-      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected Tinka (with nothing selected, the focused one) or this board</dd>
-      <dt>Shift-click · ⌘/Ctrl-click</dt><dd>Add a Tinka to the selection</dd>
+      <dt>⌘/Ctrl-I</dt><dd>Inspector for the selected item (with nothing selected, the focused one) or this board</dd>
+      <dt>Shift-click · ⌘/Ctrl-click</dt><dd>Add an item to the selection</dd>
       <dt>F</dt><dd>Fit the selection, then the whole board (⌥-click Fit always fits the board)</dd>
       <dt>Hold F · Z while drawing a selection box</dt><dd>When you let go: fit what the box selected · zoom to the box itself</dd>
       <dt>Shift-1 · Shift-2 · Shift-0</dt><dd>Fit the canvas · Fit the selection · Zoom to 100%</dd>
@@ -1134,7 +1134,7 @@ export class WorkspaceBoard {
       <dt>⌘/Ctrl-Z · Shift-⌘/Ctrl-Z</dt><dd>Undo · Redo</dd>
       <dt>${isMacPlatform() ? "⌥" : "Alt+"}Arrow · ${isMacPlatform() ? "⌥⇧" : "Alt+Shift+"}Arrow</dt><dd>Move the focused item, and the selection or group with it, 1 · 10 units; in a container, move it one place · to the first or last place</dd>
       <dt>Escape</dt><dd>Close the newest panel or menu, then cancel a gesture, pending Cut or selection</dd>
-      <dt>On an opened Tinka: ${MOD}← · ${MOD}→ · [ · ] · K · J</dt><dd>Previous · next Tinka on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
+      <dt>On an opened item: ${MOD}← · ${MOD}→ · [ · ] · K · J</dt><dd>Previous · next item on this board (${MOD}↑ goes up, ${MOD}↓ into its own board)</dd></dl>`);
     dialog.addEventListener("close", () => {
       if (returnFocus?.isConnected) returnFocus.focus({preventScroll:true});
     });
@@ -1243,16 +1243,16 @@ export class WorkspaceBoard {
         if (!clipboard || !e.clipboardData) return;
         const owner=this.snapshot.items[this.snapshot.ownerItemId];
         if (owner?.archivedAt || owner?.deletedAt || clipboard.placements.some(p=>p.archivedAt || this.snapshot.items[p.itemId]?.archivedAt))
-          throw new Error("Restore archived Tinkas and their board before cutting them. Copy remains available.");
+          throw new Error("Restore archived items and their board before cutting them. Copy remains available.");
         clipboard.placements=clipboard.reviewOrder.map(id=>clipboard.placements.find(p=>p.id===id));
         const envelope=this.cutIntent.prepare(clipboard,this.snapshot.id), json=JSON.stringify(envelope);
-        if (clipboardBytes(envelope)>900000) throw new Error("This cut selection is too large. Select fewer Tinkas.");
+        if (clipboardBytes(envelope)>900000) throw new Error("This cut selection is too large. Select fewer items.");
         e.clipboardData.clearData?.();
         try { e.clipboardData.setData(CLIPBOARD_MIME,json); } catch {}
         e.clipboardData.setData("text/plain",CLIPBOARD_PREFIX+json);
         e.preventDefault();
         this.cutIntent.changed();
-        toast(`Cut ${clipboard.placements.length} ${clipboard.placements.length===1 ? "Tinka" : "Tinkas"}. Paste on another board to move; Escape cancels.`);
+        toast(`Cut ${clipboard.placements.length} ${clipboard.placements.length===1 ? "item" : "items"}. Paste on another board to move; Escape cancels.`);
       } catch(error) { this.cutIntent.clear(); toast(error.message); }
     });
     window.addEventListener("storage",e=>{if(e.key===this.cutIntent.key || e.key===null)this.syncCutMarks();});
@@ -1344,7 +1344,7 @@ export class WorkspaceBoard {
         this.selection=new Set(response.result.placementIds || []);
         await this.refresh({saveReview:false});
         this.hooks.revealPlacements?.(this.snapshot.placements.filter(p=>this.selection.has(p.id)));
-        toast(`Moved ${clipboard.placements.length} ${clipboard.placements.length===1 ? "Tinka" : "Tinkas"} here.`);
+        toast(`Moved ${clipboard.placements.length} ${clipboard.placements.length===1 ? "item" : "items"} here.`);
       });
     } catch(error) {
       this.moveCommitting=false;
@@ -1539,7 +1539,7 @@ export class WorkspaceBoard {
         this.focusCreated({placementIds:result.placementIds,decorationIds:drawingIds});
       }});
       const count = result.placementIds.length + drawingIds.length;
-      const noun = drawingIds.length ? (count === 1 ? "object" : "objects") : (count === 1 ? "Tinka" : "Tinkas");
+      const noun = drawingIds.length ? (count === 1 ? "object" : "objects") : (count === 1 ? "item" : "items");
       toast(source.kind === "url" ? "Link pasted." : source.kind === "text" ? "Document pasted." :
         `${source.kind === "duplicate" ? "Duplicated" : "Pasted"} ${count} ${noun}.`);
     } catch (error) {
@@ -2001,8 +2001,8 @@ export class WorkspaceBoard {
       ids.forEach(id => this.selection.delete(id));
       if (ids.includes(this.contextPlacement)) this.closeContext();
       await this.refresh({saveReview:false});
-      toast(drawn.length ? `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}.`
-        : `Removed ${ids.length} Tinka${ids.length === 1 ? "" : "s"} from this board.`,
+      toast(drawn.length ? `Removed ${ids.length} item${ids.length === 1 ? "" : "s"} and ${drawn.length} drawn element${drawn.length === 1 ? "" : "s"}.`
+        : `Removed ${ids.length} item${ids.length === 1 ? "" : "s"} from this board.`,
         {action:{label:"Undo", onAction:() => this.replayMovement("undo", {explicit:true})}});
     } catch (error) {
       try { await this.refresh({saveReview:false}); } catch {}

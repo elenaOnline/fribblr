@@ -281,7 +281,7 @@ setPressed(mapToggle, mapIsOpen);                     // property write, no even
 - `pressedchange` and `valuechange` don't bubble. A container that redraws pressed state from its own model (the
   drawn-object bar) cancels the toggles' flips with one capture listener.
 - A toolbar inside a reader surface makes ←/→ move along the toolbar; `readerTinkaFocus` in `canvas.js` excludes
-  `ui-toolbar`, `ui-toggle-group` and `.tk-seg` so those arrows don't step to another Tinka.
+  `ui-toolbar`, `ui-toggle-group` and `.tk-seg` so those arrows don't step to another item.
 
 ### Segmented controls and radio groups
 
@@ -356,7 +356,7 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
   `ui-alert-dialog` and resolves `true` for the confirming answer. Focus opens on Cancel, Escape means no, a backdrop
   press does nothing. An async `onConfirm` keeps the dialog open with the confirm key pending and shows a failure
   inside it. Its title is a statement, never a question (her copy rule): "Archive these boards everywhere", "Remove
-  from this board", "Update to Tinka 2.0". The same holds for every dialog title and for the lines beside its buttons.
+  from this board", "Update to fribblr 2.0". The same holds for every dialog title and for the lines beside its buttons.
 - **Nesting.** Both append to the topmost open modal (`ui-dialog-content[data-open][aria-modal=true]`,
   `ui-alert-dialog-content[data-open]`, or a modal `<dialog>` such as the reader), otherwise that parent's inert page
   would include the new dialog.
@@ -701,7 +701,7 @@ layer, an inert page hidden from assistive technology, and `aria-modal`. Swappin
 change every `dialog[open]` check across the app and about 90 test selectors in 24 files, on lines upstream also
 edits. What the browser leaves out is added:
 
-- **Focus on open**: Tinka's canvas (`#reader-stage`), so its keys work at once.
+- **Focus on open**: fribblr's canvas (`#reader-stage`), so its keys work at once.
 - **Tab wraps** (`trapTab(dialog)`, dialog.md § Modal): from the last stop to the first and back. Containers inside
   that keep their own Tab (`OWN_TAB`: a nested modal dialog, menu, popover, select, listbox) are skipped.
   `tabStops(root)` lists the stops; `side-panel.js` reuses it.
@@ -709,7 +709,7 @@ edits. What the browser leaves out is added:
   Inspector with focus inside) takes its own Escape first (`inPopup` in the document Escape handler). Then
   `handleEscape` peels: the feedback panel → the reader Inspector → the Navigator → the notes column (if focus is in
   it) → a popup still open inside the content frame (`closeFramePopup`, same-origin frames, up to three deep) → Expand
-  (turns it off, the Tinka stays open) → closes the reader. Escape during IME composition does nothing. A frame's own SDK popup with focus inside takes its Escape in
+  (turns it off, the item stays open) → closes the reader. Escape during IME composition does nothing. A frame's own SDK popup with focus inside takes its Escape in
   the frame (the SDK calls `preventDefault`), so `media.js` and `item-content.js` never post `reader-close` for it.
 - **Focus goes back** (popups.md § Focus). Opened from a card on the board, focus returns to the card last viewed
   (after any stepping) without moving the board: `graph.focusPlacement`, or the card's Open control. A card's menu
@@ -739,16 +739,16 @@ Files: `canvas-zoom.js` (`zoomOutGate`, `LEAVE_RATIO`, `GESTURE_GAP`, `boardZoom
 `reader-keys.js` (`expand`), `board.html` (`#reader-expand`), `reader.css`; tests `tests/zoom-out-browser.mjs`,
 `tests/board-zoom-out-browser.mjs`, `tests/canvas-zoom.test.mjs`.
 
-An opened Tinka is that item on its board, seen close. Elena (2026-11-23): zooming out of an opened item should "zoom
+An opened item is that item on its board, seen close. Elena (2026-11-23): zooming out of an opened item should "zoom
 you out to the board that it exists on rather than zooming out into nothing"; the old free zoom below fit (down to the
 board's 2%, the window a speck on an empty stage) was "the in-between behavior … pretty disorienting".
 
 - **The floor.** The fitted view is the lowest zoom (`floorZoom()`, the fitted view's zoom; `zoomTo` never goes below
-  it). Free zoom below fit is gone. The % slider's `min` is the floor; a preset row below it (Zoom to 50% on a Tinka that
+  it). Free zoom below fit is gone. The % slider's `min` is the floor; a preset row below it (Zoom to 50% on an item that
   fits at 90%) is unavailable: its toolbar part is disabled, so it says `aria-disabled` and stays reachable, and the
   popover opens on the first row that can act.
 - **The threshold, shown as it builds** (§ The leave band, below). At the floor, a pinch or trackpad scroll fills the
-  leave band and leaves when the Tinka would be a third smaller (`LEAVE_FILL` = ln 1.5); a step (−, the pill's −, a
+  leave band and leaves when the item would be a third smaller (`LEAVE_FILL` = ln 1.5); a step (−, the pill's −, a
   mouse-wheel notch) fills half, so the first step at fit shows the band and the second leaves. Every input runs
   through `zoomBy(factor, x, y, {source, repeat})`; `source` is `step` (a key or button), `notch` (a mouse-wheel click,
   `wheelSource`) or `wheel` / `pinch` (a gesture: events with no gap of `GESTURE_GAP`, 300 ms).
@@ -757,16 +757,16 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
   fills or leaves. Nothing moves while a gesture is held at the floor and nothing springs back after it: below the
   threshold the view stays fitted (Elena's rule: nothing moves unless she moved it).
 - **The landing** (`landOnCard`). The reader closes onto the board view she opened it from, its zoom and position, as
-  Up and Escape do, with the Tinka's card selected (`graph.selectOnly`) and focused (`focusBoardItem`), whatever
+  Up and Escape do, with the item's card selected (`graph.selectOnly`) and focused (`focusBoardItem`), whatever
   opened the reader, so Enter opens it again (and Escape then returns to the same view); the announcement says so. If
-  the card isn't in that view (less than 85% of it showing: she stepped to another Tinka), the zoom stays and the card is
+  the card isn't in that view (less than 85% of it showing: she stepped to another item), the zoom stays and the card is
   centred. With no board view of hers (a direct link `#items/…` or Home, where the reader opens as the page loads,
   `readerWithoutBoardView`), the board's opening zoom, never above 100%, with the card centred. In one step: no glide,
   no pulse, nothing zooms in (an earlier version sized the card to the window and zoomed compact cards to 400–530%). The
   rest of a pinch or wheel run lands on the board and keeps zooming it out. When the item has no card on this board (a
   grid board, a hidden card), the reader closes as Up does.
 - **Up and Escape are unchanged**: they return to the board exactly as it was left, focus on the card last viewed.
-- **Expand** (`#reader-expand`): a `ui-toggle` around our button, first in the "Tinka actions" toolbar (it acts on what
+- **Expand** (`#reader-expand`): a `ui-toggle` around our button, first in the "fribblr actions" toolbar (it acts on what
   is shown; § Top bars), icon and the label "Expand" (the label drops below 1100 px wide, as Find's does). Pressed state
   through `setPressed` / `onPress`. Key: Shift+F (`aria-keyshortcuts="Shift+F"`; F is Fit, and Shift+F is free on the
   board and in the reader). Expanded:
@@ -952,11 +952,11 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | Escape | Close the newest panel or menu, then cancel a gesture, pending Cut or selection; on a container member, back out |
 | ⌥ / Alt + arrow, + Shift | Move the focused item (and its selection or group) 1 / 10 units; on a container member, one place / to an end |
 | Arrows on a resize corner | Resize 1 unit, 10 with Shift |
-| J / K | Select the next / previous Tinka in the stepper's order and bring it into view (`board-step.js`, `canvas.js`); with nothing selected, from the focused card |
+| J / K | Select the next / previous item in the stepper's order and bring it into view (`board-step.js`, `canvas.js`); with nothing selected, from the focused card |
 | Ctrl + ← / → (not on a Mac) | Same as J / K |
 | ] / [ | Bring the selection (or focused item) to the front / send it to the back |
 | ⌘/Ctrl A, D, G | Select all; duplicate (nothing selected: the focused item); group / ungroup (only when there is something to group) |
-| ⌘/Ctrl I | Inspector for the selected Tinka (nothing selected: the focused one) or the board (`canvas.js`) |
+| ⌘/Ctrl I | Inspector for the selected item (nothing selected: the focused one) or the board (`canvas.js`) |
 | ⌘/Ctrl K or / | Navigator |
 | ⌘/Ctrl Z, Shift ⌘/Ctrl Z | Undo, Redo |
 | ⌘/Ctrl C, X, V; Shift ⌘/Ctrl C | Copy, Cut, Paste; copy the board's notes as Markdown |
@@ -982,11 +982,11 @@ Opened item (`reader-keys.js` `readerCommand`, `canvas.js`):
 
 | Keys | Action |
 |---|---|
-| ⌥ ← / → (Ctrl elsewhere), [ / ], K / J | Previous / next Tinka |
-| Plain ← / → | Previous / next, while focus is on Tinka's own chrome or canvas (`readerTinkaFocus`; not in a toolbar, toggle group, segmented control, the Navigator, the Inspector or the notes) and all of the Tinka is in view |
-| Plain arrows, Shift + arrows | Pan, while zoomed in past fit (part of the Tinka out of view, `ReaderCanvas.overflows`): 80 px a press, a screenful (87.5% of the stage) with Shift; held, they keep panning. They never step while zoomed, not even at an edge |
+| ⌥ ← / → (Ctrl elsewhere), [ / ], K / J | Previous / next item |
+| Plain ← / → | Previous / next, while focus is on fribblr's own chrome or canvas (`readerTinkaFocus`; not in a toolbar, toggle group, segmented control, the Navigator, the Inspector or the notes) and all of the item is in view |
+| Plain arrows, Shift + arrows | Pan, while zoomed in past fit (part of the item out of view, `ReaderCanvas.overflows`): 80 px a press, a screenful (87.5% of the stage) with Shift; held, they keep panning. They never step while zoomed, not even at an edge |
 | ⌥ ↑ (Ctrl elsewhere), Escape | Up to the board (Escape after the ladder) |
-| ⌥ ↓ (Ctrl elsewhere) | Down into the Tinka's own board |
+| ⌥ ↓ (Ctrl elsewhere) | Down into the item's own board |
 | F, ⇧1; 0, ⇧0; + / − | Fit; 100%; zoom (announced in `#reader-view-announce`). Never below fit; at fit − shows the leave band and a second − goes back to the board, landed on the card |
 | ⇧F | Expand: fill the stage; zoom out stops at that size and never leaves. Again (or Escape, or the path) turns it off |
 | ⌘/Ctrl I | Toggle the Inspector |
@@ -1011,7 +1011,7 @@ control.
   Excalidraw).
 - **J / K step on a board.** With ⌥ ← / → moving and `]` / `[` stacking, stepping took J (next) and K (previous), the
   list-review keys of Gmail, GitHub, Feedly and Reddit: either case, never with Shift or a modifier, never in a field,
-  never while a menu has focus. Inside an opened Tinka nothing stacks, so `[` / `]` and ⌥ ← / → still step there, and
+  never while a menu has focus. Inside an opened item nothing stacks, so `[` / `]` and ⌥ ← / → still step there, and
   J / K too. A step with focus on the board takes focus to the stepped card.
 - **Delete removes only the selection**, never a merely focused item.
 - **⇧-click toggles on the canvas** (a 2-D board has no order for a range); on Home's grid it selects a range.
@@ -1110,7 +1110,7 @@ opener; `tinka:navigator-open` takes `detail.opener`). Dialog, Command, Tree, Se
 Navigator toggle, home, the parent crumb, the board title; in the reader also Up, the path and the stepper): links and
 places, each its own Tab stop, as the SDK's Navigation Menu keeps them. The right acts on what is shown: on a board
 Find, Undo, Redo, Inspector, Add ("Board actions"); in the reader Expand (a `ui-toggle`), Favorite, Notes, Find,
-Inspector ("Tinka actions"):
+Inspector ("fribblr actions"):
 one toolbar, ↓ opens Add's menu. Undo/Redo with nothing to undo and the reader's Favorite while notes load are
 `aria-disabled` and stay reachable. The board title is a heading, not a field. In the reader, `[` / `]` and ⌥ ← / →
 still step from the toolbar; plain ←/→ step from the stepper and the canvas.
@@ -1128,10 +1128,10 @@ Draw is a `ui-toolbar-group` of buttons. The rail and map toggles are `ui-toggle
 `setReaderMenuOpen`), `comment-pins.js` (the comment bar in the pill). The pills are `ui-toolbar`s; % is a
 `ui-popover-trigger for=`. The popovers (sliders, the Pattern / Window / Light segmented controls, the version list)
 sit outside their pills; the reader's inside the reader dialog. ↓ on % opens them (`openOnArrowDown`). The preset rows
-(Zoom to 50 / 100 / 125 % or 200 %, Fit board and Fit selection, or Fit this Tinka) look like menu rows, so they are one
+(Zoom to 50 / 100 / 125 % or 200 %, Fit board and Fit selection, or Fit this item) look like menu rows, so they are one
 vertical `ui-toolbar.zoom-presets` ("Zoom presets"), as the item Inspector's actions are: one Tab stop, ↑/↓ with wrap,
 Home/End, Enter or a click chooses. The slider follows the rows as its own Tab stop (on the board after Fit board, in
-the reader after Fit this Tinka), so ↓ never walks onto it; its arrows change the zoom. Fit selection is hidden and out
+the reader after Fit this item), so ↓ never walks onto it; its arrows change the zoom. Fit selection is hidden and out
 of the toolbar's order with nothing selected (`disabled` + `focusable-when-disabled="false"` on its part, written as the
 popover opens: `followVisibility` can't serve a toolbar inside a closed popover, whose items aren't rendered when the SDK
 picks the first focus). Focus opens on the rows' stop; the other controls keep their own arrows, Tab walks through and
@@ -1361,14 +1361,14 @@ focus returns to Notes, Tab moves on and it stays open, × closes it (§ 5).
 **Resource surface.** `reader-resource-surface.js`, `reader-canvas.js`. No new controls; Window and zoom are the % popover
 and pill. Keys follow the viewport norms (`+` / `−` / `0` / F, announced in `#reader-view-announce`).
 
-**Keyboard pan of a zoomed Tinka** (the rule, `canvas.js` `READER_PAN`, `ReaderCanvas.overflows`). Plain ← / → step to the
-previous / next Tinka (approved), so the arrows have two jobs, and the view decides which, as in macOS Preview and Photos
-and Windows Photos: while all of the Tinka is in view (at fit, or zoomed out, or zoomed in on something small that still
+**Keyboard pan of a zoomed item** (the rule, `canvas.js` `READER_PAN`, `ReaderCanvas.overflows`). Plain ← / → step to the
+previous / next item (approved), so the arrows have two jobs, and the view decides which, as in macOS Preview and Photos
+and Windows Photos: while all of the item is in view (at fit, or zoomed out, or zoomed in on something small that still
 fits), ← / → step; once part of it is out of view, every arrow pans towards the part it points at, 80 px a press (the
 board's arrow pan) and a screenful with Shift, and a held arrow keeps panning. While zoomed they never step, not even
-at an edge: a pan run to the edge that then jumped to another Tinka would move something she didn't ask to move, and
+at an edge: a pan run to the edge that then jumped to another item would move something she didn't ask to move, and
 a held arrow would race past it. Stepping stays at any zoom on [ ] / J K / ⌥ ← →, and F (or zooming out until it fits)
-gives ← / → their step back. Keys only on Tinka's own canvas and chrome (`readerTinkaFocus`); content, fields and
+gives ← / → their step back. Keys only on fribblr's own canvas and chrome (`readerTinkaFocus`); content, fields and
 toolbars keep their arrows. The canvas's `aria-label` and the Keyboard shortcuts sheet say so. Fit's window has no
 hint; a chosen Window size keeps its resize hint.
 
@@ -1506,7 +1506,7 @@ Archive/Restore; Enable flexible boards). The Keyboard shortcuts sheet is a `mak
 | Standalone toggle buttons (Favorites, Last 6 weeks, Archive, auto height, automatic border) outside a toolbar | A native `aria-pressed` button already has the SDK toggle's keys. |
 | Native radio fieldsets (`workspace-choice-pills`) | Native radios are already one Tab stop with arrows that check. |
 | `<iframe title>` | The frame's accessible name, not a hint. |
-| `return-mark.js` | The "Back to Tinka" chip the server adds to a project's own HTML page runs in a closed shadow root on a page Tinka didn't build and touches nothing else there, so it doesn't load the SDK. |
+| `return-mark.js` | The "Back to fribblr" chip the server adds to a project's own HTML page runs in a closed shadow root on a page fribblr didn't build and touches nothing else there, so it doesn't load the SDK. |
 | The notes column | Already behaves as a non-modal Dialog; converting changes nothing she can feel. |
 | Toolbars inside cards | `role=toolbar` roving markup, not `ui-toolbar`: no element or binding per card (§ Board canvas, § 6). |
 | Sticker grid focus | `createGridFocus` moves real focus, which the search field could not share; the grid uses `aria-activedescendant` with the same keys. |
@@ -1544,7 +1544,7 @@ upstream Tinka could take it.
 
 ### No per-frame view animation on input paths
 
-Keyboard reveal moves in one step (`revealBox`), and so does the landing after zooming out of an opened Tinka
+Keyboard reveal moves in one step (`revealBox`), and so does the landing after zooming out of an opened item
 (`landOnCard`). A glide that calls `applyView` every frame is only for app-chosen moves
 (Fit, round steps).
 

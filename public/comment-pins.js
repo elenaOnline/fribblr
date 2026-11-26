@@ -495,7 +495,7 @@ export class CommentPins {
 export function commentPrompt(config, board, threads) {
   const base = new URL(`boards/${encodeURIComponent(board.id)}/`, config.url || location.origin + '/').href;
   const n = threads.length, them = n === 1 ? 'it' : 'each';
-  const line = `Handle my ${n} Tinka comment${n === 1 ? '' : 's'} on the board “${board.title}”: run \`node tinka/app/cli.mjs inbox --config tinka/local/config.json\`, make the change, reply on ${n === 1 ? 'the thread' : 'each thread'} saying what you changed, and mark ${them} addressed. Never resolve a thread; I check and resolve.`;
+  const line = `Handle my ${n} item comment${n === 1 ? '' : 's'} on the board “${board.title}”: run \`node fribblr/app/cli.mjs inbox --config fribblr/local/config.json\`, make the change, reply on ${n === 1 ? 'the thread' : 'each thread'} saying what you changed, and mark ${them} addressed. Never resolve a thread; I check and resolve.`;
   const links = threads.map(t => `- ${base}#comments/${encodeURIComponent(t.id)} · ${(t.body || t.excerpt || '').replace(/\s+/g, ' ').trim().slice(0, 80)}`).join('\n');
   return `${line}\n${links}`;
 }

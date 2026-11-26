@@ -131,7 +131,7 @@ window.addEventListener('keydown', event => {
 
 const asset = sourceUrl();
 $('media-label').textContent = `${name} · ${kind === 'html' ? 'Independent preview' : kind.toUpperCase()}`;
-document.title = `${name} · Tinka`;
+document.title = `${name} · fribblr`;
 if (!asset) showError('The preview source is missing or invalid.');
 else {
   openOriginal.href = asset;

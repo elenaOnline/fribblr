@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "name": "Tinka tools",
+  "name": "fribblr tools",
   "tools": [
     {
       "name": "workspace.search",
@@ -333,7 +333,7 @@
                       },
                       "url": {
                         "type": "string",
-                        "description": "HTTP(S) URL without credentials; never executed by Tinka."
+                        "description": "HTTP(S) URL without credentials; never executed by fribblr."
                       },
                       "text": {
                         "type": "string",
@@ -680,7 +680,7 @@
                       },
                       "url": {
                         "type": "string",
-                        "description": "HTTP(S) URL without credentials; never executed by Tinka."
+                        "description": "HTTP(S) URL without credentials; never executed by fribblr."
                       },
                       "text": {
                         "type": "string",
@@ -3584,7 +3584,7 @@
     },
     {
       "name": "container.moveMember",
-      "description": "Move one Text block, shape, or Tinka into a same-board container, between containers, or within its ordered layout. Use a null containerId and board x/y to release a member.",
+      "description": "Move one Text block, shape, or item into a same-board container, between containers, or within its ordered layout. Use a null containerId and board x/y to release a member.",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -5160,7 +5160,7 @@
     {
       "name": "document.reanchor",
       "mutating": true,
-      "description": "After editing a local Markdown document item's file, move its saved highlights and text-anchored comment threads to their passage in the current text. A mark moves only when its exact quote with its saved prefix and suffix occurs exactly once; edited, ambiguous or missing quotes stay for review. Each move is recorded in the mark's reanchored history. Writes nothing when nothing moves; saves made in Tinka do this automatically.",
+      "description": "After editing a local Markdown document item's file, move its saved highlights and text-anchored comment threads to their passage in the current text. A mark moves only when its exact quote with its saved prefix and suffix occurs exactly once; edited, ambiguous or missing quotes stay for review. Each move is recorded in the mark's reanchored history. Writes nothing when nothing moves; saves made in fribblr do this automatically.",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,

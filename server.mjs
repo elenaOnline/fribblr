@@ -60,7 +60,7 @@ const loopbackOrigins=server=>{const port=server.address()?.port;return new Set(
 // 127.0.0.1 alone does not stop a page whose DNS name later resolves to
 // 127.0.0.1 (DNS rebinding) from reading boards, notes and paths.
 function checkHost(req,server){
-  if(!loopbackOrigins(server).has(`http://${String(req.headers.host||'').toLowerCase()}`))throw new HttpError(403,`Tinka answers only requests to http://127.0.0.1:${server.address()?.port}/ on this computer.`);
+  if(!loopbackOrigins(server).has(`http://${String(req.headers.host||'').toLowerCase()}`))throw new HttpError(403,`fribblr answers only requests to http://127.0.0.1:${server.address()?.port}/ on this computer.`);
 }
 function checkWriteOrigin(req,server){
   const allowed=loopbackOrigins(server);

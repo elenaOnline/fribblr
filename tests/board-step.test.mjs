@@ -21,7 +21,7 @@ test('board steps: J / K everywhere, Ctrl+←/→ off a Mac; ] / [ are Bring to 
   assert.equal(boardStepCommand(key('ArrowRight', {ctrlKey: true}), {mac: true}), null, 'Ctrl+→ stays macOS Spaces');
   assert.equal(boardStepCommand(key('ArrowLeft', {altKey: true}), {mac: false}), null, 'Alt+← moves the focused item (or stays browser Back)');
   assert.equal(boardStepCommand(key('ArrowRight'), {mac: true}), null, 'plain arrows move focus between items');
-  assert.equal(boardStepCommand(key('ArrowUp', {altKey: true}), {mac: true}), null, 'up and down are the opened Tinka’s');
+  assert.equal(boardStepCommand(key('ArrowUp', {altKey: true}), {mac: true}), null, 'up and down are the opened item’s');
   assert.equal(boardStepCommand(key('j', {altKey: true}), {mac: true}), null, 'a modified letter is not a step');
   assert.equal(boardStepCommand(key('k', {metaKey: true}), {mac: true}), null);
   assert.equal(boardStepCommand(key('j', {ctrlKey: true}), {mac: false}), null);
@@ -35,7 +35,7 @@ test('the board skips what the stepper skips', () => {
   assert.equal(isSteppable({content: {kind: 'html'}, build: {state: 'review'}}), true);
   assert.equal(isSteppable({build: {state: 'reserved'}}), false);
   assert.equal(isSteppable({build: {state: 'building'}}), false);
-  assert.equal(isSteppable({childBoardId: 'b'}), false, 'a board-only Tinka opens its board');
+  assert.equal(isSteppable({childBoardId: 'b'}), false, 'a board-only item opens its board');
   assert.equal(isSteppable({childBoardId: 'b', content: {kind: 'html'}}), true);
   assert.equal(isSteppable(null), false);
 });

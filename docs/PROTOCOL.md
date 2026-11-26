@@ -1,6 +1,6 @@
-# Tinka board protocol
+# fribblr board protocol
 
-Tinka is a review surface. An experiment belongs to the product it is exploring, not to this review app. The app reads a board manifest and files; an experiment must remain runnable without the Tinka server, browser messages, or a host SDK.
+fribblr is a review surface. An experiment belongs to the product it is exploring, not to this review app. The app reads a board manifest and files; an experiment must remain runnable without the fribblr server, browser messages, or a host SDK.
 
 ## Schema 2 workspace
 
@@ -58,7 +58,7 @@ A local server may retain a screenshot and declarative start instructions:
 {"type":"createItem","boardId":"ideas","item":{"title":"Interactive prototype","content":{"kind":"html","url":"http://127.0.0.1:5173/","openMode":"preview","startInstructions":"In the prototype folder run its documented development command, then retry."},"preview":{"resource":{"rootId":"experiments","path":"prototype/preview.png"}}}}
 ```
 
-The independently managed app owns startup, shutdown and hot updates. Tinka supplies a representation, instructions and retry/open actions when it is offline; it never executes instructions or fetches arbitrary URLs server-side. Embedding may depend on the target server's headers; external opening remains available. Each experiment retains its own README, assets and run instructions and can run without Tinka.
+The independently managed app owns startup, shutdown and hot updates. fribblr supplies a representation, instructions and retry/open actions when it is offline; it never executes instructions or fetches arbitrary URLs server-side. Embedding may depend on the target server's headers; external opening remains available. Each experiment retains its own README, assets and run instructions and can run without fribblr.
 
 Attach children to an existing item with `{"type":"createBoard","itemId":"opening-idea","title":"Opening details","parentBoardId":"ideas"}`. The item keeps its content while gaining a Board view. Creating a board without `parentBoardId` adds it to home. Board containment is a directed acyclic graph; references that create a cycle fail.
 
@@ -73,7 +73,7 @@ node /absolute/app/cli.mjs workspace op --config /absolute/config.json \
   --json '{"type":"createItem","boardId":"ideas","item":{"id":"quiet-opening","title":"Quiet opening","content":{"kind":"html","resource":{"rootId":"experiments","path":"quiet/opening-v01.html"}}}}'
 ```
 
-Tinka discovers regular HTML files with the same stem in the same directory of
+fribblr discovers regular HTML files with the same stem in the same directory of
 that named root. Stem and extension must match exactly. Put lowercase `-v` and a
 positive safe integer in decimal digits immediately before `.html`.
 Use one filename per version number. The highest number is the default, so
@@ -84,7 +84,7 @@ assets continue to resolve from the HTML file under its named root.
 Discovery scans one directory and returns the canonical item without a stack
 if the directory exceeds 4,096 entries or the family exceeds 128 matching
 regular files. When filenames such as `opening-v02.html` and `opening-v2.html`
-share a number, Tinka uses the attached file if it is one of them and otherwise
+share a number, fribblr uses the attached file if it is one of them and otherwise
 omits that number from the stack.
 
 Save `quiet/opening-v02.html` alongside the first file to add a new version to
@@ -120,7 +120,7 @@ originally registered path.
 Cmd/Ctrl-G groups selected Canvas objects or ungroups a single selected group.
 The selection and drawing toolbars offer the same actions.
 
-Cmd/Ctrl-D duplicates selected valid rendered Tinkas on the current board through
+Cmd/Ctrl-D duplicates selected valid rendered items on the current board through
 one existing pastePlacements transaction. Copies have independent identities and
 retain relative arrangement, size, appearance, review data and shared resource
 files, offset by 32 board units in each direction. A copied collection retains
@@ -131,7 +131,7 @@ the pending Cut captured before the command, allowing the next Cmd/Ctrl-Z to und
 duplication; failure or a newer cross-tab Cut leaves that intent intact.
 
 Cmd/Ctrl-A selects all valid rendered placements under the current filters. Enter
-opens one selected Tinka through its existing open action. Cmd/Ctrl-K or slash opens Navigator and focuses project search; Cmd/Ctrl-I opens the Inspector. F fits the selection, then the Canvas, on release; while a selection box is released, F held fits the placements it selected (as Fit selection; nothing selected leaves the view) and Z held zooms to the box itself (Fit selection's margin, beyond 125% when the box is small); boxes under 24 screen pixels are clicks, and a bare Z otherwise does nothing; Shift-1 fits the Canvas, Shift-2 fits the selection and Shift-0 zooms to 100% (matched by physical key); M shows or hides the board map. Option-Left/Right on macOS (Control-Left/Right on Windows and Linux) select the previous/next Tinka in the opened Tinka's step order and bring it into view; with nothing selected they continue from the Tinka last opened, viewed, stepped to or selected alone on that board (browser-session only). Shift-, Cmd- or Ctrl-click toggles one Tinka's selection. Question mark or Inspector → Keyboard
+opens one selected item through its existing open action. Cmd/Ctrl-K or slash opens Navigator and focuses project search; Cmd/Ctrl-I opens the Inspector. F fits the selection, then the Canvas, on release; while a selection box is released, F held fits the placements it selected (as Fit selection; nothing selected leaves the view) and Z held zooms to the box itself (Fit selection's margin, beyond 125% when the box is small); boxes under 24 screen pixels are clicks, and a bare Z otherwise does nothing; Shift-1 fits the Canvas, Shift-2 fits the selection and Shift-0 zooms to 100% (matched by physical key); M shows or hides the board map. Option-Left/Right on macOS (Control-Left/Right on Windows and Linux) select the previous/next item in the opened item's step order and bring it into view; with nothing selected they continue from the item last opened, viewed, stepped to or selected alone on that board (browser-session only). Shift-, Cmd- or Ctrl-click toggles one item's selection. Question mark or Inspector → Keyboard
 shortcuts opens a concise key guide. Native editing fields, readers, dialogs,
 iframe focus, held key repeat, gestures and pending writes/history block these
 commands. Browser defaults are prevented only when a command is handled.
@@ -375,7 +375,7 @@ board carries the group membership with the new placements.
 
 #### Stacking order
 
-Everything on a Canvas shares one stacking order: Tinka placements and drawn
+Everything on a Canvas shares one stacking order: item placements and drawn
 elements alike (text, stickies, shapes, stickers, regions, containers and arrows).
 A placement's `z` is its place in that order. A drawn element may store an optional
 `z` in the same numeric space (finite, within ±10000000; `decoration.create` and
@@ -386,8 +386,8 @@ relative to everything that has a stored `z`: plain regions and containers, then
 text and shapes (stickies included), beneath all of it, and stickers and arrows
 above all of it. No migration is involved, and the first restack that moves such an
 element gives it a `z`. (Those levels, 0, 1 and 2, used to be compared with
-placement `z`, a creation count, so shapes and text covered a board's first Tinka
-and later Tinkas covered the arrows and stickers on them.) A
+placement `z`, a creation count, so shapes and text covered a board's first item
+and later items covered the arrows and stickers on them.) A
 container is always drawn directly beneath its lowest member. Pins, comment
 markers, ports, drop markers, guides and dragged objects stay above all content; a
 selected arrow or sticker is lifted while selected so its handles stay usable.
@@ -478,7 +478,7 @@ For detailed visual comparisons, supply the actual viewport and readable placeme
 size rather than squeezing a design into a 320-wide card. Leave 40–60 board units
 between adjacent previews and check the saved layout at natural zoom.
 
-`updatePlacement` patches `x,y,width,height,z,presentation`. Presentation is local to a placement: omit it or use `{"mode":"card"}` for the original card; use `{"mode":"icon"}` for a compact icon, or `{"mode":"panel","viewport":{"width":360,"height":650}}` to show a full HTML/image design viewport, fitted without cropping. Viewport dimensions are integers from 40 to 10000; the default is 1000×720. Placement width/height include the compact caption. For a 360×650 design at natural size, use width 388 and height 704 (14-unit host insets plus the 40-unit title row). Existing saved geometry is never enlarged; its complete viewport continues to fit without cropping. Canvas starts at 100% and scrolls naturally; Grid retains panel dimensions for comparison. The tile's ⋯ menu groups Open experiment, Handoff when available, Notes and Remove from board; Details…, right-click Details… or Cmd/Ctrl-I opens the nonmodal right-side Inspector with canonical notes, feedback, Full preview / Compact card / Icon appearance choices, paper swatches and readable created/edited dates. Appearance is placement-local. The optional `presentation.paper` is a hexadecimal color (`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`); omission retains the default paper. When changing appearance, preserve existing `viewport` and `paper` values as appropriate: `updatePlacement` replaces the supplied presentation object. Canvas tiles resize at their selected edges and corners. Arrow keys resize a tile when its resize grip is focused. Exact geometry remains available through 'updatePlacement'. Full preview uses a supplied preview image when available, with the same uncropped sizing as an HTML fallback; the primary content and canonical identity stay unchanged. The same canonical item may have a card reference elsewhere; notes, stars, revisions and reader behavior stay shared. `createItem.placement` accepts the same presentation field. `updateBoard` patches `title,description,reviewOrder,decorations,background`; `background.resource` is a named-root reference. Decorations are board-local presentation metadata. Text, region and line decorations retain `id,type,x,y,width,height,color,text`. A line may additionally set boolean `endArrow`, `flipX` and `flipY`: `endArrow:true` adds the arrowhead at its end, while the flips reverse the horizontal and vertical start/end orientation within its positive-size bounding box. A line may also set boolean `startArrow` (arrowhead at its start) and `dashed`, `route` (`straight`, `elbow` or `curved`) and `thickness` (`thin`, `medium` or `thick`); absence keeps a straight, medium, solid line. Text and region decorations may set `textSize` (`small`, `medium` or `large`) and `textAlign` (`left`, `center` or `right`); absence keeps their default size and alignment. Absent flags preserve ordinary lines. The Add menu offers Text, Colored region and Arrow, with direct on-board editing controls. Ordinary lines remain supported decoration metadata. `updateItem` changes title, description, content, preview, revisions or build metadata. An item may carry an optional short display `number` (for example `"07"`, at most 8 characters shown); migrated items keep their legacy concept number. When present it appears on the tile and continues inside: the reader title, the browser title and, for a board-owning item, the child board's top bar ("07 · Columns give way"). Tinka never invents numbers. Review is `{"type":"review","itemId":"opening-idea","patch":{"note":"Try a shorter introduction.","star":true}}`. `status --board BOARD ITEM_ID reserved|building|review|ready [MESSAGE]` also updates canonical build state; migrated `ROUND/CONCEPT` keys remain accepted.
+`updatePlacement` patches `x,y,width,height,z,presentation`. Presentation is local to a placement: omit it or use `{"mode":"card"}` for the original card; use `{"mode":"icon"}` for a compact icon, or `{"mode":"panel","viewport":{"width":360,"height":650}}` to show a full HTML/image design viewport, fitted without cropping. Viewport dimensions are integers from 40 to 10000; the default is 1000×720. Placement width/height include the compact caption. For a 360×650 design at natural size, use width 388 and height 704 (14-unit host insets plus the 40-unit title row). Existing saved geometry is never enlarged; its complete viewport continues to fit without cropping. Canvas starts at 100% and scrolls naturally; Grid retains panel dimensions for comparison. The tile's ⋯ menu groups Open experiment, Handoff when available, Notes and Remove from board; Details…, right-click Details… or Cmd/Ctrl-I opens the nonmodal right-side Inspector with canonical notes, feedback, Full preview / Compact card / Icon appearance choices, paper swatches and readable created/edited dates. Appearance is placement-local. The optional `presentation.paper` is a hexadecimal color (`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`); omission retains the default paper. When changing appearance, preserve existing `viewport` and `paper` values as appropriate: `updatePlacement` replaces the supplied presentation object. Canvas tiles resize at their selected edges and corners. Arrow keys resize a tile when its resize grip is focused. Exact geometry remains available through 'updatePlacement'. Full preview uses a supplied preview image when available, with the same uncropped sizing as an HTML fallback; the primary content and canonical identity stay unchanged. The same canonical item may have a card reference elsewhere; notes, stars, revisions and reader behavior stay shared. `createItem.placement` accepts the same presentation field. `updateBoard` patches `title,description,reviewOrder,decorations,background`; `background.resource` is a named-root reference. Decorations are board-local presentation metadata. Text, region and line decorations retain `id,type,x,y,width,height,color,text`. A line may additionally set boolean `endArrow`, `flipX` and `flipY`: `endArrow:true` adds the arrowhead at its end, while the flips reverse the horizontal and vertical start/end orientation within its positive-size bounding box. A line may also set boolean `startArrow` (arrowhead at its start) and `dashed`, `route` (`straight`, `elbow` or `curved`) and `thickness` (`thin`, `medium` or `thick`); absence keeps a straight, medium, solid line. Text and region decorations may set `textSize` (`small`, `medium` or `large`) and `textAlign` (`left`, `center` or `right`); absence keeps their default size and alignment. Absent flags preserve ordinary lines. The Add menu offers Text, Colored region and Arrow, with direct on-board editing controls. Ordinary lines remain supported decoration metadata. `updateItem` changes title, description, content, preview, revisions or build metadata. An item may carry an optional short display `number` (for example `"07"`, at most 8 characters shown); migrated items keep their legacy concept number. When present it appears on the tile and continues inside: the reader title, the browser title and, for a board-owning item, the child board's top bar ("07 · Columns give way"). fribblr never invents numbers. Review is `{"type":"review","itemId":"opening-idea","patch":{"note":"Try a shorter introduction.","star":true}}`. `status --board BOARD ITEM_ID reserved|building|review|ready [MESSAGE]` also updates canonical build state; migrated `ROUND/CONCEPT` keys remain accepted.
 
 A board-only item’s primary cover/title action opens its child board directly. An item with both content and children keeps the content action and an explicit Open board choice. Comparison-reader stepping remains available.
 
@@ -496,7 +496,7 @@ the source link indicates if the item no longer appears there; membership and
 layout do not automatically synchronize. The feature operation returns the
 standard signed movement receipt for undo/redo. The UI's **Show on parent…**
 offers current parents; conflicts reject without partial changes. Existing board
-geometry is never rearranged. Older Tinka versions may reject the new optional
+geometry is never rearranged. Older fribblr versions may reject the new optional
 `presentation.featuredFrom` field; keep a compatible app and complete backup.
 
 Collection covers are derived at read time from up to four visible placements in review order, with a quiet remaining count for larger boards. Each derived cover may also carry an optional `layout` miniature: `{width,height,regions:[{x,y,width,height,color?,shape?,text}],tiles:[{id,itemId,title,x,y,width,height,z,mode,type,board,star?,state?,paper?,preview?}],omitted?}` with coordinates relative to the board's bounds. It is bounded to 60 tiles (largest first), 24 regions, 8 image previews and 4 live HTML previews per board, and remains response data only. Clients draw it as a miniature of the board (Home cards and board-tile windows) when its tiles stay legible at window size, and otherwise use the four-tile collage. Saved item preview images take priority, followed by local image content and local HTML fitted to the placement's complete viewport. Unsupported, unavailable and board-only children use title tiles; nested collections do not recursively embed their descendants. An explicit owner preview retains priority over the automatic cover. Composites retain their own primary content. Covers require no stored preview type, metadata write, migration or generated file and apply to existing collections after upgrade.
@@ -518,7 +518,7 @@ Window Compact/Standard/Wide and custom corner resizing still reflow HTML.
 Canvas zoom magnifies the existing document without reloading it. Documents and
 nonvisual representations retain native scrolling and responsive stage sizing.
 An item/version switch refits; late image readiness preserves a view already
-adjusted by the person. Tinka reads dimensions only from its own media wrapper,
+adjusted by the person. fribblr reads dimensions only from its own media wrapper,
 not arbitrary embedded HTML or cross-origin apps. No content sizing message or
 SDK is required. Standalone links and resource bytes are unchanged.
 
@@ -531,8 +531,8 @@ expose the same named tools as GET `/api/tools` and POST `/api/tools/call`
 origin guards. files.import takes local paths through CLI only, opens regular
 files with byte limits before reading, and uses the existing import transaction.
 Browser file imports retain the multipart route. Existing operations remain.
-A changing tool call's response adds `link`, the direct Tinka link to what it
-added or changed (`/boards/BOARD/#items/PLACEMENT` for one Tinka, the board for
+A changing tool call's response adds `link`, the direct fribblr link to what it
+added or changed (`/boards/BOARD/#items/PLACEMENT` for one item, the board for
 board-level changes), plus `links` when it changed several; `revision` and
 `result` are unchanged. `workspace op` adds the same; POST `/api/operations` does not.
 
@@ -690,7 +690,7 @@ object. The decoration has no `shape` field. It uses `x,y` as the container's
 anchor, `color` as its tint and `text` as its optional single-line title. Its
 configuration stores the layout and ordered child references. Each child keeps
 its own identity, dimensions and appearance in the board's decoration or placement
-array. A placed Tinka still refers to the same canonical item and resource files.
+array. A placed item still refers to the same canonical item and resource files.
 
 ```json
 {"type":"createDecoration","boardId":"ideas","decoration":{"id":"evidence","type":"region","x":100,"y":120,"width":144,"height":64,"color":"#dbe5d3","text":"Evidence to check","container":{"layout":"vertical","children":["checklist","next-steps"]}}}
@@ -699,7 +699,7 @@ array. A placed Tinka still refers to the same canonical item and resource files
 `layout` is `vertical`, `horizontal` or `grid`. `children` accepts up to 128
 ordered unique references. A string identifies a same-board Text or shaped region
 decoration. An object such as `{"placementId":"PLACEMENT_ID"}` identifies an
-active Tinka occurrence on that board. A child belongs to at most one container,
+active item occurrence on that board. A child belongs to at most one container,
 and must be ungrouped before entering. Containers have one level. `padding` and
 `gap` are integer board units from 0 to 128, defaulting to 16 and 12. Grid
 `columns` accepts 1–8 and defaults to 2. Rows and columns fit the largest child
@@ -887,7 +887,7 @@ hubs and config namespaces. No account service, registry or scheduler is added.
 
 ### HTTP and concurrent agents
 
-GET `/api/workspace` returns `{enabled:false,revision:0}` before initialization, or the schema 2 snapshot with `enabled:true`, `items:[]`, `boards:[]`, `homeBoardIds` and `resourceRoots`. GET `/api/boards` lists home graph boards and unmigrated legacy boards; the complete destination catalog is in `/api/workspace.boards`. GET `/api/boards/:id` returns the schema 2 board snapshot with canonical `items` keyed by ID, or the legacy response for an unmigrated board. Workspace and board responses add derived `boardCovers` keyed by represented board ID, with `count` and at most four `tiles`; these are response data, not stored metadata. GET `/api/items/:id` returns one canonical item. GET `/api/items/:id/cover-thumbnail` returns a confined local HTML cover representation. `/resources/:rootId/PATH` serves declared local resources and preserves relative HTML asset URLs. GET `/api/resource-places?url=STANDALONE_PATH` (see [Standalone pages](#standalone-pages-and-back-to-tinka)) lists the placements that show a served file.
+GET `/api/workspace` returns `{enabled:false,revision:0}` before initialization, or the schema 2 snapshot with `enabled:true`, `items:[]`, `boards:[]`, `homeBoardIds` and `resourceRoots`. GET `/api/boards` lists home graph boards and unmigrated legacy boards; the complete destination catalog is in `/api/workspace.boards`. GET `/api/boards/:id` returns the schema 2 board snapshot with canonical `items` keyed by ID, or the legacy response for an unmigrated board. Workspace and board responses add derived `boardCovers` keyed by represented board ID, with `count` and at most four `tiles`; these are response data, not stored metadata. GET `/api/items/:id` returns one canonical item. GET `/api/items/:id/cover-thumbnail` returns a confined local HTML cover representation. `/resources/:rootId/PATH` serves declared local resources and preserves relative HTML asset URLs. GET `/api/resource-places?url=STANDALONE_PATH` (see [Standalone pages](#standalone-pages-and-back-to-fribblr)) lists the placements that show a served file.
 
 POST `/api/operations` accepts one operation as its JSON body. PATCH `/api/items/:id/review` accepts `{patch:{note,star},expectedRevision?,operationId?}`. POST `/api/workspace/migrate` requires explicit `{dryRun:true}` or `{dryRun:false}`. Legacy notes endpoints remain supported for legacy boards.
 
@@ -907,17 +907,17 @@ Every HTTP write requires `Content-Type: application/json` and `x-tinka-workspac
 
 Each operation may include `expectedRevision` and a unique `operationId`. A stale revision returns 409; reload and reconcile the intended edit before retrying. A repeated operation ID with identical payload replays its result; reuse with different input fails. The idempotence cache retains up to the most recent 64 operations, evicting older responses sooner when needed to fit the metadata byte budget. If a single exceptional movement receipt cannot fit, the original response still returns its full `history`; an identical retry retains the original result/revision but may omit that optional receipt. Independently held movement receipts remain valid after cache eviction. Successful operations return `{revision,result}` with created IDs and optional movement `history`. Invalid operations return 400, unknown targets 404, cycles/conflicts 409; no partial metadata change is committed.
 
-### Standalone pages and Back to Tinka
+### Standalone pages and Back to fribblr
 
 A project HTML file served at `/resources/ROOT/PATH` (or a legacy
 `/boards/ID/files/PATH`) is normally returned byte for byte. When a browser opens it
-as the page itself, Tinka adds one tag, `<script src="/app/return-mark.js" defer></script>`,
+as the page itself, fribblr adds one tag, `<script src="/app/return-mark.js" defer></script>`,
 before the last `</body>` (or at the end). That happens only when all of these hold:
 the response is `text/html`, the request has `Sec-Fetch-Dest: document`, there is no
 `Range` header, the URL has no `?tinka=off`, the file is at most 8 MiB and not
 UTF-16, and the page has no `<meta name="tinka-return" content="off">`. The
 response's Content-Length is recomputed. Every HTML response on these routes carries
-`Vary: Sec-Fetch-Dest`. Tinka's own preview frames send `Sec-Fetch-Dest: iframe`, and
+`Vary: Sec-Fetch-Dest`. fribblr's own preview frames send `Sec-Fetch-Dest: iframe`, and
 curl, agents and other tools send no Sec-Fetch header, so they all get the exact
 file. Read files from disk, or fetch them without that header, when byte identity
 matters. Images, PDFs, video, Markdown and other types are never changed. App pages,
@@ -938,13 +938,13 @@ GET `/api/resource-places?url=PATH` takes the page's own path and returns
 for every active placement whose item's content, or one of its saved versions,
 resolves to the same file. That includes other items that point at the file, and
 the concepts of an unmigrated legacy board. At most 50 places are returned. `href`
-opens that placement's Tinka, for example `/boards/BOARD/#items/PLACEMENT`, plus
+opens that placement's item, for example `/boards/BOARD/#items/PLACEMENT`, plus
 `~VERSION` for a saved version. The endpoint is read-only and follows the same
 loopback Host check as every request. It returns 400 for any other path, and 404 or
-403 under the resource rules. The mark chooses the place whose Tinka was most
+403 under the resource rules. The mark chooses the place whose item was most
 recently opened in this browser (`localStorage` `tinka/WORKSPACE/recent-tinkas`,
 written by the board view), else the only place; otherwise its ⋯ menu offers the
-places. No item ID is added to resource URLs. The opened Tinka's Inspector uses the
+places. No item ID is added to resource URLs. The opened item's Inspector uses the
 same endpoint for Where it lives.
 
 ## Legacy boards
@@ -986,7 +986,7 @@ guards.
 
 Create a board with `node cli.mjs board create SLUG --config /absolute/config.json --title "Title"`. Its immediate folder under `boardsRoot` contains `AGENTS.md`, `board.json`, `rounds.json`, `build-state.json`, and `.state/notes.json`. Before the workspace is initialized, this is a legacy folder board: the workspace tools (`item.create`, `board.get`) cannot use it until `workspace migrate --dry-run`, then `--apply`, which keeps its ID. To fill a board with the workspace tools, create it with `tools call board.create` instead. The portable guide stays with the board. Use `board guide SLUG --config PATH` to add it to an older board without overwriting an existing guide. No installed skill is required. The app never executes a manifest or an experiment start command. Keep source and evidence in that external board folder; keep the application installation replaceable.
 
-Keep durable boards in project version control, including assets, experiment handoffs and `.state/notes.json`. A portable project records its relative boards path and version pin in `tinka/project.json`; the checked-in `tinka/setup.mjs` restores the app and rebuilds machine-local config after checkout. See the [root README](../README.md) and [agent guide](AGENT.md). Existing external boards remain supported and need their own explicit backup or transfer; they are not automatically included by checking out a product repository.
+Keep durable boards in project version control, including assets, experiment handoffs and `.state/notes.json`. A portable project records its relative boards path and version pin in `fribblr/project.json`; the checked-in `fribblr/setup.mjs` restores the app and rebuilds machine-local config after checkout. See the [root README](../README.md) and [agent guide](AGENT.md). Existing external boards remain supported and need their own explicit backup or transfer; they are not automatically included by checking out a product repository.
 
 New workspaces have no boards, and new boards have no experiments. Create only what the owner requests. Do not add a reference board, workspace guide, sample or starter experiment unless requested. Reference material is ordinary optional content and can be removed like any other item.
 
@@ -1009,21 +1009,21 @@ Each board owns the large image at the top of its card on the home page. The two
 - Recommended canvas: **1200 × 600 pixels (2:1)**, or an SVG with `viewBox="0 0 1200 600"`. PNG, JPEG, WebP and SVG work. Aim for a small file, ideally under 300 KB.
 - Use a board-relative file path, usually `assets/cover.svg` or `assets/cover.png`. The file lives inside this board's folder, outside the replaceable app. Absolute paths, URLs and paths escaping the board are not accepted.
 - Prefer a clear visual idea, diagram or illustration. The board title is already below it; avoid tiny text, private information and important details near the edges. The image scales to the card; the title supplies its accessible name.
-- Edit the image or change `cover` to update the card automatically. Omit `cover` to use the default paper artwork. Each board can use its own image; no image service or Tinka SDK is required.
+- Edit the image or change `cover` to update the card automatically. Omit `cover` to use the default paper artwork. Each board can use its own image; no image service or fribblr SDK is required.
 
 The home page's **Change cover…** action prepares a prompt with the board's exact workspace, file location and image specification for its agent.
 
 ## Each experiment stands alone
 
 - Give every experiment its own entry point and run instructions. Plain HTML can be served by any static HTTP server rooted at the board, or from its experiment directory if all referenced files are local. A framework experiment runs through its own documented start command and URL.
-- Design with the target product's vocabulary, layout, and behavior. Do not copy the Tinka canvas appearance unless that is the product being explored.
+- Design with the target product's vocabulary, layout, and behavior. Do not copy the fribblr canvas appearance unless that is the product being explored.
 - Keep the implementation free of required imports from `public/`, host-only globals, and required `postMessage` responses. Optional host preference messages must safely do nothing when the experiment runs alone.
 - Put an `README.md` beside the entry point. Record the concept's purpose, exact command and working directory, required files and external dependencies, what is real, what is simulated, and what should transfer to the target product. This is the handoff; a screenshot or a board status is not enough.
 - If shared assets or data are required, name their paths and explain how to carry them with the experiment. Keep user data out of release ZIPs.
 
-The manifest is an adapter. For a static experiment, omit `kind` (defaults to `html`) and `path` (defaults to `rounds/<round>/<concept>/index.html`) when those defaults are correct. Explicit `kind` values are `html`, `image`, `markdown`, `video`, and `pdf`; `path` is board-relative. A framework preview can declare an explicit HTTP(S) `url` and a board-relative `handoff` README path. The URL is a preview location, not a command for Tinka to run. Document how to start and stop that framework yourself.
+The manifest is an adapter. For a static experiment, omit `kind` (defaults to `html`) and `path` (defaults to `rounds/<round>/<concept>/index.html`) when those defaults are correct. Explicit `kind` values are `html`, `image`, `markdown`, `video`, and `pdf`; `path` is board-relative. A framework preview can declare an explicit HTTP(S) `url` and a board-relative `handoff` README path. The URL is a preview location, not a command for fribblr to run. Document how to start and stop that framework yourself.
 
-Custom entry paths can use any folder layout. Tinka watches their containing directory. Declare additional shared files or directories in `dependencies` so edits outside that directory refresh the preview too. The conventional board `shared/` and `assets/` directories are also watched. A separate framework server owns its own hot updates; Tinka does not execute its start command.
+Custom entry paths can use any folder layout. fribblr watches their containing directory. Declare additional shared files or directories in `dependencies` so edits outside that directory refresh the preview too. The conventional board `shared/` and `assets/` directories are also watched. A separate framework server owns its own hot updates; fribblr does not execute its start command.
 
 Minimal `rounds.json` example (valid even before the prototype exists):
 

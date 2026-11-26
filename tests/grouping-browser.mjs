@@ -20,7 +20,7 @@ try {
   const op=async (type,data)=>(await applyOperation(config,{type,...data})).result;
   const {boardId}=await op('createBoard',{title:'Canvas groups'});
   const card=async (title,x)=>(await op('createItem',{boardId,item:{title},placement:{x,y:100,width:260,height:180}})).placementIds[0];
-  const first=await card('A Tinka',100),second=await card('Another Tinka',760);
+  const first=await card('An item',100),second=await card('Another item',760);
   for (const decoration of [
     {id:'caption',type:'text',x:410,y:100,width:225,height:90,text:'A text block',color:'#456139'},
     {id:'inside',type:'text',x:430,y:350,width:225,height:90,text:'Container text',color:'#456139'},

@@ -71,13 +71,13 @@ try{
  await openLab();
  const boardHistory=await historyLength();
  await openItem(quiet.placementIds[0]);
- for(const selector of ['#reader-navigator','#reader-home','#close-reader','#reader-path','#reader-stepper','#reader-search','#reader-info-toggle',...pill])ok(await visible(selector),`${selector} is in the opened Tinka's chrome`);
+ for(const selector of ['#reader-navigator','#reader-home','#close-reader','#reader-path','#reader-stepper','#reader-search','#reader-info-toggle',...pill])ok(await visible(selector),`${selector} is in the opened item's chrome`);
  eq(await page.locator('#reader-up-label').textContent(),'Design Lab','‹ parent names the board');
- eq(await page.locator('#reader-count').textContent(),'1 / 4','The stepper counts this board, skipping the board-only Tinka');
+ eq(await page.locator('#reader-count').textContent(),'1 / 4','The stepper counts this board, skipping the board-only item');
  eq(await page.locator('#reader-zoom-toggle').textContent(),'100%');
- ok(await page.locator('#reader-dialog #dot-track, #reader-dialog #view-toggle, #reader-dialog .chrome-add, #reader-dialog #chrome-undo').count()===0,'No footer dots, View button, Add or Undo in an opened Tinka');
+ ok(await page.locator('#reader-dialog #dot-track, #reader-dialog #view-toggle, #reader-dialog .chrome-add, #reader-dialog #chrome-undo').count()===0,'No footer dots, View button, Add or Undo in an opened item');
  ok(await page.locator('#reader-view-back').isHidden(),'Back is hidden before any fit');
- eq(await page.evaluate(()=>document.activeElement?.id),'reader-stage','Opening leaves focus on Tinka, not inside the content');
+ eq(await page.evaluate(()=>document.activeElement?.id),'reader-stage','Opening leaves focus on fribblr, not inside the content');
  const fitted=await plane();
  eq(fitted.zoom,1,'A Fit-size window opens at 100%');
  const winBox=await page.locator('#reader-window').boundingBox(),pillBox=await page.locator('#reader-dialog .zoom-pill').boundingBox();
@@ -87,10 +87,10 @@ try{
  // The Navigator opens inside the opened Tinka, and Escape closes it before anything else.
  await page.locator('#reader-navigator').click();
  await page.locator('#project-navigator').waitFor({state:'visible'});
- ok(await page.locator('#reader-dialog #project-navigator').count()===1,'The Navigator opens inside the opened Tinka');
+ ok(await page.locator('#reader-dialog #project-navigator').count()===1,'The Navigator opens inside the opened item');
  eq(await page.locator('#reader-navigator').getAttribute('aria-expanded'),'true');
  await page.keyboard.press('Escape');await page.locator('#project-navigator').waitFor({state:'hidden'});
- ok(await page.locator('#reader-dialog').evaluate(d=>d.open),'Escape closes the Navigator and leaves the Tinka open');
+ ok(await page.locator('#reader-dialog').evaluate(d=>d.open),'Escape closes the Navigator and leaves the item open');
  await page.locator('#reader-stage').focus();
 
  // (2) ⌘/Ctrl-scroll zooms the canvas, over the background and over local content; the page does not zoom.
@@ -99,13 +99,13 @@ try{
  await page.mouse.move(stage.x+8,stage.y+8);
  await page.keyboard.down('Control');await page.mouse.wheel(0,-120);await page.keyboard.up('Control');
  await page.waitForTimeout(60);
- const z1=await plane();ok(z1.zoom>1.2,`Control-scroll over the canvas zooms the Tinka: ${z1.zoom}`);
+ const z1=await plane();ok(z1.zoom>1.2,`Control-scroll over the canvas zooms the item: ${z1.zoom}`);
  await page.waitForFunction(()=>document.querySelector('#active-reader').contentDocument?.querySelector('iframe')?.contentDocument?.querySelector('h1'),null,{timeout:5000});
  const frameBox=await page.locator('#reader-window').boundingBox();
  await page.mouse.move(frameBox.x+frameBox.width/2,frameBox.y+frameBox.height/3);
  await page.keyboard.down('Control');await page.mouse.wheel(0,-120);await page.keyboard.up('Control');
  await page.waitForTimeout(60);
- const z2=await plane();ok(z2.zoom>z1.zoom*1.2,`Control-scroll over local content zooms the Tinka too: ${z1.zoom} → ${z2.zoom}`);
+ const z2=await plane();ok(z2.zoom>z1.zoom*1.2,`Control-scroll over local content zooms the item too: ${z1.zoom} → ${z2.zoom}`);
  const header1=await headerBox();
  eq([header1.height,header1.width],[header0.height,header0.width],'The header keeps its size: the page itself never zooms');
  eq(await page.evaluate(()=>visualViewport.scale),1,'No page zoom');
@@ -126,10 +126,10 @@ try{
  await page.locator('#reader-path').click();
  await page.locator('#reader-path-pop').waitFor({state:'visible',timeout:2000});
  const rows=await page.locator('#reader-path-pop .reader-path-ladder .reader-path-title').allTextContents();
- eq(rows,['Home','Product','Design Lab','01 · Quiet opening'],'The ladder runs Home → Product → Design Lab → this Tinka');
+ eq(rows,['Home','Product','Design Lab','01 · Quiet opening'],'The ladder runs Home → Product → Design Lab → this item');
  eq(await page.locator('#reader-path-pop .reader-path-sibs .tk-eyebrow').textContent(),'On Design Lab · 4');
  eq(await page.locator('#reader-path-pop .reader-path-sibs .reader-path-title').allTextContents(),['01 · Quiet opening','02 · Bold opening','A plain idea','Starter kit'],'Numbered neighbours in board order');
- ok(await page.locator('#reader-path-pop').getByRole('group',{name:'Also on'}).getByText('Product').isVisible(),'A Tinka placed on several boards lists where else it appears');
+ ok(await page.locator('#reader-path-pop').getByRole('group',{name:'Also on'}).getByText('Product').isVisible(),'An item placed on several boards lists where else it appears');
  await page.keyboard.press('Escape');await page.locator('#reader-path-pop').waitFor({state:'hidden',timeout:2000});checks++;
  await page.waitForTimeout(100);await page.locator('#reader-path').click();await page.locator('#reader-path-pop').waitFor({state:'visible'});
  await page.mouse.move(700,500);await page.waitForTimeout(500);
@@ -153,7 +153,7 @@ try{
  await page.keyboard.press(`${chord}+ArrowLeft`);await waitName('Bold opening');checks++;
  await page.keyboard.press(']');await waitName('A plain idea');checks++;
  await page.keyboard.press('[');await waitName('Bold opening');checks++;
- eq(await page.evaluate(()=>document.activeElement?.id),'reader-stage','Stepping keeps focus on Tinka');
+ eq(await page.evaluate(()=>document.activeElement?.id),'reader-stage','Stepping keeps focus on fribblr');
  await page.keyboard.press('ArrowRight');await waitName('A plain idea');checks++;
  await page.keyboard.press('ArrowLeft');await waitName('Bold opening');checks++;
  await page.keyboard.press('ArrowLeft');await waitName('Quiet opening');checks++;
@@ -166,7 +166,7 @@ try{
  await page.keyboard.press(']');await page.waitForTimeout(150);eq(await name(),'Quiet opening','] types in a field');
  await inner.locator('h1').click();
  await page.keyboard.press(`${chord}+ArrowRight`);await waitName('Bold opening');checks++;
- eq(await page.evaluate(()=>document.activeElement?.id),'reader-stage','A step from the content lands focus on Tinka');
+ eq(await page.evaluate(()=>document.activeElement?.id),'reader-stage','A step from the content lands focus on fribblr');
  eq(await historyLength(),h0,'Stepping replaces the history entry instead of adding one');
 
  // (6) Former View-panel functions, now in the % menu and the Inspector.
@@ -185,7 +185,7 @@ try{
  await page.locator('#revision-options').getByText('Second version').click();await waitName('Bold opening · Second version');checks++;
  await page.locator('#reader-zoom-toggle').click();await page.locator('#reader-zoom-menu [data-size="fit"]').click();await page.keyboard.press('Escape');
  ok(await page.locator('#reader-zoom-menu').isHidden(),'Escape closes the % menu first');
- ok(await page.locator('#reader-dialog').evaluate(d=>d.open),'…and leaves the Tinka open');
+ ok(await page.locator('#reader-dialog').evaluate(d=>d.open),'…and leaves the item open');
  await page.keyboard.press('Meta+i');if(await page.locator('#reader-info').isHidden())await page.keyboard.press('Control+i');
  await page.locator('#reader-info').waitFor({state:'visible'});checks++;
  const info=page.locator('#reader-info');
@@ -221,7 +221,7 @@ try{
  await page.locator('#reader-stage').focus();
  await page.keyboard.press(`${chord}+ArrowUp`);await page.locator('#reader-dialog').waitFor({state:'hidden'});checks++;
  ok(/^(#round-|$)/.test(new URL(page.url()).hash),'Up returns to the board');
- eq(await historyLength(),h0+1,'Up adds one entry, so browser Back reopens the last Tinka');
+ eq(await historyLength(),h0+1,'Up adds one entry, so browser Back reopens the last item');
  await page.goBack();await page.locator('#reader-dialog[open]').waitFor();await waitName('Starter kit');checks++;
  await page.locator('#reader-stage').focus();
  await page.keyboard.press(`${chord}+ArrowDown`);await page.waitForURL(/\/boards\/kit-parts\/\?from=lab/);checks++;
@@ -277,16 +277,16 @@ try{
  const x0=await stepperX();
  // A ring is an outline or the canvas's inset shadow.
  const ring=selector=>page.evaluate(sel=>{const e=document.querySelector(sel),c=getComputedStyle(e);return (c.outlineStyle!=='none'&&parseFloat(c.outlineWidth)>0)||c.boxShadow!=='none';},selector);
- eq(await page.evaluate(()=>getComputedStyle(document.getElementById('reader-stage')).backgroundImage),'none','The opened Tinka\'s canvas is Plain, like a board nobody chose a background for');
+ eq(await page.evaluate(()=>getComputedStyle(document.getElementById('reader-stage')).backgroundImage),'none','The opened item\'s canvas is Plain, like a board nobody chose a background for');
  const titleOf=i=>grabby[i]&&(i%2?`Step ${i+1}`:`Step ${i+1}: a much longer title that keeps going and going so the header has to truncate it somewhere`);
- ok(!(await contentFocused()),'Opening keeps focus with Tinka although the content focuses itself');
+ ok(!(await contentFocused()),'Opening keeps focus with fribblr although the content focuses itself');
  let at=0;
  const settle=async()=>{await waitName(titleOf(at)).catch(async e=>{throw new Error(`Expected ${titleOf(at)}; ${JSON.stringify(await page.evaluate(()=>({name:document.querySelector('#reader-name').textContent,active:document.activeElement?.tagName+'#'+document.activeElement?.id,inner:(()=>{try{const d=document.getElementById('active-reader').contentDocument;return d.activeElement?.tagName+'>'+(d.activeElement?.contentDocument?.activeElement?.id||'')}catch{return 'x'}})()})))}`);});await page.waitForTimeout(350);};
- for(let n=0;n<5;n++){await page.keyboard.press(`${chord}+ArrowRight`);at++;await settle();eq(await stepperX(),x0,`The stepper holds still at step ${at+1}`);ok(!(await contentFocused()),`Focus stays with Tinka after ${chord}+→ #${n+1}`);}
- eq(at,5,'Five chord presses advance five Tinkas without a click');
+ for(let n=0;n<5;n++){await page.keyboard.press(`${chord}+ArrowRight`);at++;await settle();eq(await stepperX(),x0,`The stepper holds still at step ${at+1}`);ok(!(await contentFocused()),`Focus stays with fribblr after ${chord}+→ #${n+1}`);}
+ eq(at,5,'Five chord presses advance five items without a click');
  eq([await page.evaluate(()=>document.activeElement?.id),await ring('#reader-stage')],['reader-stage',false],'Focus handed to the canvas after key steps draws no ring');
  for(let n=0;n<5;n++){await page.keyboard.press('ArrowLeft');at--;await settle();}
- eq(await name(),titleOf(0),'Five plain ← presses step back five Tinkas without a click');
+ eq(await name(),titleOf(0),'Five plain ← presses step back five items without a click');
  await page.locator('#reader-next').click();at++;await settle();
  for(let n=0;n<5;n++){await page.keyboard.press('ArrowRight');at++;await settle();if(at<6){eq(await page.evaluate(()=>document.activeElement?.id),'reader-next',`Focus stays on Next after → #${n+1}`);ok(!(await ring("#reader-next")),`The clicked Next button shows no ring after → #${n+1}: ${await page.evaluate(()=>{const e=document.getElementById("reader-next");return JSON.stringify({attr:e.hasAttribute("data-pointer-focus"),fv:e.matches(":focus-visible"),o:getComputedStyle(e).outlineStyle,b:getComputedStyle(e).boxShadow})})}`);}}
  eq([await name(),await page.evaluate(()=>document.activeElement?.id),await page.locator('#reader-next').getAttribute('aria-disabled')],[titleOf(6),'reader-next','true'],'After clicking Next, five plain → presses keep stepping; at the end Next keeps focus and says it is disabled (UI SDK Pagination)');
@@ -296,7 +296,7 @@ try{
  const hb=await page.locator('#reader-header').boundingBox(),sb=await page.locator('#reader-stepper').boundingBox();
  const spot=await page.evaluate(([x,y])=>{const e=document.elementFromPoint(x,y);return e.tagName+'#'+e.id+'.'+e.className;},[sb.x-6,hb.y+hb.height-3]);
  await page.mouse.click(sb.x-6,hb.y+hb.height-3);await page.waitForTimeout(60);
- eq(await page.evaluate(()=>document.activeElement?.tagName+'#'+document.activeElement?.id)+' @'+spot,'DIV#reader-stage @'+spot,'A click on the header background leaves focus on Tinka, not the page body');
+ eq(await page.evaluate(()=>document.activeElement?.tagName+'#'+document.activeElement?.id)+' @'+spot,'DIV#reader-stage @'+spot,'A click on the header background leaves focus on fribblr, not the page body');
  await page.keyboard.press('ArrowLeft');at--;await settle();checks++;
  await page.screenshot({path:path.join(evidence,'tinka-view-1244-header.png'),clip:{x:0,y:0,width:1244,height:Math.ceil(hb.height)+8}});
  // Working in the content keeps its focus: a click inside it is not undone.
@@ -318,7 +318,7 @@ try{
  ok(!(await popOpen()),'Clicking the title again closes it');
  await page.locator('#reader-count').click();ok(await popOpen(),'The count opens the list');
  await page.keyboard.press('Escape');await page.waitForTimeout(100);
- ok(!(await popOpen())&&await page.locator('#reader-dialog').evaluate(d=>d.open),'Escape closes the path and leaves the Tinka open');
+ ok(!(await popOpen())&&await page.locator('#reader-dialog').evaluate(d=>d.open),'Escape closes the path and leaves the item open');
  eq(await page.evaluate(()=>document.activeElement?.id),'reader-count','Escape returns focus to the trigger');
  ok(!(await ring('#reader-count')),'…without lighting a ring on the clicked trigger');
  await page.keyboard.press(`${chord}+ArrowRight`);at++;await settle();
@@ -340,4 +340,4 @@ try{
  await browser?.close();if(server)await closeAppServer(server);await rm(root,{recursive:true,force:true});
 }
 if(errors.length)throw new Error(errors.join('\n'));
-console.log(`Tinka view browser checks passed (${checks}).`);
+console.log(`fribblr view browser checks passed (${checks}).`);
