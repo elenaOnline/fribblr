@@ -604,9 +604,14 @@ test('real render, round 2: the wand\'s glitter is drawn on the board crop; a cl
     {...itemMark(w.page,{},{n:3,tool:'click',via:'marquee'}),shape:{kind:'point',x:60,y:1900},snap:{source:'dom',label:'button "Sign in"',shape:{kind:'rect',x:20,y:1840,w:130,h:50}},
       targets:[{...card,element:{tag:'button',name:'Sign in',selector:'#signin',path:'body > button#signin',box:{x:20,y:1840,w:130,h:50}}}]},
   ];
+  // A wave down the left edge of the board's leftmost card: its frame starts left of the page, where a capture used to
+  // lay the page out again and show the board's top left instead of the mark; the clip now stays on the page.
+  marks.push({n:4,tool:'wand',at:0,end:100,boardId:'looks',shape:{kind:'swath',width:56,points:[[at.x+14,at.y+20],[at.x+18,at.y+at.h*0.5],[at.x+14,at.y+at.h-20]]},targets:[card]});
   const results=await cropMarks({url,config:w.config,boardId:'looks',marks,appearance:'light',timeout:90000});
   for(const [i,r] of results.entries())assert.ok(r.png,`mark ${i+1}: ${r.note}`);
-  const [wand,plain,item]=results.map(r=>readPng(r.png));
+  const [wand,plain,item,edge]=results.map(r=>readPng(r.png));
+  {const {pixels,channels,width,height}=edge;let y0=height,y1=-1;for(let y=0;y<height;y++)for(let x=0;x<width;x++){const i=(x+y*width)*channels;if(pixels[i]>150&&pixels[i+1]<110&&pixels[i+2]<110){if(y<y0)y0=y;if(y>y1)y1=y;}}
+    assert.ok(y1-y0>0.6*height,`a mark at the left edge of the leftmost card fills most of its crop top to bottom (red rows ${y0}–${y1} of ${height})`);}
   assert.match(results[0].from,/the wand's area drawn as the reviewer saw it, a red dither over a light red tint/);
   assert.match(results[2].from,/item render, not a screenshot of the reviewer's screen: "Login" \(page\).*laid out 853 px wide \(the reviewer's frame 1280×720 px at zoom 150 %\); scrolled to x 0, y 900 as the reviewer was; shows the snapped outline with context around it/);
   assert.match(results[2].from,/Not reproduced: text the reviewer typed into the page/);
