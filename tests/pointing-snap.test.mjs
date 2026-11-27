@@ -45,7 +45,7 @@ test('names: aria-labelledby, aria-label, label[for], wrapping label, placeholde
     h('label', {}, 'Remember me ', h('input', {id: 'rm', type: 'checkbox'})),
     h('input', {id: 'ph', placeholder: 'Search boards'}),
     h('input', {id: 'sub', type: 'submit'}),
-    h('img', {id: 'logo', alt: 'Tinka logo'}),
+    h('img', {id: 'logo', alt: 'fribblr logo'}),
     h('svg', {id: 'ic'}, h('title', {}, 'Settings'), h('path', {})),
     h('a', {id: 'lk', href: '/docs'}, h('img', {alt: 'Docs'}), ' and guides'),
   ]);
@@ -55,7 +55,7 @@ test('names: aria-labelledby, aria-label, label[for], wrapping label, placeholde
   assert.equal(accessibleName(byId(d, 'rm')), 'Remember me');
   assert.equal(accessibleName(byId(d, 'ph')), 'Search boards');
   assert.equal(accessibleName(byId(d, 'sub')), 'Submit');
-  assert.equal(accessibleName(byId(d, 'logo')), 'Tinka logo');
+  assert.equal(accessibleName(byId(d, 'logo')), 'fribblr logo');
   assert.equal(accessibleName(byId(d, 'ic')), 'Settings');
   assert.equal(accessibleName(byId(d, 'lk')), 'Docs and guides');
 });
