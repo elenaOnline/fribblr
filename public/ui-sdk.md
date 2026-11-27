@@ -1434,22 +1434,28 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   the gap between two rows, just under one and just over the next, underlines neither). An arrow joins other things
   only when it does not lead out to something the gesture left out; with the wand only when the gesture is round or
   along it (no longer than three times the arrow), so a band crossing a short arrow on its way does not take it.
-- The Wand's look (round 3, after dither-kit's ordered-dither fills): a translucent red area under an ordered dither,
-  never glow, blur or bloom. Every texel inside the area (half a cell, 2 CSS px at the gesture's zoom) carries the mark
-  red at 12 % (`--wand-ink`); a 4 × 4 Bayer matrix lights texels at 80 %, densest along the hand's path (4 of 16 at full
-  strength: a wave makes it denser) and dissolving to nothing over three cells at the edge, so the swept region reads at
-  once as one shape and the words under it stay legible. Only alpha varies, never the shade, so it reads the same on
-  paper and on a dark board. The texels are fixed to the board (texel (u, v) is the same board square at every redraw),
-  so the pattern never crawls as the board pans or the area grows. A few still glints (about 2.5 % of full-strength
-  cells, chosen by a 64 × 64 blue-noise table so they never clump) are four-point stars, a pale centre (`--wand-pale`)
-  with red arms and fainter tips; on a red subject, where tint and dots go unseen, the glints still show. A snapped
-  outline filled is drawn tidied: a one-texel edge line, a dense band inside it, light within. The same `paintField`
-  (`LOOK`) draws the board, the client crops and the server's crops; a crop for the agent adds `CROP_LOOK` (the edge as a
-  red line with a pale keyline outside), so the area reads in a still image on any content. A sweep's still canvas is
+- The Wand's look (round 3, after dither-kit's ordered-dither fills, second pass): an ordered dither over a translucent
+  red, never glow, blur or bloom. Texels are half a cell (2 CSS px at the gesture's zoom) and fixed to the board
+  (texel (u, v) is the same board square at every redraw), so the pattern never crawls as the board pans or the area
+  grows. One ramp runs from the hand's path to the edge over the band's half-width (3 to 7 cells): along the path a
+  4 × 4 Bayer matrix lights the most texels (30 % at full strength, `--wand-dot`, the deep red on paper, the mark red on a
+  dark board, at 82 %) and every texel between carries the tint (`--wand-ink` at `--wand-tint`: 10 % on paper, 7 % on a
+  dark board, where more would wash photos pink); toward the edge the lit texels thin out and then the tint itself
+  dissolves texel by texel (a second, shifted matrix), so the area has one edge and it dissolves. Only alpha varies,
+  never the shade. About 1.2 % of full-strength cells (a 64 × 64 blue-noise table, so they never clump) carry a still
+  glint: a four-point star five texels across, a pale centre (`--wand-pale`) with red arms, in a small clearing of
+  empty texels so it reads at 1× too. A snapped outline filled is drawn off the thing it names: inside, the tint at half
+  strength alone; a dotted line two cells outside the outline; the dither outside that line, dissolving outward over
+  five cells (the sweep as made is drawn faint beneath, at 0.4, on the board). The same `paintField` (`LOOK`) draws the
+  board, the client crops and the server's crops; a crop for the agent adds `CROP_LOOK` (a swath's edge as a red line
+  with a pale keyline), draws the dither at the crop's own screen size (4 crop px a cell) rather than magnified, and
+  leaves out the faint sweep under a snapped outline. From the press to the mark, the area never leaves the screen: a
+  release that waits for a late snap source (up to 120 ms) keeps the area as cast on the sheet until the mark is
+  drawn, and the sheet gives it up in the same task the mark's canvas arrives in. An unsnapped sweep's still canvas is
   drawn a task after the release (the sheet shows it meanwhile), so a release over a whole board stays within a frame.
   While casting, the cells swept in the last 280 ms carry glints that go out as they age (motion only with the user's
-  motion); the area is kept on a canvas of its own and only the cells a change reaches are drawn again. From the release
-  on nothing moves: no glints, no settling, a snapped mark drawn snapped at once. Committed, a mark is a still
+  motion); the area is kept on a canvas of its own and only the cells a change reaches are drawn again. From the
+  release on nothing moves: no glints, no settling, a snapped mark drawn snapped at once. Committed, a mark is a still
   `<canvas class="pointing-swath">` in world units (`image-rendering: pixelated` between a zoom and its redraw at the
   new zoom, 160 ms after the zoom settles), the same texels the sheet drew. Moving without the button, the cursor is a
   ring of dots the band's width across with a glint at the point, shedding a few sparkles that are gone within
@@ -1465,8 +1471,8 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   ⌘ (Ctrl off a Mac; Keynote, tldraw, Miro, Figma turn off snapping with the same key) takes exactly what the user drew, at
   once, and letting go brings the snap back. A snapped mark keeps the user's raw `shape` and adds `snap: {source, label,
   shape}`; its targets, regions and the board's drawing follow the snap (a wand mark is drawn as the
-  snapped outline filled, a line on its edge, a dense band inside it and light within, with the sweep as made drawn
-  faint beneath, at 0.4, as the crop draws it). The chip's hint ends "snapped to the …".
+  snapped outline filled: its inside tinted, a dotted line just outside it and the dither outside that, with the sweep
+  as made drawn faint beneath on the board). The chip's hint ends "snapped to the …".
   Sources inside one card plug in with `board.pointing.addSnapSource(source, {space, map})` (the request is
   documented there; `map` takes a source's own coordinates, e.g. `pointing-snap-dom.js` `pageMapping`;
   `refreshSnap()` for a source that answers later); the best proposal over `SNAP_MIN` wins.
