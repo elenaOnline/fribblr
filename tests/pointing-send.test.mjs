@@ -14,7 +14,7 @@ import {applyOperation,getBoardSnapshot} from '../lib/workspace.mjs';
 import {listFeedback,applyFeedbackOperation} from '../lib/feedback.mjs';
 import {feedbackInbox} from '../lib/inbox.mjs';
 import {addPointingComment,renderQueue} from '../lib/pointing-send.mjs';
-import {markBox,glitterOf,layersOf,itemRenderSource,cropMarks} from '../lib/pointing-crop.mjs';
+import {markBox,glitterOf,layersOf,itemRenderSource,cropMarks,ringsOf,plainFailure,renderFailed} from '../lib/pointing-crop.mjs';
 import {callTool} from '../lib/tools.mjs';
 import {inflateSync} from 'node:zlib';
 import {decodeCropDataUrl,pointingRoot,sweepCrops} from '../lib/pointing-files.mjs';
@@ -613,4 +613,125 @@ test('real render, round 2: the wand\'s glitter is drawn on the board crop; a cl
   assert.ok(redish(wand)>redish(plain)+400,`glitter flecks are drawn (${redish(wand)} vs ${redish(plain)} red pixels)`);
   assert.ok(redish(item)>150,'the snapped outline is drawn on the item render');
   assert.ok(results[2].box.x<=20&&results[2].box.y<=1840,JSON.stringify(results[2].box));
+});
+
+// ---- round 2, review fixes: what was on screen, plain failures, other threads' pins, multi-part snaps, read copy ----
+const ring=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+const twoParts={kind:'path',points:ring(10,10,100,40),rings:[ring(10,10,100,40),ring(300,200,80,60)]};
+
+test('review fixes validation: view.visible and snapped paths of several rings',async t=>{
+  const f=await fixture(t);
+  const click=snap=>({tool:'click',via:'marquee',shape:{kind:'point',x:5,y:6},...(snap?{snap:{source:'object',label:'2 cards',shape:snap}}:{}),targets:[target(f.login,'Login mock')]});
+  const withView=visible=>itemPlace(f,{view:{zoom:1.56,scrollX:0,scrollY:900,width:1440,height:848,unit:'px',visible}});
+  const good=[
+    {...click(),place:withView({x:0,y:900,w:923,h:543})},
+    {...click(twoParts),place:withView(undefined)},
+    {...click({kind:'path',points:ring(0,0,5,5)})},
+  ];
+  for(const [i,mark] of good.entries()){await send2(f,one(f,mark,`rv${i}`));assert.ok(await threadOf(f,`rv${i}`),`good case ${i}`);}
+  const stored=(await threadOf(f,'rv0')).pointing.marks[0];
+  assert.deepEqual(stored.place.view.visible,{x:0,y:900,w:923,h:543});
+  assert.equal((await threadOf(f,'rv1')).pointing.marks[0].snap.shape.rings.length,2);
+  const rings=n=>Array.from({length:n},(_,i)=>ring(i*10,0,5,5));
+  const bad=[
+    ['visible without a width',{...good[0],place:withView({x:0,y:0,w:0,h:10})},/has a width and a height/],
+    ['visible negative height',{...good[0],place:withView({x:0,y:0,w:10,h:-1})},/has a width and a height/],
+    ['visible not finite',{...good[0],place:withView({x:0,y:0,w:Infinity,h:10})},/Invalid point coordinate/],
+    ['visible missing a key',{...good[0],place:withView({x:0,y:0,w:10})},/Invalid point coordinate/],
+    ['visible unknown key',{...good[0],place:withView({x:0,y:0,w:10,h:10,extra:1})},/Unknown pointing visible field/],
+    ['one ring',{...click({kind:'path',points:ring(0,0,5,5),rings:[ring(0,0,5,5)]})},/2 to 12 rings/],
+    ['13 rings',{...click({kind:'path',points:ring(0,0,5,5),rings:rings(13)})},/2 to 12 rings/],
+    ['a ring of two points',{...click({kind:'path',points:ring(0,0,5,5),rings:[ring(0,0,5,5),[[0,0],[1,1]]]})},/at least 3 points/],
+    ['too many points in all',{...click({kind:'path',points:ring(0,0,5,5),rings:[Array.from({length:400},(_,i)=>[i,0]),Array.from({length:400},(_,i)=>[i,1]),ring(0,0,5,5)]})},/at most 800 points/],
+    ['ring points not numbers',{...click({kind:'path',points:ring(0,0,5,5),rings:[ring(0,0,5,5),[[0,0],[1,'a'],[2,2]]]})},/Invalid point coordinate/],
+  ];
+  for(const [name,mark,pattern] of bad)await assert.rejects(send2(f,one(f,mark,'badrv')),error=>error.status===400&&pattern.test(error.message),name);
+});
+
+test('review fixes crops: a path of several rings is framed, outlined and filled part by part',()=>{
+  const layout=new Map(),unit={scale:1,x:0,y:0};
+  const marked=markBox({n:1,tool:'marquee',shape:{kind:'rect',x:0,y:0,w:20,h:20},snap:{source:'object',label:'2 cards',shape:twoParts},targets:[]},layout,unit);
+  assert.ok(marked.x<=10&&marked.x+marked.w>=380&&marked.y<=10&&marked.y+marked.h>=260,`framed by both parts: ${JSON.stringify(marked)}`);
+  const {layers}=layersOf({tool:'marquee',shape:{kind:'rect',x:0,y:0,w:20,h:20},snap:{source:'object',label:'2 cards',shape:twoParts}});
+  assert.deepEqual(layers.filter(l=>l.opacity===1).map(l=>l.points.length),[4,4],'one closed outline per part');
+  const wand={tool:'wand',shape:{kind:'swath',width:56,points:[[0,0],[50,5]]},snap:{source:'object',label:'2 cards',shape:twoParts}};
+  assert.deepEqual(glitterOf(wand).shapes.map(s=>[s.kind,s.alpha]),[['region',1],['region',1],['swath',0.4]]);
+  assert.deepEqual(ringsOf({kind:'path',points:ring(0,0,1,1)}),[ring(0,0,1,1)],'a single outline is one ring');
+});
+
+test('review fixes crops: a failed render says what could not be drawn, never the browser\'s exception',()=>{
+  const log=[],original=console.error;console.error=(...a)=>log.push(a.join(' '));
+  try{
+    const raw=new Error('Runtime.evaluate: Execution context was destroyed.');
+    assert.equal(plainFailure(raw,'"Whiteboard"'),'No crop: "Whiteboard" could not be drawn off screen. The area and the item are exact.');
+    assert.equal(renderFailed(raw),'No crop: the server-side render failed. The area and the item are exact.');
+    assert.equal(renderFailed(new Error('Target closed')),'No crop: the server-side render failed. The area and the item are exact.');
+    assert.match(log[0],/Execution context was destroyed/,'the raw error stays in the server log');
+    // messages written for the reader pass as they are
+    assert.equal(plainFailure(new Error('the image did not load.'),'x'),'No crop: the image did not load.');
+    assert.equal(renderFailed(new Error('boom\nstack')),'No crop: the server-side render failed (boom).');
+  }finally{console.error=original;}
+});
+
+test('review fixes: a thrown render error never reaches the agent in the message',async t=>{
+  const f=await fixture(t);
+  await send2(f,operation(f,message(f)),async()=>{throw new Error('Runtime.evaluate: Execution context was destroyed.');});
+  const read=(await threadOf(f)).pointing.read;
+  assert.doesNotMatch(read,/Runtime\.evaluate|Execution context/);
+  assert.match(read,/No crop: the server-side render failed\. The area and the item are exact\./);
+});
+
+test('review fixes pointing.read: no stray capitals, the opened item always has its title, rings are counted',async t=>{
+  const f=await fixture(t);
+  const p=message(f,{marks:[
+    {n:1,tool:'wand',at:0,end:900,boardId:'landing',shape:{kind:'swath',width:56,points:[[20,20],[600,30]]},targets:[target(f.login,'Login mock',{whole:false,region:{x:.1,y:0,w:.8,h:.2}}),target(f.hero,'Hero B',{whole:false,region:{x:.1,y:0,w:.8,h:.2}})],crop:null},
+    {n:2,tool:'marquee',at:1000,end:1400,boardId:'landing',shape:{kind:'rect',x:30,y:60,w:100,h:20},targets:[target(f.login,'Login mock',{whole:false,region:{x:.1,y:.3,w:.33,h:.1}}),target(f.hero,'Hero B')],crop:null},
+    {n:3,tool:'click',via:'marquee',at:2000,end:2000,boardId:'landing',place:itemPlace(f),shape:{kind:'point',x:40,y:50},targets:[],crop:null},
+    {n:4,tool:'marquee',at:3000,end:3400,boardId:'landing',place:itemPlace(f),shape:{kind:'rect',x:10,y:10,w:370,h:250},snap:{source:'object',label:'2 cards',shape:twoParts},targets:[],crop:null},
+  ]});
+  p.parts=[{text:'a ',at:0,end:1},{mark:1},{mark:2},{mark:3},{mark:4}];
+  await send2(f,operation(f,p,{body:'a @1 Login mock @2 Login mock @3 Login mock @4 Login mock'}),async({marks})=>marks.map(()=>({note:'No crop: test.'})));
+  const read=(await threadOf(f)).pointing.read,lines=read.split('\n').filter(l=>l.startsWith('['));
+  assert.match(lines[0],/Covers part of card "Login mock".* Also covers part of card "Hero B"/);
+  assert.match(lines[1],/part of card "Login mock".* Also card "Hero B"/);
+  assert.doesNotMatch(read,/Also [A-Z]/);
+  assert.match(lines[2],/^\[3\] click \(with marquee\), 2\.0 s, inside the opened item "Login mock" \(item \S+, on board landing; the reviewer had it/);
+  assert.match(lines[2],/a click at x 40, y 50 px of the page\. Nothing under it\. No crop/);
+  assert.match(lines[3],/inside the opened item "Login mock"/);
+  assert.match(lines[3],/Snapped to 2 cards \(an object on the board; x 10–380, y 10–260 px of the page; 2 separate outlines\)/);
+  assert.doesNotMatch(read,/\b(\w+) \1\b(?!-)/i,'no doubled words');
+  assert.doesNotMatch(read,/\. nothing|\. empty/,'a sentence starts with a capital');
+});
+
+test('review fixes real render: the visible part of a zoomed item, a page that redirects after loading, no pins from other threads',{skip:!browserPath&&'set CHROMIUM_EXECUTABLE to run',timeout:240000},async t=>{
+  const w=await workFixture(t);
+  await writeFile(path.join(w.root,'work/hop.html'),'<!doctype html><title>Hop</title><script>location.replace("login.html?via=hop")</script>');
+  const hop=(await callTool(w.config,'item.create',{boardId:'looks',item:{title:'Hop',content:{kind:'html',resource:{rootId:'work',path:'hop.html'}}}})).result;
+  const server=await listen(w.config,{port:0});t.after(()=>closeAppServer(server));
+  const url=`http://127.0.0.1:${server.address().port}/`;
+  // The reviewer, zoomed to 150 %, saw 853×480 px of the page from y 1000; the page's top is not in the picture.
+  const visible={x:0,y:1000,w:853,h:480};
+  const marks=[
+    itemMark(w.page,{scrollY:1000,visible},{n:1,shape:{kind:'point',x:60,y:1100}}),
+    itemMark(w.page,{scrollY:1000},{n:2,shape:{kind:'point',x:60,y:1100}}),
+    itemMark(w.page,{scrollY:1000,visible},{n:3,shape:{kind:'point',x:60,y:100}}),
+    itemMark(hop.itemId||hop,{scrollY:0},{n:4,shape:{kind:'point',x:40,y:40}}),
+  ];
+  const results=await cropMarks({url,config:w.config,boardId:'looks',marks,appearance:'light',timeout:120000});
+  for(const [i,r] of results.entries())assert.ok(r.png,`mark ${i+1}: ${r.note}`);
+  assert.match(results[0].from,/shows the part of the item that was on screen: x 0–853, y 1000–1480 px of the page/);
+  assert.doesNotMatch(results[0].from,/as the reviewer saw it/);
+  assert.match(results[1].from,/shows the whole window of the page \(more than was on screen at that zoom/);
+  assert.match(results[2].from,/shows the mark \(it lay partly outside the part of the item that was on screen\)/);
+  assert.doesNotMatch(results[3].note||'',/Execution context/);
+  assert.ok(results[3].png&&!/Runtime\./.test(results[3].from));
+  // Another thread's comment pin sits beside the mark: the crop does not draw it (a pin is the same red as a mark number).
+  const board=await getBoardSnapshot(w.config,'looks'),p=board.placements.find(x=>x.itemId===w.page);
+  const spot={kind:'point',x:p.x+p.width*0.3,y:p.y+p.height*0.3};
+  const card={kind:'placement',id:p.id,boardId:'looks',itemId:w.page,itemKind:'html',title:'Login',whole:true};
+  const crop=async()=>(await cropMarks({url,config:w.config,boardId:'looks',marks:[{n:1,tool:'click',via:'marquee',at:0,end:1,boardId:'looks',shape:spot,targets:[card]}],appearance:'light',timeout:90000}))[0];
+  const before=await crop();assert.ok(before.png,before.note);
+  await callTool(w.config,'feedback.comment',{boardId:'looks',author:{id:'rev',label:'Rev',kind:'human'},body:'another thread',anchor:{kind:'point',x:spot.x+8,y:spot.y+8,placementId:p.id,relative:{x:0.32,y:0.32}}});
+  const after=await crop();assert.ok(after.png,after.note);
+  assert.ok(Math.abs(redish(readPng(after.png))-redish(readPng(before.png)))<150,`no pin drawn (${redish(readPng(before.png))} vs ${redish(readPng(after.png))} red pixels)`);
 });

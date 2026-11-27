@@ -329,14 +329,18 @@ Round 2 adds the following, all optional on a mark:
   tool). The read says `click (with marquee)`, and for a wand what the area covered.
 - Snapping. When a reference was tidied to something the reviewer meant, `snap` is `{source, label, shape}`: `source` is
   `object` (a card or drawing), `dom` (an element of a page) or `pixels` (a region found by edges in a picture),
-  `label` names it (`button "Sign in"`), `shape` is the snapped outline (rect or path). `shape` stays the raw gesture,
+  `label` names it (`button "Sign in"`), `shape` is the snapped outline (rect or path; a reference to several objects is
+  one `path` whose `rings` lists each object's own outline, and the read says "2 separate outlines"). `shape` stays the raw gesture,
   and the read states both ("Snapped to button "Sign in" (…); what the reviewer did before it snapped: a click at x 184, y
   1239"). Targets, regions and the crop follow the snapped outline. No `snap` means exactly what the reviewer drew.
 - `place`: where the mark was made. Absent or `{kind:"board", boardId}` is the board. `{kind:"item", itemId, boardId,
   placementId?, version?, view:{zoom, scrollX, scrollY, width, height, unit?}}` is inside the opened item: `shape`
   and `snap` are then in the item's own coordinates (CSS px of the page for an HTML item, px of the image, or
   fractions of the content area when `view.unit` is `fraction`), and `view` is what the reviewer was looking at (the reviewer's frame
-  in screen px, its zoom, how far the page was scrolled). One message can mix places; each line of the read says its own.
+  in screen px, its zoom, how far the page was scrolled; `visible: {x, y, w, h}`, when sent, is the part of the item
+  that was on screen, in the same coordinates as `shape`). One message can mix places; each line of the read says its own.
+  An item crop of such a mark shows `visible` (or the mark with context, saying so, when it lay partly outside it);
+  without `visible`, a zoomed item's crop says it shows the whole window, more than was on screen.
 - Targets may carry `element` (a DOM element of a same-origin or loopback page: `tag`, `role?`, `name?`, `text?`,
   `id?`, `selector` matching only it, `path`, `box` in page px with scroll included, `frameUrl?`), `elements` (with
   `element` as their common ancestor, when the reviewer meant several: 2 to 12) and `text` (a range in a document:
