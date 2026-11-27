@@ -65,7 +65,9 @@ export function readerContent(frame, item) {
   }
   // A page (an HTML item, the Drawxide whiteboard), or Tinka's own item page for a note or a title.
   const text = doc.querySelector('.item-representation .item-text');
-  return {kind: 'page', doc, win, ...(text ? {article: text} : {}), itemKind};
+  // The Drawxide whiteboard: one canvas inside its page, so a mark on it is a place on the page, not a shape.
+  const whiteboard = /\/drawxide\//.test(path) || !!doc.querySelector('iframe[src*="/app/drawxide/"]');
+  return {kind: 'page', doc, win, ...(text ? {article: text} : {}), ...(whiteboard ? {app: 'whiteboard'} : {}), itemKind};
 }
 
 export class ReaderPlace {
@@ -176,11 +178,38 @@ export class ReaderPlace {
     return {pdf: `PDF window ${size}; its page is not readable`, video: `video window ${size}${at}`, audio: `audio window ${size}${at}`,
       'other origin': `window ${size}; another origin's page is not readable`}[c.why] || `item window ${size}`;
   }
+  // What a mark that names nothing in the item is called on its chip: plainly what kind of place it is, which is what
+  // the agent gets ("Area of the PDF view": the PDF's page cannot be read, only its window), or that it was outside.
+  emptyLabel(point, outside = false) {
+    if (outside) return 'Outside the item';
+    const c = this.current();
+    const [on, of] = c.kind === 'image' ? ['in the picture', 'of the picture'] : c.kind === 'document' ? ['in the document', 'of the document']
+      : c.kind === 'page' ? (c.app === 'whiteboard' ? ['on the whiteboard', 'of the whiteboard'] : c.article ? ['in the text', 'of the text'] : ['on the page', 'of the page'])
+      : ({pdf: ['on the PDF view', 'of the PDF view'], video: ['on the video', 'of the video'], audio: ['on the audio player', 'of the audio player'],
+        'other origin': ['on the page view', 'of the page view']})[c.why] || ['in the item view', 'of the item view'];
+    return point ? `Point ${on}` : `Area ${of}`;
+  }
+  // What the agent cannot get from this place, said plainly on a mark's hint ('' when it can read the content).
+  limits(c = this.current()) {
+    if (c.kind === 'page' && c.app === 'whiteboard') return 'The whiteboard is drawn on one canvas: the agent gets the place on the page, not the shapes there';
+    if (c.kind !== 'window') return '';
+    return ({pdf: 'The PDF\'s pages cannot be read here: the agent gets the place in the PDF view, not on the page',
+      video: 'The agent gets the place in the video\'s window and the play time',
+      audio: 'The agent gets the place in the player and the play time',
+      'other origin': 'Another site\'s page cannot be read: the agent gets the place in the window'})[c.why] || 'The agent gets the place in the item\'s window';
+  }
   // The visible part of the content, as a client box: the window, inside the stage.
   shownBox() {
     const a = this.info.window.getBoundingClientRect(), b = this.info.stage.getBoundingClientRect();
     const x = Math.max(a.left, b.left), y = Math.max(a.top, b.top);
     return {x, y, w: Math.max(0, Math.min(a.right, b.right) - x), h: Math.max(0, Math.min(a.bottom, b.bottom) - y)};
+  }
+
+  // Whether content point (x, y) is within `px` screen px below the top of what shows of the window (a mark's number
+  // there would be cut off above it).
+  nearTop(x, y, px) {
+    const v = this.view(), a = this.info.window.getBoundingClientRect(), b = this.info.stage.getBoundingClientRect();
+    return v.top + (y + v.oy) * v.zoom - Math.max(a.top, b.top) < px;
   }
 
   // ---- what can be pointed at: the item itself ----
@@ -206,8 +235,19 @@ export class ReaderPlace {
   // (its layout size is width / zoom); `unit` names the coordinates of this mark's shapes.
   record(boardId) {
     const i = this.info, c = this.current(), s = this.scroll(c), w = i.window, z = this.readerZoom();
+    const visible = this.visible(c);
     return {kind: 'item', itemId: i.item?.id || i.key, boardId, ...(i.placement?.id ? {placementId: i.placement.id} : {}), ...(i.version?.id ? {version: i.version.id} : {}),
-      view: {zoom: round(z, 3), scrollX: round(s.x), scrollY: round(s.y), width: Math.max(1, Math.round(w.offsetWidth * z)), height: Math.max(1, Math.round(w.offsetHeight * z)), unit: this.unit(c)}};
+      view: {zoom: round(z, 3), scrollX: round(s.x), scrollY: round(s.y), width: Math.max(1, Math.round(w.offsetWidth * z)), height: Math.max(1, Math.round(w.offsetHeight * z)), unit: this.unit(c),
+        ...(visible ? {visible} : {})}};
+  }
+  // The part of the item the user could see (CONTRACT § Round 2 review fixes, `place.view.visible`), in the marks'
+  // content units: the window inside the stage (a zoomed-in reader shows part of it), within the content. Null when
+  // nothing of it shows.
+  visible(c = this.current()) {
+    const b = this.shownBox(), v = this.view(), e = this.extent(c);
+    const x0 = Math.max(0, (b.x - v.left) / v.zoom - v.ox), y0 = Math.max(0, (b.y - v.top) / v.zoom - v.oy);
+    const x1 = Math.min(e.w, (b.x + b.w - v.left) / v.zoom - v.ox), y1 = Math.min(e.h, (b.y + b.h - v.top) / v.zoom - v.oy);
+    return x1 - x0 >= 1 && y1 - y0 >= 1 ? {x: round(x0), y: round(y0), w: round(x1 - x0), h: round(y1 - y0)} : null;
   }
   /** How the chips and hints name this place: the item's title (and version). */
   name() { const i = this.info; return `${String(i.item?.title || i.title || 'the item').replace(/\s+/g, ' ').trim()}${i.version?.name ? ` · ${i.version.name}` : ''}`; }
@@ -287,10 +327,39 @@ export const placeKey = place => place?.itemId ? `item:${place.itemId}:${place.v
 // page client px to the gesture's units; `element` (a block the DOM source named) gives its whole text; else the
 // characters inside the gesture: for a box (`rect`) those at least a third inside it, else those whose middle (or a
 // quarter above or below it) `inside(x, y)` holds; `bounds` skips text nodes far from it. Null when it holds no words.
-export function textRangeIn(article, toUnits, {inside, bounds, rect = null, element = null}) {
+export function textRangeIn(article, toUnits, {inside, bounds, rect = null, element = null, underline = null}) {
   const doc = article.ownerDocument, range = doc.createRange();
   let start = null, end = null;
-  if (element) {
+  if (underline) {
+    // An underline: the line of words just above the stroke's centre line (or the line it runs through, in its lower
+    // part), along the stroke's length.
+    const at = underlineAt(underline.points);
+    const walker = doc.createTreeWalker(article, NodeFilter.SHOW_TEXT), chars = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.nodeValue.trim()) continue;
+      range.selectNodeContents(n);
+      const r = range.getBoundingClientRect(), [x0, y0] = toUnits(r.left, r.top), [x1, y1] = toUnits(r.right, r.bottom);
+      if (x1 < bounds.x || y1 < bounds.y || x0 > bounds.x + bounds.w || y0 > bounds.y + bounds.h) continue;
+      for (let i = 0; i < n.nodeValue.length; i++) {
+        if (/\s/.test(n.nodeValue[i])) continue;
+        range.setStart(n, i); range.setEnd(n, i + 1);
+        const b = range.getBoundingClientRect(); if (!b.width && !b.height) continue;
+        const [ax, ay] = toUnits(b.left, b.top), [bx, by] = toUnits(b.right, b.bottom), sy = at((ax + bx) / 2);
+        if (sy == null) continue;
+        const d = sy - by, h = by - ay;
+        if (d < -0.6 * h || d > underline.near) continue;
+        chars.push({n, i, line: Math.round(ay), d});
+      }
+    }
+    if (!chars.length) return null;
+    // Of the lines the stroke is under, the one it is closest under.
+    const lines = new Map();
+    for (const c of chars) { const l = lines.get(c.line) || lines.set(c.line, {d: 0, k: 0}).get(c.line); l.d += c.d; l.k++; }
+    const score = ({d, k}) => { const m = d / k; return m >= 0 ? m : -1.5 * m; };
+    const best = [...lines.entries()].sort((a, b) => score(a[1]) - score(b[1]))[0][0];
+    const mine = chars.filter(c => c.line === best);
+    start = [mine[0].n, mine[0].i]; end = [mine.at(-1).n, mine.at(-1).i + 1];
+  } else if (element) {
     const el = findElement(doc, element);
     if (!el || !article.contains(el) && el !== article && !el.contains(article)) return null;
     range.selectNodeContents(el.contains(article) ? article : el);
@@ -316,6 +385,8 @@ export function textRangeIn(article, toUnits, {inside, bounds, rect = null, elem
       }
     }
     if (!start) return null;
+  }
+  if (underline || !element) {
     // A word cut by the user's gesture's edge counts whole (as a text selection by words does).
     const word = /[\p{L}\p{N}_'’-]/u;
     while (start[1] > 0 && word.test(start[0].nodeValue[start[1] - 1]) && word.test(start[0].nodeValue[start[1]])) start[1]--;
@@ -323,6 +394,15 @@ export function textRangeIn(article, toUnits, {inside, bounds, rect = null, elem
     range.setStart(...start); range.setEnd(...end);
   }
   return textAnchor(article, range);
+}
+// The y of a flat stroke's centre line at x (between its points, by x), or null beyond its ends.
+function underlineAt(points) {
+  const pts = [...points].sort((a, b) => a[0] - b[0]);
+  return x => {
+    if (!pts.length || x < pts[0][0] || x > pts.at(-1)[0]) return null;
+    for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) { const [ax, ay] = pts[i - 1], [bx, by] = pts[i]; return bx > ax ? ay + (by - ay) * (x - ax) / (bx - ax) : Math.max(ay, by); }
+    return pts.at(-1)[1];
+  };
 }
 // The element a DOM snap named, found again in its page: by selector, else by id.
 function findElement(doc, element) {
