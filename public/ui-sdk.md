@@ -1426,7 +1426,7 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   band-widths, ahead or behind, within ±37°), or on a thing the reference points at. The area is a band `WAND.width`
   CSS px across (⌥[ ⌥] step through `WAND.sizes`, kept in `localStorage`; the announcement says the narrowest and the
   widest, and pressing past an end says so on the bar's line)
-  plus the inside of any round loop it closes (`SwathField`, board units, one cell per fleck site); a wave that comes
+  plus the inside of any round loop it closes (`SwathField`, board units, a cell `WAND.pitch` CSS px); a wave that comes
   back over a place makes it denser. The record keeps `shape: {kind: 'swath', width, points}`, from which
   `SwathField.fromShape` rebuilds the same area, so the board, the crop and a reader see one area. Targets come from
   the area (`areaHits`: by area, loose like a circle, and `along`, `underlines`: a centre line through a thing or
@@ -1434,21 +1434,33 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   the gap between two rows, just under one and just over the next, underlines neither). An arrow joins other things
   only when it does not lead out to something the gesture left out; with the wand only when the gesture is round or
   along it (no longer than three times the arrow), so a band crossing a short arrow on its way does not take it.
-- The Wand's look: glitter, never glow. Hard-edged flecks in whole device pixels at the cells whose rank in a 64 × 64
-  blue-noise table is under 0.72 of the cell's strength (a denser rim on the area's edge), in three sizes (1, 1.5 and
-  2.25 CSS px) with one in eight a short dash; each fleck is two-tone so it reads on paper, a photo, a red subject or
-  a dark board: a mark-red fleck with a light keyline on its top and left (`--wand-ink`, `--wand-pale`), or about one
-  in four a light fleck with a deep keyline on its bottom and right (`--wand-pale`, `--wand-star`); 3 % of lit sites
-  are sparkles, a light point with short red arms. About a tenth of a full-strength area is ink, so words under it
-  stay legible. The same `paintField` draws the board, the client crops and the server's crops. A sweep's still
-  canvas is drawn a task after the release (the sheet shows it meanwhile), so a release over a whole board stays
-  within a frame. While casting, newly swept cells sparkle denser for 280 ms after the user's motion and settle; the settled
-  flecks are kept on a canvas of their own and only changed cells are drawn again. Committed, a mark is a still
+- The Wand's look (round 3, after dither-kit's ordered-dither fills, second pass): an ordered dither over a translucent
+  red, never glow, blur or bloom. Texels are half a cell (2 CSS px at the gesture's zoom) and fixed to the board
+  (texel (u, v) is the same board square at every redraw), so the pattern never crawls as the board pans or the area
+  grows. One ramp runs from the hand's path to the edge over the band's half-width (3 to 7 cells): along the path a
+  4 × 4 Bayer matrix lights the most texels (30 % at full strength, `--wand-dot`, the deep red on paper, the mark red on a
+  dark board, at 82 %) and every texel between carries the tint (`--wand-ink` at `--wand-tint`: 10 % on paper, 7 % on a
+  dark board, where more would wash photos pink); toward the edge the lit texels thin out and then the tint itself
+  dissolves texel by texel (a second, shifted matrix), so the area has one edge and it dissolves. Only alpha varies,
+  never the shade. About 1.2 % of full-strength cells (a 64 × 64 blue-noise table, so they never clump) carry a still
+  glint: a four-point star five texels across, a pale centre (`--wand-pale`) with red arms, in a small clearing of
+  empty texels so it reads at 1× too. A snapped outline filled is drawn off the thing it names: inside, the tint at half
+  strength alone; a dotted line two cells outside the outline; the dither outside that line, dissolving outward over
+  five cells (the sweep as made is drawn faint beneath, at 0.4, on the board). The same `paintField` (`LOOK`) draws the
+  board, the client crops and the server's crops; a crop for the agent adds `CROP_LOOK` (a swath's edge as a red line
+  with a pale keyline), draws the dither at the crop's own screen size (4 crop px a cell) rather than magnified, and
+  leaves out the faint sweep under a snapped outline. From the press to the mark, the area never leaves the screen: a
+  release that waits for a late snap source (up to 120 ms) keeps the area as cast on the sheet until the mark is
+  drawn, and the sheet gives it up in the same task the mark's canvas arrives in. An unsnapped sweep's still canvas is
+  drawn a task after the release (the sheet shows it meanwhile), so a release over a whole board stays within a frame.
+  While casting, the cells swept in the last 280 ms carry glints that go out as they age (motion only with the user's
+  motion); the area is kept on a canvas of its own and only the cells a change reaches are drawn again. From the
+  release on nothing moves: no glints, no settling, a snapped mark drawn snapped at once. Committed, a mark is a still
   `<canvas class="pointing-swath">` in world units (`image-rendering: pixelated` between a zoom and its redraw at the
-  new zoom, 160 ms after the zoom settles), the same sites the sheet drew. Moving without the button, the cursor is a
-  ring of flecks the band's width across with a sparkle at the point, shedding a few sparkles that are gone within
+  new zoom, 160 ms after the zoom settles), the same texels the sheet drew. Moving without the button, the cursor is a
+  ring of dots the band's width across with a glint at the point, shedding a few sparkles that are gone within
   half a second; ring and sparkles go when the pointer leaves the sheet (`pointerleave`). A wand mark on one image
-  item draws its glitter on the client crop too (`imageCrop` `overlay`).
+  item draws its area on the client crop too (`imageCrop` `overlay`).
 - Snapping (`pointing-snap.js`), every tool: a marquee, lasso or wand area that mostly covers every thing it hit
   (half of each, the wand 40 % or along) is tidied to their outline (`objectSnap`: cards and boxes by their box,
   diamonds and ellipses by their drawn shape, text by its words, arrows as a narrow ribbon along their line); a part,
@@ -1458,9 +1470,9 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   drags, the outline it will snap to is drawn solid with marked corners in place of the per-thing outlines; holding
   ⌘ (Ctrl off a Mac; Keynote, tldraw, Miro, Figma turn off snapping with the same key) takes exactly what the user drew, at
   once, and letting go brings the snap back. A snapped mark keeps the user's raw `shape` and adds `snap: {source, label,
-  shape}`; its targets, regions and the board's drawing follow the snap (a wand mark's glitter settles into the
-  snapped outline, a dense band inside its edge and a light dusting within, with the sweep as made drawn faint
-  beneath, at 0.4, as the crop draws it). The chip's hint ends "snapped to the …".
+  shape}`; its targets, regions and the board's drawing follow the snap (a wand mark is drawn as the
+  snapped outline filled: its inside tinted, a dotted line just outside it and the dither outside that, with the sweep
+  as made drawn faint beneath on the board). The chip's hint ends "snapped to the …".
   Sources inside one card plug in with `board.pointing.addSnapSource(source, {space, map})` (the request is
   documented there; `map` takes a source's own coordinates, e.g. `pointing-snap-dom.js` `pageMapping`;
   `refreshSnap()` for a source that answers later); the best proposal over `SNAP_MIN` wins.

@@ -1,6 +1,6 @@
 // Pointing mode's round 2 (team/pointing/CONTRACT.md § Round 2) on a real board page, driven with a real pointer and
 // keyboard: the Wand (a held drag waving over a card, underlining a heading, circling a sticky is one reference each,
-// drawn as still glitter; travelling between targets, moving while typing and a resting hand make none; a lift
+// drawn as a still dither over a translucent fill; travelling between targets, moving while typing and a resting hand make none; a lift
 // mid-wave carries the same reference on; Backspace and Undo take the last one back and bring it again), snapping to
 // board objects (a sloppy marquee round a card, a lasso round a sticky, a marquee round a container, an underline
 // under text) shown before release, ⌘ held takes exactly what the reviewer drew, and a click recorded as tool "click" with the
@@ -74,15 +74,93 @@ try{
     assert.equal(all.length,3,`three chips: ${all}`);assert.match(all[0],/^1\s*Hero B/);assert.match(all[1],/^2\s*(Text · )?Quarterly plan/);assert.match(all[2],/^3\s*(Sticky · )?A sticky/);
     const tips=await field.locator('.pointing-chip').evaluateAll(cs=>cs.map(c=>c.dataset.tip));
     assert.match(tips[0],/snapped to the card "Hero B"/);assert.match(tips[1],/snapped to the text "Quarterly plan"/);assert.match(tips[2],/snapped to the sticky "A sticky"/);
-    assert.equal(await page.locator('.pointing-marks .pointing-swath').count(),3,'each drawn as glitter');
+    assert.equal(await page.locator('.pointing-marks .pointing-swath').count(),3,'each drawn as the wand\'s area');
   });
-  await check('the glitter is still: once a gesture commits nothing on the board moves on its own',async()=>{
-    await page.mouse.move(1270,850);await page.waitForTimeout(700);
+  await check('the area is still: once a gesture commits nothing on the board moves on its own, from just after the release',async()=>{
     const read=()=>page.evaluate(()=>[...document.querySelectorAll('.pointing-swath')].map(c=>c.toDataURL()).join('|')+'#'+document.querySelector('.pointing-sheet').toDataURL());
-    const a=await read();await page.waitForTimeout(900);const b=await read();
-    assert.ok(a===b,'nothing changed with no input');
-    const ink=await page.evaluate(()=>{const c=document.querySelector('.pointing-swath'),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n/(c.width*c.height);});
-    assert.ok(ink>0.01&&ink<0.4,`flecks, not a fill (${(ink*100).toFixed(1)} % of the patch is ink)`);
+    // A raw stroke (no snap: the sheet holds it until its still canvas is drawn) and a snapped wave (drawn snapped at once,
+    // nothing dissolving), each read just after the release and a second on.
+    const h=await box(card('Hero B'));
+    for(const raw of [true,false]){
+      if(raw)await page.keyboard.down(MOD);
+      if(raw){await page.mouse.move(h.x+20,h.y+60);await page.mouse.down();for(let i=0;i<=12;i++)await page.mouse.move(h.x+20+i*14,h.y+60+(i%2)*4);await page.mouse.up();}
+      else await wave(h);
+      if(raw)await page.keyboard.up(MOD);
+      await page.waitForTimeout(120);
+      const a=await read();await page.waitForTimeout(1000);const b=await read();
+      assert.ok(a===b,`nothing changed with no input after the release (${raw?'raw':'snapped'})`);
+      await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+    }
+    // The tip's sparkles go within half a second of the hand stopping (the user's motion only).
+    await page.mouse.move(1270,850);await page.waitForTimeout(700);
+    const c=await read();await page.waitForTimeout(1000);
+    assert.ok(c===await read(),'nothing changed with no input');
+  });
+  await check('the look: a translucent fill under an ordered dither, both dissolving from the path to the edge, on a grid fixed to the board; a snapped outline adds only a light tint and a dotted line',async()=>{
+    const m=await page.evaluate(async()=>{
+      const w=await import('/app/pointing-wand.js'),tones=['rgb(179,56,48)','rgb(146,44,38)','rgb(250,230,228)','rgb(121,26,22)','0.1'];
+      const path=x=>60+Math.sin(x/30)*8;
+      const f=new w.SwathField({width:56,cell:4});for(let x=0;x<=200;x+=6)f.add(40+x,path(x));
+      const paint=(field,ox,oy)=>{const c=document.createElement('canvas');c.width=360;c.height=200;const ctx=c.getContext('2d');w.paintField(ctx,field,{ox,oy,k:1},{tones});return ctx.getImageData(0,0,360,200).data;};
+      const A=paint(f,0,0),B=paint(f,-40,-24);
+      // inner: within 8 px of the path, outer: the last 8 px of the 28 px half-band (well inside the stroke's ends)
+      const z={inner:{n:0,inked:0,dense:0},outer:{n:0,inked:0,dense:0}};let same=0,n=0;
+      for(let y=0;y<200;y++)for(let x=0;x<360;x++){
+        const q=(x+y*360)*4;
+        if(x>=70&&x<=210){const d=Math.abs(y+0.5-path(x+0.5-40));const b=d<8?z.inner:d>20&&d<27?z.outer:null;if(b&&f.contains([x+0.5,y+0.5])){b.n++;if(A[q+3])b.inked++;if(A[q+3]>150)b.dense++;}}
+        if(x+40<360&&y+24<200){const r=((x+40)+(y+24)*360)*4;n++;if(A[q+3]===B[r+3]&&A[q]===B[r])same++;}
+      }
+      // a snapped outline: inside only a light tint; a dotted line just outside it
+      const g=w.SwathField.fromRegion({kind:'rect',x:100,y:60,w:120,h:60},4,7),R=paint(g,0,0);
+      let inMax=0,outDense=0;
+      for(let y=0;y<200;y++)for(let x=0;x<360;x++){const a=R[(x+y*360)*4+3];if(x>=104&&x<216&&y>=64&&y<116)inMax=Math.max(inMax,a);else if(a>150)outDense++;}
+      return {z,same,n,inMax,outDense};
+    });
+    const {inner,outer}=m.z,share=(b,k)=>b[k]/b.n;
+    assert.ok(share(inner,'inked')>0.93,`the tint is whole along the path (glints sit in small clearings) (${(100*share(inner,'inked')).toFixed(1)} %)`);
+    assert.ok(share(outer,'inked')<0.8*share(inner,'inked'),`and dissolves toward the edge (${(100*share(outer,'inked')).toFixed(1)} % inked there)`);
+    assert.ok(share(inner,'dense')>0.08&&share(inner,'dense')<0.4,`the dither is densest along the path (${(100*share(inner,'dense')).toFixed(1)} % lit)`);
+    assert.ok(share(outer,'dense')<0.5*share(inner,'dense'),`and thins toward the edge (${(100*share(outer,'dense')).toFixed(1)} % lit there)`);
+    assert.equal(m.same,m.n,'panned by 40, 24 px the same area draws the same pixels, moved by 40, 24 px');
+    assert.ok(m.inMax<=Math.round(0.1*0.6*255)+1,`a snapped outline's inside carries only a light tint (alpha ${m.inMax})`);
+    assert.ok(m.outDense>200,`its dotted line lies outside it (${m.outDense} lit px)`);
+  });
+  await check('no blink at the release: every frame from the press to a second after the release shows the area, though the release waits for a late snap source',async()=>{
+    // A stub source that answers late (as the picture worker does), so the commit waits on it; it never snaps.
+    await page.evaluate(async()=>{const {pointingGuard}=await import('/app/pointing-guard.js');window.__lateOn=true;window.__mode=pointingGuard.mode;
+      pointingGuard.mode.addSnapSource({propose:()=>null,proposeAsync:()=>new Promise(r=>setTimeout(()=>r(null),100))},{late:true,accepts:()=>!!window.__lateOn});});
+    const h=await box(card('Hero B'));
+    await page.evaluate(([x0,y0,x1,y1])=>{window.__cov=[];window.__up=0;window.__run=true;
+      const count=()=>{let n=0;for(const c of document.querySelectorAll('.pointing-sheet,.pointing-swath')){const r=c.getBoundingClientRect();if(!r.width)continue;const k=c.width/r.width;
+        const a=Math.max(0,Math.round((x0-r.left)*k)),b=Math.max(0,Math.round((y0-r.top)*k)),e=Math.min(c.width,Math.round((x1-r.left)*k)),f=Math.min(c.height,Math.round((y1-r.top)*k));
+        if(e<=a||f<=b)continue;const d=c.getContext('2d').getImageData(a,b,e-a,f-b).data;for(let i=3;i<d.length;i+=4)if(d[i])n++;}return n;};
+      let held=false;const tick=t=>{if(!window.__run)return;const g=!!window.__mode.gesture;if(held&&!g&&!window.__up)window.__up=t;held=held||g;window.__cov.push([window.__up?Math.round(t-window.__up):-1,count()]);requestAnimationFrame(tick);};requestAnimationFrame(tick);},[h.x+30,h.cy-20,h.x+h.width-30,h.cy+20]);
+    await page.mouse.move(h.x+20,h.cy);await page.mouse.down();for(let k=0;k<3;k++)for(let i=0;i<=12;i++)await page.mouse.move(h.x+20+(k%2?12-i:i)*(h.width-40)/12,h.cy+(k-1)*4);
+    await page.mouse.up();await page.waitForTimeout(1100);
+    const cov=await page.evaluate(()=>{window.__run=false;window.__lateOn=false;return window.__cov;});
+    const before=cov.filter(([t])=>t<0).at(-1)?.[1]||0,after=cov.filter(([t])=>t>=0);
+    assert.ok(before>500,`the area is drawn before the release (${before} px)`);assert.ok(after.length>20,`frames sampled after the release (${after.length})`);
+    const low=after.filter(([,n])=>n<0.5*before);
+    assert.equal(low.length,0,`no frame after the release loses the area (before ${before} px; frames: ${after.slice(0,12).map(([t,n])=>t+':'+n).join(' ')})`);
+    await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+  });
+  await check('text under the area stays legible: its ink stays dark and the paper round it mostly light',async()=>{
+    const hb=await words('#world [data-decoration="head"]');
+    const clip={x:Math.round(hb.x),y:Math.round(hb.y),width:Math.round(hb.width),height:Math.round(hb.height)};
+    const lum=buf=>page.evaluate(async b64=>{const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);const d=x.getImageData(0,0,c.width,c.height).data,o=[];for(let i=0;i<d.length;i+=4)o.push((0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2])/255);return o;},buf.toString('base64'));
+    const plain=await lum(await page.screenshot({clip}));
+    for(const raw of [true,false]){
+      await page.keyboard.type(' over ');if(raw)await page.keyboard.down(MOD);
+      await page.mouse.move(hb.x-10,hb.cy);await page.mouse.down();for(let k=0;k<3;k++)for(let i=0;i<=12;i++)await page.mouse.move(hb.x-10+(k%2?12-i:i)*(hb.width+20)/12,hb.cy+(k-1)*4);await page.mouse.up();if(raw)await page.keyboard.up(MOD);
+      await page.mouse.move(1270,850);await page.waitForTimeout(700);
+      const over=await lum(await page.screenshot({clip}));
+      let ink=0,inkKept=0,paper=0,paperKept=0;
+      for(let i=0;i<plain.length;i++){if(plain[i]<0.3){ink++;if(over[i]<0.35)inkKept++;}else if(plain[i]>0.85){paper++;if(over[i]>0.55)paperKept++;}}
+      const what=raw?'raw':'snapped';
+      assert.ok(ink>50&&inkKept/ink>0.95,`${what}: the words' ink stays dark (${inkKept} of ${ink})`);
+      assert.ok(paperKept/paper>0.7,`${what}: the paper round them stays mostly light (${(100*paperKept/paper).toFixed(1)} %)`);
+      await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+    }
   });
   await check('travelling between targets, moving while typing and a resting hand make no reference',async()=>{
     const before=(await chips()).length;
@@ -202,7 +280,7 @@ try{
     const ctx=await browser.newContext({viewport:{width:1280,height:860},deviceScaleFactor:dpr,colorScheme:mode,reducedMotion:'reduce'}),p=await ctx.newPage();
     await p.addInitScript(mode=>{try{localStorage.setItem('tinka/appearance',mode);}catch{}},mode);
     await p.goto(`${url}/boards/${look}/`);await p.waitForSelector('#world .workspace-card');await p.waitForSelector('[data-pointing-enter]',{state:'attached'});await p.waitForTimeout(400);
-    await check(`the look, ${mode} ${dpr}x: glitter in the mark red over the content`,async()=>{
+    await check(`the look, ${mode} ${dpr}x: the wand's dither in the mark red over the content`,async()=>{
       await p.keyboard.press('p');await p.keyboard.press('Alt+KeyW');
       const b=await p.locator(card('Hero B')).first().boundingBox();
       await p.mouse.move(b.x+12,b.y+b.height/2);await p.mouse.down();for(let k=0;k<4;k++)for(let i=0;i<=10;i++)await p.mouse.move(b.x+12+(k%2?10-i:i)*(b.width-24)/10,b.y+b.height/2+(k-2)*5);

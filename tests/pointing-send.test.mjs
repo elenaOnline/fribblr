@@ -470,10 +470,11 @@ test('round 2 crops: a snapped mark is framed by what it snapped to; a swath by 
   const swath={kind:'swath',width:60,points:[[100,100],[300,110]]};
   const band=markBox({n:1,tool:'wand',shape:swath,targets:[]},layout,unit);
   assert.ok(band.x<=70&&band.x+band.w>=330&&band.y<=70&&band.y+band.h>=140,`the band's width is inside the frame: ${JSON.stringify(band)}`);
-  // glitter: only the wand's own area; a snapped wand fills the snapped outline and keeps the reviewer's sweep faint
+  // the wand's area only for a wand; a snapped wand: the snapped outline filled, the sweep as made left out (it would stripe
+  // the subject); a crop gives its own cell size so the dither keeps its screen size
   assert.equal(glitterOf({tool:'marquee',shape:raw}),null);assert.equal(glitterOf({tool:'click',shape:{kind:'point',x:1,y:1}}),null);
   const free=glitterOf({tool:'wand',shape:swath});assert.deepEqual(free.shapes.map(s=>[s.kind,s.alpha]),[['swath',1]]);assert.equal(free.cell,60/14);
-  const tied=glitterOf({tool:'wand',shape:swath,snap:{source:'object',label:'c',shape:{kind:'rect',x:0,y:0,w:9,h:9}}});assert.deepEqual(tied.shapes.map(s=>[s.kind,s.alpha]),[['region',1],['swath',0.4]]);
+  const tied=glitterOf({tool:'wand',shape:swath,snap:{source:'object',label:'c',shape:{kind:'rect',x:0,y:0,w:9,h:9}}});assert.deepEqual(tied.shapes.map(s=>[s.kind,s.alpha]),[['region',1]]);assert.equal(glitterOf({tool:'wand',shape:swath},0,0.5).cell,0.5);
   // outlines: the snapped outline whole, the raw gesture faint; a bare point is a dot; empty space a ring
   const both=layersOf({tool:'marquee',shape:raw,snap:{source:'dom',label:'x',shape:{kind:'rect',x:5,y:5,w:50,h:50}}});
   assert.deepEqual(both.layers.map(l=>l.opacity),[1,0.4]);
@@ -604,13 +605,18 @@ test('real render, round 2: the wand\'s glitter is drawn on the board crop; a cl
     {...itemMark(w.page,{},{n:3,tool:'click',via:'marquee'}),shape:{kind:'point',x:60,y:1900},snap:{source:'dom',label:'button "Sign in"',shape:{kind:'rect',x:20,y:1840,w:130,h:50}},
       targets:[{...card,element:{tag:'button',name:'Sign in',selector:'#signin',path:'body > button#signin',box:{x:20,y:1840,w:130,h:50}}}]},
   ];
+  // A wave down the left edge of the board's leftmost card: its frame starts left of the page, where a capture used to
+  // lay the page out again and show the board's top left instead of the mark; the clip now stays on the page.
+  marks.push({n:4,tool:'wand',at:0,end:100,boardId:'looks',shape:{kind:'swath',width:56,points:[[at.x+14,at.y+20],[at.x+18,at.y+at.h*0.5],[at.x+14,at.y+at.h-20]]},targets:[card]});
   const results=await cropMarks({url,config:w.config,boardId:'looks',marks,appearance:'light',timeout:90000});
   for(const [i,r] of results.entries())assert.ok(r.png,`mark ${i+1}: ${r.note}`);
-  const [wand,plain,item]=results.map(r=>readPng(r.png));
-  assert.match(results[0].from,/the wand's area drawn as glitter, as the reviewer saw it/);
+  const [wand,plain,item,edge]=results.map(r=>readPng(r.png));
+  {const {pixels,channels,width,height}=edge;let y0=height,y1=-1;for(let y=0;y<height;y++)for(let x=0;x<width;x++){const i=(x+y*width)*channels;if(pixels[i]>150&&pixels[i+1]<110&&pixels[i+2]<110){if(y<y0)y0=y;if(y>y1)y1=y;}}
+    assert.ok(y1-y0>0.6*height,`a mark at the left edge of the leftmost card fills most of its crop top to bottom (red rows ${y0}–${y1} of ${height})`);}
+  assert.match(results[0].from,/the wand's area drawn as the reviewer saw it, a red dither over a light red tint/);
   assert.match(results[2].from,/item render, not a screenshot of the reviewer's screen: "Login" \(page\).*laid out 853 px wide \(the reviewer's frame 1280×720 px at zoom 150 %\); scrolled to x 0, y 900 as the reviewer was; shows the snapped outline with context around it/);
   assert.match(results[2].from,/Not reproduced: text the reviewer typed into the page/);
-  assert.ok(redish(wand)>redish(plain)+400,`glitter flecks are drawn (${redish(wand)} vs ${redish(plain)} red pixels)`);
+  assert.ok(redish(wand)>redish(plain)+400,`the wand's dither is drawn (${redish(wand)} vs ${redish(plain)} red pixels)`);
   assert.ok(redish(item)>150,'the snapped outline is drawn on the item render');
   assert.ok(results[2].box.x<=20&&results[2].box.y<=1840,JSON.stringify(results[2].box));
 });
@@ -655,7 +661,7 @@ test('review fixes crops: a path of several rings is framed, outlined and filled
   const {layers}=layersOf({tool:'marquee',shape:{kind:'rect',x:0,y:0,w:20,h:20},snap:{source:'object',label:'2 cards',shape:twoParts}});
   assert.deepEqual(layers.filter(l=>l.opacity===1).map(l=>l.points.length),[4,4],'one closed outline per part');
   const wand={tool:'wand',shape:{kind:'swath',width:56,points:[[0,0],[50,5]]},snap:{source:'object',label:'2 cards',shape:twoParts}};
-  assert.deepEqual(glitterOf(wand).shapes.map(s=>[s.kind,s.alpha]),[['region',1],['region',1],['swath',0.4]]);
+  assert.deepEqual(glitterOf(wand).shapes.map(s=>[s.kind,s.alpha]),[['region',1],['region',1]]);
   assert.deepEqual(ringsOf({kind:'path',points:ring(0,0,1,1)}),[ring(0,0,1,1)],'a single outline is one ring');
 });
 

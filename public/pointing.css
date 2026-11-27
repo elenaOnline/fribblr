@@ -62,12 +62,13 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 .pointing-sheet[data-tool="point"] { cursor: default; }
 .pointing-sheet.pointing-panning { cursor: grabbing; }
 
-/* The Wand's glitter (pointing-wand.js): two-tone flecks so it reads on any ground (paper, a photo, a red subject, a
-   dark board): mark-red flecks keylined light on their top and left, light flecks keylined deep on their bottom and
-   right, a rare light sparkle with red arms. Hard-edged pixels, never blurred: between a zoom and its redraw the canvas
-   scales without smoothing. */
-:root { --wand-ink: var(--mark-red); --wand-pale: color-mix(in srgb, var(--mark-red) 12%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
-html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-pale: color-mix(in srgb, var(--mark-red) 18%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red-side) 70%, black); }
+/* The Wand's area (pointing-wand.js): an ordered (Bayer) dither in the mark red over a tint of it, both dissolving from the
+   hand's path to the edge; only alpha varies, so it reads alike on paper and a dark board. --wand-dot is the lit texels
+   (the deep red on paper, so they still show on a red subject), --wand-tint the tint's alpha (lower on a dark board,
+   where the light red would wash photos pink), --wand-pale a glint's centre. Hard-edged texels, never blurred: between
+   a zoom and its redraw the canvas scales without smoothing. */
+:root { --wand-ink: var(--mark-red); --wand-dot: var(--mark-red-deep); --wand-tint: 0.1; --wand-pale: color-mix(in srgb, var(--mark-red) 12%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
+html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-dot: var(--mark-red); --wand-tint: 0.07; --wand-pale: color-mix(in srgb, var(--mark-red) 18%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red-side) 70%, black); }
 .pointing-swath { position: absolute; pointer-events: none; image-rendering: pixelated; }
 
 /* Marks on the board, in world units: strokes and numbers keep their screen size at any zoom. */
