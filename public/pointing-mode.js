@@ -26,7 +26,7 @@
 // The unsent draft (words, chips, marks, times) is kept per board for the session, so leaving the page loses nothing.
 import {pointingGuard} from './pointing-guard.js';
 import {rectHits, pathHits, areaHits, pointTarget, simplify, boundsOf, intersectRect, polygonArea, pointInPolygon} from './pointing-geometry.js';
-import {SwathField, WAND, paintField, fleckSize, pathLoops} from './pointing-wand.js';
+import {SwathField, WAND, paintField, fleckSize, ringsOf, outlinePointsOf, inRings} from './pointing-wand.js';
 import {objectSnap, bestProposal} from './pointing-snap.js';
 import {esc, attachPicker, decorationLabel, itemLabel} from './comment-refs.js';
 import {choiceHTML, setChoice, onChoose} from './ui-toolbar.js';
@@ -734,7 +734,7 @@ class PointingMode {
     if (d <= WAND_REACH * w && last.dir && Math.abs(dx * last.dir[0] + dy * last.dir[1]) >= 0.8 * d) return true;
     if (this.reader) {
       const s = mark.snap?.shape; if (!s) return false;
-      return s.kind === 'rect' ? p.x >= s.x && p.x <= s.x + s.w && p.y >= s.y && p.y <= s.y + s.h : pointInPolygon([p.x, p.y], s.points);
+      return s.kind === 'rect' ? p.x >= s.x && p.x <= s.x + s.w && p.y >= s.y && p.y <= s.y + s.h : inRings([p.x, p.y], s);
     }
     const hit = this.thingAt(x, y, list || this.candidates(v), v);
     return !!hit && mark.targets.some(t => `${t.kind}:${t.id}` === hit.key);
@@ -779,7 +779,7 @@ class PointingMode {
   resolve(tool, hits, gestureArea, raw, field = null, geom = this.gestureGeometry(tool, field)) {
     const best = raw ? null : this.proposal(tool, hits, gestureArea, field, geom);
     const snap = best ? {source: best.source, label: clip(best.label, 120), shape: best.shape.kind === 'rect' ? {kind: 'rect', x: ROUND(best.shape.x), y: ROUND(best.shape.y), w: ROUND(best.shape.w), h: ROUND(best.shape.h)}
-      : {kind: 'path', points: best.shape.points.slice(0, 400).map(([x, y]) => [ROUND(x), ROUND(y)])}} : null;
+      : {kind: 'path', points: best.shape.points.slice(0, 400).map(([x, y]) => [ROUND(x), ROUND(y)]), ...(best.shape.rings ? {rings: best.shape.rings.map(r => r.map(([x, y]) => [ROUND(x), ROUND(y)]))} : {})}} : null;
     if (this.reader) return this.resolveInside(hits, best, snap, geom, field);
     if (!best) {
       // A part of one document card, unsnapped: the words the user's gesture holds.
@@ -789,7 +789,7 @@ class PointingMode {
     }
     if (best.targets) return {hits: {targets: best.targets, more: 0}, snap};
     // A source inside one card: that card, the part it snapped to (and the element, when it names one).
-    const c = best.candidate, b = best.shape.kind === 'rect' ? best.shape : boundsOf(best.shape.points);
+    const c = best.candidate, b = best.shape.kind === 'rect' ? best.shape : boundsOf(outlinePointsOf(best.shape));
     const f = v => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
     const x = f((b.x - c.x) / c.w), y = f((b.y - c.y) / c.h);
     const region = {x, y, w: Math.min(1 - x, f(b.w / c.w)), h: Math.min(1 - y, f(b.h / c.h))};
@@ -805,7 +805,7 @@ class PointingMode {
     const e = {x: c.x, y: c.y, w: c.w, h: c.h};
     const raw = geom.kind === 'point' ? {x: geom.x, y: geom.y, w: 0, h: 0} : geom.kind === 'rect' ? geom : boundsOf(geom.kind === 'swath' ? geom.points.flatMap(([x, y]) => [[x - geom.width / 2, y - geom.width / 2], [x + geom.width / 2, y + geom.width / 2]]) : geom.points);
     const clipTo = b => { const x0 = Math.max(e.x, b.x), y0 = Math.max(e.y, b.y), x1 = Math.min(e.x + e.w, b.x + b.w), y1 = Math.min(e.y + e.h, b.y + b.h); return {x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0)}; };
-    const box = clipTo(best ? (best.shape.kind === 'rect' ? best.shape : boundsOf(best.shape.points)) : raw);
+    const box = clipTo(best ? (best.shape.kind === 'rect' ? best.shape : boundsOf(outlinePointsOf(best.shape))) : raw);
     const text = this.textFor(this.reader.current().article ? {article: this.reader.current().article, toUnits: null} : null, geom, snap, best, field, box);
     return {hits: {targets: [{candidate: c, whole: false, box, ...(best?.element ? {element: best.element} : {}), ...(best?.elements ? {elements: best.elements} : {}), ...(text ? {text} : {})}], more: 0}, snap};
   }
@@ -815,7 +815,7 @@ class PointingMode {
     if (!where?.article || (geom.kind === 'point' && !best?.element)) return null;
     const s = snap?.shape;
     const inside = s?.kind === 'rect' ? (x, y) => x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h
-      : s?.kind === 'path' ? (x, y) => pointInPolygon([x, y], s.points)
+      : s?.kind === 'path' ? (x, y) => inRings([x, y], s)
       : geom.kind === 'rect' ? (x, y) => x >= geom.x && x <= geom.x + geom.w && y >= geom.y && y <= geom.y + geom.h
       : geom.kind === 'path' ? (x, y) => pointInPolygon([x, y], geom.points)
       : geom.kind === 'swath' && field ? (x, y) => field.contains([x, y]) : null;
@@ -924,7 +924,7 @@ class PointingMode {
       if (!p?.shape) continue;
       const rect = ([x0, y0], [x1, y1]) => ({kind: 'rect', x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0)});
       const shape = p.shape.kind === 'rect' ? rect(back([p.shape.x, p.shape.y]), back([p.shape.x + p.shape.w, p.shape.y + p.shape.h]))
-        : p.shape.points?.length >= 3 ? {kind: 'path', points: p.shape.points.map(back)} : null;
+        : p.shape.points?.length >= 3 ? {kind: 'path', points: p.shape.points.map(back), ...(p.shape.rings ? {rings: p.shape.rings.map(r => r.map(back))} : {})} : null;
       if (!shape) continue;
       // Inside the opened item an element's box is in the item's own units, as the rest of the mark (a document's
       // column scrolls inside its page, so its page coordinates are not the document's).
@@ -945,7 +945,7 @@ class PointingMode {
   // names the card. Inside the opened item every part counts (the item is already the thing).
   clickProposal(inner) {
     if (this.reader) return bestProposal(inner);
-    return bestProposal(inner.filter(p => { const c = p.candidate, b = p.shape.kind === 'rect' ? p.shape : boundsOf(p.shape.points); return !(c?.w * c?.h > 0) || b.w * b.h < 0.6 * c.w * c.h; }));
+    return bestProposal(inner.filter(p => { const c = p.candidate, b = p.shape.kind === 'rect' ? p.shape : boundsOf(outlinePointsOf(p.shape)); return !(c?.w * c?.h > 0) || b.w * b.h < 0.6 * c.w * c.h; }));
   }
   // The gesture as board geometry for the sources: the live one, or the click being made (clickAt).
   gestureGeometry(tool, field) {
@@ -1260,7 +1260,7 @@ class PointingMode {
       const cls = `pointing-shape${sent && sent.focus === m.n ? ' pointing-focus' : ''}${g.gone ? ' pointing-gone' : ''}${g.inside ? ' pointing-inside' : ''}`;
       if (!g.shapes.length && !g.dot && !g.badge) continue;
       if (g.glitter && g.shapes.length) { sparkle.push({m, g}); } else for (const s of g.shapes) {
-        if (s.kind === 'path') svg += `<path class="${cls}" data-n="${m.n}" d="${pathLoops(s.points).map(l => `M${l.map(([x, y]) => `${x + o.x} ${y + o.y}`).join('L')}Z`).join('')}"/>`;
+        if (s.kind === 'path') svg += `<path class="${cls}" data-n="${m.n}" d="${ringsOf(s).map(l => `M${l.map(([x, y]) => `${x + o.x} ${y + o.y}`).join('L')}Z`).join('')}"/>`;
         else svg += `<rect class="${cls}${s.kind === 'outline' ? ' pointing-outline' : ''}" data-n="${m.n}" x="${s.x + o.x}" y="${s.y + o.y}" width="${s.w}" height="${s.h}"/>`;
       }
       if (g.dot) badges += `<span class="pointing-dot${g.gone ? ' pointing-gone' : ''}" style="left:${g.dot.x + o.x}px;top:${g.dot.y + o.y}px"></span>`;
@@ -1297,9 +1297,9 @@ class PointingMode {
   // A mark drawn where it was made (inside the opened item: its own units, which neither move nor resize).
   drawnGeometry(m) {
     const s = m.snap?.shape || m.shape, glitter = m.tool === 'wand';
-    const shapes = s.kind === 'point' ? [] : [s.kind === 'rect' ? {kind: 'rect', x: s.x, y: s.y, w: s.w, h: s.h} : s.kind === 'swath' ? {kind: 'swath', width: s.width, points: s.points} : {kind: 'path', points: s.points}];
+    const shapes = s.kind === 'point' ? [] : [s.kind === 'rect' ? {kind: 'rect', x: s.x, y: s.y, w: s.w, h: s.h} : s.kind === 'swath' ? {kind: 'swath', width: s.width, points: s.points} : {kind: 'path', points: s.points, ...(s.rings ? {rings: s.rings} : {})}];
     // A click that named an element outlines it; the dot is where the user clicked.
-    if (m.shape.kind === 'point' && m.snap?.shape) return {shapes: [{kind: 'outline', ...(m.snap.shape.kind === 'rect' ? m.snap.shape : boundsOf(m.snap.shape.points))}], dot: {x: m.shape.x, y: m.shape.y}, badge: topLeft(m.snap.shape), note: '', gone: false, glitter: false};
+    if (m.shape.kind === 'point' && m.snap?.shape) return {shapes: [{kind: 'outline', ...(m.snap.shape.kind === 'rect' ? m.snap.shape : boundsOf(outlinePointsOf(m.snap.shape)))}], dot: {x: m.shape.x, y: m.shape.y}, badge: topLeft(m.snap.shape), note: '', gone: false, glitter: false};
     return {shapes, dot: s.kind === 'point' ? {x: s.x, y: s.y} : null, badge: s.kind === 'point' ? {x: s.x, y: s.y} : topLeft(s), note: '', gone: false, glitter, raw: rawSweep(m)};
   }
   // The board changed under the marks (a render, or a drag in progress: workspace-board.js syncGeometry).
@@ -1351,7 +1351,7 @@ class PointingMode {
     }
     const s = m.snap?.shape || m.shape, glitter = m.tool === 'wand';
     const drawnShapes = shape => shape.kind === 'point' ? [] : [shape.kind === 'rect' ? {kind: 'rect', x: shape.x, y: shape.y, w: shape.w, h: shape.h}
-      : shape.kind === 'swath' ? {kind: 'swath', width: shape.width, points: shape.points} : {kind: 'path', points: shape.points}];
+      : shape.kind === 'swath' ? {kind: 'swath', width: shape.width, points: shape.points} : {kind: 'path', points: shape.points, ...(shape.rings ? {rings: shape.rings} : {})}];
     const drawn = {shapes: drawnShapes(s), dot: s.kind === 'point' ? {x: s.x, y: s.y} : null, badge: s.kind === 'point' ? {x: s.x, y: s.y} : topLeft(s), note: '', gone: false, glitter, raw: rawSweep(m)};
     const placed = m.targets.map((t, i) => ({t, then: draft ? m.boxes?.[i] : t.placed, ...this.locate(t, v)})).filter(x => x.t.kind !== 'board');
     if (!placed.length) return drawn;
@@ -1376,7 +1376,7 @@ class PointingMode {
     if (map) {
       const a = live[0].then, b = live[0].now, k = Math.sqrt((b.w / a.w) * (b.h / a.h));
       const carry = s => s.kind === 'rect' ? (([x0, y0], [x1, y1]) => ({kind: 'rect', x: x0, y: y0, w: x1 - x0, h: y1 - y0}))(map([s.x, s.y]), map([s.x + s.w, s.y + s.h]))
-        : s.kind === 'swath' ? {kind: 'swath', width: s.width * k, points: s.points.map(map)} : {kind: 'path', points: s.points.map(map)};
+        : s.kind === 'swath' ? {kind: 'swath', width: s.width * k, points: s.points.map(map)} : {kind: 'path', points: s.points.map(map), ...(s.rings ? {rings: s.rings.map(r => r.map(map))} : {})};
       const moved = carry(s), raw = rawSweep(m);
       return {shapes: drawnShapes(moved), dot: null, badge: topLeft(moved), note, gone: false, glitter, raw: raw && carry(raw)};
     }
@@ -1466,7 +1466,7 @@ class PointingMode {
       } else {
         // Several things: each one's outline (the path's loops), never the bridges between them.
         ctx.beginPath();
-        for (const loop of pathLoops(s.points)) { loop.forEach(([px, py], i) => { const [sx, sy] = this.toScreen(px, py, view); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); }); ctx.closePath(); }
+        for (const loop of ringsOf(s)) { loop.forEach(([px, py], i) => { const [sx, sy] = this.toScreen(px, py, view); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); }); ctx.closePath(); }
         ctx.stroke();
       }
       ctx.restore();
@@ -1498,7 +1498,7 @@ class PointingMode {
     // At rest: what a click would point at, dashed (the element inside a live card or the item, else the card).
     if (!g && this.tool !== 'wand') {
       const s = this.hoverSnap?.shape;
-      if (s) { v ||= this.view(); const b = s.kind === 'rect' ? s : boundsOf(s.points); outline(b, v, true); }
+      if (s) { v ||= this.view(); const b = s.kind === 'rect' ? s : boundsOf(outlinePointsOf(s)); outline(b, v, true); }
       else if (this.hover && !this.hover.reader) { v ||= this.view(); outline(this.hover, v, true); }
     }
     if (this.tool === 'wand') more = this.drawTip(now) || more;
@@ -1887,7 +1887,7 @@ class PointingMode {
 function inCard(p, geom) {
   const c = p.candidate; if (!c || !geom) return false;
   const card = {x: c.x, y: c.y, w: c.w, h: c.h}, cardArea = card.w * card.h; if (!(cardArea > 0)) return false;
-  const s = p.shape.kind === 'rect' ? p.shape : boundsOf(p.shape.points);
+  const s = p.shape.kind === 'rect' ? p.shape : boundsOf(outlinePointsOf(p.shape));
   if (s.w * s.h >= 0.6 * cardArea) return false;
   const g = geom.kind === 'point' ? {x: geom.x, y: geom.y, w: 0, h: 0} : geom.kind === 'rect' ? geom
     : boundsOf(geom.kind === 'swath' ? geom.points.flatMap(([x, y]) => [[x - geom.width / 2, y - geom.width / 2], [x + geom.width / 2, y + geom.width / 2]]) : geom.points);
@@ -1922,13 +1922,14 @@ function outlinePoints(s) {
   if (s.kind === 'rect' || s.kind === 'outline') return [[s.x, s.y], [s.x + s.w, s.y + s.h]];
   if (s.kind === 'swath') { const r = s.width / 2; return s.points.flatMap(([x, y]) => [[x - r, y - r], [x + r, y + r]]); }
   if (s.kind === 'point') return [[s.x, s.y]];
-  return s.points;
+  return outlinePointsOf(s);
 }
 // A snapped wand mark's sweep as the user made it, drawn faint under the snapped outline (as the crop draws it).
 const rawSweep = m => m.tool === 'wand' && m.snap && m.shape.kind === 'swath' ? m.shape : null;
 function topLeft(s) {
   if (s.kind === 'rect') return {x: s.x, y: s.y};
   if (s.kind === 'swath') { const top = s.points.reduce((a, p) => p[1] < a[1] ? p : a); return {x: top[0] - s.width * 0.35, y: top[1] - s.width / 2}; }
+  if (s.rings?.length > 1) { const b = boundsOf(outlinePointsOf(s)); return {x: b.x, y: b.y}; } // several outlines: their corner
   const top = s.points.reduce((a, p) => p[1] < a[1] ? p : a); return {x: top[0], y: top[1]};
 }
 function pinPointOf(s) {

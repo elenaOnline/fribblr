@@ -20,8 +20,6 @@
 // Everything below the "pure" line works on any DOM-like tree (tagName, getAttribute, children, parentElement,
 // textContent), so tests run in Node with a tiny fake DOM; style and layout reads are guarded.
 
-import {outlinesPath} from './pointing-wand.js';
-
 const ELEMENT = 1, TEXT = 3;
 
 // ---------------------------------------------------------------- frames and coordinates
@@ -191,7 +189,11 @@ function proposePoint({doc, win}, {x, y}) {
     if (target) target = meaningfulAt(target, fits);
   }
   if (!target) return null;
-  const info = describeElement(target, doc, win), k = kindOf(target) || 'text';
+  // The element that holds all of the page's words (a document's article, a page's main) is the page itself: a click
+  // there names the card or the item, not a part of it.
+  const k0 = kindOf(target);
+  if (k0 !== 'control' && k0 !== 'media') { const words = e => collapse(e?.innerText ?? e?.textContent ?? '').length, all = words(doc.body); if (all > 0 && words(target) >= 0.9 * all) return null; }
+  const info = describeElement(target, doc, win), k = k0 || 'text';
   const big = (info.box.w * info.box.h) / view;
   const score = round2(({control: .95, media: .9, heading: .9, text: .8, labelled: .75, boxed: .7, group: .65})[k] * (1 - Math.min(.4, big * .5)));
   return {shape: {kind: 'rect', ...info.box}, label: labelOf(info, k), source: 'dom', score, element: info};
@@ -303,7 +305,8 @@ function proposeCovered({doc, win}, g) {
   const score = round2(cov * (.55 + .45 * Math.min(1, fill / .6)) * (1 - Math.min(.6, stray * 1.5)));
   if (score < (members ? .5 : .35)) return null; // a union of separate things must fit the user's gesture well
   // Several separate things: each one's outline, never one box round all of them (CONTRACT § Round 2 review fixes).
-  const shape = members ? {kind: 'path', points: outlinesPath(members.map(m => { const x0 = round1(m.x), y0 = round1(m.y), x1 = round1(m.x + m.w), y1 = round1(m.y + m.h); return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }))}
+  const rings = members && members.map(m => { const x0 = round1(m.x), y0 = round1(m.y), x1 = round1(m.x + m.w), y1 = round1(m.y + m.h); return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; });
+  const shape = members ? {kind: 'path', points: rings[0], rings}
     : {kind: 'rect', x: round1(shown.x), y: round1(shown.y), w: round1(shown.w), h: round1(shown.h)};
   if (!members) {
     const info = describeElement(chosen, doc, win);

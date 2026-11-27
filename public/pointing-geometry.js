@@ -103,14 +103,14 @@ function lineAgainst(points, inside, edges) {
 // Arrows go by their drawn line when they have one (`points`): one wholly inside counts alongside everything else; one
 // the gesture only crosses counts when nothing else was hit. Without a line, an arrow counts only wholly inside its box,
 // and only when nothing else was hit.
-function decide(candidates, shapeArea, covered, {loose = false, inside = null, edges = [], span = null} = {}) {
+function decide(candidates, shapeArea, covered, {loose = false, inside = null, edges = [], span = null, about = null} = {}) {
   let hits = [];
   const lines = [];
   for (const c of candidates) {
     const box = {x: c.x, y: c.y, w: c.w, h: c.h}, boxArea = area(box);
     if (c.line && c.points?.length > 1 && inside) {
       const how = lineAgainst(c.points, inside, edges);
-      if (how) lines.push({c, box, whole: true, inter: 0, enclosed: how === 'enclosed'});
+      if (how && (!about || about(c))) lines.push({c, box, whole: true, inter: 0, enclosed: how === 'enclosed'});
       continue;
     }
     if (!(boxArea > 0)) continue;
@@ -159,8 +159,15 @@ export function pathHits(points, candidates, {loose = false} = {}) {
 export function areaHits(field, candidates) {
   const fb = field.bounds(); if (!fb) return {more: 0, targets: []};
   const along = underlines(field.points, field.r, candidates);
+  // The wide band holds a short arrow it merely crosses: an arrow counts only when the gesture is round or along it
+  // (the gesture no longer than three times the arrow, or the band's width, and its middle near the arrow's).
+  const mid = [fb.x + fb.w / 2, fb.y + fb.h / 2];
+  const about = c => {
+    const p = c.points, a = p[0], b = p.at(-1), m = p[p.length >> 1], size = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), field.width);
+    return Math.max(fb.w, fb.h) <= 3 * size && Math.hypot(m[0] - mid[0], m[1] - mid[1]) <= size;
+  };
   return decide(candidates, field.area(), (c, box) => intersectRect(fb, box) ? field.covered(box) : null,
-    {loose: true, inside: p => field.contains(p), edges: [], span: (box, c) => along.get(c) || 0});
+    {loose: true, inside: p => field.contains(p), edges: [], span: (box, c) => along.get(c) || 0, about});
 }
 /**
  * How much of each thing's length a stroke runs along (0..1), by its centre line (`points`, a band `r` either side):

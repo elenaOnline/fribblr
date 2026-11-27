@@ -99,7 +99,7 @@ export async function imageFileCrop(fileUrl, shape, {gesture = null, swath = nul
   try { await img.decode(); } catch { return null; }
   const nw = img.naturalWidth, nh = img.naturalHeight; if (!(nw > 0 && nh > 0)) return null;
   const pts = shape.kind === 'rect' ? [[shape.x, shape.y], [shape.x + shape.w, shape.y + shape.h]] : shape.kind === 'point' ? [[shape.x, shape.y]]
-    : shape.kind === 'swath' ? shape.points.flatMap(([x, y]) => [[x - shape.width / 2, y - shape.width / 2], [x + shape.width / 2, y + shape.width / 2]]) : shape.points;
+    : shape.kind === 'swath' ? shape.points.flatMap(([x, y]) => [[x - shape.width / 2, y - shape.width / 2], [x + shape.width / 2, y + shape.width / 2]]) : shape.rings?.length ? shape.rings.flat() : shape.points;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
   const pad = Math.max(24, 0.25 * Math.max(x1 - x0, y1 - y0, shape.kind === 'point' ? 192 : 0));
@@ -119,7 +119,7 @@ export async function imageFileCrop(fileUrl, shape, {gesture = null, swath = nul
   g.strokeStyle = red; g.fillStyle = red; g.lineWidth = line; g.lineJoin = 'round';
   if (swath) { try { swath(g, toCrop, k); } catch {} }
   else if (shape.kind === 'rect') { const [a, b] = toCrop(shape.x, shape.y); g.strokeRect(a - line / 2, b - line / 2, shape.w * k + line, shape.h * k + line); }
-  else if (shape.kind === 'path') { g.beginPath(); shape.points.forEach(([x, y], i) => { const [a, b] = toCrop(x, y); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.closePath(); g.stroke(); }
+  else if (shape.kind === 'path') { g.beginPath(); for (const ring of shape.rings?.length ? shape.rings : [shape.points]) { ring.forEach(([x, y], i) => { const [a, b] = toCrop(x, y); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.closePath(); } g.stroke(); }
   const dot = gesture?.kind === 'point' ? gesture : shape.kind === 'point' ? shape : null;
   if (dot) { const [a, b] = toCrop(dot.x, dot.y); g.beginPath(); g.arc(a, b, 2.5 * line, 0, Math.PI * 2); g.fill(); }
   try {

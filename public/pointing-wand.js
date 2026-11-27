@@ -74,10 +74,10 @@ export class SwathField {
     return f;
   }
   /** A region (a snapped rect or path) filled: a light dusting inside, a dense band `edge` wide just inside its edge. */
-  // A path made of several outlines (pathLoops) is filled loop by loop, so the bridges between them draw nothing.
+  // A path that names several things is filled ring by ring.
   static fromRegion(shape, cell, edge) {
     const f = new SwathField({width: edge * 2, cell});
-    const loops = shape.kind === 'rect' ? [[[shape.x, shape.y], [shape.x + shape.w, shape.y], [shape.x + shape.w, shape.y + shape.h], [shape.x, shape.y + shape.h]]] : pathLoops(shape.points || []);
+    const loops = shape.kind === 'rect' ? [[[shape.x, shape.y], [shape.x + shape.w, shape.y], [shape.x + shape.w, shape.y + shape.h], [shape.x, shape.y + shape.h]]] : ringsOf(shape);
     for (const poly of loops) {
       if (poly.length < 3) continue;
       const b = boxOf(poly);
@@ -240,33 +240,24 @@ export class SwathField {
   shape(round = v => Math.round(v * 10) / 10) { return {kind: 'swath', width: round(this.width), points: this.points.map(([x, y]) => [round(x), round(y)])}; }
 }
 /**
- * Several outlines as one closed path (a snap that names several things: CONTRACT § Round 2 review fixes): each loop
- * ends on its own first point, the next loop starts from there, and after the last one the path walks back through
- * the loops' first points to where it began. The way out and the way back between two loops are the same line, so
- * the path has the loops' area and nothing else (even-odd fill, point-in-polygon and the shoelace area all agree).
- * `pathLoops` gives the loops back (a path with no loop closed on its first point is one loop, as any lasso).
+ * The closed outlines of a snapped shape (CONTRACT § Round 2 review fixes; lib/feedback.mjs validates the same): a
+ * path that names several things carries `rings`, each thing's own outline (`points` is the first of them, so a reader
+ * of one outline still gets a valid shape); any other path is its one ring.
  */
-export function outlinesPath(loops) {
-  loops = loops.filter(l => l?.length >= 3);
-  if (loops.length <= 1) return loops[0] ? loops[0].map(p => [p[0], p[1]]) : [];
-  const out = [];
-  for (const l of loops) { for (const p of l) out.push([p[0], p[1]]); out.push([l[0][0], l[0][1]]); }
-  for (let k = loops.length - 2; k >= 0; k--) out.push([loops[k][0][0], loops[k][0][1]]);
-  return out;
-}
-export function pathLoops(points) {
-  if (!points?.length) return [];
-  const same = (a, b) => a[0] === b[0] && a[1] === b[1];
-  if (!points.slice(1).some(p => same(p, points[0]))) return [points];
-  const loops = [];
-  for (let i = 0; i < points.length;) {
-    const start = points[i]; let j = i + 1;
-    while (j < points.length && !same(points[j], start)) j++;
-    if (j >= points.length) break;            // the walk back through the loops' first points
-    if (j - i >= 3) loops.push(points.slice(i, j));
-    i = j + 1;
+export const ringsOf = shape => shape?.kind !== 'path' ? [] : shape.rings?.length ? shape.rings : [shape.points];
+/** Every point of a shape's outlines (for its bounds). */
+export const outlinePointsOf = shape => shape?.kind === 'path' ? ringsOf(shape).flat() : shape?.points || [];
+/** Whether a point is inside any of a path's rings. */
+export function inRings([x, y], shape) {
+  for (const ring of ringsOf(shape)) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    if (inside) return true;
   }
-  return loops;
+  return false;
 }
 function segDist(x, y, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;

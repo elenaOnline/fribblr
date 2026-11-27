@@ -10,7 +10,7 @@ import {loadConfig} from '../lib/config.mjs';
 import {applyOperation,getBoardSnapshot} from '../lib/workspace.mjs';
 import {listFeedback} from '../lib/feedback.mjs';
 import {rectHits,pathHits,areaHits,pointTarget,closedLoop,simplify,clipPolygon,polygonArea} from '../public/pointing-geometry.js';
-import {SwathField,outlinesPath,pathLoops} from '../public/pointing-wand.js';
+import {SwathField,ringsOf,inRings} from '../public/pointing-wand.js';
 import {objectSnap,bestProposal,candidateOutline} from '../public/pointing-snap.js';
 
 const card=(id,x,y,w=200,h=150,extra={})=>({key:`placement:${id}`,kind:'placement',id,x,y,w,h,...extra});
@@ -148,7 +148,7 @@ test('snapping to board objects: a sloppy box, a loose lasso and an underline ti
   // a box round two cards
   raw=rectHits({x:-10,y:-10,w:720,h:220},list);snap=objectSnap(raw,{tool:'marquee',gestureArea:720*220,name:named});
   assert.equal(snap.label,'2 objects');assert.equal(snap.shape.kind,'path','several things: each one\'s outline, never a box round all of them');
-  assert.deepEqual(pathLoops(snap.shape.points),[[[0,0],[300,0],[300,200],[0,200]],[[400,0],[700,0],[700,200],[400,200]]]);
+  assert.deepEqual(snap.shape.rings,[[[0,0],[300,0],[300,200],[0,200]],[[400,0],[700,0],[700,200],[400,200]]]);assert.deepEqual(snap.shape.points,snap.shape.rings[0]);
   // a container covered most of the way
   raw=rectHits({x:10,y:310,w:470,h:280},list);snap=objectSnap(raw,{tool:'marquee',gestureArea:470*280,name:c=>c.id});
   assert.equal(snap?.label,'t');
@@ -172,14 +172,14 @@ test('snapping to board objects: a sloppy box, a loose lasso and an underline ti
   assert.equal(bestProposal([{shape:{},score:.2}]),null);
 });
 
-test('the area shown is the area mapped: several outlines in one path, a swipe along a gap underlines neither row, an arrow leading out stays out',()=>{
-  // outlinesPath / pathLoops round-trip, and the path's area is the loops' area only
-  const a=[[0,0],[10,0],[10,10],[0,10]],b=[[50,0],[70,0],[70,20],[50,20]],c=[[0,50],[5,50],[5,55],[0,55]];
-  const p=outlinesPath([a,b,c]);
-  assert.deepEqual(pathLoops(p),[a,b,c]);assert.equal(polygonArea(p),100+400+25);
-  assert.deepEqual(pathLoops([[0,0],[10,0],[5,8]]),[[[0,0],[10,0],[5,8]]],'a lasso is one loop');
-  const f=SwathField.fromRegion({kind:'path',points:p},1,2);
-  assert.equal(f.contains([30,5]),false,'nothing drawn on the bridge between two outlines');assert.equal(f.contains([60,10]),true);
+test('the area shown is the area mapped: several outlines as rings, a swipe along a gap underlines neither row, an arrow leading out stays out',()=>{
+  // a path naming several things: its rings are their outlines, filled ring by ring, nothing between them
+  const a=[[0,0],[10,0],[10,10],[0,10]],b=[[50,0],[70,0],[70,20],[50,20]];
+  const p={kind:'path',points:a,rings:[a,b]};
+  assert.deepEqual(ringsOf(p),[a,b]);assert.deepEqual(ringsOf({kind:'path',points:a}),[a],'a lasso is one ring');
+  assert.equal(inRings([60,10],p),true);assert.equal(inRings([30,5],p),false);
+  const f=SwathField.fromRegion(p,1,2);
+  assert.equal(f.contains([30,5]),false,'nothing drawn between two outlines');assert.equal(f.contains([60,10]),true);
   // two rows of cards 30 apart: a stroke along the gap is under one row and just over the other, so under neither
   const rows=[card('a',0,0,230,170),card('b',260,0,230,170),card('c',0,200,230,170),card('d',260,200,230,170)];
   assert.deepEqual(keys(areaHits(sweep(line(-20,520,185)),rows)),[],'along the gap: nothing');
@@ -192,6 +192,8 @@ test('the area shown is the area mapped: several outlines in one path, a swipe a
   const arrow={key:'decoration:l',kind:'decoration',id:'l',x:370,y:170,w:4,h:30,line:true,points:[[372,171],[372,185],[372,199]]};
   const hits=areaHits(sweep(ring(375,285,140,110)),[...rows,arrow]);
   assert.deepEqual(keys(hits),['d']);
+  // a long stroke that crosses the arrow on its way is not about it
+  assert.deepEqual(keys(areaHits(sweep(line(-20,520,185)),[arrow])),[],'crossed on the way');
   // the same arrow circled on its own still counts
   assert.deepEqual(keys(areaHits(sweep(ring(372,185,30,30),24),[arrow])),['l']);
 });

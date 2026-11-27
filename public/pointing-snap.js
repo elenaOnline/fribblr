@@ -12,8 +12,6 @@
 // A proposal: {source: 'object' | 'dom' | 'pixels', shape: {kind: 'rect' | 'path', …} (board units), label, score 0..1,
 // targets?: [{candidate, whole: true}] (object), candidate?, element? (a source inside an item)}.
 
-import {outlinesPath} from './pointing-wand.js';
-
 export const SNAP_MIN = 0.35;
 // How much of a thing a gesture must cover to be tidied to it: a marquee or lasso half of it; the wand, a wide brush
 // that rarely fills a card, 40 %, or running along most of it (an underline).
@@ -63,7 +61,7 @@ const isBox = poly => poly.length === 4 && poly[0][1] === poly[1][1] && poly[1][
  * It proposes only when every thing hit is mostly covered (so it never drops something the user half meant), and when those
  * things are not a speck in a big gesture (a wide box over empty board with a sticker in its corner stays a board area).
  * The snapped outline covers only what it names: one thing's outline (a box is a `rect`, a diamond, an ellipse or an
- * arrow a `path`), or for several things a `path` made of each one's outline (outlinesPath), never a box round all of
+ * arrow a `path`), or for several things a `path` whose `rings` are each one's outline, never a box round all of
  * them that would also cover things it does not name.
  */
 export function objectSnap(hits, {tool, gestureArea = 0, name = () => 'object'} = {}) {
@@ -78,8 +76,8 @@ export function objectSnap(hits, {tool, gestureArea = 0, name = () => 'object'} 
   const score = Math.min(...ts.map(t => t.whole ? 1 : t.cover >= need ? Math.max(t.cover, 0.6) : 0.6));
   const loops = ts.map(t => candidateOutline(t.candidate));
   const shape = loops.length === 1 && isBox(loops[0]) ? {kind: 'rect', x: boxes[0].x, y: boxes[0].y, w: boxes[0].w, h: boxes[0].h}
-    : {kind: 'path', points: outlinesPath(loops)};
-  if (shape.kind === 'path' && shape.points.length > 400) return null; // more outline than a record holds: what was drawn stands
+    : {kind: 'path', points: loops[0], ...(loops.length > 1 ? {rings: loops} : {})};
+  if (loops.flat().length > 800 || loops.some(l => l.length > 400)) return null; // more outline than a record holds: what was drawn stands
   return {source: 'object', shape, score,
     label: ts.length === 1 ? name(ts[0].candidate) : `${ts.length} objects`,
     targets: ts.map(t => ({candidate: t.candidate, whole: true}))};
