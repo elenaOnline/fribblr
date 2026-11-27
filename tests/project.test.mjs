@@ -69,6 +69,7 @@ test('a Git checkout restores its pinned app and board notes at a different path
     assert.equal(health.projectLabel,'Portable project');
     const exposed=await (await fetch(`${runtime.url}api/config`)).json();
     assert.equal(exposed.protocolPath,path.join(checkout,'fribblr/app/docs/PROTOCOL.md'));
+    assert.equal(exposed.inboxCommand,'node fribblr/app/cli.mjs inbox --config fribblr/local/config.json','a project instance prints the command relative to the project root');
     const boards=await (await fetch(`${runtime.url}api/boards`)).json();
     assert.equal(boards.boards[0].id,'style-guide');
     assert.equal(await (await fetch(`${runtime.url}api/boards/style-guide/notes`)).text(),notes.trim());
