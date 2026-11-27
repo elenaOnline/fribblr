@@ -1407,7 +1407,8 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   `onChoose`); the chosen tool gets `data-height="raised"` so it is a raised key that is on, as on the rail. Letters
   that are dead keys on a Mac (E, I, N, U) or browser menus off one (Alt + D, E, F, H, S, T, V, B) are not taken.
 - A click with any tool (no drag) points at the whole thing under it (`pointTarget`: `whole: true` and the `spot`
-  clicked); a part needs a marquee or lasso drag. Each part or spot on a card also carries `content`, where the user pointed
+  clicked); a part needs a marquee or lasso drag. A slip is not a drag: a press whose pointer stays within `SLIP`
+  (10 px) of where it went down, travelling under 20 px, is a click whatever the tool. Each part or spot on a card also carries `content`, where the user pointed
   in the item's own coordinates (`contentOf`): an HTML page in CSS px at the width the card renders it (the frame's
   layout width, plus its scroll), an image in px of its file (object-fit mapped as the crop does), anything else as
   fractions of `.workspace-card-preview`; none when the gesture misses the content area. Text counts where its words
@@ -1417,18 +1418,31 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
 - The Wand (⌥W, Photoshop's Magic Wand key) replaced round 1's laser. One reference is one held drag (the unit every
   presenter pen and canvas laser uses: PowerPoint's Ctrl-drag laser and pen, ZoomIt's draw mode, tldraw's and
   Excalidraw's laser; a hover-only laser such as Google Slides' makes no marks at all): waving, underlining and circling
-  all count, and moving without the button (travelling, typing, a resting hand) never does. A press within 1.2 s where
-  the last drag ended, before any typing, carries that reference on (a lift mid-wave; tldraw's laser session is
-  1.2 s). The area is a band `WAND.width` CSS px across (⌥[ ⌥] step through `WAND.sizes`, kept in `localStorage`)
+  all count, and moving without the button (travelling, typing, a resting hand) never does. A held drag that is a
+  dash (straight: its ends 90 % of its length apart; quick: over 4 px/ms; over 240 px; released off anything) is the
+  hand moving with the button down and is not taken (natural waving and underlining measured 0.3–2.5 px/ms). A press
+  within 1.2 s of the last drag's end, before any typing, carries that reference on (a lift mid-wave; tldraw's laser
+  session is 1.2 s) when it is close (half the band), further along the line the stroke was travelling (up to four
+  band-widths, ahead or behind, within ±37°), or on a thing the reference points at. The area is a band `WAND.width`
+  CSS px across (⌥[ ⌥] step through `WAND.sizes`, kept in `localStorage`; the announcement says the narrowest and the
+  widest, and pressing past an end says so on the bar's line)
   plus the inside of any round loop it closes (`SwathField`, board units, one cell per fleck site); a wave that comes
   back over a place makes it denser. The record keeps `shape: {kind: 'swath', width, points}`, from which
   `SwathField.fromShape` rebuilds the same area, so the board, the crop and a reader see one area. Targets come from
-  the area (`areaHits`: by area, loose like a circle, and `along`: a stroke along most of a thing's length while
-  touching it, an underline, points at it).
-- The Wand's look: glitter, never glow. Hard-edged flecks (whole device pixels, about 1.5 CSS px) at the cells whose
-  rank in a 64 × 64 blue-noise table is under the cell's strength, a denser rim on the area's edge, the sparsest
-  ranks as four-point sparkles; colours `--wand-ink` (the mark red), `--wand-pale`, `--wand-star` (pointing.css,
-  from tokens). While casting, newly swept cells sparkle denser for 280 ms after the user's motion and settle; the settled
+  the area (`areaHits`: by area, loose like a circle, and `along`, `underlines`: a centre line through a thing or
+  under it and close, within 0.6 of the half-band, along most of its length; under one thing only, so a stroke along
+  the gap between two rows, just under one and just over the next, underlines neither). An arrow joins other things
+  only when it does not lead out to something the gesture left out; with the wand only when the gesture is round or
+  along it (no longer than three times the arrow), so a band crossing a short arrow on its way does not take it.
+- The Wand's look: glitter, never glow. Hard-edged flecks in whole device pixels at the cells whose rank in a 64 × 64
+  blue-noise table is under 0.72 of the cell's strength (a denser rim on the area's edge), in three sizes (1, 1.5 and
+  2.25 CSS px) with one in eight a short dash; each fleck is two-tone so it reads on paper, a photo, a red subject or
+  a dark board: a mark-red fleck with a light keyline on its top and left (`--wand-ink`, `--wand-pale`), or about one
+  in four a light fleck with a deep keyline on its bottom and right (`--wand-pale`, `--wand-star`); 3 % of lit sites
+  are sparkles, a light point with short red arms. About a tenth of a full-strength area is ink, so words under it
+  stay legible. The same `paintField` draws the board, the client crops and the server's crops. A sweep's still
+  canvas is drawn a task after the release (the sheet shows it meanwhile), so a release over a whole board stays
+  within a frame. While casting, newly swept cells sparkle denser for 280 ms after the user's motion and settle; the settled
   flecks are kept on a canvas of their own and only changed cells are drawn again. Committed, a mark is a still
   `<canvas class="pointing-swath">` in world units (`image-rendering: pixelated` between a zoom and its redraw at the
   new zoom, 160 ms after the zoom settles), the same sites the sheet drew. Moving without the button, the cursor is a
@@ -1436,13 +1450,17 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   half a second; ring and sparkles go when the pointer leaves the sheet (`pointerleave`). A wand mark on one image
   item draws its glitter on the client crop too (`imageCrop` `overlay`).
 - Snapping (`pointing-snap.js`), every tool: a marquee, lasso or wand area that mostly covers every thing it hit
-  (half of each, the wand 40 % or along) is tidied to their outline (`objectSnap`: cards, drawings, containers, text
-  by its words, arrows by their line); a part, a mix, or a thing that is a speck in a big gesture is not. While the user
+  (half of each, the wand 40 % or along) is tidied to their outline (`objectSnap`: cards and boxes by their box,
+  diamonds and ellipses by their drawn shape, text by its words, arrows as a narrow ribbon along their line); a part,
+  a mix, or a thing that is a speck in a big gesture is not. The outline covers only what the reference names: several
+  things snap to `{kind: 'path', points, rings}`, each thing's own outline (`ringsOf` in `pointing-wand.js`; the
+  server validates and draws the same), never one box round all of them. While the user
   drags, the outline it will snap to is drawn solid with marked corners in place of the per-thing outlines; holding
   ⌘ (Ctrl off a Mac; Keynote, tldraw, Miro, Figma turn off snapping with the same key) takes exactly what the user drew, at
   once, and letting go brings the snap back. A snapped mark keeps the user's raw `shape` and adds `snap: {source, label,
   shape}`; its targets, regions and the board's drawing follow the snap (a wand mark's glitter settles into the
-  snapped outline, a dense band inside its edge and a light dusting within). The chip's hint ends "snapped to the …".
+  snapped outline, a dense band inside its edge and a light dusting within, with the sweep as made drawn faint
+  beneath, at 0.4, as the crop draws it). The chip's hint ends "snapped to the …".
   Sources inside one card plug in with `board.pointing.addSnapSource(source, {space, map})` (the request is
   documented there; `map` takes a source's own coordinates, e.g. `pointing-snap-dom.js` `pageMapping`;
   `refreshSnap()` for a source that answers later); the best proposal over `SNAP_MIN` wins.
@@ -1512,8 +1530,13 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   outline otherwise). The pixel source answers late: a release waits for it at most 120 ms (`LATE`), gestures commit
   in the order made, and the chip goes where the caret was at release. Precedence on a card: a part a source found
   (score ≥ 0.5) beats the whole card when the user's gesture lies inside the card (80 % of its bounds) and the part is under
-  60 % of the card; otherwise the best score wins, usually the board-object snap. A part found on a card labels the
-  chip with what it is (`heading "Two"`) and the sent body with `… in <card>`. Board cards that cannot be read: board
+  60 % of the card; otherwise the best score wins, usually the board-object snap. A click never names a part that is
+  most of the card, nor the element holding all of a page's words (a document's article): that is the card. A part
+  found on a card labels the chip with what it is (`heading "Two"`, `part of the picture "Apple"`) and the sent body
+  with `… in <card>`. The DOM source: a `<label>` is its control, named by the label; blocks of words count by their
+  words' line boxes, not their block; a span with words of its own is a thing when it looks clickable or the click is
+  on its words (`text "Pricing"`, not the whole navigation); a flat wand underline points at what it runs under; a box
+  or group is named by its opening heading (`box "Two"`), side-by-side children without one as `3 columns "One", …`. Board cards that cannot be read: board
   covers (`sandbox="allow-scripts"` frames, opaque by design), cards drawn as a picture, title art or an inline document
   preview (no frame). Document cards (`.markdown`) give a `text` range as the opened document does.
 - Inside the opened item (`pointing-reader.js`, `ReaderPlace`): P (or the reader's own Point and type key, first in
@@ -1528,19 +1551,29 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   reader's zoom, the layer's transform the content's scroll, `--pointing-k` keeps badges their size). Every target is
   the item's placement with `content` (px, `of` names the coordinates and, for video and audio, the play time), the
   snapped `element` / `elements`, and in documents and notes a `text` range (the snapped block's words, else the words
-  the user's gesture covers, cut words whole, `textRangeIn`). An opened image's marks are cropped in the browser from its
+  the user's gesture covers, cut words whole, `textRangeIn`; a flat wand underline holds the line just above its centre
+  line, not the next line its band reaches). `place.view.visible` records the part of the item that was on screen, in
+  the marks' units (a zoomed-in reader shows part of the window). A mark that names nothing in the item says plainly
+  what it is on its chip, which is what the agent gets: Area of the page, Point in the document, Area of the picture,
+  Area of the PDF view, Point on the whiteboard, Area of the video, and Outside the item for one beside it; the hint
+  adds what cannot be read (a PDF's pages, the whiteboard's shapes, another site's page). A number at the window's
+  top edge sits just inside it. An opened image's marks are cropped in the browser from its
   file round the mark (`imageFileCrop`); other kinds are rendered by the server from `place.view` (frame size on
   screen, zoom, scroll) and `place.version` (the version stack id shown). Zooming out never leaves the item while
   pointing (`ReaderCanvas.locked`; the − says "leave Point and type first"); Escape: a gesture, the @ list, then the
   mode (the reader's zoom, pan and scroll back), then the reader's own ladder. One draft spans places: Up, stepping
   or another version while on keeps the mode and the draft (`readerChanged`, called by `canvas.js`); a chip whose
   mark is in another place is outlined dashed (its hint says where), an item mark's chip carries a window glyph, and
-  on the board an item mark shows as its card, dashed, labelled Inside. Not yet: shapes inside the Drawxide whiteboard
-  (one canvas: its marks are page px over it), PDF pages, the visible part of a zoomed-in window (the record gives
-  the whole window), sent item marks drawn inside the reader.
+  on the board an item mark shows as its card, dashed, labelled Inside, its numbers side by side in one row (numbers that
+  would sit on one spot always do). The reader's own controls stay reachable while pointing: Up, Previous and Next
+  by pointer, and by Tab / Shift+Tab from the composer, keeping Enter, Space and arrows while focused; the ⌥ arrow
+  chords are the composer's (they move the caret by word and line), so stepping by keyboard goes through those keys.
+  Not yet: shapes inside the Drawxide whiteboard (one canvas: its marks are page px over it, and the chip says so),
+  PDF pages (window px, said on the chip), sent item marks drawn inside the reader.
 - Checked in `tests/pointing-browser.mjs` (1280 and 390), `tests/pointing-reader-browser.mjs` (inside the opened item,
   the sources on cards, a message from both places), `tests/pointing-wand-browser.mjs` (the wand, snapping,
-  clicks, the look at 1x and 2x, light and dark) and `tests/pointing.test.mjs` (geometry, the wand's area, snapping,
+  clicks, the look at 1x and 2x, light and dark), `tests/pointing-review-browser.mjs` (round 2's review fixes with a
+  pointer paced like a hand) and `tests/pointing.test.mjs` (geometry, the wand's area, snapping,
   the server record).
 
 **Quick jot.** `quick-jot.js`: a non-modal `ui-dialog` (a persistent bar; the board stays usable). Escape closes it from

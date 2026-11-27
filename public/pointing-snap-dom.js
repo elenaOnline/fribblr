@@ -15,7 +15,8 @@
 // unloaded page gives null. `geometry` is in the item's local coordinates: CSS px of that innermost page, document
 // coordinates (scroll included) — `pageMapping(el)` converts from the board's client coordinates. Shapes:
 // {kind: 'point', x, y} · {kind: 'rect', x, y, w, h} · {kind: 'path', points: [[x, y], …]} (a closed lasso) ·
-// {kind: 'swath', width, points} (the wand's stroke). The answer's `shape` is a rect in the same coordinates.
+// {kind: 'swath', width, points} (the wand's stroke). The answer's `shape` is a rect in the same coordinates, or for several separate elements a
+// `path` whose `rings` are their boxes.
 //
 // Everything below the "pure" line works on any DOM-like tree (tagName, getAttribute, children, parentElement,
 // textContent), so tests run in Node with a tiny fake DOM; style and layout reads are guarded.

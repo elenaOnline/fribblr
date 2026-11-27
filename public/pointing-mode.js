@@ -14,8 +14,10 @@
 //   Wand    ⌥W  a brush ring instead of the cursor that sheds a few sparkles as it moves. Hold the button and wave,
 //               underline or circle: what the held drag sweeps (a wide band, plus the inside of a loop) is one
 //               reference, drawn as glitter. Moving without the button (travelling, typing, resting) never points.
-//               A new press within 1.2 s where the last drag ended, before any typing, carries on the same reference
-//               (a lift mid-wave). ⌥[ ⌥] change the band's width. A click points.
+//               A new press within 1.2 s, before any typing, close to where the last drag ended, further along its
+//               line or on what it points at, carries on the same reference (a lift mid-wave). A quick straight dash
+//               released off anything is not a reference. ⌥[ ⌥] change the band's width. A click points.
+// A press that stays within SLIP px is a click with any tool (a slip of the hand is not a gesture).
 //   Point   ⌥P  click a thing; drag pans
 // A click with any tool points at the whole thing under it, and carries the spot clicked; parts come from a drag. It is
 // recorded as tool "click" with the active tool in `via`.
@@ -758,6 +760,9 @@ class PointingMode {
     this.commitGesture('wand', hits, f, geom, () => {
       const got = this.resolve('wand', hits, f.area(), raw, f, geom);
       if (got.snap) this.settle = {field: f, t0: performance.now(), place: this.here()};
+      // Unsnapped, the sheet keeps showing the area as cast until its still canvas is drawn, a task after the release
+      // (a sweep over a whole board is a big canvas: drawn in the release's frame it held that frame up).
+      else this.hold = {field: f, shape, place: this.here()};
       const prior = g.continues && this.marks.get(g.continues);
       let mark = prior;
       if (prior) {
@@ -771,6 +776,7 @@ class PointingMode {
         this.renderMarks(); this.saveSoon(); this.announce(`${prior.n}: ${describe(prior)}`);
       } else mark = this.addMark({tool: 'wand', at: g.at, end, shape, ...got, empty: this.reader ? 'Area' : 'Board area'});
       if (mark) this.wandLast = {id: mark.id, field: f, t: performance.now(), x: at.x, y: at.y, zoom: v.zoom, dir: travel(f.points, 40 / v.zoom)};
+      if (this.hold?.field === f && !mark) this.hold = null;
     });
   }
   // Snapping: the best proposal (board objects, and sources inside the one card under the gesture) unless the user holds the
@@ -1216,8 +1222,9 @@ class PointingMode {
       }
       this.words.note(key, t);
     }
-    // Chips deleted (Backspace) or brought back (Undo): the board shows the marks of the chips present.
-    this.renderMarks();
+    // Chips deleted (Backspace) or brought back (Undo): the board shows the marks of the chips present (a chip being
+    // inserted is drawn by addMark once it is in).
+    if (!this.inserting) this.renderMarks();
     if (this.notice) { this.notice = null; this.syncStatus(); }
     this.saveSoon();
   }
@@ -1405,6 +1412,11 @@ class PointingMode {
     const zoom = v.zoom, dpr = devicePixelRatio || 1, tones = this.tones(g.gone);
     const key = `${m.id || m.n}|${zoom.toFixed(4)}|${dpr}|${tones.join()}|${JSON.stringify(g.shapes)}|${g.raw ? JSON.stringify(g.raw) : ''}`;
     let c = cache.get(key);
+    if (!c && this.hold && m.shape === this.hold.shape) {
+      // Just cast: drawn a task later; the sheet shows it meanwhile.
+      if (!this.holdTimer) this.holdTimer = setTimeout(() => { this.holdTimer = 0; this.hold = null; this.renderMarks(); this.schedule(); }, 0);
+      return null;
+    }
     if (!c) {
       const cell = WAND.pitch / zoom;
       const fields = g.shapes.map(s => s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s.kind === 'outline' ? {kind: 'rect', x: s.x, y: s.y, w: s.w, h: s.h} : s, cell, 7 / zoom));
@@ -1484,6 +1496,7 @@ class PointingMode {
       }
     }
     if (g && !g.pan && g.tool === 'wand' && g.field) { v ||= this.view(); this.drawField(g.field, v, now); more = true; }
+    else if (this.hold && this.hold.place === this.here()) { v ||= this.view(); this.drawField(this.hold.field, v, now); }
     // A snapped wand mark just committed: what the user swept dissolves while the glitter settles into the snapped outline.
     if (this.settle) {
       const p = (now - this.settle.t0) / 220;
