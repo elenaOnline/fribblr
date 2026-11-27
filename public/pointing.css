@@ -62,10 +62,11 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 .pointing-sheet[data-tool="point"] { cursor: default; }
 .pointing-sheet.pointing-panning { cursor: grabbing; }
 
-/* The Wand's glitter (pointing-wand.js): two-tone flecks so it reads on any ground (paper, a photo, a red subject, a
-   dark board): mark-red flecks keylined light on their top and left, light flecks keylined deep on their bottom and
-   right, a rare light sparkle with red arms. Hard-edged pixels, never blurred: between a zoom and its redraw the canvas
-   scales without smoothing. */
+/* The Wand's area (pointing-wand.js): a translucent fill of the mark red under an ordered (Bayer) dither in the same red,
+   only its alpha varying, so it reads alike on paper and a dark board; the dither is densest along the hand's path and
+   dissolves toward the edge; a few still four-point glints, a pale centre (--wand-pale) with red arms. Hard-edged
+   texels, never blurred: between a zoom and its redraw the canvas scales without smoothing. --wand-star is the deep tone
+   the reader's tones keep. */
 :root { --wand-ink: var(--mark-red); --wand-pale: color-mix(in srgb, var(--mark-red) 12%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
 html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-pale: color-mix(in srgb, var(--mark-red) 18%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red-side) 70%, black); }
 .pointing-swath { position: absolute; pointer-events: none; image-rendering: pixelated; }

@@ -13,7 +13,7 @@
 //   Lasso   ⌥L  drag a free shape, closed on release; a click points
 //   Wand    ⌥W  a brush ring instead of the cursor that sheds a few sparkles as it moves. Hold the button and wave,
 //               underline or circle: what the held drag sweeps (a wide band, plus the inside of a loop) is one
-//               reference, drawn as glitter. Moving without the button (travelling, typing, resting) never points.
+//               reference, drawn as a still red dither over a translucent fill. Moving without the button (travelling, typing, resting) never points.
 //               A new press within 1.2 s, before any typing, close to where the last drag ended, further along its
 //               line or on what it points at, carries on the same reference (a lift mid-wave). A quick straight dash
 //               released off anything is not a reference. ⌥[ ⌥] change the band's width. A click points.
@@ -28,7 +28,7 @@
 // The unsent draft (words, chips, marks, times) is kept per board for the session, so leaving the page loses nothing.
 import {pointingGuard} from './pointing-guard.js';
 import {rectHits, pathHits, areaHits, pointTarget, simplify, boundsOf, intersectRect, polygonArea, pointInPolygon} from './pointing-geometry.js';
-import {SwathField, WAND, paintField, fleckSize, ringsOf, outlinePointsOf, inRings} from './pointing-wand.js';
+import {SwathField, WAND, CROP_LOOK, paintField, fleckSize, reach, ringsOf, outlinePointsOf, inRings} from './pointing-wand.js';
 import {objectSnap, bestProposal} from './pointing-snap.js';
 import {esc, attachPicker, decorationLabel, itemLabel} from './comment-refs.js';
 import {choiceHTML, setChoice, onChoose} from './ui-toolbar.js';
@@ -77,7 +77,7 @@ const SLIP = 10, DASH = {straight: 0.9, speed: 4, length: 240};
 // A lift mid-wave carries the reference on when the new press is close (half the band), further along the line the
 // stroke was travelling (up to WAND_REACH band-widths ahead or behind, within ±37°), or on the thing it points at.
 const WAND_REACH = 4;
-const FRESH = 280;               // ms a newly swept cell sparkles before it settles
+const FRESH = 280;               // ms a newly swept cell carries glints while the user sweeps
 const PLACEHOLDER = 'Message to the agent. Point at things as you type.';
 const ROUND = v => Math.round(v * 10) / 10;
 const BLOCKS = new Set(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'td', 'th', 'pre', 'dd', 'dt', 'figcaption', 'div', 'article', 'section', 'ul', 'ol', 'table']);
@@ -147,7 +147,7 @@ class PointingMode {
     addEventListener('keyup', e => { if (this.active && e.key === RAW_KEY) this.setRaw(false); }, true);
     addEventListener('blur', () => this.setRaw(false));
     // Committed wand marks are drawn at the zoom they were last drawn at; after a zoom settles they are drawn again at
-    // the new one, so the flecks keep their size on screen (in between they scale with the board, hard-edged).
+    // the new one, so the dither keeps its size on screen (in between it scales with the board, hard-edged).
     new MutationObserver(() => {
       const z = this.viewport.style.getPropertyValue('--canvas-zoom');
       if (z === this.seenZoom) return; this.seenZoom = z;
@@ -759,10 +759,11 @@ class PointingMode {
     const v = this.view(), at = {x: e.clientX, y: e.clientY};
     this.commitGesture('wand', hits, f, geom, () => {
       const got = this.resolve('wand', hits, f.area(), raw, f, geom);
-      if (got.snap) this.settle = {field: f, t0: performance.now(), place: this.here()};
-      // Unsnapped, the sheet keeps showing the area as cast until its still canvas is drawn, a task after the release
-      // (a sweep over a whole board is a big canvas: drawn in the release's frame it held that frame up).
-      else this.hold = {field: f, shape, place: this.here()};
+      // Snapped, the mark is drawn at once as it will stay (the outline filled, the sweep faint beneath): nothing
+      // dissolves or settles after the release. Unsnapped, the sheet keeps showing the area as cast until its still canvas
+      // is drawn, a task after the release (a sweep over a whole board is a big canvas: drawn in the release's frame it
+      // held that frame up).
+      if (!got.snap) this.hold = {field: f, shape, place: this.here()};
       const prior = g.continues && this.marks.get(g.continues);
       let mark = prior;
       if (prior) {
@@ -1394,7 +1395,7 @@ class PointingMode {
     if (this.frame) return;
     this.frame = requestAnimationFrame(t => { this.frame = 0; this.draw(undefined, t); });
   }
-  // The glitter's colours, from the tokens (pointing.css --wand-*): the mark red, a pale and a sparkle tone; plain ink-2
+  // The area's colours, from the tokens (pointing.css --wand-*): the mark red, a pale (a glint's centre) and a deep tone; plain ink-2
   // for a mark whose targets are all gone.
   tones(gone = false) {
     const key = `${document.documentElement.dataset.appearance || ''}|${document.documentElement.dataset.theme || ''}|${gone}`;
@@ -1407,7 +1408,7 @@ class PointingMode {
     return t;
   }
   // A committed wand mark as a canvas in world units: its swath (or, snapped, its outline filled), drawn at the zoom
-  // of the moment with the flecks' sites on the board, so it lines up exactly with what the sheet drew while casting.
+  // of the moment with the dither's texels fixed to the board, so it lines up exactly with what the sheet drew while casting.
   glitterCanvas(m, g, v, o, cache = new Map()) {
     const zoom = v.zoom, dpr = devicePixelRatio || 1, tones = this.tones(g.gone);
     const key = `${m.id || m.n}|${zoom.toFixed(4)}|${dpr}|${tones.join()}|${JSON.stringify(g.shapes)}|${g.raw ? JSON.stringify(g.raw) : ''}`;
@@ -1429,8 +1430,8 @@ class PointingMode {
       c = document.createElement('canvas'); c.className = `pointing-swath${g.gone ? ' pointing-gone' : ''}`; c.dataset.key = key; c.dataset.n = m.n;
       c.width = Math.max(1, Math.ceil(b.w * k)); c.height = Math.max(1, Math.ceil(b.h * k));
       const ctx = c.getContext('2d');
-      if (faint) { ctx.globalAlpha = FAINT; paintField(ctx, faint, {ox: b.x, oy: b.y, k}, {tones, dpr: k / zoom, size: 2, rim: 0.7}); ctx.globalAlpha = 1; }
-      for (const f of fields) paintField(ctx, f, {ox: b.x, oy: b.y, k}, {tones, dpr: k / zoom, size: 2, rim: 0.7});
+      if (faint) { ctx.globalAlpha = FAINT; paintField(ctx, faint, {ox: b.x, oy: b.y, k}, {tones}); ctx.globalAlpha = 1; }
+      for (const f of fields) paintField(ctx, f, {ox: b.x, oy: b.y, k}, {tones});
       c.box = b;
     }
     Object.assign(c.style, {left: `${c.box.x + o.x}px`, top: `${c.box.y + o.y}px`, width: `${c.box.w}px`, height: `${c.box.h}px`});
@@ -1495,14 +1496,8 @@ class PointingMode {
         ctx.closePath(); fill();
       }
     }
-    if (g && !g.pan && g.tool === 'wand' && g.field) { v ||= this.view(); this.drawField(g.field, v, now); more = true; }
-    else if (this.hold && this.hold.place === this.here()) { v ||= this.view(); this.drawField(this.hold.field, v, now); }
-    // A snapped wand mark just committed: what the user swept dissolves while the glitter settles into the snapped outline.
-    if (this.settle) {
-      const p = (now - this.settle.t0) / 220;
-      if (p >= 1 || this.settle.place !== this.here()) this.settle = null;
-      else { v ||= this.view(); ctx.setTransform(1, 0, 0, 1, 0, 0); paintField(ctx, this.settle.field, this.sheetView(v), {tones: this.tones(), dpr: this.dpr, size: 2 * (1 - p), rim: 0.7 * (1 - p)}); ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); more = true; }
-    }
+    if (g && !g.pan && g.tool === 'wand' && g.field) { v ||= this.view(); this.drawField(g.field, v, now, true); more = true; }
+    else if (this.hold && this.hold.place === this.here()) { v ||= this.view(); this.drawField(this.hold.field, v, now, false); }
     if (g && !g.pan && g.moved && ['marquee', 'lasso', 'wand'].includes(g.tool)) {
       const got = this.preview(g);
       if (got?.snap) snapped(got.snap.shape, v ||= this.view());
@@ -1517,49 +1512,50 @@ class PointingMode {
     if (this.tool === 'wand') more = this.drawTip(now) || more;
     // Settling needs frames of its own only while the user holds still: a frame requested from a frame while the user moves holds
     // the user's next move back a frame (measured in round 1: 32 ms against 17 ms), so moves drive the frames then.
-    if (more && (this.settle || this.sparks.length || (g?.field && now - (this.lastMove || 0) < FRESH + 40))) {
+    if (more && (this.sparks.length || (g?.field && now - (this.lastMove || 0) < FRESH + 40))) {
       if (g && performance.now() - (this.lastMove || 0) < 50) { clearTimeout(this.fadeTimer); this.fadeTimer = setTimeout(() => this.schedule(), 60); }
       else this.schedule();
     }
   }
   // Board units -> the sheet's device pixels, as paintField takes it.
   sheetView(v) { const r = this.sheetRect; return {ox: -v.ox - (v.left - r.left) / v.zoom, oy: -v.oy - (v.top - r.top) / v.zoom, k: v.zoom * this.dpr}; }
-  // The wand's area while casting: settled flecks are kept on a canvas of their own and only the cells that changed
-  // are drawn again; cells swept in the last moments sparkle over them and settle as they age.
-  drawField(f, v, now) {
+  // The wand's area while casting: the area is kept on a canvas of its own and only the cells that changed (and as far
+  // round as a change reaches) are drawn again; while the user sweeps, cells swept in the last moments carry glints that
+  // go out as they age. `live` is false once released: nothing fades or settles after the release.
+  drawField(f, v, now, live) {
     const dpr = this.dpr, ctx = this.ctx, view = this.sheetView(v);
     let acc = this.acc;
     if (!acc || acc.width !== this.sheet.width || acc.height !== this.sheet.height) { acc = this.acc = document.createElement('canvas'); acc.width = this.sheet.width; acc.height = this.sheet.height; this.accFor = null; }
     const a = acc.getContext('2d'), stamp = `${view.ox}|${view.oy}|${view.k}`, tones = this.tones();
     if (this.accFor !== f || this.accView !== stamp) {
       a.clearRect(0, 0, acc.width, acc.height); f.takeDirty();
-      paintField(a, f, view, {tones, dpr, size: 2, rim: 0.7});
+      paintField(a, f, view, {tones});
       this.accFor = f; this.accView = stamp;
     } else {
       const d = f.takeDirty();
       if (d) {
-        // Redraw the changed cells and their neighbours (a sparkle's arms and the rim reach one cell over).
-        const w = {i0: d.i0 - 2, j0: d.j0 - 2, i1: d.i1 + 2, j1: d.j1 + 2}, c = f.cell;
+        // Redraw the changed cells and as far round them as a change reaches (the rim's falloff, a glint's arm).
+        const n = reach(), w = {i0: d.i0 - n, j0: d.j0 - n, i1: d.i1 + n, j1: d.j1 + n}, c = f.cell;
         const x0 = Math.floor((w.i0 * c - view.ox) * view.k), y0 = Math.floor((w.j0 * c - view.oy) * view.k);
         const x1 = Math.ceil(((w.i1 + 1) * c - view.ox) * view.k), y1 = Math.ceil(((w.j1 + 1) * c - view.oy) * view.k);
         a.save(); a.beginPath(); a.rect(x0, y0, x1 - x0, y1 - y0); a.clip(); a.clearRect(x0, y0, x1 - x0, y1 - y0);
-        paintField(a, f, view, {tones, dpr, size: 2, rim: 0.7, w: {i0: w.i0 - 2, j0: w.j0 - 2, i1: w.i1 + 2, j1: w.j1 + 2}});
+        paintField(a, f, view, {tones, w: {i0: w.i0 - n, j0: w.j0 - n, i1: w.i1 + n, j1: w.j1 + n}});
         a.restore();
         (this.recent ||= []).push({w, t: now});
       }
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(acc, 0, 0);
-    // Fresh cells: denser and with more sparkles, for FRESH ms after they were swept.
-    this.recent = (this.recent || []).filter(x => now - x.t < FRESH);
+    // While the user sweeps (never after the release), the cells swept in the last FRESH ms carry glints that go out as they age.
+    this.recent = live ? (this.recent || []).filter(x => now - x.t < FRESH) : [];
     if (this.recent.length) {
       const w = this.recent.reduce((u, {w}) => ({i0: Math.min(u.i0, w.i0), j0: Math.min(u.j0, w.j0), i1: Math.max(u.i1, w.i1), j1: Math.max(u.j1, w.j1)}), {i0: Infinity, j0: Infinity, i1: -Infinity, j1: -Infinity});
-      paintField(ctx, f, view, {tones, dpr, size: 2, w, fresh: {now, ms: FRESH, only: true}});
+      paintField(ctx, f, view, {tones, w, fresh: {now, ms: FRESH}});
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  // The wand's tip: a ring of flecks the band's width across (how wide it casts, as an image editor shows its brush),
-  // a sparkle at the point, and the sparkles it sheds. Returns whether any sparkle is still to settle.
+  // The wand's tip: a ring of dots the band's width across (how wide it casts, as an image editor shows its brush),
+  // a glint at the point, and the sparkles it sheds. Returns whether any sparkle is still to settle.
   drawTip(now) {
     const ctx = this.ctx, r = this.sheetRect, dpr = this.dpr, red = this.tones()[0], star = this.tones()[2];
     const u = fleckSize(dpr) / dpr;
@@ -1572,9 +1568,12 @@ class PointingMode {
       for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; sq(px + rad * Math.cos(a), py + rad * Math.sin(a)); }
     }
     ctx.fill();
+    // The point: the area's glint (pale centre, red arms, fainter tips), so the tip and what it casts are one material.
     if (this.pointer) {
       const px = this.pointer.x - r.left, py = this.pointer.y - r.top;
-      ctx.fillStyle = star; ctx.beginPath(); sq(px, py, 1.5); sq(px - 1.5 * u, py); sq(px + 1.5 * u, py); sq(px, py - 1.5 * u); sq(px, py + 1.5 * u); ctx.fill();
+      ctx.fillStyle = red; ctx.beginPath(); sq(px - u, py); sq(px + u, py); sq(px, py - u); sq(px, py + u); ctx.fill();
+      ctx.globalAlpha = 0.5; ctx.beginPath(); sq(px - 2 * u, py); sq(px + 2 * u, py); sq(px, py - 2 * u); sq(px, py + 2 * u); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.fillStyle = star; ctx.beginPath(); sq(px, py); ctx.fill();
     }
     return this.sparks.length > 0;
   }
@@ -1690,7 +1689,7 @@ class PointingMode {
         const p = board.snapshot.placements.find(x => x.id === t.id), item = p && board.snapshot.items?.[p.itemId];
         const file = item?.content?.kind === 'image' ? resourceURL(item.content.resource) : null;
         const crop = card ? await imageCropFull(card, t.whole ? undefined : t.region, file, m.tool === 'wand' ? this.cropGlitter(m) : null).catch(() => null) : null;
-        if (crop) m.crop = {dataUrl: crop.dataUrl, from: `the image item's own file, cropped in the browser: ${crop.from.replace(/^image file,?\s*/, '')}${m.tool === 'wand' ? '; the wand\'s area drawn over it as red flecks' : ''}`.slice(0, 600)};
+        if (crop) m.crop = {dataUrl: crop.dataUrl, from: `the image item's own file, cropped in the browser: ${crop.from.replace(/^image file,?\s*/, '')}${m.tool === 'wand' ? '; the wand\'s area drawn over it as a red dither, its edge outlined' : ''}`.slice(0, 600)};
       }
       const result = await board.client.write('addComment', job.operation);
       this.outbox.splice(this.outbox.indexOf(job), 1);
@@ -1711,8 +1710,8 @@ class PointingMode {
     const s = m.snap?.shape || m.shape, [ox, oy] = toCrop(0, 0), cell = Math.max(1, WAND.pitch / k);
     const field = s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s, cell, 7 / k), view = {ox: -ox / k, oy: -oy / k, k};
     const raw = rawSweep(m);
-    if (raw) { ctx.save(); ctx.globalAlpha = FAINT; paintField(ctx, SwathField.fromShape(raw, cell), view, {tones: this.tones(), dpr: 1, size: 2, rim: 0.7}); ctx.restore(); }
-    paintField(ctx, field, view, {tones: this.tones(), dpr: 1, size: 2, rim: 0.7});
+    if (raw) { ctx.save(); ctx.globalAlpha = FAINT; paintField(ctx, SwathField.fromShape(raw, cell), view, {tones: this.tones(), look: CROP_LOOK}); ctx.restore(); }
+    paintField(ctx, field, view, {tones: this.tones(), look: CROP_LOOK});
   }
   // A wand mark's glitter over its image crop: the same area (the snapped outline filled, or the swath) at the same
   // density as on the board, scaled with the crop.
@@ -1722,8 +1721,8 @@ class PointingMode {
       const [ax, ay] = toCrop(...scr(0, 0)), [bx] = toCrop(...scr(1, 0)), k = bx - ax; if (!(k > 0)) return;
       const view = {ox: -ax / k, oy: -ay / k, k}, cell = WAND.pitch / v.zoom, s = m.snap?.shape || m.shape;
       const field = s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s, cell, 7 / v.zoom), raw = rawSweep(m);
-      if (raw) { ctx.save(); ctx.globalAlpha = FAINT; paintField(ctx, SwathField.fromShape(raw, cell), view, {tones: this.tones(), dpr: Math.max(1, k / v.zoom), size: 2, rim: 0.7}); ctx.restore(); }
-      paintField(ctx, field, view, {tones: this.tones(), dpr: Math.max(1, k / v.zoom), size: 2, rim: 0.7});
+      if (raw) { ctx.save(); ctx.globalAlpha = FAINT; paintField(ctx, SwathField.fromShape(raw, cell), view, {tones: this.tones(), look: CROP_LOOK}); ctx.restore(); }
+      paintField(ctx, field, view, {tones: this.tones(), look: CROP_LOOK});
     };
   }
   // The composer's content as it stands, to send and, if sending fails, to give back.

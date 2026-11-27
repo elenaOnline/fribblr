@@ -607,10 +607,10 @@ test('real render, round 2: the wand\'s glitter is drawn on the board crop; a cl
   const results=await cropMarks({url,config:w.config,boardId:'looks',marks,appearance:'light',timeout:90000});
   for(const [i,r] of results.entries())assert.ok(r.png,`mark ${i+1}: ${r.note}`);
   const [wand,plain,item]=results.map(r=>readPng(r.png));
-  assert.match(results[0].from,/the wand's area drawn as glitter, as the reviewer saw it/);
+  assert.match(results[0].from,/the wand's area drawn as the reviewer saw it, a red dither over a light red tint/);
   assert.match(results[2].from,/item render, not a screenshot of the reviewer's screen: "Login" \(page\).*laid out 853 px wide \(the reviewer's frame 1280×720 px at zoom 150 %\); scrolled to x 0, y 900 as the reviewer was; shows the snapped outline with context around it/);
   assert.match(results[2].from,/Not reproduced: text the reviewer typed into the page/);
-  assert.ok(redish(wand)>redish(plain)+400,`glitter flecks are drawn (${redish(wand)} vs ${redish(plain)} red pixels)`);
+  assert.ok(redish(wand)>redish(plain)+400,`the wand's dither is drawn (${redish(wand)} vs ${redish(plain)} red pixels)`);
   assert.ok(redish(item)>150,'the snapped outline is drawn on the item render');
   assert.ok(results[2].box.x<=20&&results[2].box.y<=1840,JSON.stringify(results[2].box));
 });
