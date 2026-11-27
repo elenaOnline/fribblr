@@ -115,6 +115,25 @@ try{
     assert.ok(m.dense/m.inked>0.04&&m.dense/m.inked<0.35,`the dither over it (${(100*m.dense/m.inked).toFixed(1)} % lit)`);
     assert.equal(m.same,m.n,'panned by 40, 24 px the same area draws the same pixels, moved by 40, 24 px');
   });
+  await check('no blink at the release: every frame from the press to a second after the release shows the area, though the release waits for a late snap source',async()=>{
+    // A stub source that answers late (as the picture worker does), so the commit waits on it; it never snaps.
+    await page.evaluate(async()=>{const {pointingGuard}=await import('/app/pointing-guard.js');window.__lateOn=true;window.__mode=pointingGuard.mode;
+      pointingGuard.mode.addSnapSource({propose:()=>null,proposeAsync:()=>new Promise(r=>setTimeout(()=>r(null),100))},{late:true,accepts:()=>!!window.__lateOn});});
+    const h=await box(card('Hero B'));
+    await page.evaluate(([x0,y0,x1,y1])=>{window.__cov=[];window.__up=0;window.__run=true;
+      const count=()=>{let n=0;for(const c of document.querySelectorAll('.pointing-sheet,.pointing-swath')){const r=c.getBoundingClientRect();if(!r.width)continue;const k=c.width/r.width;
+        const a=Math.max(0,Math.round((x0-r.left)*k)),b=Math.max(0,Math.round((y0-r.top)*k)),e=Math.min(c.width,Math.round((x1-r.left)*k)),f=Math.min(c.height,Math.round((y1-r.top)*k));
+        if(e<=a||f<=b)continue;const d=c.getContext('2d').getImageData(a,b,e-a,f-b).data;for(let i=3;i<d.length;i+=4)if(d[i])n++;}return n;};
+      let held=false;const tick=t=>{if(!window.__run)return;const g=!!window.__mode.gesture;if(held&&!g&&!window.__up)window.__up=t;held=held||g;window.__cov.push([window.__up?Math.round(t-window.__up):-1,count()]);requestAnimationFrame(tick);};requestAnimationFrame(tick);},[h.x+30,h.cy-20,h.x+h.width-30,h.cy+20]);
+    await page.mouse.move(h.x+20,h.cy);await page.mouse.down();for(let k=0;k<3;k++)for(let i=0;i<=12;i++)await page.mouse.move(h.x+20+(k%2?12-i:i)*(h.width-40)/12,h.cy+(k-1)*4);
+    await page.mouse.up();await page.waitForTimeout(1100);
+    const cov=await page.evaluate(()=>{window.__run=false;window.__lateOn=false;return window.__cov;});
+    const before=cov.filter(([t])=>t<0).at(-1)?.[1]||0,after=cov.filter(([t])=>t>=0);
+    assert.ok(before>500,`the area is drawn before the release (${before} px)`);assert.ok(after.length>20,`frames sampled after the release (${after.length})`);
+    const low=after.filter(([,n])=>n<0.5*before);
+    assert.equal(low.length,0,`no frame after the release loses the area (before ${before} px; frames: ${after.slice(0,12).map(([t,n])=>t+':'+n).join(' ')})`);
+    await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+  });
   await check('text under the area stays legible: its ink stays dark and the paper round it mostly light',async()=>{
     const hb=await words('#world [data-decoration="head"]');
     const clip={x:Math.round(hb.x),y:Math.round(hb.y),width:Math.round(hb.width),height:Math.round(hb.height)};

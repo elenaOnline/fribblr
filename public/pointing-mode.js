@@ -694,7 +694,7 @@ class PointingMode {
       ]);
       clearTimeout(timer);
       this.waiting--;
-      if (!this.active || this.here() !== place) return; // the user left the place in between: nothing to name it with
+      if (!this.active || this.here() !== place) { this.pending = null; this.schedule(); return; } // the user left the place in between: nothing to name it with
       this.late = answers; this.insertAt = caret;
       try { finish(); } finally { this.late = null; this.insertAt = null; this.schedule(); }
     });
@@ -757,7 +757,11 @@ class PointingMode {
     if (shape.points.length < 2) shape.points.push([...shape.points[0]]);
     const hits = areaHits(f, g.list), geom = {kind: 'swath', width: f.width, points: f.points.slice()};
     const v = this.view(), at = {x: e.clientX, y: e.clientY};
+    // Until the mark is drawn (a release may wait up to LATE ms for a late snap source) the sheet keeps the area as cast,
+    // so nothing blinks out between the release and the mark.
+    this.pending = {field: f, place: this.here()};
     this.commitGesture('wand', hits, f, geom, () => {
+      if (this.pending?.field === f) this.pending = null;
       const got = this.resolve('wand', hits, f.area(), raw, f, geom);
       // Snapped, the mark is drawn at once as it will stay (the outline filled, the sweep faint beneath): nothing
       // dissolves or settles after the release. Unsnapped, the sheet keeps showing the area as cast until its still canvas
@@ -778,6 +782,8 @@ class PointingMode {
       } else mark = this.addMark({tool: 'wand', at: g.at, end, shape, ...got, empty: this.reader ? 'Area' : 'Board area'});
       if (mark) this.wandLast = {id: mark.id, field: f, t: performance.now(), x: at.x, y: at.y, zoom: v.zoom, dir: travel(f.points, 40 / v.zoom)};
       if (this.hold?.field === f && !mark) this.hold = null;
+      // The sheet gives the area up in the same task the mark's canvas arrives in, so the two never show together.
+      this.draw();
     });
   }
   // Snapping: the best proposal (board objects, and sources inside the one card under the gesture) unless the user holds the
@@ -1498,6 +1504,7 @@ class PointingMode {
     }
     if (g && !g.pan && g.tool === 'wand' && g.field) { v ||= this.view(); this.drawField(g.field, v, now, true); more = true; }
     else if (this.hold && this.hold.place === this.here()) { v ||= this.view(); this.drawField(this.hold.field, v, now, false); }
+    else if (this.pending && this.pending.place === this.here()) { v ||= this.view(); this.drawField(this.pending.field, v, now, false); }
     if (g && !g.pan && g.moved && ['marquee', 'lasso', 'wand'].includes(g.tool)) {
       const got = this.preview(g);
       if (got?.snap) snapped(got.snap.shape, v ||= this.view());
