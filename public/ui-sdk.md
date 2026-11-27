@@ -706,7 +706,9 @@ edits. What the browser leaves out is added:
   that keep their own Tab (`OWN_TAB`: a nested modal dialog, menu, popover, select, listbox) are skipped.
   `tabStops(root)` lists the stops; `side-panel.js` reuses it.
 - **Escape, one layer at a time.** An open SDK popup inside the reader (menu, popover, tooltip, nested dialog, an
-  Inspector with focus inside) takes its own Escape first (`inPopup` in the document Escape handler). Then
+  Inspector with focus inside) takes its own Escape first (`inPopup` in the document Escape handler). Point and type,
+  when on inside the item, is above the ladder: its guard takes Escape first (a gesture, its @ list, then the mode;
+  § 4 Point and type). Then
   `handleEscape` peels: the feedback panel → the reader Inspector → the Navigator → the notes column (if focus is in
   it) → a popup still open inside the content frame (`closeFramePopup`, same-origin frames, up to three deep) → Expand
   (turns it off, the Tinka stays open) → closes the reader. Escape during IME composition does nothing. A frame's own SDK popup with focus inside takes its Escape in
@@ -1396,7 +1398,7 @@ in-place editor has no toolbar.
 `data-note-anchor` attribute on the opener, so card handlers never hear it. Saving holds it open; Escape, a press
 outside, Tab out and × keep the draft; Cancel drops it. Focus returns to the opener control.
 
-**Point and type.** `pointing-mode.js`, `pointing-guard.js`, `pointing-geometry.js`, `pointing-wand.js`, `pointing-snap.js`, `pointing-thread.js`, `pointing.css`.
+**Point and type.** `pointing-mode.js`, `pointing-reader.js`, `pointing-guard.js`, `pointing-geometry.js`, `pointing-wand.js`, `pointing-snap.js`, `pointing-thread.js`, `pointing.css`.
 A mode, not a popup: P (or the rail's Point and type key, its own `ui-toolbar-group` appended to `#edit-tools`) shows
 a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `<canvas>` sheet over `#viewport`.
 - Keys stay in the composer (a contenteditable `role=textbox`, `data-height="sunken"`, with the comment card's @
@@ -1503,7 +1505,41 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   pin goes at the outline's top-right.
 - Keys typed while focus is on the map or a side panel (not in one of its fields or menus) are letters for the
   composer; the caret is kept at each input and as focus leaves, so they land where she left off.
-- Checked in `tests/pointing-browser.mjs` (1280 and 390), `tests/pointing-wand-browser.mjs` (the wand, snapping,
+- Sources inside items (wired in `wireSources`): the DOM source (`pointing-snap-dom.js`, with `pageMapping`; elements in
+  same-origin pages, on live cards and in the opened item) and the pixel source (`pointing-snap-pixels.js`, edges in
+  image items' pictures, in a worker). Each is prepared on first hover of a card (and on pointing inside an item). The
+  DOM source is asked on hover too: the element a click would name is outlined, dashed, before the click (a card
+  outline otherwise). The pixel source answers late: a release waits for it at most 120 ms (`LATE`), gestures commit
+  in the order made, and the chip goes where the caret was at release. Precedence on a card: a part a source found
+  (score ≥ 0.5) beats the whole card when her gesture lies inside the card (80 % of its bounds) and the part is under
+  60 % of the card; otherwise the best score wins, usually the board-object snap. A part found on a card labels the
+  chip with what it is (`heading "Two"`) and the sent body with `… in <card>`. Board cards that cannot be read: board
+  covers (`sandbox="allow-scripts"` frames, opaque by design), cards drawn as a picture, title art or an inline document
+  preview (no frame). Document cards (`.markdown`) give a `text` range as the opened document does.
+- Inside the opened item (`pointing-reader.js`, `ReaderPlace`): P (or the reader's own Point and type key, first in
+  `#reader-header .chrome-actions`, `aria-pressed` while on; pressed again it leaves) points inside it. The composer
+  moves into the reader's modal dialog; a sheet (`.pointing-reader-sheet`) covers the stage under the zoom pill; the
+  reader's keys never fire while typing (focus stays in the composer, a contenteditable). Coordinates are the item's
+  own (`place.view.unit`): `page px` (an HTML page or a note's item page, document coordinates with the scroll; a
+  Markdown document's column with its scroll), `image px`, or `window px` (a PDF, video, audio, another origin's page:
+  they cannot be read). `ReaderPlace.view()` gives the board's affine (client = left + x · zoom), so drawing, hit tests
+  and sources run unchanged. The wheel scrolls what is under the pointer (else pans the window); ⌘/Ctrl-wheel zooms; a
+  Point drag scrolls then pans. Marks live in `.pointing-reader-marks` inside `#reader-window` (the plane carries the
+  reader's zoom, the layer's transform the content's scroll, `--pointing-k` keeps badges their size). Every target is
+  the item's placement with `content` (px, `of` names the coordinates and, for video and audio, the play time), the
+  snapped `element` / `elements`, and in documents and notes a `text` range (the snapped block's words, else the words
+  her gesture covers, cut words whole, `textRangeIn`). An opened image's marks are cropped in the browser from its
+  file round the mark (`imageFileCrop`); other kinds are rendered by the server from `place.view` (frame size on
+  screen, zoom, scroll) and `place.version` (the version stack id shown). Zooming out never leaves the item while
+  pointing (`ReaderCanvas.locked`; the − says "leave Point and type first"); Escape: a gesture, the @ list, then the
+  mode (the reader's zoom, pan and scroll back), then the reader's own ladder. One draft spans places: Up, stepping
+  or another version while on keeps the mode and the draft (`readerChanged`, called by `canvas.js`); a chip whose
+  mark is in another place is outlined dashed (its hint says where), an item mark's chip carries a window glyph, and
+  on the board an item mark shows as its card, dashed, labelled Inside. Not yet: shapes inside the Drawxide whiteboard
+  (one canvas: its marks are page px over it), PDF pages, the visible part of a zoomed-in window (the record gives
+  the whole window), sent item marks drawn inside the reader.
+- Checked in `tests/pointing-browser.mjs` (1280 and 390), `tests/pointing-reader-browser.mjs` (inside the opened item,
+  the sources on cards, a message from both places), `tests/pointing-wand-browser.mjs` (the wand, snapping,
   clicks, the look at 1x and 2x, light and dark) and `tests/pointing.test.mjs` (geometry, the wand's area, snapping,
   the server record).
 

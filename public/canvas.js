@@ -1502,6 +1502,7 @@ function readerShortcuts() {
     <dt>Shift-F</dt><dd>Expand: fill the screen, zoom out off (again, or Escape, to turn it off)</dd>
     <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms. At fit, zooming out fills a blue band at the edge; a third smaller goes back to the board</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
+    <dt>P</dt><dd>Point and type inside this Tinka: point at its elements, words or picture while you write to the agent, as on the board; zoom out stops at fit until you leave (Escape)</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
     <dt>⌘/Ctrl-I</dt><dd>Inspector for this Tinka</dd>
     <dt>?</dt><dd>Show keyboard shortcuts</dd></dl>`);

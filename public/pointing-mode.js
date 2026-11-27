@@ -1189,9 +1189,12 @@ class PointingMode {
   paint(layer, marks, {sent, board}) {
     const o = board ? this.board.origin || {x: 0, y: 0} : {x: 0, y: 0}, v = marks.length ? (board ? this.boardView() : this.reader.view()) : null;
     let svg = '', badges = '';
-    const sparkle = [];
+    const sparkle = [], insideOf = new Map();
     for (const m of marks) {
-      const g = board ? this.geometry(m, !sent, v) : this.drawnGeometry(m), cls = `pointing-shape${sent && sent.focus === m.n ? ' pointing-focus' : ''}${g.gone ? ' pointing-gone' : ''}${g.inside ? ' pointing-inside' : ''}`;
+      const g = board ? this.geometry(m, !sent, v) : this.drawnGeometry(m);
+      // Several marks made inside one item: their numbers side by side on its card, not on top of each other.
+      if (g.inside && g.badge) { const k = m.targets[0]?.id, i = insideOf.get(k) || 0; insideOf.set(k, i + 1); if (i) { g.badge = {...g.badge, x: g.badge.x + i * 30 / v.zoom}; g.note = ''; } }
+      const cls = `pointing-shape${sent && sent.focus === m.n ? ' pointing-focus' : ''}${g.gone ? ' pointing-gone' : ''}${g.inside ? ' pointing-inside' : ''}`;
       if (!g.shapes.length && !g.dot && !g.badge) continue;
       if (g.glitter && g.shapes.length) { sparkle.push({m, g}); } else for (const s of g.shapes) {
         if (s.kind === 'path') svg += `<path class="${cls}" data-n="${m.n}" d="M${s.points.map(([x, y]) => `${x + o.x} ${y + o.y}`).join('L')}Z"/>`;
