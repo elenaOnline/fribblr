@@ -1,7 +1,7 @@
 // Pointing mode's DOM snap source (team/pointing/CONTRACT.md § Round 2, "The snap-source seam").
 //
 // A gesture inside a same-origin HTML item (a card's live preview on a board, or the opened item in the reader) is
-// tidied to the element she means: for a click, the element under the point a person would name (a button, link,
+// tidied to the element the user means: for a click, the element under the point a person would name (a button, link,
 // field, heading, image, a paragraph, a visible card), never a wrapper div or a text node; for a marquee, lasso or
 // wand swath, the smallest such element (or the tight union of a few) that the gesture mostly covers.
 //
@@ -222,14 +222,14 @@ function proposeCovered({doc, win}, g) {
     if (ar && ar.w * ar.h <= 1.35 * union.w * union.h && mask.cover(ar) >= COVER[g.kind] * .85) chosen = lca;
     else {
       top.sort((a, b) => (a.y - b.y) || (a.x - b.x));
-      if (top.length > 12) return null; // a dozen separate things is a region, not an element: her shape stands
+      if (top.length > 12) return null; // a dozen separate things is a region, not an element: the user's shape stands
       members = top;
       chosen = lca;
     }
   }
   const box = members ? unionBox(members) : boxOf(chosen, win);
   const fill = mask.fill(box), cov = Math.min(1, mask.cover(box));
-  // Content her gesture cuts through outside the snap (words, pictures, controls half inside it): a loose gesture
+  // Content the user's gesture cuts through outside the snap (words, pictures, controls half inside it): a loose gesture
   // round one thing in empty space still snaps; one that also slices other content needs a closer fit.
   const kept = members ? members.map(m => m.el) : [chosen];
   let stray = 0;
@@ -242,7 +242,7 @@ function proposeCovered({doc, win}, g) {
   stray = mask.cells > 0 ? stray / (mask.area || 1) : 0;
   if (fill < FILL[g.kind] && !(fill >= .06 && stray < .04)) return null;
   const score = round2(cov * (.55 + .45 * Math.min(1, fill / .6)) * (1 - Math.min(.6, stray * 1.5)));
-  if (score < (members ? .5 : .35)) return null; // a union of separate things must fit her gesture well
+  if (score < (members ? .5 : .35)) return null; // a union of separate things must fit the user's gesture well
   const shape = {kind: 'rect', x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)};
   if (!members) {
     const info = describeElement(chosen, doc, win);

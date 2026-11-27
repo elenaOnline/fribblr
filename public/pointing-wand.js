@@ -250,7 +250,7 @@ export const fleckSize = dpr => Math.max(2, Math.round(1.5 * dpr));
 /**
  * Draws the area's flecks into `ctx` (identity transform, device pixels). `view`: {ox, oy, k}: device px =
  * (board − o) × k. `w`: cell bounds to draw (default all). `ink`: the fleck colour. `fresh`: {now, ms}, cells that grew
- * within `ms` draw denser and with more sparkles, settling to their own density as they age (her motion only).
+ * within `ms` draw denser and with more sparkles, settling to their own density as they age (the user's motion only).
  */
 export function paintField(ctx, field, view, {ink, tones = null, halo = null, w = null, dpr = 1, fresh = null, size: css = 2, rim = 0.7} = {}) {
   const c = field.cell, k = view.k, size = Math.max(2, Math.round(css * dpr)), arm = size;

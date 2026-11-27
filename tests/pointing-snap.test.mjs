@@ -246,7 +246,7 @@ test('swath proposal: a stroke waved over a disc picks the disc', () => {
   assert.ok(a && Math.abs(a.box.w - 120) < 14, JSON.stringify(a?.box));
 });
 
-test('confidence: weak edges, shared colours or an outline on her own line score low', () => {
+test('confidence: weak edges, shared colours or an outline on the own line score low', () => {
   assert.ok(confidence({contrast: 4, separation: .9, hug: 0}) > .9);
   assert.ok(confidence({contrast: 1, separation: .9, hug: 0}) < .6);
   assert.ok(confidence({contrast: 4, separation: .3, hug: 0}) < .5);

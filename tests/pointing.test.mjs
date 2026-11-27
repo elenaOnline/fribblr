@@ -153,7 +153,7 @@ test('snapping to board objects: a sloppy box, a loose lasso and an underline ti
   assert.equal(snap?.label,'t');
   // a part (a third of a card): no snap
   raw=rectHits({x:20,y:20,w:120,h:100},list);assert.equal(objectSnap(raw,{tool:'marquee',gestureArea:12000}),null);
-  // a card covered whole plus another a third: no snap (it would drop something she half meant)
+  // a card covered whole plus another a third: no snap (it would drop something the reviewer half meant)
   raw=rectHits({x:-10,y:-10,w:520,h:220},list);assert.equal(objectSnap(raw,{tool:'marquee',gestureArea:520*220}),null);
   // a speck: a big box over empty board with a small card in its corner stays a board area
   raw=rectHits({x:-2000,y:-2000,w:2310,h:2210},[card('s',0,0,60,40)]);assert.equal(objectSnap(raw,{tool:'marquee',gestureArea:2310*2210}),null);

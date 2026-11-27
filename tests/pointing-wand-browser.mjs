@@ -3,8 +3,8 @@
 // drawn as still glitter; travelling between targets, moving while typing and a resting hand make none; a lift
 // mid-wave carries the same reference on; Backspace and Undo take the last one back and bring it again), snapping to
 // board objects (a sloppy marquee round a card, a lasso round a sticky, a marquee round a container, an underline
-// under text) shown before release, ⌘ held takes exactly what she drew, and a click recorded as tool "click" with the
-// tool in `via`. The sent record carries the swath, the snap and her raw gesture. Light at 1x for the checks; dark at
+// under text) shown before release, ⌘ held takes exactly what the reviewer drew, and a click recorded as tool "click" with the
+// tool in `via`. The sent record carries the swath, the snap and the raw gesture. Light at 1x for the checks; dark at
 // 2x for the look. Isolated fixture, headless, port 0.
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,mkdir} from 'node:fs/promises';
@@ -118,7 +118,7 @@ try{
     for(const m of [m1,m2,m3]){assert.equal(m.shape.kind,'swath');assert.ok(m.shape.width>20&&m.shape.points.length>=2&&m.shape.points.length<=400);}
     assert.equal(m1.snap.source,'object');assert.equal(m1.snap.label,'card "Hero B"');assert.equal(m1.targets[0].whole,true);
     assert.equal(m2.snap.label,'sticky "A sticky"');assert.equal(m2.snap.shape.kind,'rect');
-    assert.equal(m3.snap,undefined,'⌘ held: exactly what she drew');assert.equal(m3.targets[0].title,'Login mock');assert.equal(m3.targets[0].whole,false);assert.ok(m3.targets[0].region.h<0.7);
+    assert.equal(m3.snap,undefined,'⌘ held: exactly what the reviewer drew');assert.equal(m3.targets[0].title,'Login mock');assert.equal(m3.targets[0].whole,false);assert.ok(m3.targets[0].region.h<0.7);
   });
   await check('snapping per kind, shown before release: a sloppy marquee round a card, a lasso round a sticky, a marquee round a container; ⌘ takes the raw box',async()=>{
     await page.keyboard.press('Alt+KeyM');
@@ -147,7 +147,7 @@ try{
     assert.ok(a.shape.x>a.snap.shape.x+10,'the raw box is kept beside it');
     assert.equal(b.snap?.label,'sticky "A sticky"');assert.equal(b.shape.kind,'path');
     assert.equal(d.snap?.label,'container "Box"');assert.equal(d.targets[0].itemKind,'container');
-    assert.equal(e.snap,undefined);assert.equal(e.targets[0].whole,false,'⌘ held: the part she drew');
+    assert.equal(e.snap,undefined);assert.equal(e.targets[0].whole,false,'⌘ held: the part the reviewer drew');
   });
   await check('a click is recorded as tool "click" with the active tool in via',async()=>{
     await page.keyboard.press('Alt+KeyM');await page.keyboard.type('a ');const h=await box(card('Hero B'));await page.mouse.click(h.cx,h.cy);

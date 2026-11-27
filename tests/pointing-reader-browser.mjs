@@ -31,7 +31,7 @@ try{
   config=await loadConfig(configFile);
   server=createAppServer(config);await new Promise(r=>server.listen(0,'127.0.0.1',r));url=`http://127.0.0.1:${server.address().port}`;
   const assets=path.join(config.boardsRoot,'assets');await mkdir(assets);
-  // A long page: a heading, filler, and a Sign in button 1400 px down (she has to scroll to it).
+  // A long page: a heading, filler, and a Sign in button 1400 px down (the reviewer has to scroll to it).
   await writeFile(path.join(assets,'long.html'),`<!doctype html><body style="margin:0;font:16px sans-serif"><header style="padding:20px"><h1>Welcome</h1></header>${Array.from({length:12},(_,i)=>`<p style="margin:20px;height:90px">Filler paragraph ${i+1}.</p>`).join('')}<form id="login" style="padding:20px"><label for="em">Email</label> <input id="em" name="email"> <button type="submit" id="go">Sign in</button></form><div style="height:600px"></div></body>`);
   await writeFile(path.join(assets,'notes.md'),`# Plan\n\nThe first paragraph says what the plan is about and why it matters to the team this quarter.\n\nThe second paragraph lists the risks we know about and the ones we are still looking for.\n\n## Next\n\nA closing line.\n`);
   // A picture with one clear shape: a dark disc on a light ground.
@@ -85,7 +85,7 @@ try{
     await page.mouse.click(b.cx,b.cy);
     const m=await until(()=>lastMark());
     assert.equal(m.tool,'click');assert.equal(m.place.kind,'item');assert.equal(m.place.view.unit,'page px');
-    assert.equal(Math.round(m.place.view.scrollY),Math.round(y),'the scroll she saw');
+    assert.equal(Math.round(m.place.view.scrollY),Math.round(y),'the scroll the reviewer saw');
     const el=m.targets[0].element;
     assert.equal(el.tag,'button');assert.equal(el.name,'Sign in');assert.equal(el.selector,'#go');assert.match(el.path,/form#login > button#go/);
     const real=await page.evaluate(()=>{const w=document.getElementById('active-reader').contentDocument.querySelector('#item-content > iframe.item-full-frame').contentWindow,r=w.document.getElementById('go').getBoundingClientRect();return {x:r.left+w.scrollX,y:r.top+w.scrollY};});

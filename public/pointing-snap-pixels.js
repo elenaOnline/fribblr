@@ -2,7 +2,7 @@
 // team/pointing/spike2/SNAP.md for what it does on real pictures and where it falls back).
 //
 // Inside a picture there are no elements, only edges. This source tidies a gesture to a region bounded by edges, the
-// way image editors do, and only when the edges are clear; otherwise it answers null and her drawn shape stands.
+// way image editors do, and only when the edges are clear; otherwise it answers null and the user's drawn shape stands.
 //
 // - a click: a magic wand with an edge-aware tolerance. The minimax ("barrier") distance from the clicked spot over
 //   the colour gradient gives every pixel the lowest edge it must cross to be reached; the region kept is the most
@@ -14,7 +14,7 @@
 //   and meet on the strongest edge between them.
 // - a wand swath: the wand from points along the stroke; the region that holds most of the stroke.
 // Each answer carries a confidence from the edge's contrast against the texture on either side, the colour separation
-// inside and outside, the area's stability, and whether the outline merely ran to her line (no edge found).
+// inside and outside, the area's stability, and whether the outline merely ran to the user's line (no edge found).
 //
 //   import {pixelSnap} from './pointing-snap-pixels.js';
 //   pixelSnap.prepare(item, el)                       // first hover / entering the mode: decodes and caches (async)
@@ -348,7 +348,7 @@ export function outlineField(F, gm, {coreFrac = .45, seedRatio = 8} = {}) {
   return {mask, measures: measure(F, mask, {gm, din, band, dout})};
 }
 
-// How much to trust a region: edge contrast against texture, colour separation, whether it only ran to her line.
+// How much to trust a region: edge contrast against texture, colour separation, whether it only ran to the user's line.
 export function measure(F, mask, {gm = null, din = null, band = 6, dout = null} = {}) {
   const {w, h, g} = F, n = w * h;
   const edge = [], tex = [];
@@ -385,7 +385,7 @@ export function confidence(m, {kind = 'outline', stability = 0} = {}) {
   let s = kind === 'wand'
     ? .5 * contrast + .3 * sep + .2 * c01(1 - stability / .6)
     : .45 * contrast + .3 * sep + .25 * loose;
-  if (kind !== 'wand' && m.hug > .6) s *= .5; // the outline is mostly her own line: no edge was found
+  if (kind !== 'wand' && m.hug > .6) s *= .5; // the outline is mostly the user's own line: no edge was found
   if (kind !== 'wand' && m.separation < .5) s = Math.min(s, .45); // inside and outside share their colours: a guess
   return Math.round(c01(s) * 100) / 100;
 }
@@ -452,7 +452,7 @@ export function proposeClick(pic, x, y, {threshold = .6, debug = false} = {}) {
     if (r.touchesEdge && !F.full) continue;
     fillHoles(r.mask, F.w, F.h);
     const m = measure(F, r.mask);
-    // A region running along most of the picture's border is the background she clicked through, not a thing.
+    // A region running along most of the picture's border is the background the user clicked through, not a thing.
     if (F.full && borderShare(r.mask, F.w, F.h) > .3) return debug ? {answer: null, candidate: regionAnswer(pic, F, r.mask, 0), why: 'background', tries, m} : null;
     const score = confidence(m, {kind: 'wand', stability: r.stability});
     const ans = score >= threshold ? regionAnswer(pic, F, r.mask, score) : null;

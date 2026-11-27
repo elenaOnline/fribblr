@@ -10,7 +10,7 @@
 // `view()` gives the same affine the board gives (client = left + x * zoom), so the mode's drawing, hit tests and snap
 // sources work unchanged; marks are drawn in a layer inside the reader's window that follows its zoom and pan (it is in
 // the reader's plane) and the content's scroll (its transform is set again when the content scrolls).
-// Each mark records `place: {kind: 'item', itemId, boardId, placementId?, version?, view}` with what she was looking at.
+// Each mark records `place: {kind: 'item', itemId, boardId, placementId?, version?, view}` with what the user was looking at.
 import {resolveFrame} from './pointing-snap-dom.js';
 import {documentTextMap} from './markdown-document.js';
 import {wheelZoomFactor, wheelSource} from './canvas-zoom.js';
@@ -201,8 +201,8 @@ export class ReaderPlace {
     return {kind: 'placement', id: c.id, boardId, ...(c.item?.id ? {itemId: c.item.id} : {}), itemKind: c.item ? kindOf(c.item) : 'html', title, whole: !!whole,
       ...(content && !whole ? {content} : {}), ...(element ? {element} : {}), ...(elements?.length >= 2 ? {elements: elements.slice(0, 12)} : {}), ...(text ? {text} : {})};
   }
-  /** The mark's `place`: which item, which version, and what she was looking at. */
-  // `view`: the reader's zoom, the content's scroll, and her frame (the item's window) as it was on screen, in CSS px
+  /** The mark's `place`: which item, which version, and what the user was looking at. */
+  // `view`: the reader's zoom, the content's scroll, and the user's frame (the item's window) as it was on screen, in CSS px
   // (its layout size is width / zoom); `unit` names the coordinates of this mark's shapes.
   record(boardId) {
     const i = this.info, c = this.current(), s = this.scroll(c), w = i.window, z = this.readerZoom();
@@ -316,7 +316,7 @@ export function textRangeIn(article, toUnits, {inside, bounds, rect = null, elem
       }
     }
     if (!start) return null;
-    // A word cut by her gesture's edge counts whole (as a text selection by words does).
+    // A word cut by the user's gesture's edge counts whole (as a text selection by words does).
     const word = /[\p{L}\p{N}_'’-]/u;
     while (start[1] > 0 && word.test(start[0].nodeValue[start[1] - 1]) && word.test(start[0].nodeValue[start[1]])) start[1]--;
     while (end[1] < end[0].nodeValue.length && word.test(end[0].nodeValue[end[1]]) && word.test(end[0].nodeValue[end[1] - 1])) end[1]++;

@@ -1,8 +1,8 @@
 // Snapping for pointing mode (pointing-mode.js; team/pointing/CONTRACT.md § Round 2). No DOM here (tests import it).
 //
 // A hand-drawn region round a card, a sticky or a heading is sloppy; snapping tidies it to the thing so the reference
-// names it exactly and the crop frames it. It is shown before it commits (the snapped outline while she drags) and one
-// key takes exactly what she drew (⌘ on a Mac, Ctrl elsewhere, held: the same key that turns off alignment guides
+// names it exactly and the crop frames it. It is shown before it commits (the snapped outline while the user drags) and one
+// key takes exactly what the user drew (⌘ on a Mac, Ctrl elsewhere, held: the same key that turns off alignment guides
 // while dragging in Keynote, and snapping in tldraw, Miro and Figma).
 //
 // Sources propose; the best proposal over SNAP_MIN wins. The board-object source is here (`objectSnap`): it tidies a
@@ -36,7 +36,7 @@ const union = boxes => {
  * The board-object source. `hits`: what the raw gesture hit (pointing-geometry.js, with `cover` and `along` per
  * target); `tool`: marquee | lasso | wand; `gestureArea`: the raw gesture's area in board units²; `name(candidate)`:
  * how the label names one thing ('card "Hero B"').
- * It proposes only when every thing hit is mostly covered (so it never drops something she half meant), and when those
+ * It proposes only when every thing hit is mostly covered (so it never drops something the user half meant), and when those
  * things are not a speck in a big gesture (a wide box over empty board with a sticker in its corner stays a board area).
  */
 export function objectSnap(hits, {tool, gestureArea = 0, name = () => 'object'} = {}) {

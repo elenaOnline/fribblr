@@ -227,7 +227,7 @@ export class FeedbackController {
       const restore=['escape-key','close-press'].includes(e.detail.reason)||(e.detail.reason==='imperative'&&this.ballotRestore);
       this.ballotClosed(restore);
     });
-    // Focus starts on her vote, else on Yes (the group's one Tab stop).
+    // Focus starts on the user's vote, else on Yes (the group's one Tab stop).
     root.addEventListener('openchangecomplete',e=>{if(e.detail.value&&this.ballot&&!this.ballot.contains(document.activeElement))this.focusBallot();});
     return ui;
   }
@@ -243,7 +243,7 @@ export class FeedbackController {
     ui.root.api.open({anchor:{getBoundingClientRect:()=>((anchor?.isConnected&&anchor.getClientRects().length?anchor:null)||document.querySelector(selector)||anchor||document.body).getBoundingClientRect()}});
     this.focusBallot();
   }
-  // Built once per opening, then updated in place (counts, her vote, pending, status), so focus stays on the choice.
+  // Built once per opening, then updated in place (counts, the user's vote, pending, status), so focus stays on the choice.
   renderBallot(){
     if(!this.ballot)return;const{mine,totals,pending}=this.voteState(this.ballotId),item=this.getBoard().items?.[this.ballotId];
     if(!this.ballot.querySelector('.feedback-ballot-choices')){

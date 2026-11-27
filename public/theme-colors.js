@@ -61,8 +61,8 @@ export const fallbackInk = theme => themeColor("ink", theme);
 export const fallbackEdge = theme => themeColor("edge", theme);
 
 // A container is a tray cut into the ground (depth.css): its floor is one step down (the desk family's own step,
-// tokens.css --desk-deep) from the ground when she gave it no colour (upstream's default for a new container counts as
-// none), else from the ground tinted a little toward her hue's fill: a coloured tray stays a piece of the desk, quieter
+// tokens.css --desk-deep) from the ground when the user gave it no colour (upstream's default for a new container counts as
+// none), else from the ground tinted a little toward the user's hue's fill: a coloured tray stays a piece of the desk, quieter
 // than what it holds; its rim carries the hue (whiteboard.css).
 // `paint` is the CSS that paints the floor live on either ground; `fill` is that floor on the desk, for the contrast maths.
 export const plainContainerColor = "#dbe5d3";

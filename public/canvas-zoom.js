@@ -45,13 +45,13 @@ export const sameView = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1 && Math.
 // all of it fits (boardZoomFloor) and leaving goes to its parent board, or Home.
 //
 // The way out is shown as it builds: `progress` (0 to 1) drives the leave band at the screen's edge (leave-band.js), and
-// at 1 she leaves. A pinch or trackpad scroll fills it smoothly: a zoom-out a third smaller than the floor (LEAVE_FILL)
+// at 1 the user leaves. A pinch or trackpad scroll fills it smoothly: a zoom-out a third smaller than the floor (LEAVE_FILL)
 // fills it (one event fills at most LEAVE_EVENT_MAX of it), and zooming back in empties it again before anything zooms in. A step (a −, the − button, a mouse-wheel
 // notch) fills half: the first step at the floor shows the band, the second leaves. A wheel or pinch gesture is its
 // events with no gap of GESTURE_GAP ms (Chrome reports a trackpad pinch as wheel events with no begin or end); one that
 // reaches the floor from above stops there and shows nothing, and a mouse-wheel spin likewise. When the fingers lift
 // (touch, Safari's gestureend: end()) a pinch's fill drops at once. Chrome sends no end for a trackpad pinch, and the
-// band never changes on silence (nothing moves unless she moved it): it stays, still, until her next input, which clears
+// band never changes on silence (nothing moves unless the user moved it): it stays, still, until the user's next input, which clears
 // it (reset: a pointer move, a click, a key, a pan, leaving the window), and a new pinch after the pause starts from its
 // own progress. A shown step stays likewise until the next step or other input. A held key (repeat) never fills or
 // leaves. Expand (`locked`) shows nothing and never leaves.
@@ -85,7 +85,7 @@ export function zoomOutGate({ onProgress = () => {} } = {}) {
     end() { if (g && continuous(g.source)) g = null; fill = 0; emit(); },
     // The input that was just applied brought the view down to the floor.
     reachedFloor() { if (g) g.fromAbove = true; },
-    // She has just arrived here by zooming out of the place below: a wheel or pinch gesture still running carries on as
+    // The user has just arrived here by zooming out of the place below: a wheel or pinch gesture still running carries on as
     // one that reached the floor from above, so it stops here instead of leaving this place too.
     hold(now = now_()) { g = { source: '*', fromAbove: true, last: now }; steps = 0; fill = 0; emit(); },
     // A zoom-out by `factor` (< 1). `above`: the view is above the floor before it. Returns 'zoom' (apply it, down to the

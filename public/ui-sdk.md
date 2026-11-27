@@ -291,7 +291,7 @@ import {segmentedHTML, setSegmented, onSegmented, focusSegmented} from './ui-seg
 host.innerHTML = segmentedHTML({label: 'Layout', className: 'board-layout', value: 'canvas',
   items: [{value: 'canvas', label: 'Canvas'}, {value: 'grid', label: 'Grid', tip: 'Cards in rows'}]});
 const seg = host.querySelector('ui-segmented-control');
-onSegmented(seg, value => setLayout(value));   // she chose (pointer or arrows)
+onSegmented(seg, value => setLayout(value));   // the user chose (pointer or arrows)
 setSegmented(seg, current);                    // our model back, no event
 focusSegmented(seg);                           // focus the checked item, after the SDK has given it a role
 ```
@@ -345,7 +345,7 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
   keeps it, unless that dialog holds the opener (a dialog opened from another). Before, the late return pulled focus
   out of the new dialog onto the opener behind it, and the next Space opened a second copy.
 - **Discard question.** Only typed text asks. Once a text field or text area of a form with `onSubmit` holds text that
-  differs from what it held before her first edit (noted on `beforeinput`), the dialog becomes `dismissible=false`;
+  differs from what it held before the user's first edit (noted on `beforeinput`), the dialog becomes `dismissible=false`;
   Escape or a backdrop press then asks, in an alert dialog titled "Discard the text you typed" ("Nothing in “Edit item”
   is saved yet.", Keep editing / Discard). A choice (radio, checkbox, select, slider) never asks: it costs one press to
   make again (the Move to a board destination). Text typed back to what it was asks nothing. The title is a statement,
@@ -355,7 +355,7 @@ if (await confirmDialog({title: 'Remove 2 cards?', confirmLabel: 'Remove', onCon
 - **`confirmDialog({title, description, confirmLabel, cancelLabel, onConfirm, className})`** builds a
   `ui-alert-dialog` and resolves `true` for the confirming answer. Focus opens on Cancel, Escape means no, a backdrop
   press does nothing. An async `onConfirm` keeps the dialog open with the confirm key pending and shows a failure
-  inside it. Its title is a statement, never a question (her copy rule): "Archive these boards everywhere", "Remove
+  inside it. Its title is a statement, never a question (the owner's copy rule): "Archive these boards everywhere", "Remove
   from this board", "Update to fribblr 2.0". The same holds for every dialog title and for the lines beside its buttons.
 - **Nesting.** Both append to the topmost open modal (`ui-dialog-content[data-open][aria-modal=true]`,
   `ui-alert-dialog-content[data-open]`, or a modal `<dialog>` such as the reader), otherwise that parent's inert page
@@ -741,7 +741,7 @@ Files: `canvas-zoom.js` (`zoomOutGate`, `LEAVE_RATIO`, `GESTURE_GAP`, `boardZoom
 `reader-keys.js` (`expand`), `board.html` (`#reader-expand`), `reader.css`; tests `tests/zoom-out-browser.mjs`,
 `tests/board-zoom-out-browser.mjs`, `tests/canvas-zoom.test.mjs`.
 
-An opened item is that item on its board, seen close. Elena (2026-11-23): zooming out of an opened item should "zoom
+An opened item is that item on its board, seen close. The owner (2026-11-23): zooming out of an opened item should "zoom
 you out to the board that it exists on rather than zooming out into nothing"; the old free zoom below fit (down to the
 board's 2%, the window a speck on an empty stage) was "the in-between behavior … pretty disorienting".
 
@@ -757,12 +757,12 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
 - **Resistance.** A gesture (or wheel spin) that reaches fit from above stops there and shows nothing; only a new
   gesture started at the floor fills the band. A press of − that reaches fit stops there. A held − (key repeat) never
   fills or leaves. Nothing moves while a gesture is held at the floor and nothing springs back after it: below the
-  threshold the view stays fitted (Elena's rule: nothing moves unless she moved it).
-- **The landing** (`landOnCard`). The reader closes onto the board view she opened it from, its zoom and position, as
+  threshold the view stays fitted (the owner's rule: nothing moves unless the user moved it).
+- **The landing** (`landOnCard`). The reader closes onto the board view the user opened it from, its zoom and position, as
   Up and Escape do, with the item's card selected (`graph.selectOnly`) and focused (`focusBoardItem`), whatever
   opened the reader, so Enter opens it again (and Escape then returns to the same view); the announcement says so. If
-  the card isn't in that view (less than 85% of it showing: she stepped to another item), the zoom stays and the card is
-  centred. With no board view of hers (a direct link `#items/…` or Home, where the reader opens as the page loads,
+  the card isn't in that view (less than 85% of it showing: the user stepped to another item), the zoom stays and the card is
+  centred. With no board view of the user's (a direct link `#items/…` or Home, where the reader opens as the page loads,
   `readerWithoutBoardView`), the board's opening zoom, never above 100%, with the card centred. In one step: no glide,
   no pulse, nothing zooms in (an earlier version sized the card to the window and zoomed compact cards to 400–530%). The
   rest of a pinch or wheel run lands on the board and keeps zooming it out. When the item has no card on this board (a
@@ -789,10 +789,10 @@ board's 2%, the window a speck on an empty stage) was "the in-between behavior �
   leaves it for the board around it, landing on its card. Figma and Miro: the canvas zooms as one continuous plane, and
   zooming to a frame (zoom to selection) is a place on it, not a separate page. Full-screen modes (macOS, browsers,
   YouTube, Quick Look): a pressed toggle, the same control or Escape to leave. Expand follows that; its "zoom out is off"
-  is Elena's own rule.
+  is the owner's own rule.
 
-**Boards: zooming out goes to the parent.** Elena (2026-11-23): "zooming out of a board should go to its parent yes."
-A board opened as its own page has the same floor and the same gate (`zoomOutGate`), so she learns it once:
+**Boards: zooming out goes to the parent.** the owner (2026-11-23): "zooming out of a board should go to its parent yes."
+A board opened as its own page has the same floor and the same gate (`zoomOutGate`), so the user learns it once:
 
 - **The floor** (`measureBoardFloor`, `boardContentBox`, `boardZoomFloor`): the zoom at which the content itself (cards
   and drawn elements, as the map measures them; not the world box, which keeps a minimum frame) fits the fit area with
@@ -804,25 +804,25 @@ A board opened as its own page has the same floor and the same gate (`zoomOutGat
   would leave much of the board off screen with no way to zoom further. Over the last stretch, from twice the floor
   down to it, each zoom-out step also draws the view towards the floor view (the content centred in the fit area), in
   proportion to the step, so the floor shows all of the board wherever the pointer was, as Photos and Preview settle a
-  picture centred as it reaches fit. It is movement made by her own zoom input, frame for frame; nothing runs after
-  she stops. It reads nothing (the target is measured with the floor, before the view is written). Every zoom-out path
+  picture centred as it reaches fit. It is movement made by the user's own zoom input, frame for frame; nothing runs after
+  the user stops. It reads nothing (the target is measured with the floor, before the view is written). Every zoom-out path
   settles: wheel, pinch (a touch pinch takes the point now under the fingers after each pull), −, the button, the map,
   the slider, presets and 0. The suite checks every card is inside the view at the floor, at 1440 and 390, the pointer
   at the centre and in a corner. The floor view is the content's own frame, not Fit board's (world box) view, which can
   differ by its minimum frame.
 - **The threshold and resistance** are the opened item's, with the same leave band: a wheel or pinch gesture that
   reaches the floor stops there, a press of − that reaches it stops, a held − never leaves; at the floor a pinch a
-  third smaller, or two steps (presses, notches), leave. Every zoom-out she makes goes through `boardZoomTarget`: Control-wheel and
+  third smaller, or two steps (presses, notches), leave. Every zoom-out the user makes goes through `boardZoomTarget`: Control-wheel and
   pinch over the board or its chrome, Safari's gesture events, a two-finger touch pinch (now by each move's change in
   spread, the first board point still under the fingers), − and the pill's −, the map's zoom keys and wheel. The slider,
   the presets and 0 never go below the floor (`boardZoomAtLeast`); a preset below it is `aria-disabled`, as in the
   reader. Fit, Fit selection, the map's Fit, Z / F box zoom, Back and the app's own reveals are unchanged and never land
   below the floor. Free zoom below the floor is gone. No Expand on a board page: a board already is the screen.
-- **Where it goes** (`zoomOutTarget`): the parent she entered this board from (the tile she came through, or `?from=`),
+- **Where it goes** (`zoomOutTarget`): the parent the user entered this board from (the tile the user came through, or `?from=`),
   else the parent in its path (the path menu's: the first route from Home), else the first board showing its owner item.
-  A board on Home that she didn't enter from a parent goes Home. The parent's own `?from=` is carried on when the
+  A board on Home that the user didn't enter from a parent goes Home. The parent's own `?from=` is carried on when the
   parent is the one in the path.
-- **Landing on the parent** (`readZoomLanding`, `landFromZoomOut`, `landOnCard`): in the view she entered this board
+- **Landing on the parent** (`readZoomLanding`, `landFromZoomOut`, `landOnCard`): in the view the user entered this board
   from (saved with the tile by `navigate`, restored before the first paint like a Navigator return), else the parent's
   opening view at 100% at most, centred on this board's card; the card selected and focused, centred if it isn't in the
   view; Enter goes back in. The canvas stays `visibility: hidden` from the start of the page load until the landing is
@@ -830,20 +830,20 @@ A board opened as its own page has the same floor and the same gate (`zoomOutGat
 - **Landing on Home** (`WorkspaceHome.landFromZoomOut`): the board's tile selected and focused, scrolled into view only if
   off screen, in the same task as Home's first render. Why Home rather than stopping: Home is the place above a top-level
   board in the path (Home › Board), and the alternative, a floor that never leaves, would make the same input do two
-  different things depending on depth; "zooming out into nothing" is what she named as disorienting, and Home is
+  different things depending on depth; "zooming out into nothing" is what the user named as disorienting, and Home is
   something.
-- **No cascade.** A gesture still running when she arrives (from a child board after the page load, or on the board
+- **No cascade.** A gesture still running when the user arrives (from a child board after the page load, or on the board
   after leaving an opened item) carries on as one that reached the floor from above (`zoomOutGate().hold()`): it zooms
   the new place down to its floor and stops there. Only a new gesture goes up again.
 - **The − button at the floor** is named for where it goes, "Zoom out to <parent>" or "Zoom out to Home", in its
   accessible name and its hint (looked up only as the view reaches or leaves the floor).
-- **Kept as they are, to watch in her hands-on pass** (review 2026-11-23): ⌘-scroll at the floor leaves as Control-scroll
+- **Kept as they are, to watch in the owner's hands-on pass** (review 2026-11-23): ⌘-scroll at the floor leaves as Control-scroll
   does (one model for both modifiers); landing selects the card, so the selection bar shows, as after leaving an opened
   item; a press-and-hold of − that starts at the floor shows the band on its first keydown (a press is a press; the
   repeats never fill or leave).
 
 **The leave band** (`leave-band.js`, `calm.css` `.leave-band`; the gate's `progress` in `canvas-zoom.js`;
-`showLeaveBand`, `clearLeave` in `canvas.js`). Elena (2026-11-24): "the boards feel like they snap or glitch back to
+`showLeaveBand`, `clearLeave` in `canvas.js`). The owner (2026-11-24): "the boards feel like they snap or glitch back to
 board view rather than being an actual part … maybe suggest a thin accent color band around the edge of the screen that
 expands and increases opacity until the threshold is reached, at which point the zoom behavior takes over."
 
@@ -852,7 +852,7 @@ expands and increases opacity until the threshold is reached, at which point the
   transition or pulse. One on the board page (above the canvas and chrome, `z-index` below the top layer), one inside
   the opened item's dialog. `pointer-events: none`, `aria-hidden`, `contain: strict`. It means "go on and you go up".
 - **What drives it**: the zoom-out gate's `progress` (0 to 1), nothing else. Progress is how far the current gesture is
-  past the floor (pinch: ln(floor / zoom asked for) over `LEAVE_FILL`), plus half per step. At 1 she leaves and it goes.
+  past the floor (pinch: ln(floor / zoom asked for) over `LEAVE_FILL`), plus half per step. At 1 the user leaves and it goes.
   One pinch, trackpad-scroll or Safari gesture event adds at most a fifth (`LEAVE_EVENT_MAX`), so the band shows for
   four events and the fifth leaves, however brisk the pinch (a fast Chrome pinch sends 30 px a frame, which filled three
   quarters in one event and left on the second).
@@ -860,13 +860,13 @@ expands and increases opacity until the threshold is reached, at which point the
   when it is empty does the reverse zoom in. Fingers lifting below the threshold drop it at once (touch `pointerup`,
   Safari `gestureend`). **On Chrome a lifted pinch leaves the band visible, still, until the pointer or a key moves**:
   Chrome reports a trackpad pinch as Control-wheel events and sends nothing when the fingers lift, and clearing it after
-  a silence would be the band moving with no input from her. Her next input clears it (a pointer move, also over the
+  a silence would be the band moving with no input from the user. The user's next input clears it (a pointer move, also over the
   opened item's content frames; a click; a key other than the zoom keys and modifiers; a pan; leaving the window), and a
   new pinch after the pause starts the band from that pinch's own progress (the gate's new-gesture rule). A step (−, the − button, a notch) shows it half way and
   it stays, still, until the next step leaves; + empties it without zooming; any other input (a click, a pan, another
   key, leaving the window: `clearLeave`) clears it. A gesture or spin that arrives at the floor, a held −, Expand, and a
   gesture still running after leaving the place below (`hold`) show nothing.
-- **Why two steps.** With one, a notch or press at the floor would leave with the band never seen, the snap she
+- **Why two steps.** With one, a notch or press at the floor would leave with the band never seen, the snap the user
   described. Keyboard and pointer agree: every step input takes two at the floor, the first one shown.
 - **Why a third, and the 300 ms rule kept.** A fifth (the old threshold) is about 22 units of Chrome pinch delta, too
   short to see a band grow and reverse; a third is about 40, a short deliberate pinch. The 300 ms gap stays as the
@@ -876,12 +876,12 @@ expands and increases opacity until the threshold is reached, at which point the
 - **Screen readers.** The band is hidden; its appearance is announced once per gesture, politely: "Zoom out again to go
   up to <parent>" (or Home) on a board, "Zoom out again to go back to the board" in an opened item; the − button at the
   floor already names where it goes.
-- **Reduced motion.** Unchanged: it moves only with her input, so it is not animation the setting asks to remove.
+- **Reduced motion.** Unchanged: it moves only with the user's input, so it is not animation the setting asks to remove.
 - **Cost** (`showcase-dense` at its floor, Control-wheel at a fixed 60 Hz filling and emptying the band, three rounds):
   wheel handler 0.09–0.10 ms, style recalc 0.08 ms per frame (the band's five elements), paint 0.01 ms, one layout in
   the whole run (its first showing, 0.24–0.33 ms), EventLatency 31–35 ms. Probe `team/ux/leave/lperf.mjs`.
 - **The moment of leaving.** The band makes the threshold legible; the page change for board → parent is still a page
-  load (the canvas hidden until its landing, then the parent in the view she entered from). Not built: landing the
+  load (the canvas hidden until its landing, then the parent in the view the user entered from). Not built: landing the
   parent zoomed in so the child's card sits where the board was would be the zoom "taking over", but it zooms the
   parent in (the item landing was moved away from exactly that, 2026-11-23), and a real continuous zoom across boards
   needs the parent rendered in the same page: a navigation rework.
@@ -972,7 +972,7 @@ Board (the Keyboard shortcuts sheet, `keyboardShortcuts()`; handlers in `workspa
 | E | Edit the selected (or focused) Markdown document |
 | C, ⇧C | Comment tool (Enter or Space on a focused item drops the pin), show or hide comments |
 | N | Quick jot |
-| P | Point and type (`pointing-mode.js`): inside it ⌥/Alt + M · L · W · P pick Marquee · Lasso · Wand · Point; ⌥/Alt + [ · ] make the wand narrower, wider; ⌘ (Ctrl off a Mac) held while pointing takes exactly what she drew (no snapping); ⌥/Alt + R points at the selection (else the item that had focus); ⌥/Alt + = · − · 0 · 1 zoom in, out, 100%, fit; Enter sends (never while the @ list is open); Escape leaves |
+| P | Point and type (`pointing-mode.js`): inside it ⌥/Alt + M · L · W · P pick Marquee · Lasso · Wand · Point; ⌥/Alt + [ · ] make the wand narrower, wider; ⌘ (Ctrl off a Mac) held while pointing takes exactly what the user drew (no snapping); ⌥/Alt + R points at the selection (else the item that had focus); ⌥/Alt + = · − · 0 · 1 zoom in, out, 100%, fit; Enter sends (never while the @ list is open); Escape leaves |
 | ? | Keyboard shortcuts |
 | Shift+F10, context-menu key | Card menu on a focused card; board menu on the focused canvas |
 | ⌥ / Alt + F10 | The drawn-object bar, from anywhere outside a field (`whiteboard.js` `focusBarKey`); Escape on the bar returns to its object |
@@ -1305,7 +1305,7 @@ opener, Tab out continues after it (`tabTrigger`); the opener counts as part of 
 **Vote ballot.** `feedback.js`: a non-modal Popover (`#feedback-ballot-popover`, content `.feedback-ballot`) under the
 Vote button that opened it (a card's strip, the item Inspector, the reader Inspector). Yes / No / Abstain is a
 single-choice `ui-toggle-group` (`choiceHTML`), because every vote writes at once and a radio group's arrows would vote
-as they move: one Tab stop, arrows move without voting, Space/Enter votes. Focus opens on her vote, else Yes; Escape and
+as they move: one Tab stop, arrows move without voting, Space/Enter votes. Focus opens on the user's vote, else Yes; Escape and
 × return to the opener; a press on the Vote button toggles it. Built once per opening and updated in place, so focus
 stays as the vote saves; a choice made while one saves waits, and the latest wins.
 
@@ -1368,7 +1368,7 @@ previous / next item (approved), so the arrows have two jobs, and the view decid
 and Windows Photos: while all of the item is in view (at fit, or zoomed out, or zoomed in on something small that still
 fits), ← / → step; once part of it is out of view, every arrow pans towards the part it points at, 80 px a press (the
 board's arrow pan) and a screenful with Shift, and a held arrow keeps panning. While zoomed they never step, not even
-at an edge: a pan run to the edge that then jumped to another item would move something she didn't ask to move, and
+at an edge: a pan run to the edge that then jumped to another item would move something the user didn't ask to move, and
 a held arrow would race past it. Stepping stays at any zoom on [ ] / J K / ⌥ ← →, and F (or zooming out until it fits)
 gives ← / → their step back. Keys only on fribblr's own canvas and chrome (`readerTinkaFocus`); content, fields and
 toolbars keep their arrows. The canvas's `aria-label` and the Keyboard shortcuts sheet say so. Fit's window has no
@@ -1407,7 +1407,7 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   `onChoose`); the chosen tool gets `data-height="raised"` so it is a raised key that is on, as on the rail. Letters
   that are dead keys on a Mac (E, I, N, U) or browser menus off one (Alt + D, E, F, H, S, T, V, B) are not taken.
 - A click with any tool (no drag) points at the whole thing under it (`pointTarget`: `whole: true` and the `spot`
-  clicked); a part needs a marquee or lasso drag. Each part or spot on a card also carries `content`, where she pointed
+  clicked); a part needs a marquee or lasso drag. Each part or spot on a card also carries `content`, where the user pointed
   in the item's own coordinates (`contentOf`): an HTML page in CSS px at the width the card renders it (the frame's
   layout width, plus its scroll), an image in px of its file (object-fit mapped as the crop does), anything else as
   fractions of `.workspace-card-preview`; none when the gesture misses the content area. Text counts where its words
@@ -1428,7 +1428,7 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
 - The Wand's look: glitter, never glow. Hard-edged flecks (whole device pixels, about 1.5 CSS px) at the cells whose
   rank in a 64 × 64 blue-noise table is under the cell's strength, a denser rim on the area's edge, the sparsest
   ranks as four-point sparkles; colours `--wand-ink` (the mark red), `--wand-pale`, `--wand-star` (pointing.css,
-  from tokens). While casting, newly swept cells sparkle denser for 280 ms after her motion and settle; the settled
+  from tokens). While casting, newly swept cells sparkle denser for 280 ms after the user's motion and settle; the settled
   flecks are kept on a canvas of their own and only changed cells are drawn again. Committed, a mark is a still
   `<canvas class="pointing-swath">` in world units (`image-rendering: pixelated` between a zoom and its redraw at the
   new zoom, 160 ms after the zoom settles), the same sites the sheet drew. Moving without the button, the cursor is a
@@ -1437,10 +1437,10 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   item draws its glitter on the client crop too (`imageCrop` `overlay`).
 - Snapping (`pointing-snap.js`), every tool: a marquee, lasso or wand area that mostly covers every thing it hit
   (half of each, the wand 40 % or along) is tidied to their outline (`objectSnap`: cards, drawings, containers, text
-  by its words, arrows by their line); a part, a mix, or a thing that is a speck in a big gesture is not. While she
+  by its words, arrows by their line); a part, a mix, or a thing that is a speck in a big gesture is not. While the user
   drags, the outline it will snap to is drawn solid with marked corners in place of the per-thing outlines; holding
-  ⌘ (Ctrl off a Mac; Keynote, tldraw, Miro, Figma turn off snapping with the same key) takes exactly what she drew, at
-  once, and letting go brings the snap back. A snapped mark keeps her raw `shape` and adds `snap: {source, label,
+  ⌘ (Ctrl off a Mac; Keynote, tldraw, Miro, Figma turn off snapping with the same key) takes exactly what the user drew, at
+  once, and letting go brings the snap back. A snapped mark keeps the user's raw `shape` and adds `snap: {source, label,
   shape}`; its targets, regions and the board's drawing follow the snap (a wand mark's glitter settles into the
   snapped outline, a dense band inside its edge and a light dusting within). The chip's hint ends "snapped to the …".
   Sources inside one card plug in with `board.pointing.addSnapSource(source, {space, map})` (the request is
@@ -1448,7 +1448,7 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   `refreshSnap()` for a source that answers later); the best proposal over `SNAP_MIN` wins.
 - A click (no drag) with any tool is recorded as `tool: "click"` with the active tool in `via`.
 - Keyboard-only: ⌥R (and the bar's Point at the selection key, `aria-keyshortcuts="Alt+R"`, `aria-disabled` with
-  nothing to point at) makes one whole mark over the board's selection, else the item that had focus when she entered;
+  nothing to point at) makes one whole mark over the board's selection, else the item that had focus when the user entered;
   the @ list's first group is that selection (`attachPicker` `first()`), and an @ name may hold spaces (the list stays
   open while it matches and closes once a space has made it match nothing). A mark made by keys that is off screen is
   brought into view (`hooks.revealPlacements`). ⌥ + = · − · 0 · 1 zoom (`hooks.zoomKey`, `canvas.js`); inside the mode
@@ -1475,15 +1475,15 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
 - Marks live in `.pointing-marks`, a layer re-appended to `#world` after each render (a `childList` observer on
   `#world`, not per card); strokes are `vector-effect: non-scaling-stroke` and numbers scale by `1 / --canvas-zoom`.
   The live gesture is drawn on the sheet in rAF; nothing is drawn per card.
-- Colour: the marks and their numbered chips are her red (`--mark-red`); the words she types are ordinary `--ink`,
+- Colour: the marks and their numbered chips are the user's red (`--mark-red`); the words the user types are ordinary `--ink`,
   in the composer and in the sent thread card (`.pointing-words`).
 - Marks follow what they point at (`geometry`, redrawn from `syncGeometry` on every render and drag frame): nothing
-  moved, the shape as drawn; one target moved or resized, the drawn shape carried with it (from its saved box when she
+  moved, the shape as drawn; one target moved or resized, the drawn shape carried with it (from its saved box when the user
   pointed, or the server's `placed` box for a sent one); otherwise each target where it is now, whole ones outlined,
   parts as their `region`. Every target gone: the drawn shape plain and dashed in `--ink-2`, its number labelled
   Deleted (some gone: "1 of 3 deleted"); the chip turns plain too. Empty-space marks are board positions and stay.
 - The composer is `[data-live-safe]`: a field outside the board that a render cannot disturb, so the board keeps
-  taking an agent's changes while she types (`canvas.js` and `liveBlocked` otherwise hold live updates while any
+  taking an agent's changes while the user types (`canvas.js` and `liveBlocked` otherwise hold live updates while any
   field has focus).
 - A mark's number is one past every mark of the draft, deleted ones too (Undo can bring a chip back), so no number is
   on screen twice; sending numbers them 1..n. At 20 marks a new one is not taken and the bar's line says why; a message
@@ -1491,10 +1491,10 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
 - The unsent draft is kept per board for the session (`sessionStorage` `tinka/pointing-draft/<board>`: the composer's
   markup, marks, typing times, whether the mode was on), so leaving the page and coming back loses nothing; a message
   still sending as the page went comes back unless the server has a thread with its `startedAt`.
-- Send never waits: the message leaves the composer at once (she can write the next), goes in order behind any still
+- Send never waits: the message leaves the composer at once (the user can write the next), goes in order behind any still
   sending, and a quiet line on the bar's top edge (`.pointing-status`, `role=status`) says Sending…; after it, the
   empty composer's placeholder says it went. A failure puts the message back (words, chips, marks; before a new one
-  she has started, renumbered) and the line says why. A mark on one image item carries `crop.dataUrl` cut from the
+  the user has started, renumbered) and the line says why. A mark on one image item carries `crop.dataUrl` cut from the
   item's own file at full resolution (`imageCropFull`); the server renders the rest. `pointing.appearance` is the
   board's look.
 - A sent message is a feedback thread with `pointing` (`team/pointing/CONTRACT.md`). Its card renders the sentence
@@ -1504,14 +1504,14 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   (`sentScreenBox`, `comment-thread.js` `withMarks`) while that fits beside it, so it sits clear of them; a click's
   pin goes at the outline's top-right.
 - Keys typed while focus is on the map or a side panel (not in one of its fields or menus) are letters for the
-  composer; the caret is kept at each input and as focus leaves, so they land where she left off.
+  composer; the caret is kept at each input and as focus leaves, so they land where the user left off.
 - Sources inside items (wired in `wireSources`): the DOM source (`pointing-snap-dom.js`, with `pageMapping`; elements in
   same-origin pages, on live cards and in the opened item) and the pixel source (`pointing-snap-pixels.js`, edges in
   image items' pictures, in a worker). Each is prepared on first hover of a card (and on pointing inside an item). The
   DOM source is asked on hover too: the element a click would name is outlined, dashed, before the click (a card
   outline otherwise). The pixel source answers late: a release waits for it at most 120 ms (`LATE`), gestures commit
   in the order made, and the chip goes where the caret was at release. Precedence on a card: a part a source found
-  (score ≥ 0.5) beats the whole card when her gesture lies inside the card (80 % of its bounds) and the part is under
+  (score ≥ 0.5) beats the whole card when the user's gesture lies inside the card (80 % of its bounds) and the part is under
   60 % of the card; otherwise the best score wins, usually the board-object snap. A part found on a card labels the
   chip with what it is (`heading "Two"`) and the sent body with `… in <card>`. Board cards that cannot be read: board
   covers (`sandbox="allow-scripts"` frames, opaque by design), cards drawn as a picture, title art or an inline document
@@ -1528,7 +1528,7 @@ a bar where the rail was (`section.pointing-bar`, `data-height="float"`) and a `
   reader's zoom, the layer's transform the content's scroll, `--pointing-k` keeps badges their size). Every target is
   the item's placement with `content` (px, `of` names the coordinates and, for video and audio, the play time), the
   snapped `element` / `elements`, and in documents and notes a `text` range (the snapped block's words, else the words
-  her gesture covers, cut words whole, `textRangeIn`). An opened image's marks are cropped in the browser from its
+  the user's gesture covers, cut words whole, `textRangeIn`). An opened image's marks are cropped in the browser from its
   file round the mark (`imageFileCrop`); other kinds are rendered by the server from `place.view` (frame size on
   screen, zoom, scroll) and `place.version` (the version stack id shown). Zooming out never leaves the item while
   pointing (`ReaderCanvas.locked`; the − says "leave Point and type first"); Escape: a gesture, the @ list, then the
@@ -1574,7 +1574,7 @@ Archive/Restore; Enable flexible boards). The Keyboard shortcuts sheet is a `mak
 | Native radio fieldsets (`workspace-choice-pills`) | Native radios are already one Tab stop with arrows that check. |
 | `<iframe title>` | The frame's accessible name, not a hint. |
 | `return-mark.js` | The "Back to fribblr" chip the server adds to a project's own HTML page runs in a closed shadow root on a page fribblr didn't build and touches nothing else there, so it doesn't load the SDK. |
-| The notes column | Already behaves as a non-modal Dialog; converting changes nothing she can feel. |
+| The notes column | Already behaves as a non-modal Dialog; converting changes nothing the user can feel. |
 | Toolbars inside cards | `role=toolbar` roving markup, not `ui-toolbar`: no element or binding per card (§ Board canvas, § 6). |
 | Sticker grid focus | `createGridFocus` moves real focus, which the search field could not share; the grid uses `aria-activedescendant` with the same keys. |
 | The legacy Home shelf (`home.js`, organization off) | Unchanged upstream markup. |

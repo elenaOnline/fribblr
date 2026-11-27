@@ -177,7 +177,7 @@ html[data-appearance=dark] .text-format-fill-preview { background:var(--preview-
   width:20px;
   height:20px;
   place-items:center;
-  border-radius:var(--shape-cap);   /* paint chips: she paints with these, so they are samples, not marks */
+  border-radius:var(--shape-cap);   /* paint chips: the user paints with these, so they are samples, not marks */
   box-sizing:border-box;
 }
 .text-format-swatches [data-swatch]>span {

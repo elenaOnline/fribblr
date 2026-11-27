@@ -1,7 +1,7 @@
 // Headless check: an opened Tinka's fitted view is the floor of its zoom. Zooming out at the floor goes back to the board
 // it lives on, by every input at the same threshold (one zoom step below fit): a wheel notch, a Control-wheel or pinch
 // gesture that would shrink it by a fifth, − and the pill's − button. A gesture that reaches fit from above stops there; a
-// held − never leaves. The board comes back as she opened it from (or, when the card isn't in that view, at that zoom with
+// held − never leaves. The board comes back as the reviewer opened it from (or, when the card isn't in that view, at that zoom with
 // the card centred), the card selected and focused; Enter opens it again, and Escape then returns to the same view. Expand fills the stage (past 100%), makes the floor a wall (− aria-disabled, nothing zooms out or leaves),
 // and ends by its toggle, by the path (Up) or by Escape, one layer. The same for an item that owns a board, after
 // stepping, and from a direct link. External fixtures only (ui-sdk.md § Opened item).
@@ -63,8 +63,8 @@ try{
  const newGesture=()=>page.waitForTimeout(400);  // longer than GESTURE_GAP
  // The opened item's leave band (inside its dialog): opacity and the top strip's scale (its width over the 12 px maximum).
  const band=()=>page.evaluate(()=>{const b=document.querySelector('#reader-dialog .leave-band');if(!b)return {opacity:0,scale:0};const top=b.querySelector('[data-edge="top"]');return {opacity:+(+getComputedStyle(b).opacity).toFixed(3),scale:+(+new DOMMatrix(getComputedStyle(top).transform).d).toFixed(3)};});
- // The landing: the board, the card selected, focused and in view. 'same': the board view she opened from, unchanged.
- // 'centred': that view's zoom, the card centred (it wasn't in that view). 'direct': no board view of hers, the board's
+ // The landing: the board, the card selected, focused and in view. 'same': the board view the reviewer opened from, unchanged.
+ // 'centred': that view's zoom, the card centred (it wasn't in that view). 'direct': no board view of the reviewer's, the board's
  // opening zoom (never above 100%), the card centred. Nothing zooms in.
  const sheetBox=()=>page.locator('#reader-window').boundingBox();
  const landed=async(id,expect,label,zoomBefore)=>{
@@ -75,11 +75,11 @@ try{
   ok(s.selected,`${label}: the card is selected on the board`);
   eq(s.focus,id,`${label}: focus is on the card`);
   ok(s.inView,`${label}: the card is in view`);
-  if(expect==='same')eq(await boardView(),opened,`${label}: the board is the view she opened it from`);
+  if(expect==='same')eq(await boardView(),opened,`${label}: the board is the view the reviewer opened it from`);
   else{
    ok(s.dx<3&&s.dy<3,`${label}: the card is centred (${s.dx.toFixed(1)}, ${s.dy.toFixed(1)} px off)`);
    const z=await boardZoom();
-   if(expect==='centred')ok(Math.abs(z-zoomBefore)<1e-3,`${label}: the zoom she opened from stays (${z.toFixed(3)})`);
+   if(expect==='centred')ok(Math.abs(z-zoomBefore)<1e-3,`${label}: the zoom the reviewer opened from stays (${z.toFixed(3)})`);
    else ok(z<=1+1e-6,`${label}: the board's opening zoom, never above 100% (${z.toFixed(3)})`);
   }
  };
@@ -125,7 +125,7 @@ try{
  ok(b1.opacity>0&&b2.opacity>b1.opacity&&b2.scale>b1.scale,`The band grows with the pinch (${b1.opacity.toFixed(2)} → ${b2.opacity.toFixed(2)})`);
  await ctrlWheel(-8);const b3=await band();
  ok(b3.opacity<b2.opacity&&Math.abs(b3.opacity-b1.opacity)<.01,'Reversing the pinch makes it recede');eq((await plane()).zoom,fit.zoom,'…before anything zooms in');
- // Chrome sends no pinch end: a lifted pinch leaves the band as it was, still, until her next input.
+ // Chrome sends no pinch end: a lifted pinch leaves the band as it was, still, until the reviewer's next input.
  await newGesture();eq(await band(),b3,'A pause changes nothing: the band stays still');
  await ctrlWheel(8);eq(await band(),b1,'A new pinch after the pause starts from its own progress');
  await newGesture();await page.mouse.move(cx+6,cy);eq((await band()).opacity,0,'Moving the pointer clears it');
@@ -245,7 +245,7 @@ try{
  await expand.click();await page.locator('#reader-path').click();
  await page.locator('#reader-path-pop [data-path-go="up"]').click();await page.locator('#reader-dialog').waitFor({state:'hidden'});checks++;
 
- // (7) Stepping to a card outside the view she opened from, then zooming out: that zoom, the card centred.
+ // (7) Stepping to a card outside the view the reviewer opened from, then zooming out: that zoom, the card centred.
  await board();
  const imageBox=await card(imageId).boundingBox();await page.mouse.move(imageBox.x+40,imageBox.y+40);
  for(let i=0;i<3;i++)await ctrlWheel(-100);await page.waitForTimeout(200);

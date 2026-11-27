@@ -7,7 +7,7 @@
 //    taints the canvas and gives null.
 // 2. TabCapture: the browser's capture of this tab (getDisplayMedia with
 //    preferCurrentTab). One permission prompt when started, a sharing indicator
-//    while running, and the exact pixels she sees, grabbed at the moment a
+//    while running, and the exact pixels the user sees, grabbed at the moment a
 //    gesture completes. Chromium only in practice (see CROP.md).
 //
 // Both return {dataUrl, width, height, from} or null; the caller sends null as
@@ -21,7 +21,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // the contract's limit for a client crop
 // or omitted for the whole card. Returns the part of the image inside it.
 // `source`: the same picture at a higher resolution (the item's file when the
 // card shows a smaller preview); the card's <img> still gives the layout.
-// `overlay(ctx, toCrop)`: drawn over the picture (the wand's glitter, so the crop shows the area she pointed at);
+// `overlay(ctx, toCrop)`: drawn over the picture (the wand's glitter, so the crop shows the area the user pointed at);
 // toCrop(clientX, clientY) gives that screen point's place in the crop's pixels.
 export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = null, overlay = null} = {}) {
   const img = card?.querySelector?.('.workspace-card-preview img');
@@ -91,8 +91,8 @@ export async function imageCropFull(card, region, fileUrl, overlay = null) {
 }
 
 // A mark made inside an opened image (pointing-reader.js): the picture's own file, cut round `shape` (the snapped
-// outline, else her gesture; image px of the file) with a margin of a quarter of its size, at the file's resolution,
-// with the outline drawn on it in her red (`red`), the spot she clicked as a dot (`gesture` a point), or the wand's
+// outline, else the user's gesture; image px of the file) with a margin of a quarter of its size, at the file's resolution,
+// with the outline drawn on it in the user's red (`red`), the spot the user clicked as a dot (`gesture` a point), or the wand's
 // area as glitter (`swath(ctx, toCrop, k)`). Same origin only; a vector picture is drawn at 2×.
 export async function imageFileCrop(fileUrl, shape, {gesture = null, swath = null, red = '#B33830'} = {}) {
   const img = new Image(); img.src = fileUrl;
@@ -127,7 +127,7 @@ export async function imageFileCrop(fileUrl, shape, {gesture = null, swath = nul
     for (const q of [0.92, 0.85, 0.75]) { if (dataUrl.length * 0.75 <= MAX_BYTES) break; dataUrl = canvas.toDataURL('image/jpeg', q); }
     if (dataUrl.length * 0.75 > MAX_BYTES) return null;
     return {dataUrl, width: canvas.width, height: canvas.height,
-      from: `natural pixels ${sx},${sy} ${sw}×${sh} of ${nw}×${nh}${k !== 1 ? `, ${k < 1 ? 'scaled down' : vector ? 'drawn' : 'enlarged with hard edges'} to ${canvas.width}×${canvas.height}` : ''}; her mark drawn in red`};
+      from: `natural pixels ${sx},${sy} ${sw}×${sh} of ${nw}×${nh}${k !== 1 ? `, ${k < 1 ? 'scaled down' : vector ? 'drawn' : 'enlarged with hard edges'} to ${canvas.width}×${canvas.height}` : ''}; the mark drawn in red`};
   } catch { return null; }
 }
 
@@ -157,7 +157,7 @@ export class TabCapture {
     try { controller?.setFocusBehavior?.('no-focus-change'); } catch {}
     const track = this.stream.getVideoTracks()[0];
     track.addEventListener('ended', () => { this.stream = null; this.onended?.(); });
-    // Only this tab: if she picked a window or screen (Safari, Firefox), the
+    // Only this tab: if the user picked a window or screen (Safari, Firefox), the
     // frame is not the page and a crop by page coordinates would be wrong.
     const surface = track.getSettings().displaySurface;
     if (surface && surface !== 'browser') { this.stop(); throw new Error(`Captured a ${surface}, not this tab.`); }

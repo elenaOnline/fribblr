@@ -8,7 +8,7 @@ html[data-appearance="dark"] .workspace-decoration { --decoration-color:var(--de
    overlay (ports, pins, guides, drop markers) stays above all content. */
 .whiteboard-shape { background:transparent !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; }
 .whiteboard-silhouette { position:absolute; inset:0; width:100%; height:100%; fill:var(--decoration-color); stroke:var(--decoration-stroke,color-mix(in srgb,var(--decoration-color),var(--decoration-ink) 18%)); stroke-width:1; overflow:visible; pointer-events:none;  }
-.whiteboard-shape .workspace-decoration-label { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; text-align:center; white-space:pre-wrap; color:var(--decoration-ink); padding:16px; font:400 20px/1.4 var(--type-sans); }  /* her text size: Small 15, Medium 20, Large 28 (as upstream) */
+.whiteboard-shape .workspace-decoration-label { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; text-align:center; white-space:pre-wrap; color:var(--decoration-ink); padding:16px; font:400 20px/1.4 var(--type-sans); }  /* the user's text size: Small 15, Medium 20, Large 28 (as upstream) */
 .shape-rectangle .workspace-decoration-label { align-items:flex-start; justify-content:flex-start; text-align:left; padding:20px; }
 .shape-diamond .workspace-decoration-label { padding:20% 24%; }
 .shape-ellipse .workspace-decoration-label { padding:15% 20%; }
@@ -133,7 +133,7 @@ html[data-appearance="dark"] .workspace-board .workspace-decoration.decoration-t
 }
 #world .workspace-decoration.decoration-region:not(.whiteboard-shape) > [data-empty-area-label] { display:none; }
 /* A container is a tray cut into the ground (sunken, depth.css): what it holds stands in it at its own height, so depth
-   means "inside". The floor is a step down from the ground, or from her hue (theme-colors.js trayFloor); the rim is the
+   means "inside". The floor is a step down from the ground, or from the user's hue (theme-colors.js trayFloor); the rim is the
    cut's wall, a step below the floor. Typing in a block inside it never underlines the tray. */
 #world .workspace-decoration.whiteboard-container {
   --sink-d: var(--depth-tray);
@@ -142,7 +142,7 @@ html[data-appearance="dark"] .workspace-board .workspace-decoration.decoration-t
   --sink-focus: transparent;
   border:0;
 }
-/* a tray in one of her palette hues says it on its rim: the cut's wall takes some of the hue's own ink */
+/* a tray in one of the user's palette hues says it on its rim: the cut's wall takes some of the hue's own ink */
 #world .workspace-decoration.whiteboard-container[data-named-color] {
   --sink-rim: color-mix(in oklab, var(--decoration-stroke) 45%, oklch(from var(--decoration-color) calc(l - .075) c h));
 }
@@ -334,7 +334,7 @@ html[data-appearance="dark"] .whiteboard-markdown-editor { outline-color:color-m
 .workspace-decoration:is(.text-align-center,.text-align-right) .deco-body :is(ul,ol) { display:inline-block; }
 
 /* Smart guides while dragging or resizing: thin accent lines; equal spacing dashed. */
-/* a guide marks where things align while she moves them: the blue mark (upstream fell back to its accent) */
+/* a guide marks where things align while the user moves them: the blue mark (upstream fell back to its accent) */
 .snap-guides { position: fixed; inset: 0; pointer-events: none; z-index: 45; --snap-guide: var(--mark-blue); }
 .snap-guide { position: absolute; display: block; background: var(--snap-guide); }
 .snap-guide.snap-v { width: 1px; }

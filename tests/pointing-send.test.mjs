@@ -1,6 +1,6 @@
 // Pointing messages through the server side (lib/pointing-send.mjs, pointing-files.mjs, pointing-read.mjs): crops are
 // made and written before the thread, cleaned up when the thread cannot be written, a client's own pixels win, bad
-// bytes are refused, the crop route stays inside a thread's folder, and an agent reads her sentence with each
+// bytes are refused, the crop route stays inside a thread's folder, and an agent reads the reviewer's sentence with each
 // reference resolved, including targets that have moved or gone. A fake cropper stands in for the browser; one
 // end-to-end render runs when CHROMIUM_EXECUTABLE is set.
 import test from 'node:test';
@@ -176,7 +176,7 @@ test('a pointing thread written without the server (CLI, tools, an agent) has no
   assert.equal(await exists(pointingRoot(f.config)),false);
 });
 
-test('pointing.read: her sentence with [n], then each mark with what it hit and where that is now',async t=>{
+test('pointing.read: the reviewer sentence with [n], then each mark with what it hit and where that is now',async t=>{
   const f=await fixture(t);
   await addPointingComment(f.config,operation(f,message(f)),{url:'http://127.0.0.1:1/',cropper:fakeCropper()});
   let thread=await threadOf(f),read=thread.pointing.read;
@@ -186,7 +186,7 @@ test('pointing.read: her sentence with [n], then each mark with what it hit and 
   assert.match(lines[2],/Now \(card\): still there, not moved\./);
   assert.match(lines[2],new RegExp(`Crop: ${path.join(f.config.workspaceRoot,'pointing','pt1','1.png').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')} \\(1×1 px; fake render of mark 1\\)\\.$`));
   assert.match(lines[3],new RegExp(`^\\[2\\] point, 3\\.2 s, board landing: card "Hero B" \\(image; placement ${f.hero.placementId}, item ${f.hero.itemId}\\), whole\\. Now \\(card\\): still there, not moved\\.`));
-  assert.match(lines.at(-1),/^Times are seconds after she began typing \(2026-11-24T10:00:00.000Z\)\. Reply in this thread with feedback\.reply\.$/);
+  assert.match(lines.at(-1),/^Times are seconds after the reviewer began typing \(2026-11-24T10:00:00.000Z\)\. Reply in this thread with feedback\.reply\.$/);
   // later: the first card is moved and resized, the second is removed from the board
   await f.op({type:'updatePlacement',boardId:'landing',placementId:f.login.placementId,patch:{x:600,y:40,width:360}});
   await f.op({type:'remove',boardId:'landing',placementIds:[f.hero.placementId]});
@@ -226,7 +226,7 @@ test('pointing.read: a click says where, the content region is given in the item
   let thread=await threadOf(f);
   assert.deepEqual(thread.pointing.marks[1].targets[0].spot,{x:.44,y:.52});assert.deepEqual(thread.pointing.marks[0].targets[0].content,html);
   assert.match(thread.pointing.read,/\[1\].*region x 0\.10–0\.43, y 0\.30–0\.40 of the card's own box \(fractions 0 to 1 from its top left\); in the page \(1280 px wide\): x 120–480 px, y 900–1010 px\./);
-  assert.match(thread.pointing.read,/\[2\].*whole; she clicked at x 0\.44, y 0\.52 of it; in the image \(1200 × 800 px\): at x 528 px, y 416 px\./);
+  assert.match(thread.pointing.read,/\[2\].*whole; the reviewer clicked at x 0\.44, y 0\.52 of it; in the image \(1200 × 800 px\): at x 528 px, y 416 px\./);
   await f.op({type:'updatePlacement',boardId:'landing',placementId:f.login.placementId,patch:{width:360}});
   thread=await threadOf(f);
   assert.match(thread.pointing.read,/resized since \(was x 0, y 0, 300×200; now x 0, y 0, 360×200, in board coordinates; the region is stored as fractions of the box, so after a resize it may not be on the same part of the content; trust the content coordinates given for it\)/);
@@ -285,7 +285,7 @@ test('crop boxes: context grows with the gesture, a whole-object click shows the
   // a click on a whole object: the object with a thin edge
   const click=markBox({n:1,tool:'point',shape:{kind:'point',x:1200,y:700},targets:[{kind:'placement',id:'p1'}]},layout,unit);
   assert.ok(click.x<=1000&&click.x>=1000-30&&click.w>=600&&click.w<=660,JSON.stringify(click));
-  // a board she picked with @ is not found as a placement of the same id
+  // a board the reviewer picked with @ is not found as a placement of the same id
   const picked=markBox({n:1,tool:'keyboard',shape:{kind:'point',x:50,y:50},targets:[{kind:'board',id:'p1'}]},layout,unit);
   assert.deepEqual(picked,{x:50-480,y:50-320,w:960,h:640},'the neighbourhood of the point, not the card of a placement that happens to share its id');
 });
@@ -355,7 +355,7 @@ test('end to end: the server renders the crops of a real board with a headless b
   const response=await post(operation(f,pointing));
   assert.equal(response.status,200,await response.clone().text());
   const marks=(await threadOf(f)).pointing.marks;
-  assert.match(marks[0].crop.from,/her gesture drawn dashed in red \(#B33830\)/);assert.match(marks[1].crop.from,/the spot she clicked marked with a dot in red/);
+  assert.match(marks[0].crop.from,/the gesture drawn dashed in red \(#B33830\)/);assert.match(marks[1].crop.from,/the spot the reviewer clicked marked with a dot in red/);
   for(const mark of marks){
     assert.ok(mark.crop,`mark ${mark.n} has a crop: ${mark.cropNote}`);
     const bytes=await readFile(mark.crop.path);
@@ -421,11 +421,11 @@ test('round 2 pointing.read: a click on a button inside an opened, scrolled page
     snap:{source:'dom',label:'button "Sign in"',shape:{kind:'rect',x:132,y:1220,w:105,h:38}},
     targets:[target(f.login,'Login mock',{element:button,content:{x:132,y:1220,w:105,h:38,unit:'px',of:'page 853 px wide'}})]}));
   const line=(await threadOf(f)).pointing.read.split('\n')[2];
-  assert.match(line,/^\[1\] click \(with marquee\), 0\.9 s, inside the opened item "Login mock" \(item \S+, on board landing, version 3; she had it scrolled to y 900 px of the page, at zoom 150 %, in a frame 1280×720 px\): /);
-  assert.match(line,/Snapped to button "Sign in" \(an element of the page; x 132–237, y 1220–1258 px of the page\)\. What she did before it snapped: a click at x 184, y 1239 px of the page\./);
+  assert.match(line,/^\[1\] click \(with marquee\), 0\.9 s, inside the opened item "Login mock" \(item \S+, on board landing, version 3; the reviewer had it scrolled to y 900 px of the page, at zoom 150 %, in a frame 1280×720 px\): /);
+  assert.match(line,/Snapped to button "Sign in" \(an element of the page; x 132–237, y 1220–1258 px of the page\)\. What was drawn before it snapped: a click at x 184, y 1239 px of the page\./);
   assert.match(line,/On card "Login mock" \(html; placement \S+, item \S+\)\./);
   assert.doesNotMatch(line,/region x|fractions 0 to 1/,'the card\'s own fractions mean nothing inside the item');
-  assert.match(line,/Element: <button> "Sign in"; id signin; selector button#signin; path main > form#login > button#signin; box x 132, y 1220, 105×38 px of the page \(document coordinates, scroll included; the page was scrolled to y 900, so it sat at y 320 in her view\); in the frame \/resources\/work\/login\.html\?tinka=off\./);
+  assert.match(line,/Element: <button> "Sign in"; id signin; selector button#signin; path main > form#login > button#signin; box x 132, y 1220, 105×38 px of the page \(document coordinates, scroll included; the page was scrolled to y 900, so it sat at y 320 in the reviewer's view\); in the frame \/resources\/work\/login\.html\?tinka=off\./);
   assert.match(line,/Now \(card\): still there, not moved\. Crop: /);
 });
 
@@ -449,12 +449,12 @@ test('round 2 pointing.read: click via, the wand and what it covered, snapping t
   const lines=(await threadOf(f)).pointing.read.split('\n').filter(l=>l.startsWith('['));
   assert.match(lines[0],/^\[1\] click \(with lasso\), 0\.1 s, board landing: card "Login mock"/);
   assert.match(lines[1],/^\[2\] click, 0\.2 s, board landing: card "Hero B"/);
-  assert.match(lines[2],/^\[3\] wand, 1\.0–2\.5 s, board landing: Snapped to card "Login mock" \(an object on the board; x 0–300, y 0–200 board units\)\. What she did before it snapped: an area swept with the wand, 56 board units wide, covering x 20–290, y 180–190 board units\. Covers card "Login mock" \(html;/);
-  assert.match(lines[3],/^\[4\] wand, 3\.0–3\.8 s, board landing: Her gesture: an area swept with the wand, 56 board units wide, covering x 420–690, y 20–30 board units\. Covers part of card "Hero B"/);
+  assert.match(lines[2],/^\[3\] wand, 1\.0–2\.5 s, board landing: Snapped to card "Login mock" \(an object on the board; x 0–300, y 0–200 board units\)\. What was drawn before it snapped: an area swept with the wand, 56 board units wide, covering x 20–290, y 180–190 board units\. Covers card "Login mock" \(html;/);
+  assert.match(lines[3],/^\[4\] wand, 3\.0–3\.8 s, board landing: The gesture as drawn: an area swept with the wand, 56 board units wide, covering x 420–690, y 20–30 board units\. Covers part of card "Hero B"/);
   assert.match(lines[4],/^\[5\] marquee, 4\.0 s, inside the opened item "Login mock"/);
   assert.match(lines[4],/Elements \(union of 2\), held by <form>; id login; selector form#login; path main > form#login; box x 132/);
   assert.match(lines[4],/Members: <input> "Email" \(role textbox\); id email; selector #email \| <input> "Password" \(role textbox\); id pw; selector #pw\./);
-  assert.match(lines[5],/^\[6\] lasso, 5\.0–5\.5 s, inside the opened item "Login mock" \(item \S+, on board landing; she had it at zoom 100 %, in a frame 500×480 px\): Her gesture: a loop of 4 points over x 0\.10–0\.90, y 0\.60–0\.70 of the content area\./);
+  assert.match(lines[5],/^\[6\] lasso, 5\.0–5\.5 s, inside the opened item "Login mock" \(item \S+, on board landing; the reviewer had it at zoom 100 %, in a frame 500×480 px\): The gesture as drawn: a loop of 4 points over x 0\.10–0\.90, y 0\.60–0\.70 of the content area\./);
   assert.match(lines[5],/Text: "Pick one verb and keep it everywhere" \(characters 318–354 of the document\); just before it: "…page title says "Welcome back"\."; just after it: "; the confirmation…"\./);
   assert.match(lines.join('\n'),/\[3\].*\n\[4\]/,'one line per mark');
   assert.equal(lines.filter(l=>/board landing:/.test(l)).length,4,'marks on the board say board, the others say inside the opened item');
@@ -470,11 +470,11 @@ test('round 2 crops: a snapped mark is framed by what it snapped to; a swath by 
   const swath={kind:'swath',width:60,points:[[100,100],[300,110]]};
   const band=markBox({n:1,tool:'wand',shape:swath,targets:[]},layout,unit);
   assert.ok(band.x<=70&&band.x+band.w>=330&&band.y<=70&&band.y+band.h>=140,`the band's width is inside the frame: ${JSON.stringify(band)}`);
-  // glitter: only the wand's own area; a snapped wand fills the snapped outline and keeps her sweep faint
+  // glitter: only the wand's own area; a snapped wand fills the snapped outline and keeps the reviewer's sweep faint
   assert.equal(glitterOf({tool:'marquee',shape:raw}),null);assert.equal(glitterOf({tool:'click',shape:{kind:'point',x:1,y:1}}),null);
   const free=glitterOf({tool:'wand',shape:swath});assert.deepEqual(free.shapes.map(s=>[s.kind,s.alpha]),[['swath',1]]);assert.equal(free.cell,60/14);
   const tied=glitterOf({tool:'wand',shape:swath,snap:{source:'object',label:'c',shape:{kind:'rect',x:0,y:0,w:9,h:9}}});assert.deepEqual(tied.shapes.map(s=>[s.kind,s.alpha]),[['region',1],['swath',0.4]]);
-  // outlines: the snapped outline whole, her raw gesture faint; a bare point is a dot; empty space a ring
+  // outlines: the snapped outline whole, the raw gesture faint; a bare point is a dot; empty space a ring
   const both=layersOf({tool:'marquee',shape:raw,snap:{source:'dom',label:'x',shape:{kind:'rect',x:5,y:5,w:50,h:50}}});
   assert.deepEqual(both.layers.map(l=>l.opacity),[1,0.4]);
   assert.deepEqual(layersOf({tool:'click',shape:{kind:'point',x:3,y:4},targets:[]}).dots,[{at:[3,4],opacity:1}]);
@@ -523,10 +523,10 @@ test('round 2 crops: what an item render loads, and the honest refusals',async t
   const page=await source(itemMark(w.page));
   assert.equal(page.source.url,`${url}resources/work/login.html?tinka=off`);assert.equal(page.title,'Login');assert.equal(page.versionNote,'');
   const app=await source(itemMark(w.app));assert.equal(app.source.url,'http://127.0.0.1:9/');assert.equal(app.source.app,true);
-  // a version: the file she looked at, or a plain refusal; never another version's picture
+  // a version: the file the reviewer looked at, or a plain refusal; never another version's picture
   const stack=await source(itemMark(w.versions));
   assert.match(stack.versionNote,/current file|version/);
-  assert.match((await source({...itemMark(w.versions),place:{...itemMark(w.versions).place,version:'99'}})).note,/version 99 of "Versions" is not among its saved versions now, and a render of another version would show something she did not look at/);
+  assert.match((await source({...itemMark(w.versions),place:{...itemMark(w.versions).place,version:'99'}})).note,/version 99 of "Versions" is not among its saved versions now, and a render of another version would show something the reviewer did not look at/);
   assert.match((await source(itemMark(w.pdf))).note,/cannot draw pdf content/);
   assert.match((await source(itemMark(w.remote))).note,/remote page/);
   assert.match((await source(itemMark('no-such-item'))).note,/deleted or cannot be read/);
@@ -607,9 +607,9 @@ test('real render, round 2: the wand\'s glitter is drawn on the board crop; a cl
   const results=await cropMarks({url,config:w.config,boardId:'looks',marks,appearance:'light',timeout:90000});
   for(const [i,r] of results.entries())assert.ok(r.png,`mark ${i+1}: ${r.note}`);
   const [wand,plain,item]=results.map(r=>readPng(r.png));
-  assert.match(results[0].from,/the wand's area drawn as glitter, as she saw it/);
-  assert.match(results[2].from,/item render, not a screenshot of her screen: "Login" \(page\).*laid out 853 px wide \(her frame 1280×720 px at zoom 150 %\); scrolled to x 0, y 900 as she was; shows the snapped outline with context around it/);
-  assert.match(results[2].from,/Not reproduced: text she typed into the page/);
+  assert.match(results[0].from,/the wand's area drawn as glitter, as the reviewer saw it/);
+  assert.match(results[2].from,/item render, not a screenshot of the reviewer's screen: "Login" \(page\).*laid out 853 px wide \(the reviewer's frame 1280×720 px at zoom 150 %\); scrolled to x 0, y 900 as the reviewer was; shows the snapped outline with context around it/);
+  assert.match(results[2].from,/Not reproduced: text the reviewer typed into the page/);
   assert.ok(redish(wand)>redish(plain)+400,`glitter flecks are drawn (${redish(wand)} vs ${redish(plain)} red pixels)`);
   assert.ok(redish(item)>150,'the snapped outline is drawn on the item render');
   assert.ok(results[2].box.x<=20&&results[2].box.y<=1840,JSON.stringify(results[2].box));

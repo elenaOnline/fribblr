@@ -2,9 +2,9 @@
 // pointing interleave (marquee, lasso, point, the wand's circle, @), chips land at the caret, Backspace and Undo take
 // a chip and its mark away and back, the board is never selected or edited, Enter sends one thread to the agent with
 // the pointing record, Escape leaves with the view and selection as they were, and the sent thread's card reads as
-// her sentence with chips. At 1280 also: a sent mark follows a card an agent moves or resizes, an edited target's chip
+// the reviewer's sentence with chips. At 1280 also: a sent mark follows a card an agent moves or resizes, an edited target's chip
 // takes its new text, a deleted target's mark stays where it was drawn labelled Deleted, a draft mark follows a card
-// moved while she types, and Send clears at once, lets her type on while it sends, and gives a failed message back.
+// moved while the reviewer types, and Send clears at once, lets the reviewer's type on while it sends, and gives a failed message back.
 // The review's fixes (team/pointing/STATUS.md, 2026-11-25): an @ name with spaces keeps the list open and Enter picks;
 // a press on the bar keeps focus in the field; a number on screen is never used twice; ⌥R, the @ list's Selected
 // group, ⌥ zoom and Tab out of the bar; panels stay open; the wand's ring goes with the pointer; the 20-mark and length
@@ -140,7 +140,7 @@ try{
       assert.equal(await page.locator('#world .workspace-card').count(),3,'no card added or removed');
       assert.equal(await page.locator('#world .workspace-decoration').count(),1,'no drawing added');
     });
-    await check(`${tag} the thread card reads as her sentence with numbered chips; its marks show while open`,async()=>{
+    await check(`${tag} the thread card reads as the reviewer's sentence with numbered chips; its marks show while open`,async()=>{
       await page.evaluate(()=>window.dispatchEvent(new HashChangeEvent('hashchange')));
       await page.evaluate(id=>{location.hash=`#comments/${encodeURIComponent(id)}`;},threadId);
       const cardEl=page.locator('.ct-card');await cardEl.waitFor();
@@ -190,7 +190,7 @@ try{
         await page.screenshot({path:path.join(evidence,`pointing-followed-${width}.png`)});
         await page.locator('.ct-card [data-act="close"]').click();await page.locator('.ct-card').waitFor({state:'detached'});
       });
-      await check(`${tag} a draft mark follows a card an agent moves while she types`,async()=>{
+      await check(`${tag} a draft mark follows a card an agent moves while the reviewer types`,async()=>{
         await page.keyboard.press('p');await until(()=>page.evaluate(()=>document.body.classList.contains('pointing-on')));
         await page.keyboard.press('Alt+KeyP');await page.keyboard.type('this ');
         const c=await centre(card('Pricing'));await page.mouse.click(c.x,c.y);

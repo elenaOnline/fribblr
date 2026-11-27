@@ -20,7 +20,7 @@
 // A click with any tool points at the whole thing under it, and carries the spot clicked; parts come from a drag. It is
 // recorded as tool "click" with the active tool in `via`.
 // Snapping (pointing-snap.js): a marquee, lasso or wand area that mostly covers a card, drawing, container or text is
-// tidied to it; the snapped outline shows while she drags; holding ⌘ (Ctrl off a Mac) takes exactly what she drew.
+// tidied to it; the snapped outline shows while the user drags; holding ⌘ (Ctrl off a Mac) takes exactly what the user drew.
 // Keyboard (tool "keyboard"): ⌥R points at what is selected on the board (else the item that had focus); @ in the
 // composer picks an item, drawn element or board by name, the selected ones first. ⌥= ⌥− ⌥0 ⌥1 zoom in, out, 100%, fit.
 // The unsent draft (words, chips, marks, times) is kept per board for the session, so leaving the page loses nothing.
@@ -62,7 +62,7 @@ const DRAFT = id => `tinka/pointing-draft/${id}`;
 const MODIFIER = new Set(['Shift', 'Alt', 'Meta', 'Control', 'CapsLock', 'Fn', 'AltGraph', 'OS']);
 const NOT_ANSWERING = /failed to fetch|networkerror|load failed|network request failed/i;
 const STORE = 'tinka/pointing-tool', SIZE_STORE = 'tinka/pointing-wand-size';
-// The key that takes exactly what she drew (no snapping), held: ⌘ on a Mac, Ctrl elsewhere.
+// The key that takes exactly what the user drew (no snapping), held: ⌘ on a Mac, Ctrl elsewhere.
 const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 const RAW_KEY = MAC ? 'Meta' : 'Control', rawHeld = e => MAC ? !!e.metaKey : !!e.ctrlKey;
 const WAND_SESSION = 1200;       // ms after a wand drag ends in which a new press where it ended carries it on (tldraw's laser session)
@@ -115,7 +115,7 @@ class PointingMode {
     this.world = document.getElementById('world');
     this.ensureStyle();
     this.buildBar(); this.buildSheet(); this.buildLayer(); this.addEntry();
-    // Her unsent draft for this board, kept for the session (leaving the page and coming back loses nothing).
+    // The user's unsent draft for this board, kept for the session (leaving the page and coming back loses nothing).
     addEventListener('pagehide', () => this.saveDraft());
     this.restoreDraft();
     this.wireSources();
@@ -142,7 +142,7 @@ class PointingMode {
       clearTimeout(this.zoomTimer); this.zoomTimer = setTimeout(() => { if (this.layer && !this.layer.hidden && this.layer.querySelector('.pointing-swath')) this.renderMarks(); }, 160);
     }).observe(this.viewport, {attributes: true, attributeFilter: ['style']});
     // The rail's Point and type key, pressed while the mode is off: the press is the mode's alone, so an open Inspector,
-    // comments panel or menu takes it for neither a click-away nor a focus move (brief § 1: her panels stay as they are).
+    // comments panel or menu takes it for neither a click-away nor a focus move (brief § 1: the user's panels stay as they are).
     // An open menu is not a panel: it closes as it would for any press elsewhere, and the same press enters.
     pointingGuard.entry = event => {
       if (!event.target?.closest?.('[data-pointing-enter]')) return false;
@@ -186,7 +186,7 @@ class PointingMode {
     this.field.addEventListener('paste', e => { // plain text only, so a pasted chip can never be a mark without data
       e.preventDefault(); document.execCommand('insertText', false, e.clipboardData?.getData('text/plain') || '');
     });
-    // The caret is kept so keys typed after focus went elsewhere land where she left off. selectionchange arrives
+    // The caret is kept so keys typed after focus went elsewhere land where the user left off. selectionchange arrives
     // late and coalesced (it can be keys behind), so the caret is also kept at once after each input and as focus
     // leaves the field.
     const keep = () => { const s = getSelection(); if (this.active && s.rangeCount && this.field.contains(s.anchorNode)) this.caret = s.getRangeAt(0).cloneRange(); };
@@ -342,7 +342,7 @@ class PointingMode {
     return {kind: 'decoration', id: c.id, boardId, itemKind, title: clip(d.sticker ? `Sticker ${d.text || ''}` : decorationLabel(d), 120), whole: t.whole,
       ...(region ? {region} : {}), ...(spot ? {spot} : {})};
   }
-  // Where she pointed in the item's own content (CONTRACT "Added after the review"), from `frac` (fractions of the card's
+  // Where the user pointed in the item's own content (CONTRACT "Added after the review"), from `frac` (fractions of the card's
   // box; w = h = 0 for a spot): an HTML page in CSS px of the page at the width the card renders it, an image in px of
   // its file, anything else as fractions of the content area under the card's title. Null when the gesture misses the
   // content area (only the title, say) or the card has none.
@@ -406,8 +406,8 @@ class PointingMode {
     this.saveSoon();
     this.announce(this.reader ? `Pointing on, inside ${this.reader.name()}. Type your message and point at it; Escape leaves.` : 'Pointing on. Type your message and point at the board; Escape leaves.');
   }
-  // The place she points at: the opened item (`info`, canvas.js hooks.reader()) or the board. The composer, the draft
-  // and its chips go with her; each place keeps the view it had when she first pointed there, for leaving.
+  // The place the user points at: the opened item (`info`, canvas.js hooks.reader()) or the board. The composer, the draft
+  // and its chips go with the user's; each place keeps the view it had when the user first pointed there, for leaving.
   goTo(info) {
     this.cancelGesture();
     const same = this.reader && info && this.reader.info.frame === info.frame;
@@ -465,7 +465,7 @@ class PointingMode {
     this.hover = null; this.hoverSnap = null; this.sparks = []; this.wandLast = null;
     const r = this.reader, sr = this.savedReader;
     if (r) {
-      // The reader's view as it was when she started pointing here: zoom, pan and the content's scroll.
+      // The reader's view as it was when the user started pointing here: zoom, pan and the content's scroll.
       const cv = r.info.canvas;
       this.unlockReader();
       if (sr && sr.key === r.key && sr.frame === r.info.frame && sr.expanded === !!cv.expanded) {
@@ -522,7 +522,7 @@ class PointingMode {
     return true;
   }
   // The panel, menu, dialog or field `t` is in that keeps its own keys; inside the reader, the reader's dialog itself
-  // is the place she points at, not one of those.
+  // is the place the user points at, not one of those.
   owned(t, sel) {
     const hit = t?.closest?.(sel);
     if (!hit || (this.reader && hit === this.reader.info.dialog)) return null;
@@ -604,7 +604,7 @@ class PointingMode {
     }
     this.sheet.classList.toggle('pointing-panning', pan && this.tool !== 'point' || false);
   }
-  // Where she points now: 'board', or the opened item and version ('item:<id>:<version>').
+  // Where the user points now: 'board', or the opened item and version ('item:<id>:<version>').
   here() { return this.reader ? this.reader.key : 'board'; }
   move(e) {
     const g = this.gesture;
@@ -660,7 +660,7 @@ class PointingMode {
   }
   // A released gesture is taken at once, unless a source that answers later (the pixel source's worker) has not yet
   // answered for it: then it waits for that answer, at most LATE ms (CONTRACT § Round 2, after phase A), and commits
-  // with what there is. Gestures commit in the order she made them, and a chip lands where the caret was at release.
+  // with what there is. Gestures commit in the order the user made them, and a chip lands where the caret was at release.
   commitGesture(tool, hits, field, geom, finish) {
     const late = this.raw ? [] : this.lateRequests(tool, hits, field, geom);
     if (!late.length && !this.waiting) { finish(); return; }
@@ -675,7 +675,7 @@ class PointingMode {
       ]);
       clearTimeout(timer);
       this.waiting--;
-      if (!this.active || this.here() !== place) return; // she left the place in between: nothing to name it with
+      if (!this.active || this.here() !== place) return; // the user left the place in between: nothing to name it with
       this.late = answers; this.insertAt = caret;
       try { finish(); } finally { this.late = null; this.insertAt = null; this.schedule(); }
     });
@@ -690,7 +690,7 @@ class PointingMode {
     }
     return out;
   }
-  // The caret as it is now, to put a late chip where she was.
+  // The caret as it is now, to put a late chip where the user was.
   caretNow() {
     const s = getSelection();
     if (document.activeElement === this.field && s.rangeCount && this.field.contains(s.anchorNode)) return s.getRangeAt(0).cloneRange();
@@ -730,7 +730,7 @@ class PointingMode {
       if (mark) this.wandLast = {id: mark.id, field: f, t: performance.now(), x: at.x, y: at.y, zoom: v.zoom};
     });
   }
-  // Snapping: the best proposal (board objects, and sources inside the one card under the gesture) unless she holds the
+  // Snapping: the best proposal (board objects, and sources inside the one card under the gesture) unless the user holds the
   // take-what-I-drew key. Returns {hits, snap}: the targets to keep (the snapped ones when it snapped) and the record's
   // `snap` ({source, label, shape}), or the raw hits and no snap. `geom` is the gesture (gestureGeometry).
   resolve(tool, hits, gestureArea, raw, field = null, geom = this.gestureGeometry(tool, field)) {
@@ -739,7 +739,7 @@ class PointingMode {
       : {kind: 'path', points: best.shape.points.slice(0, 400).map(([x, y]) => [ROUND(x), ROUND(y)])}} : null;
     if (this.reader) return this.resolveInside(hits, best, snap, geom, field);
     if (!best) {
-      // A part of one document card, unsnapped: the words her gesture holds.
+      // A part of one document card, unsnapped: the words the user's gesture holds.
       const t = hits.targets.length === 1 && !hits.more && !hits.targets[0].whole ? hits.targets[0] : null, doc = t && geom && geom.kind !== 'point' && this.cardDocument(t.candidate);
       const text = doc && this.textFor(doc, geom, null, null, field, geom.kind === 'rect' ? geom : boundsOf(geom.kind === 'swath' ? geom.points.flatMap(([x, y]) => [[x - geom.width / 2, y - geom.width / 2], [x + geom.width / 2, y + geom.width / 2]]) : geom.points));
       return {hits: text ? {...hits, targets: [{...t, text}]} : hits, snap: null};
@@ -753,7 +753,7 @@ class PointingMode {
     const doc = geom && this.cardDocument(c), text = doc && this.textFor(doc, geom, snap, best, field, b);
     return {hits: {targets: [{candidate: c, whole: false, region, ...(best.element ? {element: best.element} : {}), ...(best.elements ? {elements: best.elements} : {}), ...(text ? {text} : {})}], more: 0}, snap};
   }
-  // Inside the opened item every reference is the item itself, and where in it: the snapped element (or the part her
+  // Inside the opened item every reference is the item itself, and where in it: the snapped element (or the part the user's
   // gesture covers), in the content's own units, with the element the DOM source named and, in a document or a note,
   // the text it holds.
   resolveInside(hits, best, snap, geom, field) {
@@ -767,7 +767,7 @@ class PointingMode {
     return {hits: {targets: [{candidate: c, whole: false, box, ...(best?.element ? {element: best.element} : {}), ...(best?.elements ? {elements: best.elements} : {}), ...(text ? {text} : {})}], more: 0}, snap};
   }
   // The words a gesture points at in a document or a note: the snapped block's own words, else the characters inside
-  // the snap (or her gesture). `where`: {article, toUnits} (null toUnits: the opened item's own mapping).
+  // the snap (or the user's gesture). `where`: {article, toUnits} (null toUnits: the opened item's own mapping).
   textFor(where, geom, snap, best, field, box) {
     if (!where?.article || (geom.kind === 'point' && !best?.element)) return null;
     const s = snap?.shape;
@@ -789,7 +789,7 @@ class PointingMode {
     return {article, toUnits: (x, y) => { const p = this.toBoard(t.x + t.k * x, t.y + t.k * y, v); return [p.x, p.y]; }};
   }
   // The best snap for a gesture. On the board a source inside a card (an element in its page, an edge in its picture)
-  // is what she means when the gesture lies inside that card and the thing it found is clearly smaller than the card;
+  // is what the user means when the gesture lies inside that card and the thing it found is clearly smaller than the card;
   // otherwise the best score wins, and the board-object source (the whole card) usually does. Inside the opened item
   // only the sources inside it propose (the item itself is always the thing).
   proposal(tool, hits, gestureArea, field, geom = this.gestureGeometry(tool, field)) {
@@ -843,7 +843,7 @@ class PointingMode {
   }
   // Ask the sources to get ready for a card or the opened item (once each).
   prepareFor(c) {
-    // A card by its element; the opened item by what it shows now (its frame stays as she steps).
+    // A card by its element; the opened item by what it shows now (its frame stays as the user steps).
     const shown = c?.reader ? this.reader?.current() : null, key = c?.reader ? shown?.img || shown?.doc : c?.el;
     if (!key || this.prepared.has(key)) return;
     this.prepared.add(key);
@@ -936,7 +936,7 @@ class PointingMode {
   // A click: the thing under the pointer, or the board at that spot. Recorded as tool "click", the active tool in `via`.
   pointAt(x, y, at, end, via, raw = this.raw) {
     const v = this.view(), list = this.candidates(v), p = this.toBoard(x, y, v), hit = this.thingAt(x, y, list, v);
-    // The whole thing under the click, with the spot she clicked (a part needs a drag); a source inside the card may
+    // The whole thing under the click, with the spot the user clicked (a part needs a drag); a source inside the card may
     // snap it to the element clicked.
     const hits = {targets: hit ? [pointTarget(hit, p)] : [], more: 0}, geom = {kind: 'point', x: p.x, y: p.y};
     const make = () => this.addMark({tool: 'click', via, at, end, shape: {kind: 'point', x: ROUND(p.x), y: ROUND(p.y)},
@@ -961,7 +961,7 @@ class PointingMode {
       if (key !== this.hover?.key || skey !== (this.hoverSnapKey || '')) { this.hover = hit; this.hoverSnap = snap; this.hoverSnapKey = skey; this.draw(v); }
     });
   }
-  // The wand moving without the button: a few sparkles shed behind the tip, gone within half a second (her motion
+  // The wand moving without the button: a few sparkles shed behind the tip, gone within half a second (the user's motion
   // only; nothing is left behind and nothing points).
   shed(e) {
     const coalesced = e.getCoalescedEvents?.(), events = coalesced?.length ? coalesced : [e], now = performance.now(), r = this.sheetRect;
@@ -1004,12 +1004,12 @@ class PointingMode {
     const kept = hits.targets.map(t => [t, this.target(t)]).filter(([, t]) => t), targets = kept.map(([, t]) => t);
     const n = this.newN();
     const id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    // Inside the opened item: where (the item and version, and what she was looking at), and its name for the chip.
+    // Inside the opened item: where (the item and version, and what the user was looking at), and its name for the chip.
     const place = this.reader ? this.reader.record(this.board.snapshot.id) : null;
     const label = this.markLabel(targets, hits.more, empty, snap, place);
-    // `boxes`: where each target was when she pointed (its saved box), so the draft's marks can tell when one moved.
+    // `boxes`: where each target was when the user pointed (its saved box), so the draft's marks can tell when one moved.
     const boxes = kept.map(([t]) => dataBox(t.candidate.placement || t.candidate.decoration));
-    // `shape` is always what she drew; `snap` (when it snapped) the outline it was tidied to, which targets follow.
+    // `shape` is always what the user drew; `snap` (when it snapped) the outline it was tidied to, which targets follow.
     const picture = place && this.reader.current().kind === 'image' ? this.reader.current().img.currentSrc || this.reader.current().img.src : null;
     // `where`: the item a part was found in (the opened item, or the card a source looked inside), for chips and the body.
     const where = place ? this.reader.name() : snap && snap.source !== 'object' && targets.length === 1 ? targets[0].title : null;
@@ -1040,7 +1040,7 @@ class PointingMode {
   }
   insertChip(mark) {
     // A chip that waited for a late source goes where the caret was when the gesture ended; the caret then comes back
-    // to where she is typing now.
+    // to where the user is typing now.
     const at = this.insertAt && this.field.contains(this.insertAt.startContainer) ? this.insertAt : null;
     const resume = at ? this.caretNow() : null;
     this.focusField();
@@ -1095,7 +1095,7 @@ class PointingMode {
     return refs.length ? {label: from, refs} : null;
   }
   // What ⌥R and the bar's Point at the selection key point at: the board's selection (cards and drawn elements), else
-  // the item that had focus when she entered. The mode never changes either.
+  // the item that had focus when the user entered. The mode never changes either.
   selectionTargets(v = this.boardView()) {
     const list = this.boardCandidates(v), keys = [...(this.board.selection || [])].map(id => `placement:${id}`);
     for (const d of this.board.whiteboard?.selectedDecorations?.() || []) keys.push(`decoration:${d.id}`);
@@ -1221,7 +1221,7 @@ class PointingMode {
   drawnGeometry(m) {
     const s = m.snap?.shape || m.shape, glitter = m.tool === 'wand';
     const shapes = s.kind === 'point' ? [] : [s.kind === 'rect' ? {kind: 'rect', x: s.x, y: s.y, w: s.w, h: s.h} : s.kind === 'swath' ? {kind: 'swath', width: s.width, points: s.points} : {kind: 'path', points: s.points}];
-    // A click that named an element outlines it; the dot is where she clicked.
+    // A click that named an element outlines it; the dot is where the user clicked.
     if (m.shape.kind === 'point' && m.snap?.shape) return {shapes: [{kind: 'outline', ...(m.snap.shape.kind === 'rect' ? m.snap.shape : boundsOf(m.snap.shape.points))}], dot: {x: m.shape.x, y: m.shape.y}, badge: topLeft(m.snap.shape), note: '', gone: false, glitter: false};
     return {shapes, dot: s.kind === 'point' ? {x: s.x, y: s.y} : null, badge: s.kind === 'point' ? {x: s.x, y: s.y} : topLeft(s), note: '', gone: false, glitter};
   }
@@ -1256,9 +1256,9 @@ class PointingMode {
     }
     return {};
   }
-  // What to draw for a mark, from where its targets are now. `then` is each target's saved box when she pointed (the
+  // What to draw for a mark, from where its targets are now. `then` is each target's saved box when the user pointed (the
   // draft keeps it) or when the message was sent (the server stores it as `placed`).
-  // - Nothing moved: the shape exactly as she drew it.
+  // - Nothing moved: the shape exactly as the user drew it.
   // - One target, moved or resized: the shape as drawn, carried with it (same place on the object, same proportions).
   // - Otherwise (several targets moved apart, or no saved box): each target where it is now, a whole one outlined, a
   //   part as its region (fractions of the target's own box).
@@ -1283,7 +1283,7 @@ class PointingMode {
     const live = placed.filter(x => !x.gone && x.box);
     if (!live.length) return drawn;
     const note = gone ? `${gone} of ${placed.length} deleted` : '';
-    // A click names its target, outlined or as the spot clicked; the dot is where she clicked.
+    // A click names its target, outlined or as the spot clicked; the dot is where the user clicked.
     const ofTarget = ({t, box, ink}) => t.whole || !t.region ? {kind: 'outline', ...(ink || box)}
       : {kind: 'rect', x: box.x + t.region.x * box.w, y: box.y + t.region.y * box.h, w: t.region.w * box.w, h: t.region.h * box.h};
     const near = (a, b) => a && b && ['x', 'y', 'w', 'h'].every(k => Math.abs(a[k] - b[k]) <= .5);
@@ -1398,7 +1398,7 @@ class PointingMode {
       }
     }
     if (g && !g.pan && g.tool === 'wand' && g.field) { v ||= this.view(); this.drawField(g.field, v, now); more = true; }
-    // A snapped wand mark just committed: what she swept dissolves while the glitter settles into the snapped outline.
+    // A snapped wand mark just committed: what the user swept dissolves while the glitter settles into the snapped outline.
     if (this.settle) {
       const p = (now - this.settle.t0) / 220;
       if (p >= 1 || this.settle.place !== this.here()) this.settle = null;
@@ -1416,8 +1416,8 @@ class PointingMode {
       else if (this.hover && !this.hover.reader) { v ||= this.view(); outline(this.hover, v, true); }
     }
     if (this.tool === 'wand') more = this.drawTip(now) || more;
-    // Settling needs frames of its own only while she holds still: a frame requested from a frame while she moves holds
-    // her next move back a frame (measured in round 1: 32 ms against 17 ms), so moves drive the frames then.
+    // Settling needs frames of its own only while the user holds still: a frame requested from a frame while the user moves holds
+    // the user's next move back a frame (measured in round 1: 32 ms against 17 ms), so moves drive the frames then.
     if (more && (this.settle || this.sparks.length || (g?.field && now - (this.lastMove || 0) < FRESH + 40))) {
       if (g && performance.now() - (this.lastMove || 0) < 50) { clearTimeout(this.fadeTimer); this.fadeTimer = setTimeout(() => this.schedule(), 60); }
       else this.schedule();
@@ -1517,7 +1517,7 @@ class PointingMode {
     const numbered = marks.map(m => ({...m, n: order.get(m.id)}));
     return {parts: parts.filter(p => !('text' in p) || p.text), marks: numbered};
   }
-  // Send never makes her wait: the message is taken out of the composer at once, so she can write the next one while
+  // Send never makes the user's wait: the message is taken out of the composer at once, so the user can write the next one while
   // the server renders its crops (1–3 s). Messages go one at a time, in order. A quiet line on the bar says what is
   // in flight; a message that fails comes back into the composer, words, chips and marks, with the reason.
   send() {
@@ -1542,7 +1542,7 @@ class PointingMode {
     }
     const first = marks[0];
     // The thread's pin sits at the first mark's top-right corner (its number badge is top-left), so it never covers
-    // what she pointed at.
+    // what the user pointed at.
     // A click's mark is the whole thing outlined: the pin goes at that outline's top-right, not on the spot clicked.
     // A mark made inside an item pins the thread to that item's card (its top-right corner).
     const drawn = first && (first.shape.kind === 'point' || first.place) ? this.geometry(first, true).shapes : [];
@@ -1576,7 +1576,7 @@ class PointingMode {
       // A mark on part (or all) of one image item: the picture's own pixels, cropped here at full resolution; the
       // server renders every other mark from the board.
       for (const m of job.operation.pointing.marks) {
-        // Inside an opened image: the picture's own file, cut round what she pointed at (image px), with her mark.
+        // Inside an opened image: the picture's own file, cut round what the user pointed at (image px), with the user's mark.
         if (m.place?.kind === 'item') {
           const file = job.pictures?.get(m.n); if (!file) continue;
           await new Promise(r => setTimeout(r));
@@ -1629,7 +1629,7 @@ class PointingMode {
     return {nodes: [...this.field.childNodes].map(n => n.cloneNode(true)), marks: new Map(this.marks), words: new Map(this.words.times),
       t0: this.t0, startedAt: this.startedAt};
   }
-  // A message that did not go: back in the composer. If she has started the next one, the old one goes before it on
+  // A message that did not go: back in the composer. If the user has started the next one, the old one goes before it on
   // its own line, and the marks are numbered again in reading order.
   giveBack(draft, error) {
     const empty = !this.chips().length && !this.field.textContent.trim();
@@ -1655,7 +1655,7 @@ class PointingMode {
       // Marks whose chips were deleted (Undo can bring them back) take the numbers after, so none is on screen twice.
       let n = chips.length; for (const [id, m] of this.marks) if (!live.has(id)) m.n = ++n;
     }
-    // Plain reasons: the app not answering, or what the server said (lib/feedback.mjs words its refusals for her).
+    // Plain reasons: the app not answering, or what the server said (lib/feedback.mjs words its refusals for the user's).
     const said = String(error?.message || error || '').trim().replace(/\.$/, ''), back = `Your message is back in the field${empty ? '' : ', before the one you were writing'}.`;
     this.failure = !said || NOT_ANSWERING.test(said) || error?.name === 'TypeError' ? `The app isn't answering. ${back}` : `Not sent: ${said}. ${back}`;
     this.saveSoon();
@@ -1682,7 +1682,7 @@ class PointingMode {
     this.saveSoon();
   }
   // A line on the bar that explains why something was not taken (the mark limit, a message too long, nothing
-  // selected); it goes at her next keystroke or mark.
+  // selected); it goes at the user's next keystroke or mark.
   notify(text) { this.notice = text; this.syncStatus(); this.announce(text); }
 
   // ---------- the draft, kept per board for the session ----------
@@ -1716,7 +1716,7 @@ class PointingMode {
       this.startedAt = state.startedAt; this.t0 = clock(state.elapsed, state.savedAt);
     }
     if (state.active) requestAnimationFrame(() => this.enter());
-    // Messages that were still sending as she left: the server has them, or they come back, before her draft.
+    // Messages that were still sending as the user left: the server has them, or they come back, before the user's draft.
     if (state.pending?.length) {
       this.restoring = true;
       let have = new Set();
@@ -1793,7 +1793,7 @@ class PointingMode {
   }
 }
 
-// A proposal from inside one card is what she means over the whole card when her gesture lies inside the card (80 % of
+// A proposal from inside one card is what the user means over the whole card when the user's gesture lies inside the card (80 % of
 // its bounds) and what it found is clearly smaller than the card (under 60 % of its area).
 function inCard(p, geom) {
   const c = p.candidate; if (!c || !geom) return false;

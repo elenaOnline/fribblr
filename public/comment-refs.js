@@ -288,7 +288,7 @@ export function attachPicker(el, board, {onChange = () => {}, first = null} = {}
   menu.addEventListener("querychange", event => {
     const query = String(event.detail.value || ""), empty = content.querySelector("ui-trigger-menu-empty");
     if (empty) empty.textContent = `No match for \u201C${query}\u201D`;
-    // A space that leaves nothing matching ends the name: the list closes and what she types is plain text.
+    // A space that leaves nothing matching ends the name: the list closes and what the user types is plain text.
     if (/\s/.test(query)) requestAnimationFrame(() => { if (opened && content.querySelector("ui-trigger-menu-empty")?.hasAttribute("data-empty")) menu.api?.close?.({reason:"imperative"}); });
   });
   menu.addEventListener("itemselect", event => { event.preventDefault(); choose(flat[+event.detail.value]); });

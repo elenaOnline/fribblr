@@ -1,6 +1,6 @@
 /* Pointing mode (pointing-mode.js). Role tokens and the depth model only: the composer floats (data-height="float"),
-   its keys are raised, the field is sunken. Pointing is her voice, so the marks and their numbered chips are drawn in
-   her red (--mark-red); the words she types are ordinary ink, as in any composer. */
+   its keys are raised, the field is sunken. Pointing is the user's voice, so the marks and their numbered chips are drawn in
+   the user's red (--mark-red); the words the user types are ordinary ink, as in any composer. */
 
 /* While pointing, the board's editing chrome steps aside; it comes back as it was. */
 body.pointing-on :is(#edit-tools, #workspace-selection, .whiteboard-toolbar, .whiteboard-menu, .whiteboard-connect-hint) { display: none !important; }
@@ -62,7 +62,7 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 .pointing-sheet[data-tool="point"] { cursor: default; }
 .pointing-sheet.pointing-panning { cursor: grabbing; }
 
-/* The Wand's glitter (pointing-wand.js): flecks in her red, a pale tone among them, sparkles in the deep red (near white on
+/* The Wand's glitter (pointing-wand.js): flecks in the user's red, a pale tone among them, sparkles in the deep red (near white on
    a dark board). Hard-edged pixels, never blurred: between a zoom and its redraw the canvas scales without smoothing. */
 :root { --wand-ink: var(--mark-red); --wand-pale: color-mix(in srgb, var(--mark-red) 45%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
 html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-pale: color-mix(in srgb, var(--mark-red) 35%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red) 22%, var(--ink-on-mark)); }
@@ -85,7 +85,7 @@ html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="
 /* On the board, a mark made inside an item is that item's card, outlined dashed and labelled Inside. */
 .pointing-shape.pointing-inside { fill: none; stroke-dasharray: 6 4; }
 /* A chip for a mark made inside an item carries a small window glyph; a chip whose mark is in the other place (on the
-   board while she points inside an item, or inside an item while she points at the board) is outlined dashed: listed,
+   board while the user points inside an item, or inside an item while the user points at the board) is outlined dashed: listed,
    but not drawn here. */
 .cref.pointing-chip .pointing-in { width: 12px; height: 12px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.2; color: var(--ink-2); }
 .cref.pointing-chip.pointing-elsewhere { outline: 1px dashed var(--line-edge); outline-offset: -1px; }
@@ -113,7 +113,7 @@ html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="
 }
 .pointing-status[hidden] { display: none; }
 .pointing-status[data-error] { color: var(--ink); white-space: normal; }
-/* Her words in a sent pointing message are ordinary ink, as in the composer; the chips carry her red. */
+/* The user's words in a sent pointing message are ordinary ink, as in the composer; the chips carry the user's red. */
 .ct-msg .pointing-words { color: var(--ink); }
 /* The mark a chip in an open thread was pressed for. */
 .pointing-shape.pointing-focus { stroke-width: 3px; }
