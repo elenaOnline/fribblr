@@ -20,6 +20,8 @@
 // Everything below the "pure" line works on any DOM-like tree (tagName, getAttribute, children, parentElement,
 // textContent), so tests run in Node with a tiny fake DOM; style and layout reads are guarded.
 
+import {outlinesPath} from './pointing-wand.js';
+
 const ELEMENT = 1, TEXT = 3;
 
 // ---------------------------------------------------------------- frames and coordinates
@@ -106,7 +108,7 @@ function indexOf(doc, win) {
     if (r.width < 1 || r.height < 1) continue;
     out.push({el: e, x: r.left + sx, y: r.top + sy, w: r.width, h: r.height});
   }
-  s.index = out; s.dirty = false;
+  s.index = out; s.dirty = false; s.kinds = new WeakMap(); s.inks = new WeakMap();
   return out;
 }
 
@@ -131,6 +133,43 @@ export const domSnap = createDomSnap();
 
 function viewportArea(win) { return Math.max(1, (win.innerWidth || 1) * (win.innerHeight || 1)); }
 
+// What counts of an element, in document coordinates: a block of words by its words (the box round its text's line
+// boxes, as the board measures text: a heading 936 px wide whose words take 184 px is those 184 px), anything else
+// by its box. Cached with the page's index.
+function measureOf(b, doc, win) {
+  const k = kindIn(b.el, doc, win); if (k !== 'text' && k !== 'heading') return b;
+  const s = stateOf(doc, win); s.inks ||= new WeakMap();
+  let m = s.inks.get(b.el);
+  if (!m) { m = inkBox(b.el, doc, win) || b; s.inks.set(b.el, m); }
+  return m;
+}
+function inkBox(el, doc, win) {
+  const sx = win.scrollX || 0, sy = win.scrollY || 0, r = doc.createRange(), walk = doc.createTreeWalker(el, 4 /* SHOW_TEXT */);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (!n.nodeValue.trim()) continue;
+    r.selectNodeContents(n);
+    for (const b of r.getClientRects()) { if (!b.width) continue; x0 = Math.min(x0, b.left); y0 = Math.min(y0, b.top); x1 = Math.max(x1, b.right); y1 = Math.max(y1, b.bottom); }
+  }
+  return x1 > x0 ? {el, x: x0 + sx, y: y0 + sy, w: x1 - x0, h: y1 - y0} : null;
+}
+// nameKind, remembered with the page's index (computed style is read once per element per index).
+function kindIn(el, doc, win) {
+  const s = stateOf(doc, win); s.kinds ||= new WeakMap();
+  if (s.kinds.has(el)) return s.kinds.get(el);
+  const k = nameKind(el); s.kinds.set(el, k); return k;
+}
+// Whether client point (x, y) of the page is on the words of `el` (its own text nodes' line boxes).
+function onWords(el, doc, x, y) {
+  const r = doc.createRange();
+  for (const n of el.childNodes || []) {
+    if (n.nodeType !== TEXT || !n.nodeValue.trim()) continue;
+    r.selectNodeContents(n);
+    for (const b of r.getClientRects()) if (x >= b.left - 2 && x <= b.right + 2 && y >= b.top - 2 && y <= b.bottom + 2) return true;
+  }
+  return false;
+}
+
 function proposePoint({doc, win}, {x, y}) {
   const vx = x - (win.scrollX || 0), vy = y - (win.scrollY || 0);
   let leaf = vx >= 0 && vy >= 0 && vx <= win.innerWidth && vy <= win.innerHeight ? doc.elementFromPoint(vx, vy) : null;
@@ -141,7 +180,10 @@ function proposePoint({doc, win}, {x, y}) {
     leaf = best || leaf;
   }
   const view = viewportArea(win), fits = e => { const r = e.getBoundingClientRect(); return r.width * r.height < 0.85 * view; };
-  let target = leaf && meaningfulAt(leaf, fits);
+  // A span with its own words is a thing of its own when it looks clickable or the click is on its words (a nav of
+  // plain spans: "Pricing", not the whole navigation).
+  const words = e => { try { return win.getComputedStyle(e).cursor === 'pointer' || onWords(e, doc, vx, vy); } catch { return false; } };
+  let target = leaf && meaningfulAt(leaf, fits, words);
   if (!target) {
     // The hit test skips pointer-events: none (rulers, overlays drawn for show): the deepest named box holding the point.
     let depth = -1;
@@ -149,7 +191,7 @@ function proposePoint({doc, win}, {x, y}) {
     if (target) target = meaningfulAt(target, fits);
   }
   if (!target) return null;
-  const info = describeElement(target, doc, win), k = kindOf(target);
+  const info = describeElement(target, doc, win), k = kindOf(target) || 'text';
   const big = (info.box.w * info.box.h) / view;
   const score = round2(({control: .95, media: .9, heading: .9, text: .8, labelled: .75, boxed: .7, group: .65})[k] * (1 - Math.min(.4, big * .5)));
   return {shape: {kind: 'rect', ...info.box}, label: labelOf(info, k), source: 'dom', score, element: info};
@@ -176,10 +218,15 @@ const strip = p => { if (!p) return null; const {fill, ...rest} = p; return rest
 function proposeWaved({doc, win}, g) {
   const pts = resample(g.points || [], 4); if (pts.length < 2) return null;
   const tol = (g.width || 0) / 2, view = viewportArea(win);
+  // One flat pass (an underline, a stroke through a line): it points at what it runs under or through, not at the
+  // next thing down that its band also reaches, so a thing counts only when the line runs below its middle.
+  const flat = isFlat(g.points || [], g.width || 0), mid = flat ? median(pts.map(p => p[1])) : 0;
   let best = null;
-  for (const b of indexOf(doc, win)) {
-    if (b.w < 3 || b.h < 3 || b.w * b.h >= .85 * view) continue;
-    const k = kindOf(b.el); if (!k) continue;
+  for (const raw of indexOf(doc, win)) {
+    if (raw.w < 3 || raw.h < 3 || raw.w * raw.h >= .85 * view) continue;
+    const k = kindIn(raw.el, doc, win); if (!k) continue;
+    const b = measureOf(raw, doc, win);
+    if (flat && mid < b.y + b.h / 2) continue;
     let inside = 0, x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const [px, py] of pts) if (px >= b.x - tol && px <= b.x + b.w + tol && py >= b.y - tol && py <= b.y + b.h + tol) { inside++; x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); }
     const share = inside / pts.length; if (share < .85) continue;
@@ -188,9 +235,17 @@ function proposeWaved({doc, win}, g) {
     if (!best || area < best.area) best = {el: b.el, area, share, span, k};
   }
   if (!best) return null;
-  const info = describeElement(best.el, doc, win);
-  return {shape: {kind: 'rect', ...info.box}, label: labelOf(info, best.k), source: 'dom', score: round2(best.share * (.6 + .4 * best.span)), element: info};
+  const el = labelControl(best.el) || best.el, info = describeElement(el, doc, win), box = el === best.el ? measureOf({el, ...info.box}, doc, win) : info.box;
+  return {shape: {kind: 'rect', x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)}, label: labelOf(info, nameKind(el) || best.k, el), source: 'dom', score: round2(best.share * (.6 + .4 * best.span)), element: info};
 }
+function isFlat(points, width) {
+  if (points.length < 2) return false;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, len = 0;
+  for (let i = 0; i < points.length; i++) { const [x, y] = points[i]; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); if (i) len += Math.hypot(x - points[i - 1][0], y - points[i - 1][1]); }
+  const w = x1 - x0, h = y1 - y0;
+  return w >= width && h <= Math.max(.5 * width, .25 * w) && len <= 1.35 * w;
+}
+const median = v => { const s = [...v].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 function resample(pts, step) {
   const out = []; if (!pts.length) return out;
   out.push(pts[0]);
@@ -204,10 +259,11 @@ function resample(pts, step) {
 function proposeCovered({doc, win}, g) {
   const mask = gestureMask(g); if (!mask) return null;
   const hits = [];
-  for (const b of indexOf(doc, win)) {
-    if (b.x > mask.x1 || b.y > mask.y1 || b.x + b.w < mask.x0 || b.y + b.h < mask.y0) continue;
-    if (b.w < 3 || b.h < 3 || !kindOf(b.el)) continue;
-    const cov = mask.cover(b); if (cov >= COVER[g.kind]) hits.push({...b, cov});
+  for (const raw of indexOf(doc, win)) {
+    if (raw.x > mask.x1 || raw.y > mask.y1 || raw.x + raw.w < mask.x0 || raw.y + raw.h < mask.y0) continue;
+    if (raw.w < 3 || raw.h < 3 || !kindIn(raw.el, doc, win)) continue;
+    const b = measureOf(raw, doc, win);
+    const cov = mask.cover(b); if (cov >= COVER[g.kind]) hits.push({...b, el: raw.el, cov});
   }
   if (!hits.length) return null;
   const inHits = new Set(hits.map(h => h.el));
@@ -215,7 +271,7 @@ function proposeCovered({doc, win}, g) {
   let top = hits.filter(h => { for (let p = h.el.parentElement; p; p = p.parentElement) if (inHits.has(p)) return false; return true; });
   if (!top.length) return null;
   let chosen, members = null;
-  if (top.length === 1) chosen = top[0].el;
+  if (top.length === 1) chosen = labelControl(top[0].el) || top[0].el;
   else {
     // Several: their nearest common ancestor stands for them when it is about their size; else their tight union.
     const lca = commonAncestor(top.map(t => t.el)), union = unionBox(top), ar = lca && lca !== doc.body && lca !== doc.documentElement ? boxOf(lca, win) : null;
@@ -227,15 +283,18 @@ function proposeCovered({doc, win}, g) {
       chosen = lca;
     }
   }
-  const box = members ? unionBox(members) : boxOf(chosen, win);
+  // What the gesture is measured against (a label as drawn, even when it stands for its control) and what is shown.
+  const box = members ? unionBox(members) : top.length === 1 ? top[0] : measureOf({el: chosen, ...boxOf(chosen, win)}, doc, win);
+  const shown = members || top.length !== 1 || chosen === top[0].el ? box : boxOf(chosen, win);
   const fill = mask.fill(box), cov = Math.min(1, mask.cover(box));
   // Content the user's gesture cuts through outside the snap (words, pictures, controls half inside it): a loose gesture
   // round one thing in empty space still snaps; one that also slices other content needs a closer fit.
   const kept = members ? members.map(m => m.el) : [chosen];
   let stray = 0;
-  for (const b of indexOf(doc, win)) {
-    if (b.x > mask.x1 || b.y > mask.y1 || b.x + b.w < mask.x0 || b.y + b.h < mask.y0) continue;
-    const k = kindOf(b.el); if (!(k === 'text' || k === 'media' || k === 'control' || k === 'heading')) continue;
+  for (const raw of indexOf(doc, win)) {
+    if (raw.x > mask.x1 || raw.y > mask.y1 || raw.x + raw.w < mask.x0 || raw.y + raw.h < mask.y0) continue;
+    const k = kindIn(raw.el, doc, win); if (!(k === 'text' || k === 'media' || k === 'control' || k === 'heading')) continue;
+    const b = measureOf(raw, doc, win);
     if (kept.some(e => e === b.el || e.contains?.(b.el) || b.el.contains?.(e))) continue;
     stray += mask.cover(b) * b.w * b.h;
   }
@@ -243,14 +302,16 @@ function proposeCovered({doc, win}, g) {
   if (fill < FILL[g.kind] && !(fill >= .06 && stray < .04)) return null;
   const score = round2(cov * (.55 + .45 * Math.min(1, fill / .6)) * (1 - Math.min(.6, stray * 1.5)));
   if (score < (members ? .5 : .35)) return null; // a union of separate things must fit the user's gesture well
-  const shape = {kind: 'rect', x: round1(box.x), y: round1(box.y), w: round1(box.w), h: round1(box.h)};
+  // Several separate things: each one's outline, never one box round all of them (CONTRACT § Round 2 review fixes).
+  const shape = members ? {kind: 'path', points: outlinesPath(members.map(m => { const x0 = round1(m.x), y0 = round1(m.y), x1 = round1(m.x + m.w), y1 = round1(m.y + m.h); return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }))}
+    : {kind: 'rect', x: round1(shown.x), y: round1(shown.y), w: round1(shown.w), h: round1(shown.h)};
   if (!members) {
     const info = describeElement(chosen, doc, win);
-    return {shape, label: labelOf(info, kindOf(chosen)), source: 'dom', score, element: info, fill};
+    return {shape, label: labelOf(info, nameKind(chosen), chosen), source: 'dom', score, element: info, fill};
   }
-  const elements = members.map(m => describeElement(m.el, doc, win));
+  const elements = members.map(m => describeElement(labelControl(m.el) || m.el, doc, win));
   const where = chosen && chosen !== doc.body && chosen !== doc.documentElement ? describeElement(chosen, doc, win) : null;
-  const named = where && (where.name || where.id) ? ` in ${labelOf(where, kindOf(chosen) || 'group')}` : '';
+  const named = where && (where.name || where.id) ? ` in ${labelOf(where, kindOf(chosen) || 'group', chosen)}` : '';
   return {shape, label: `${elements.length} elements${named}`, source: 'dom', score, element: where || elements[0], elements, fill};
 }
 
@@ -380,6 +441,21 @@ export function kindOf(el) {
   return null;
 }
 
+// kindOf, and an inline element with words of its own that is not a run inside a paragraph or a heading (a nav of
+// plain spans) is 'text' too.
+export function nameKind(el) {
+  const k = kindOf(el); if (k) return k;
+  if (!el || el.nodeType !== ELEMENT || !(INLINE_TAGS.has(tagOf(el)) || (tagOf(el) === 'a' && !el.hasAttribute?.('href'))) || !ownText(el)) return null;
+  for (let p = el.parentElement; p; p = p.parentElement) { const pk = kindOf(p); if (pk === 'text' || pk === 'heading' || pk === 'control') return null; if (pk) break; }
+  return 'text';
+}
+// The control a <label> is for (label[for], else the field it wraps), or null.
+export function labelControl(el) {
+  if (!el || tagOf(el) !== 'label') return null;
+  const id = attr(el, 'for'), doc = el.ownerDocument;
+  const c = id ? byId(doc || rootOf(el), id) : findFirst(el, e => e !== el && ['input', 'select', 'textarea'].includes(tagOf(e)) && attr(e, 'type') !== 'hidden');
+  return c && kindOf(c) === 'control' ? c : null;
+}
 function isInSvg(el) { for (let p = el; p; p = p.parentElement) if (tagOf(p) === 'svg') return true; return false; }
 
 function hasText(el) { return !!collapse(el.textContent || ''); }
@@ -415,12 +491,16 @@ function effectiveBackground(el, win) {
 
 // From the element under a click, the nearest one a person would name. A control anywhere on the way up wins (the
 // words inside a button are the button); else the first element with a kind. `fits` rejects page-sized boxes.
-export function meaningfulAt(leaf, fits = () => true) {
+// A <label> is its control (named by the label: clicking or underlining "Email" means the Email field). `words(el)`
+// says whether an inline element with words of its own is the thing (it looks clickable, or the click is on them).
+export function meaningfulAt(leaf, fits = () => true, words = () => false) {
   let e = leaf?.nodeType === ELEMENT ? leaf : leaf?.parentElement;
   const chain = [];
   for (let p = e; p && tagOf(p) !== 'body' && tagOf(p) !== 'html'; p = p.parentElement) chain.push(p);
-  const control = chain.find(p => kindOf(p) === 'control');
+  const control = chain.find(p => kindOf(p) === 'control') || labelControl(chain.find(p => tagOf(p) === 'label'));
   if (control && fits(control)) return control;
+  const lf = chain[0];
+  if (lf && !kindOf(lf) && nameKind(lf) === 'text' && fits(lf) && words(lf)) return lf;
   // A link or label around media/text is still the control (handled above); otherwise the first named thing.
   for (const p of chain) { const k = kindOf(p); if (k && fits(p)) return p; }
   return null;
@@ -664,11 +744,33 @@ export function describeElement(el, doc = el.ownerDocument, win = doc?.defaultVi
 function cleanUrl(u) { try { const x = new URL(u); for (const k of ['theme', 'scale', 'v']) x.searchParams.delete(k); return x.href; } catch { return u; } }
 
 const NOUNS = {link: 'link', button: 'button', checkbox: 'checkbox', radio: 'radio button', switch: 'switch', tab: 'tab', textbox: 'field', searchbox: 'search field', combobox: 'menu', listbox: 'list box', slider: 'slider', spinbutton: 'number field', img: 'image', heading: 'heading', navigation: 'navigation', main: 'main', banner: 'header', contentinfo: 'footer', complementary: 'sidebar', article: 'article', list: 'list', listitem: 'list item', table: 'table', row: 'row', cell: 'cell', columnheader: 'column header', dialog: 'dialog', figure: 'figure', paragraph: 'paragraph', form: 'form', region: 'section', group: 'group', menuitem: 'menu item', option: 'option'};
-export function labelOf(info, kind) {
+// How a chip names an element: its noun and its words. A box or a group with a heading of its own is named by it
+// (`box "Two"`, not all of its words); an unnamed group of things side by side is that many columns, by their headings.
+export function labelOf(info, kind, el = null) {
   const noun = NOUNS[info.role] || ({media: info.tag === 'video' ? 'video' : info.tag === 'canvas' ? 'canvas' : 'image', heading: 'heading', text: 'text', boxed: 'box', labelled: 'section', group: info.tag === 'form' ? 'form' : 'group', control: 'control'})[kind] || info.tag;
-  const words = info.name || (kind === 'text' || kind === 'boxed' ? info.text : '') || '';
+  const title = !info.name && el && (kind === 'boxed' || kind === 'group' || kind === 'labelled') ? headingOf(el) : '';
+  if (!info.name && !title && el && kind === 'group') { const cols = columnsOf(el); if (cols) return cols; }
+  const words = info.name || title || (kind === 'text' || kind === 'boxed' ? info.text : '') || '';
   const short = words.length > 40 ? words.slice(0, 39) + '…' : words;
   return short ? `${noun} "${short}"` : info.id ? `${noun} #${info.id}` : noun;
+}
+// The heading an element opens with (one of its first few elements), when it has only one of that level.
+function headingOf(el) {
+  let seen = 0;
+  const hd = findFirst(el, e => { if (e === el) return false; seen++; return seen <= 4 && (HEADING_RE.test(tagOf(e)) || attr(e, 'role') === 'heading'); });
+  if (!hd || seen > 4 || findAll(el, e => e !== hd && tagOf(e) === tagOf(hd)).length) return '';
+  return collapse(textAlternative(hd, 1));
+}
+// Two to twelve children laid side by side (their tops level, each right of the last): `3 columns "One", "Two", …`.
+function columnsOf(el) {
+  const kids = (el.children ? [...el.children] : []).filter(c => !isHidden(c));
+  if (kids.length < 2 || kids.length > 12 || !kids[0].getBoundingClientRect) return '';
+  const rs = kids.map(c => c.getBoundingClientRect());
+  if (!rs.every((r, i) => r.width > 0 && Math.abs(r.top - rs[0].top) < 8 && (!i || r.left >= rs[i - 1].right - 2))) return '';
+  const names = kids.map(c => headingOf(c) || (HEADING_RE.test(tagOf(c)) ? collapse(textAlternative(c, 1)) : '')).filter(Boolean);
+  const list = names.length === kids.length ? ` ${names.map(n => `"${n.length > 16 ? n.slice(0, 15) + '…' : n}"`).join(', ')}` : '';
+  const full = `${kids.length} columns${list}`;
+  return full.length > 60 ? `${kids.length} columns` : full;
 }
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
