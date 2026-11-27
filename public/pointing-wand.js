@@ -74,16 +74,18 @@ export class SwathField {
     return f;
   }
   /** A region (a snapped rect or path) filled: a light dusting inside, a dense band `edge` wide just inside its edge. */
+  // A path made of several outlines (pathLoops) is filled loop by loop, so the bridges between them draw nothing.
   static fromRegion(shape, cell, edge) {
     const f = new SwathField({width: edge * 2, cell});
-    const poly = shape.kind === 'rect' ? [[shape.x, shape.y], [shape.x + shape.w, shape.y], [shape.x + shape.w, shape.y + shape.h], [shape.x, shape.y + shape.h]] : shape.points;
-    if (!poly || poly.length < 3) return f;
-    const b = boxOf(poly), c = cell;
-    const segs = poly.map((p, k) => [p, poly[(k + 1) % poly.length]]);
-    const toEdge = shape.kind === 'rect' ? (x, y) => Math.min(x - b.x, b.x + b.w - x, y - b.y, b.y + b.h - y)
-      : (x, y) => { let d = Infinity; for (const [a, q] of segs) d = Math.min(d, segDist(x, y, a[0], a[1], q[0], q[1])); return d; };
-    f.scanFill(poly, (x, y) => toEdge(x, y) <= edge ? STRENGTH.edge : STRENGTH.fill);
-    void c;
+    const loops = shape.kind === 'rect' ? [[[shape.x, shape.y], [shape.x + shape.w, shape.y], [shape.x + shape.w, shape.y + shape.h], [shape.x, shape.y + shape.h]]] : pathLoops(shape.points || []);
+    for (const poly of loops) {
+      if (poly.length < 3) continue;
+      const b = boxOf(poly);
+      const segs = poly.map((p, k) => [p, poly[(k + 1) % poly.length]]);
+      const toEdge = shape.kind === 'rect' ? (x, y) => Math.min(x - b.x, b.x + b.w - x, y - b.y, b.y + b.h - y)
+        : (x, y) => { let d = Infinity; for (const [a, q] of segs) d = Math.min(d, segDist(x, y, a[0], a[1], q[0], q[1])); return d; };
+      f.scanFill(poly, (x, y) => toEdge(x, y) <= edge ? STRENGTH.edge : STRENGTH.fill);
+    }
     return f;
   }
   tile(ti, tj, make) {
@@ -237,6 +239,35 @@ export class SwathField {
   }
   shape(round = v => Math.round(v * 10) / 10) { return {kind: 'swath', width: round(this.width), points: this.points.map(([x, y]) => [round(x), round(y)])}; }
 }
+/**
+ * Several outlines as one closed path (a snap that names several things: CONTRACT § Round 2 review fixes): each loop
+ * ends on its own first point, the next loop starts from there, and after the last one the path walks back through
+ * the loops' first points to where it began. The way out and the way back between two loops are the same line, so
+ * the path has the loops' area and nothing else (even-odd fill, point-in-polygon and the shoelace area all agree).
+ * `pathLoops` gives the loops back (a path with no loop closed on its first point is one loop, as any lasso).
+ */
+export function outlinesPath(loops) {
+  loops = loops.filter(l => l?.length >= 3);
+  if (loops.length <= 1) return loops[0] ? loops[0].map(p => [p[0], p[1]]) : [];
+  const out = [];
+  for (const l of loops) { for (const p of l) out.push([p[0], p[1]]); out.push([l[0][0], l[0][1]]); }
+  for (let k = loops.length - 2; k >= 0; k--) out.push([loops[k][0][0], loops[k][0][1]]);
+  return out;
+}
+export function pathLoops(points) {
+  if (!points?.length) return [];
+  const same = (a, b) => a[0] === b[0] && a[1] === b[1];
+  if (!points.slice(1).some(p => same(p, points[0]))) return [points];
+  const loops = [];
+  for (let i = 0; i < points.length;) {
+    const start = points[i]; let j = i + 1;
+    while (j < points.length && !same(points[j], start)) j++;
+    if (j >= points.length) break;            // the walk back through the loops' first points
+    if (j - i >= 3) loops.push(points.slice(i, j));
+    i = j + 1;
+  }
+  return loops;
+}
 function segDist(x, y, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
   let u = L2 ? ((x - ax) * dx + (y - ay) * dy) / L2 : 0; u = u < 0 ? 0 : u > 1 ? 1 : u;
@@ -247,36 +278,58 @@ function segDist(x, y, ax, ay, bx, by) {
 const hash = (i, j) => { let h = Math.imul(i | 0, 0x27d4eb2d) ^ Math.imul(j | 0, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
 /** A fleck's size in device pixels: about 1.5 CSS px, whole device pixels so its edges are hard. */
 export const fleckSize = dpr => Math.max(2, Math.round(1.5 * dpr));
+// The glitter's mix (reviewed 2026-11-26 against a stipple of red crosses that vanished on a red apple): fewer sites
+// lit (DENSITY of the cell's strength), flecks of three sizes and a few short dashes, each two-tone so it reads on any
+// ground: a mark-red fleck with a light keyline on its top and left edges, or (about one in four) a light fleck with a deep
+// keyline on its bottom and right, like a glint cut at an angle. A rare sparkle (STAR of the lit sites) is a light
+// point with short red arms. Nothing blurred, nothing glowing; at full strength about a tenth of the area is ink.
+const DENSITY = 0.72, STAR = 0.03;
+const SIZES = [[0.42, 1], [0.8, 1.5], [1, 2.25]];   // [share up to, size in units of `size / 2` CSS px]
 /**
  * Draws the area's flecks into `ctx` (identity transform, device pixels). `view`: {ox, oy, k}: device px =
- * (board − o) × k. `w`: cell bounds to draw (default all). `ink`: the fleck colour. `fresh`: {now, ms}, cells that grew
- * within `ms` draw denser and with more sparkles, settling to their own density as they age (the user's motion only).
+ * (board − o) × k. `w`: cell bounds to draw (default all). `tones`: [ink, ink, light, deep] (pointing.css --wand-ink,
+ * --wand-ink, --wand-pale, --wand-star); `ink` alone draws one colour. `fresh`: {now, ms}, cells that grew within
+ * `ms` draw denser, settling to their own density as they age (the user's motion only).
  */
-export function paintField(ctx, field, view, {ink, tones = null, halo = null, w = null, dpr = 1, fresh = null, size: css = 2, rim = 0.7} = {}) {
-  const c = field.cell, k = view.k, size = Math.max(2, Math.round(css * dpr)), arm = size;
-  const flecks = [[], [], []], stars = [];
+export function paintField(ctx, field, view, {ink, tones = null, w = null, dpr = 1, fresh = null, size: css = 2, rim = 0.7} = {}) {
+  const c = field.cell, k = view.k, unit = css / 2;
+  const body = tones ? tones[0] : ink, light = tones ? tones[2] || tones[0] : ink, deep = tones ? tones[3] || tones[0] : ink;
+  const edge = Math.max(1, Math.round(dpr * 0.5)), px = n => Math.max(1, Math.round(n * unit * dpr));
+  const red = [], pale = [], stars = [];
   field.forEach((i, j, s, born) => {
     const t = rankAt(i, j);
     // The area's own edge: a cell with a neighbour outside draws at least `rim`, so the edge reads as a line of flecks.
     if (rim && s < rim && (!(field.get(i - 1, j) > 0) || !(field.get(i + 1, j) > 0) || !(field.get(i, j - 1) > 0) || !(field.get(i, j + 1) > 0))) s = rim;
     if (fresh) { const age = fresh.now - born; if (age >= 0 && age < fresh.ms) s += (1 - s) * 0.55 * (1 - age / fresh.ms); else if (fresh.only) return; }
-    if (t >= s) return;
+    const lit = s * DENSITY; if (t >= lit) return;
     const jx = (hash(i, j) - 0.5) * 0.5, jy = (hash(j + 7919, i) - 0.5) * 0.5;
-    const x = Math.round(((i + 0.5 + jx) * c - view.ox) * k - size / 2), y = Math.round(((j + 0.5 + jy) * c - view.oy) * k - size / 2);
-    if (t < s * 0.07) stars.push(x, y); else { const h = hash(i + 31, j - 17); flecks[!tones ? 0 : h < 0.62 ? 0 : h < 0.84 ? 1 : 2].push(x, y); }
+    const x = Math.round(((i + 0.5 + jx) * c - view.ox) * k), y = Math.round(((j + 0.5 + jy) * c - view.oy) * k);
+    if (t < lit * STAR) { stars.push(x, y); return; }
+    const h = hash(i + 31, j - 17), g = hash(j + 101, i + 7);
+    const sz = px(SIZES.find(([upTo]) => g < upTo)[1]);
+    // One in eight a short dash, across or down.
+    const dash = h > 0.875, fw = dash && g < 0.5 ? 2 * sz : sz, fh = dash && g >= 0.5 ? 2 * sz : sz;
+    (h < 0.28 ? pale : red).push(x - (fw >> 1), y - (fh >> 1), fw, fh);
   }, w);
-  const draw = (grow, fill, list, star) => {
-    ctx.fillStyle = fill; ctx.beginPath();
-    for (let q = 0; q < list.length; q += 2) ctx.rect(list[q] - grow, list[q + 1] - grow, size + 2 * grow, size + 2 * grow);
-    // The sparsest ranks sparkle: a four-point star, arms one fleck long.
-    if (star) for (let q = 0; q < stars.length; q += 2) { const x = stars[q], y = stars[q + 1]; ctx.rect(x - arm - grow, y - grow, size + 2 * arm + 2 * grow, size + 2 * grow); ctx.rect(x - grow, y - arm - grow, size + 2 * grow, size + 2 * arm + 2 * grow); }
+  const fill = (colour, list, dx, dy, grow) => {
+    if (!list.length) return;
+    ctx.fillStyle = colour; ctx.beginPath();
+    for (let q = 0; q < list.length; q += 4) ctx.rect(list[q] + dx, list[q + 1] + dy, list[q + 2] + grow, list[q + 3] + grow);
     ctx.fill();
   };
-  const all = flecks.flat();
-  if (halo) draw(Math.max(1, Math.round(dpr / 2)), halo, all, true);
-  if (!tones) { draw(0, ink, all, true); return; }
-  draw(0, tones[0], flecks[0], false); draw(0, tones[1], flecks[1], false); draw(0, tones[2], flecks[2], false);
-  // Sparkles: a light core, with an edge of `tones[4]` when given (so a light core holds on a light ground).
-  if (tones[4]) draw(Math.max(1, Math.round(dpr / 2)), tones[4], [], true);
-  draw(0, tones[3] || tones[0], [], true);
+  // Keylines first (a light one up and left of each red fleck, a deep one down and right of each light fleck), then
+  // the flecks over them, so no keyline cuts into a neighbour.
+  fill(light, red, -edge, -edge, edge);
+  fill(deep, pale, 0, 0, edge);
+  fill(body, red, 0, 0, 0);
+  fill(light, pale, 0, 0, 0);
+  if (stars.length) {
+    const a = px(1), arm = px(1.25), core = px(1.5);
+    ctx.fillStyle = body; ctx.beginPath();
+    for (let q = 0; q < stars.length; q += 2) { const x = stars[q], y = stars[q + 1]; ctx.rect(x - arm - (core >> 1), y - (a >> 1), core + 2 * arm, a); ctx.rect(x - (a >> 1), y - arm - (core >> 1), a, core + 2 * arm); }
+    ctx.fill();
+    ctx.fillStyle = light; ctx.beginPath();
+    for (let q = 0; q < stars.length; q += 2) ctx.rect(stars[q] - (core >> 1), stars[q + 1] - (core >> 1), core, core);
+    ctx.fill();
+  }
 }

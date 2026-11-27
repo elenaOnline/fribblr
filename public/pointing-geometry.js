@@ -71,6 +71,7 @@ export function simplify(points, tolerance = 1, max = 400) {
   while (out.length > max) out = out.filter((_, i) => i % 2 === 0 || i === out.length - 1);
   return out;
 }
+const near = ([x, y], b, d) => x >= b.x - d && x <= b.x + b.w + d && y >= b.y - d && y <= b.y + b.h + d;
 const regionOf = (part, box) => ({x: round3((part.x - box.x) / box.w), y: round3((part.y - box.y) / box.h), w: round3(part.w / box.w), h: round3(part.h / box.h)});
 const inRect = ([x, y], r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 /** Whether segment p1–p2 meets segment p3–p4 (ends included). */
@@ -118,7 +119,7 @@ function decide(candidates, shapeArea, covered, {loose = false, inside = null, e
     const whole = cover >= 0.9 || (loose && !c.line && cover >= 0.6 && !!inside?.([c.x + c.w / 2, c.y + c.h / 2]));
     // `span` (the wand): a stroke that runs along most of a thing's length while touching it (an underline, a stroke
     // through a heading) points at it even when it covers little of it.
-    const along = span && !c.line ? span(box) : 0;
+    const along = span && !c.line ? span(box, c) : 0;
     if (c.line ? !whole : cover < 0.25 && share < 0.25 && !(along >= 0.75 && cover >= 0.08)) continue;
     hits.push({c, box, whole, inter: got.area, part: got.bounds, cover, along});
   }
@@ -128,7 +129,11 @@ function decide(candidates, shapeArea, covered, {loose = false, inside = null, e
   if (hits.some(h => !h.c.line)) hits = hits.filter(h => !h.c.line);
   hits.sort((a, b) => b.inter - a.inter);
   const others = hits.length > 0;
-  hits.push(...lines.filter(l => l.enclosed || !others));
+  // An arrow joins the other things only when the gesture is clearly about it: wholly inside, and not leading out to
+  // something the gesture left out (circling a card does not take the arrow that arrives at it from another card).
+  const kept = new Set(hits.map(h => h.c));
+  const leadsOut = l => [l.c.points[0], l.c.points.at(-1)].some(end => candidates.some(o => o !== l.c && !o.line && !kept.has(o) && near(end, o, 12)));
+  hits.push(...lines.filter(l => !others || (l.enclosed && !leadsOut(l))));
   const more = Math.max(0, hits.length - 12);
   // `cover` (how much of the thing the gesture covers) and `along` go with each target for snapping (pointing-snap.js).
   return {more, targets: hits.slice(0, 12).map(h => ({candidate: h.c, whole: h.whole, cover: h.c.line ? 1 : Math.min(1, h.cover), along: h.along || 0,
@@ -153,8 +158,54 @@ export function pathHits(points, candidates, {loose = false} = {}) {
  */
 export function areaHits(field, candidates) {
   const fb = field.bounds(); if (!fb) return {more: 0, targets: []};
+  const along = underlines(field.points, field.r, candidates);
   return decide(candidates, field.area(), (c, box) => intersectRect(fb, box) ? field.covered(box) : null,
-    {loose: true, inside: p => field.contains(p), edges: [], span: box => field.span(box)});
+    {loose: true, inside: p => field.contains(p), edges: [], span: (box, c) => along.get(c) || 0});
+}
+/**
+ * How much of each thing's length a stroke runs along (0..1), by its centre line (`points`, a band `r` either side):
+ * through the thing, or under it and close (within 0.6 r of its bottom edge; beside a thing taller than wide). Under
+ * means under one thing: where the line runs between two things, under one and just over (or in) the next, as along
+ * the gap between two rows of cards, it is under neither.
+ */
+export function underlines(points, r, candidates) {
+  const out = new Map(); if (!points?.length) return out;
+  const step = Math.max(1, r / 4), pts = [];
+  for (let i = 0; i < points.length; i++) {
+    const [bx, by] = points[i];
+    if (!i) { pts.push([bx, by]); continue; }
+    const [ax, ay] = points[i - 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+    for (let k = 1; k <= n; k++) pts.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]);
+  }
+  const lb = boundsOf(pts), d = 0.6 * r, reach = {x: lb.x - d - r, y: lb.y - d - r, w: lb.w + 2 * (d + r), h: lb.h + 2 * (d + r)};
+  const things = candidates.filter(c => !c.line && c.w > 0 && c.h > 0 && intersectRect(reach, c));
+  const holds = (a, b) => a.x <= b.x && a.y <= b.y && a.x + a.w >= b.x + b.w && a.y + a.h >= b.y + b.h;
+  // [along, across] for a thing laid out wide (x along it) or tall (y along it).
+  const axes = c => c.w >= c.h ? {a: p => p[0], b: p => p[1], a0: c.x, a1: c.x + c.w, b0: c.y, b1: c.y + c.h, wide: true}
+    : {a: p => p[1], b: p => p[0], a0: c.y, a1: c.y + c.h, b0: c.x, b1: c.x + c.w, wide: false};
+  // Where p is against c: 'in', 'under' (below its bottom, close; beside a tall one), 'over' (above its top, close), or null.
+  const against = (p, c) => {
+    const ax = axes(c), u = ax.a(p), v = ax.b(p);
+    if (u < ax.a0 || u > ax.a1) return null;
+    if (v >= ax.b0 && v <= ax.b1) return 'in';
+    if (v > ax.b1 && v - ax.b1 <= d) return 'under';
+    if (v < ax.b0 && ax.b0 - v <= d) return ax.wide ? 'over' : 'under';
+    return null;
+  };
+  for (const c of things) {
+    const ax = axes(c), got = [];
+    for (const p of pts) {
+      const how = against(p, c); if (!how || how === 'over') continue;
+      if (how === 'under' && things.some(o => o !== c && !holds(o, c) && !holds(c, o) && (({in: 1, over: 1})[against(p, o)]))) continue;
+      got.push(ax.a(p));
+    }
+    if (!got.length) continue;
+    got.sort((x, y) => x - y);
+    let run = 0;
+    for (let i = 1; i < got.length; i++) { const g = got[i] - got[i - 1]; if (g <= 2 * step) run += g; }
+    out.set(c, Math.min(1, run / (ax.a1 - ax.a0)));
+  }
+  return out;
 }
 /** A click: the whole thing under it (found by the page), and the spot clicked as fractions of its own box. */
 export function pointTarget(candidate, point) {

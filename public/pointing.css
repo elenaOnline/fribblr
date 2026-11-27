@@ -62,10 +62,12 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 .pointing-sheet[data-tool="point"] { cursor: default; }
 .pointing-sheet.pointing-panning { cursor: grabbing; }
 
-/* The Wand's glitter (pointing-wand.js): flecks in the user's red, a pale tone among them, sparkles in the deep red (near white on
-   a dark board). Hard-edged pixels, never blurred: between a zoom and its redraw the canvas scales without smoothing. */
-:root { --wand-ink: var(--mark-red); --wand-pale: color-mix(in srgb, var(--mark-red) 45%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
-html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-pale: color-mix(in srgb, var(--mark-red) 35%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red) 22%, var(--ink-on-mark)); }
+/* The Wand's glitter (pointing-wand.js): two-tone flecks so it reads on any ground (paper, a photo, a red subject, a
+   dark board): mark-red flecks keylined light on their top and left, light flecks keylined deep on their bottom and
+   right, a rare light sparkle with red arms. Hard-edged pixels, never blurred: between a zoom and its redraw the canvas
+   scales without smoothing. */
+:root { --wand-ink: var(--mark-red); --wand-pale: color-mix(in srgb, var(--mark-red) 12%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
+html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-pale: color-mix(in srgb, var(--mark-red) 18%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red-side) 70%, black); }
 .pointing-swath { position: absolute; pointer-events: none; image-rendering: pixelated; }
 
 /* Marks on the board, in world units: strokes and numbers keep their screen size at any zoom. */
@@ -117,3 +119,8 @@ html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="
 .ct-msg .pointing-words { color: var(--ink); }
 /* The mark a chip in an open thread was pressed for. */
 .pointing-shape.pointing-focus { stroke-width: 3px; }
+/* Numbers that would sit on one spot (several marks made inside one item, two marks on one thing) go side by side in
+   one row; inside the opened item a number at the window's top edge sits just inside it instead of above it. */
+.pointing-badge-row { position: absolute; display: flex; gap: 3px; transform-origin: 0 0; transform: scale(calc(1 / (var(--canvas-zoom, 1) * var(--pointing-k, 1)))) translate(-2px, calc(-100% - 3px)); }
+.pointing-badge-row > .pointing-badge { position: static; transform: none; }
+.pointing-badge.pointing-badge-below, .pointing-badge-row.pointing-badge-below { transform: scale(calc(1 / (var(--canvas-zoom, 1) * var(--pointing-k, 1)))) translate(3px, 3px); }

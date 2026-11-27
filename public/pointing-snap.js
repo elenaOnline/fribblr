@@ -12,13 +12,15 @@
 // A proposal: {source: 'object' | 'dom' | 'pixels', shape: {kind: 'rect' | 'path', …} (board units), label, score 0..1,
 // targets?: [{candidate, whole: true}] (object), candidate?, element? (a source inside an item)}.
 
+import {outlinesPath} from './pointing-wand.js';
+
 export const SNAP_MIN = 0.35;
 // How much of a thing a gesture must cover to be tidied to it: a marquee or lasso half of it; the wand, a wide brush
 // that rarely fills a card, 40 %, or running along most of it (an underline).
 export const SNAP_COVER = {marquee: 0.5, lasso: 0.5, wand: 0.4};
 
 const area = b => Math.max(0, b.w) * Math.max(0, b.h);
-/** A candidate's own outline in board units: its box, a text element's words, an arrow's drawn line. */
+/** A candidate's own box in board units: its box, a text element's words, an arrow's drawn line's bounds. */
 export function candidateBox(c) {
   if (c.line && c.points?.length > 1) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -27,10 +29,32 @@ export function candidateBox(c) {
   }
   return {x: c.x, y: c.y, w: c.w, h: c.h};
 }
-const union = boxes => {
-  const x0 = Math.min(...boxes.map(b => b.x)), y0 = Math.min(...boxes.map(b => b.y));
-  return {x: x0, y: y0, w: Math.max(...boxes.map(b => b.x + b.w)) - x0, h: Math.max(...boxes.map(b => b.y + b.h)) - y0};
-};
+const RIBBON = 7;                 // board units either side of an arrow's line, its outline when it is snapped to
+/**
+ * A candidate's own outline as a closed polygon in board units: a diamond and an ellipse by their drawn shape, an
+ * arrow as a narrow ribbon along its line (its box would cover whatever lies beside a diagonal), anything else its box.
+ */
+export function candidateOutline(c) {
+  if (c.line && c.points?.length > 1) return ribbon(c.points, RIBBON);
+  const b = candidateBox(c), shape = c.decoration?.shape;
+  if (shape === 'diamond') return [[b.x + b.w / 2, b.y], [b.x + b.w, b.y + b.h / 2], [b.x + b.w / 2, b.y + b.h], [b.x, b.y + b.h / 2]];
+  if (shape === 'ellipse') return Array.from({length: 24}, (_, k) => { const a = k / 24 * Math.PI * 2; return [b.x + b.w / 2 + b.w / 2 * Math.cos(a), b.y + b.h / 2 + b.h / 2 * Math.sin(a)]; });
+  return [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+}
+// A polyline thickened to a closed ribbon `r` wide either side (its points thinned to about one per 16 units).
+function ribbon(points, r) {
+  const pts = [points[0]];
+  for (const p of points.slice(1, -1)) if (Math.hypot(p[0] - pts.at(-1)[0], p[1] - pts.at(-1)[1]) >= 16) pts.push(p);
+  pts.push(points.at(-1));
+  const left = [], right = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+    const nx = -dy / l * r, ny = dx / l * r;
+    left.push([pts[i][0] + nx, pts[i][1] + ny]); right.push([pts[i][0] - nx, pts[i][1] - ny]);
+  }
+  return [...left, ...right.reverse()];
+}
+const isBox = poly => poly.length === 4 && poly[0][1] === poly[1][1] && poly[1][0] === poly[2][0] && poly[2][1] === poly[3][1] && poly[3][0] === poly[0][0];
 
 /**
  * The board-object source. `hits`: what the raw gesture hit (pointing-geometry.js, with `cover` and `along` per
@@ -38,6 +62,9 @@ const union = boxes => {
  * how the label names one thing ('card "Hero B"').
  * It proposes only when every thing hit is mostly covered (so it never drops something the user half meant), and when those
  * things are not a speck in a big gesture (a wide box over empty board with a sticker in its corner stays a board area).
+ * The snapped outline covers only what it names: one thing's outline (a box is a `rect`, a diamond, an ellipse or an
+ * arrow a `path`), or for several things a `path` made of each one's outline (outlinesPath), never a box round all of
+ * them that would also cover things it does not name.
  */
 export function objectSnap(hits, {tool, gestureArea = 0, name = () => 'object'} = {}) {
   const ts = hits?.targets || [];
@@ -49,8 +76,11 @@ export function objectSnap(hits, {tool, gestureArea = 0, name = () => 'object'} 
   const things = boxes.reduce((s, b) => s + area(b), 0);
   if (gestureArea > 0 && things < 0.2 * gestureArea && !ts.some(t => t.candidate.line)) return null;
   const score = Math.min(...ts.map(t => t.whole ? 1 : t.cover >= need ? Math.max(t.cover, 0.6) : 0.6));
-  const b = union(boxes);
-  return {source: 'object', shape: {kind: 'rect', x: b.x, y: b.y, w: b.w, h: b.h}, score,
+  const loops = ts.map(t => candidateOutline(t.candidate));
+  const shape = loops.length === 1 && isBox(loops[0]) ? {kind: 'rect', x: boxes[0].x, y: boxes[0].y, w: boxes[0].w, h: boxes[0].h}
+    : {kind: 'path', points: outlinesPath(loops)};
+  if (shape.kind === 'path' && shape.points.length > 400) return null; // more outline than a record holds: what was drawn stands
+  return {source: 'object', shape, score,
     label: ts.length === 1 ? name(ts[0].candidate) : `${ts.length} objects`,
     targets: ts.map(t => ({candidate: t.candidate, whole: true}))};
 }

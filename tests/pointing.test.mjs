@@ -10,8 +10,8 @@ import {loadConfig} from '../lib/config.mjs';
 import {applyOperation,getBoardSnapshot} from '../lib/workspace.mjs';
 import {listFeedback} from '../lib/feedback.mjs';
 import {rectHits,pathHits,areaHits,pointTarget,closedLoop,simplify,clipPolygon,polygonArea} from '../public/pointing-geometry.js';
-import {SwathField} from '../public/pointing-wand.js';
-import {objectSnap,bestProposal} from '../public/pointing-snap.js';
+import {SwathField,outlinesPath,pathLoops} from '../public/pointing-wand.js';
+import {objectSnap,bestProposal,candidateOutline} from '../public/pointing-snap.js';
 
 const card=(id,x,y,w=200,h=150,extra={})=>({key:`placement:${id}`,kind:'placement',id,x,y,w,h,...extra});
 const keys=hits=>hits.targets.map(t=>t.candidate.id);
@@ -147,7 +147,8 @@ test('snapping to board objects: a sloppy box, a loose lasso and an underline ti
   assert.ok(snap);assert.deepEqual(snap.shape,{kind:'rect',x:0,y:0,w:300,h:200});assert.equal(snap.label,'card "a"');assert.ok(snap.targets.every(t=>t.whole));
   // a box round two cards
   raw=rectHits({x:-10,y:-10,w:720,h:220},list);snap=objectSnap(raw,{tool:'marquee',gestureArea:720*220,name:named});
-  assert.equal(snap.label,'2 objects');assert.deepEqual(snap.shape,{kind:'rect',x:0,y:0,w:700,h:200});
+  assert.equal(snap.label,'2 objects');assert.equal(snap.shape.kind,'path','several things: each one\'s outline, never a box round all of them');
+  assert.deepEqual(pathLoops(snap.shape.points),[[[0,0],[300,0],[300,200],[0,200]],[[400,0],[700,0],[700,200],[400,200]]]);
   // a container covered most of the way
   raw=rectHits({x:10,y:310,w:470,h:280},list);snap=objectSnap(raw,{tool:'marquee',gestureArea:470*280,name:c=>c.id});
   assert.equal(snap?.label,'t');
@@ -161,9 +162,38 @@ test('snapping to board objects: a sloppy box, a loose lasso and an underline ti
   const heading={key:'decoration:h',kind:'decoration',id:'h',x:400,y:300,w:360,h:44};
   const f=sweep(line(395,765,356));raw=areaHits(f,[heading]);snap=objectSnap(raw,{tool:'wand',gestureArea:f.area(),name:c=>`text "${c.id}"`});
   assert.equal(snap?.label,'text "h"');assert.deepEqual(snap.shape,{kind:'rect',x:400,y:300,w:360,h:44});
+  // a diamond and an ellipse snap to their drawn shape, not their box
+  const diamond={key:'decoration:d',kind:'decoration',id:'d',x:1000,y:0,w:200,h:100,decoration:{type:'region',shape:'diamond'}};
+  snap=objectSnap(rectHits({x:990,y:-10,w:220,h:120},[diamond]),{tool:'marquee',gestureArea:220*120,name:c=>c.id});
+  assert.deepEqual(snap.shape,{kind:'path',points:[[1100,0],[1200,50],[1100,100],[1000,50]]});
+  assert.equal(candidateOutline({x:0,y:0,w:100,h:50,decoration:{shape:'ellipse'}}).length,24);
   // the best proposal wins; below the floor nothing does
   assert.equal(bestProposal([{shape:{},score:.5,source:'object'},{shape:{},score:.8,source:'dom'}]).source,'dom');
   assert.equal(bestProposal([{shape:{},score:.2}]),null);
+});
+
+test('the area shown is the area mapped: several outlines in one path, a swipe along a gap underlines neither row, an arrow leading out stays out',()=>{
+  // outlinesPath / pathLoops round-trip, and the path's area is the loops' area only
+  const a=[[0,0],[10,0],[10,10],[0,10]],b=[[50,0],[70,0],[70,20],[50,20]],c=[[0,50],[5,50],[5,55],[0,55]];
+  const p=outlinesPath([a,b,c]);
+  assert.deepEqual(pathLoops(p),[a,b,c]);assert.equal(polygonArea(p),100+400+25);
+  assert.deepEqual(pathLoops([[0,0],[10,0],[5,8]]),[[[0,0],[10,0],[5,8]]],'a lasso is one loop');
+  const f=SwathField.fromRegion({kind:'path',points:p},1,2);
+  assert.equal(f.contains([30,5]),false,'nothing drawn on the bridge between two outlines');assert.equal(f.contains([60,10]),true);
+  // two rows of cards 30 apart: a stroke along the gap is under one row and just over the other, so under neither
+  const rows=[card('a',0,0,230,170),card('b',260,0,230,170),card('c',0,200,230,170),card('d',260,200,230,170)];
+  assert.deepEqual(keys(areaHits(sweep(line(-20,520,185)),rows)),[],'along the gap: nothing');
+  // just over a row (nothing above it) is not under it
+  assert.deepEqual(keys(areaHits(sweep(line(-10,500,-12)),rows)),[],'over is not under');
+  // a stroke just under the second row, with nothing below it, underlines that row
+  const under=areaHits(sweep(line(-10,500,382)),rows);
+  assert.deepEqual(keys(under).sort(),['c','d']);assert.ok(under.targets.every(t=>t.along>=0.75));
+  // a circle round card d with an arrow arriving at it from card b: d alone
+  const arrow={key:'decoration:l',kind:'decoration',id:'l',x:370,y:170,w:4,h:30,line:true,points:[[372,171],[372,185],[372,199]]};
+  const hits=areaHits(sweep(ring(375,285,140,110)),[...rows,arrow]);
+  assert.deepEqual(keys(hits),['d']);
+  // the same arrow circled on its own still counts
+  assert.deepEqual(keys(areaHits(sweep(ring(372,185,30,30),24),[arrow])),['l']);
 });
 
 const robin={id:'robin',label:'Robin',kind:'human'};
