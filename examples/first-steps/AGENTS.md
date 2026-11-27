@@ -1,8 +1,8 @@
-# Working with this Tinka board
+# Working with this fribblr board
 
 This folder is a portable design archive. No agent skill is required. Read its
 files before changing it; project requirements and accepted design decisions
-belong to the project, not to Tinka.
+belong to the project, not to fribblr.
 
 - `board.json` identifies the board; `rounds.json` lists explorations, concepts
   and revisions. Experiment paths are relative to this folder.
@@ -13,11 +13,11 @@ belong to the project, not to Tinka.
   scope; do not add sample content unless requested.
 - Each experiment owns its entry point, assets and README with run commands,
   dependencies, real versus simulated behavior and product handoff. Use the
-  target product's styling. No Tinka SDK or server is required by an experiment.
+  target product's styling. No fribblr SDK or server is required by an experiment.
 - Register slots before building. Use `reserved`, `building`, `review` and
   `ready` truthfully; mark ready after checking the actual interaction.
 
-Look for `TINKA.md` and `tinka/project.json` in the containing project. They
+Look for `FRIBBLR.md` and `fribblr/project.json` in the containing project. They
 identify the installation and restore command. If the app is missing, the
 manifests, design sources and handoffs are still readable; do not replace them
 with a fresh board. Keep this whole folder, including disk notes, in project
@@ -43,11 +43,11 @@ complete supported format and CLI. A basic manifest has this shape:
 
 Supported kinds are `html`, `image`, `markdown`, `video` and `pdf`. A framework
 preview may have an explicit HTTP(S) `url` and its own documented start command;
-Tinka never executes it. If this board has been copied alone, its experiment
-READMEs describe what else must travel with it. To browse it in Tinka, place the
+fribblr never executes it. If this board has been copied alone, its experiment
+READMEs describe what else must travel with it. To browse it in fribblr, place the
 complete folder under a configured boards root; do not reinitialize its files.
 
 For app installation and recovery without a skill, see
-https://github.com/bladnman/tinka. A project's `TINKA.md` takes precedence over
+docs/INSTALL.md in https://github.com/elenaOnline/fribblr. A project's `FRIBBLR.md` takes precedence over
 generic placement examples. Never use a different project's instance to resolve
 a port conflict.

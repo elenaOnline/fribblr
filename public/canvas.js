@@ -58,7 +58,7 @@ let board = null;
 let graph = null;
 let projectNavigator = null;
 function saveNavigatorView(){try{sessionStorage.setItem(viewKey,JSON.stringify({zoom,x:view.x,y:view.y,resting,round:rounds[currentRound]?.id}));}catch{}}
-let appTitle = 'Tinka';
+let appTitle = 'fribblr';
 let appConfig;
 let rounds = [];
 let revisions = {};
@@ -173,7 +173,7 @@ async function loadAppTitle() {
   appConfig = config;
   projectNavigator ||= new ProjectNavigator(config,{boardId,beforeNavigate:async()=>{if(graph){if(await graph.saveReview([], {})===false)throw Error('Save or retry your feedback before leaving.');}else await flushNoteEdits();saveNavigatorView();},reveal:id=>graph?.revealPlacement(id),outline:()=>graph?.outline?.()||[],selection:()=>[...(graph?.selection||[])]}).mount(document.querySelector('#canvas-header .brand'));
   workspaceId = config.workspaceId;
-  appTitle = `Tinka / ${config.projectLabel}`;
+  appTitle = `fribblr / ${config.projectLabel}`;
   const prefix = `tinka/${config.workspaceId}/${boardId}`;
   notesKey = `${prefix}/notes`;
   viewKey = `${prefix}/view`;
@@ -1098,7 +1098,7 @@ function updateReaderNavigation() {
   const sequence = readerSequence();
   const index = sequence.findIndex(concept => concept.key === active?.key);
   const title = readerBoardTitle();
-  $('reader-position').textContent = index < 0 ? '' : `Tinka ${index + 1} of ${sequence.length}: ${active.name}`;
+  $('reader-position').textContent = index < 0 ? '' : `Item ${index + 1} of ${sequence.length}: ${active.name}`;
   $('reader-stepper').hidden = index < 0;
   $('reader-stepper').setAttribute('aria-label', `Step through ${title}`);
   $('reader-count').textContent = index < 0 ? '' : `${index + 1} / ${sequence.length}`;
@@ -1110,8 +1110,8 @@ function updateReaderNavigation() {
   for (const [id, offset, label, arrow, bracket, letter] of [['reader-previous', -1, 'Previous', '←', '[', 'K'], ['reader-next', 1, 'Next', '→', ']', 'J']]) {
     const neighbor = index < 0 ? null : sequence[index + offset];
     const button = $(id);
-    setTip(button, neighbor ? `${label}: ${neighbor.name}` : `No ${label.toLowerCase()} Tinka`);
-    button.setAttribute('aria-label', neighbor ? `${label} Tinka: ${neighbor.name}` : `${label} Tinka`);
+    setTip(button, neighbor ? `${label}: ${neighbor.name}` : `No ${label.toLowerCase()} item`);
+    button.setAttribute('aria-label', neighbor ? `${label} item: ${neighbor.name}` : `${label} item`);
   }
   if (dialog.open && (document.activeElement === document.body || document.activeElement?.disabled)) focusTinka();
   renderReaderChrome();
@@ -1332,7 +1332,7 @@ function readerPathGo(target) {
 const readerPath = new ReaderPath($('reader-path-menu'), { render: renderReaderPath, go: readerPathGo });
 
 // ---- The opened Tinka's Inspector: where it lives first, then feedback, version and one More menu ----
-readerInfo.innerHTML = `<header class="calm-side-head"><span class="tk-eyebrow" id="reader-info-kind">Tinka</span><button type="button" class="tk-btn tk-sm tk-icon" data-reader-act="close" aria-label="Close inspector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header><div class="calm-side-body"><div id="reader-info-body" class="reader-info-body"></div><section class="inspector-sec reader-info-view" aria-labelledby="reader-appearance-heading"><h3 id="reader-appearance-heading">Appearance <span>this browser</span></h3><div class="inspector-row" id="reader-info-view-row"></div></section><p id="reader-info-status" class="reader-info-status" role="status" hidden></p></div>`;
+readerInfo.innerHTML = `<header class="calm-side-head"><span class="tk-eyebrow" id="reader-info-kind">Item</span><button type="button" class="tk-btn tk-sm tk-icon" data-reader-act="close" aria-label="Close inspector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9"/></svg></button></header><div class="calm-side-body"><div id="reader-info-body" class="reader-info-body"></div><section class="inspector-sec reader-info-view" aria-labelledby="reader-appearance-heading"><h3 id="reader-appearance-heading">Appearance <span>this browser</span></h3><div class="inspector-row" id="reader-info-view-row"></div></section><p id="reader-info-status" class="reader-info-status" role="status" hidden></p></div>`;
 mountAppearance($('reader-info-view-row'));
 // The file behind a standalone address and every placement that shows it (GET /api/resource-places),
 // and an item's comment count, fetched when the Inspector shows them; a reopened Inspector refetches.
@@ -1392,8 +1392,8 @@ function renderReaderInfo() {
 
   // Where it lives: a browser tab (needs Tinka), the file itself (no server) and the boards that show it.
   const rows = [];
-  if (where.local) rows.push(`<div class="reader-where-place">${readerIcon.tab}<strong>In a browser tab</strong><span class="reader-where-what">Served by Tinka · needs Tinka running</span><div class="reader-where-acts"><a class="tk-btn tk-sm tk-primary" href="${esc(where.standalone)}" target="_blank" rel="noopener" data-reader-standalone>Open standalone ↗</a>${act('copy-link', 'Copy link')}</div></div>`);
-  if (where.remote) rows.push(`<div class="reader-where-place">${readerIcon.tab}<strong>On the web</strong><span class="reader-where-what">Its own address · Tinka doesn't serve it</span><code class="reader-where-path">${esc(where.standalone)}</code><div class="reader-where-acts"><a class="tk-btn tk-sm tk-primary" href="${esc(where.standalone)}" target="_blank" rel="noopener noreferrer" data-reader-standalone>Open ↗</a>${act('copy-link', 'Copy link')}</div></div>`);
+  if (where.local) rows.push(`<div class="reader-where-place">${readerIcon.tab}<strong>In a browser tab</strong><span class="reader-where-what">Served by fribblr · needs fribblr running</span><div class="reader-where-acts"><a class="tk-btn tk-sm tk-primary" href="${esc(where.standalone)}" target="_blank" rel="noopener" data-reader-standalone>Open standalone ↗</a>${act('copy-link', 'Copy link')}</div></div>`);
+  if (where.remote) rows.push(`<div class="reader-where-place">${readerIcon.tab}<strong>On the web</strong><span class="reader-where-what">Its own address · fribblr doesn't serve it</span><code class="reader-where-path">${esc(where.standalone)}</code><div class="reader-where-acts"><a class="tk-btn tk-sm tk-primary" href="${esc(where.standalone)}" target="_blank" rel="noopener noreferrer" data-reader-standalone>Open ↗</a>${act('copy-link', 'Copy link')}</div></div>`);
   if (where.local) rows.push(`<div class="reader-where-place">${readerIcon.file}<strong>The file itself</strong><span class="reader-where-what">Local file</span><code class="reader-where-path" id="reader-file-path">${where.file ? esc(where.file) : where.lookup?.done ? 'The file could not be found.' : 'Finding the file…'}</code><div class="reader-where-acts">${act('copy-path', 'Copy path', where.file ? '' : ' disabled')}${where.file ? act('copy-agent', 'Copy for an agent') : ''}</div></div>`);
   const here = place => place.boardId === boardId && place.key === active.key;
   let boardRows = where.places;
@@ -1478,8 +1478,8 @@ readerInfo.addEventListener('click', event => {
   else if (name === 'down') goDown();
   else if (name === 'add-board') graph?.addChildren(item);
   else if (name === 'reload') loadRevision();
-  else if (name === 'copy-link') { const href = standaloneHref(active, currentVariant()); if (href) void readerCopy(new URL(href, location.href).href, 'Copied the link. It opens while Tinka is running.'); }
-  else if (name === 'copy-path') { const { file } = readerWhere(); if (file) void readerCopy(file, 'Copied the file path. It works without Tinka running.'); }
+  else if (name === 'copy-link') { const href = standaloneHref(active, currentVariant()); if (href) void readerCopy(new URL(href, location.href).href, 'Copied the link. It opens while fribblr is running.'); }
+  else if (name === 'copy-path') { const { file } = readerWhere(); if (file) void readerCopy(file, 'Copied the file path. It works without fribblr running.'); }
   else if (name === 'copy-agent') { const { file } = readerWhere(); if (file) void readerCopy(`${descriptor(active, currentVariant()).name}: ${file}`, 'Copied its name and file path for an agent.'); }
   else if (name === 'comments') { setReaderInfoOpen(false); graph?.feedback.open({ itemId: item.id, mode: 'reader', host: dialog.querySelector('.reader-area'), returnFocus: $('reader-info-toggle') }); }
   else if (name === 'vote') graph?.feedback.openVote({ itemId: item.id, anchor: button, returnFocus: $('reader-info-toggle') });
@@ -1490,21 +1490,21 @@ readerInfo.addEventListener('click', event => {
 });
 
 function readerShortcuts() {
-  return makeDialog('Keyboard shortcuts', `<p>Use these keys on an opened Tinka. Text fields keep their own keys, and so does content you are working in.</p>
-    <dl><dt>${MOD}← · ${MOD}→</dt><dd>Previous · next Tinka on this board (also while local content has focus)</dd>
-    <dt>[ · ] or K · J</dt><dd>Previous · next Tinka</dd>
-    <dt>← · →</dt><dd>Previous · next, while Tinka (not the content) has focus and all of it is in view</dd>
+  return makeDialog('Keyboard shortcuts', `<p>Use these keys on an opened item. Text fields keep their own keys, and so does content you are working in.</p>
+    <dl><dt>${MOD}← · ${MOD}→</dt><dd>Previous · next item on this board (also while local content has focus)</dd>
+    <dt>[ · ] or K · J</dt><dd>Previous · next item</dd>
+    <dt>← · →</dt><dd>Previous · next, while fribblr (not the content) has focus and all of it is in view</dd>
     <dt>Arrows · Shift-arrows</dt><dd>Pan, while zoomed in past fit (a screenful with Shift)</dd>
     <dt>${MOD}↑ · Escape</dt><dd>Up to the board</dd>
-    <dt>${MOD}↓</dt><dd>Down into this Tinka's own board, when it has one</dd>
-    <dt>F · Shift-1</dt><dd>Fit this Tinka</dd>
+    <dt>${MOD}↓</dt><dd>Down into this item's own board, when it has one</dd>
+    <dt>F · Shift-1</dt><dd>Fit this item</dd>
     <dt>0 or Shift-0 · + · −</dt><dd>Zoom to 100% · zoom in · zoom out; at fit, − shows a blue band at the edge and a second − goes back to the board</dd>
     <dt>Shift-F</dt><dd>Expand: fill the screen, zoom out off (again, or Escape, to turn it off)</dd>
-    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the Tinka, also over local content; the page never zooms. At fit, zooming out fills a blue band at the edge; a third smaller goes back to the board</dd>
+    <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the item, also over local content; the page never zooms. At fit, zooming out fills a blue band at the edge; a third smaller goes back to the board</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
     <dt>P</dt><dd>Point and type inside this Tinka: point at its elements, words or picture while you write to the agent, as on the board; zoom out stops at fit until you leave (Escape)</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
-    <dt>⌘/Ctrl-I</dt><dd>Inspector for this Tinka</dd>
+    <dt>⌘/Ctrl-I</dt><dd>Inspector for this item</dd>
     <dt>?</dt><dd>Show keyboard shortcuts</dd></dl>`);
 }
 
@@ -1534,7 +1534,7 @@ function runReaderCommand(command, { fromFrame = false, repeat = false } = {}) {
   if (command === 'down') return goDown();
   // The view keys are announced inside the reader (a modal dialog: the board's announcer is inert behind it), as the
   // board announces its own (UI SDK viewport: "Zoom 150%").
-  if (command === 'fit') { readerCanvas.fit(); announceReaderView('Fitted this Tinka'); return true; }
+  if (command === 'fit') { readerCanvas.fit(); announceReaderView('Fitted this item'); return true; }
   if (command === 'actual-size') { readerCanvas.zoomTo(1); announceReaderView(); return true; }
   if (command === 'zoom-in') { if (readerCanvas.zoomBy(1.25) === 'zoomed') announceReaderView(); return true; }
   if (command === 'zoom-out') {
@@ -2369,11 +2369,11 @@ function boardStep(direction) {
   }
   const target = boardStepTarget(order, { selected, direction, steppable, cursor });
   if (!target) {
-    if (!sequence.length) { announceView('No Tinkas to step through on this board'); return; }
+    if (!sequence.length) { announceView('No items to step through on this board'); return; }
     // At either end stepping stops, as it does in an opened Tinka; the current one comes back into view.
     const current = selected.size === 1 ? order.find(entry => selected.has(entry.id)) : !selected.size && order.find(entry => entry.id === cursor?.id);
     if (current) { if (!graph.selection.has(current.id) || graph.selection.size !== 1) graph.selectOnly(current.id); revealStep(current.concept.placement); }
-    announceView(direction > 0 ? 'Last Tinka on this board' : 'First Tinka on this board');
+    announceView(direction > 0 ? 'Last item on this board' : 'First item on this board');
     return;
   }
   // Focus that was on the board follows the step to the new Tinka's card (it keeps the board's Tab stop).

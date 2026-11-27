@@ -41,11 +41,11 @@ before(async () => {
 after(() => rm(root, {recursive: true, force: true}));
 async function fixture(t, portable = true) {
   const project = await realpath(await mkdtemp(path.join(root, 'project-')));
-  const app = path.join(project, portable ? 'tinka/app' : '.tools/app');
+  const app = path.join(project, portable ? 'fribblr/app' : '.tools/app');
   await installArchive({...archive, installDir: app});
   if (portable) await exec(node, [path.join(app, 'cli.mjs'), 'project', 'init', '--project', project, '--label', 'Fixture']);
   else await exec(node, [path.join(app, 'cli.mjs'), 'init', '--config', path.join(project, 'settings/a.json'), '--boards', path.join(project, 'boards'), '--label', 'Fixture']);
-  const configPath = path.join(project, portable ? 'tinka/local/config.json' : 'settings/a.json');
+  const configPath = path.join(project, portable ? 'fribblr/local/config.json' : 'settings/a.json');
   const config = {...await json(configPath), configPath, workspaceRoot: path.join(portable ? path.join(project, 'design/boards') : path.join(project, 'boards'), '.tinka'), version: priorVersion};
   const context = await updateContext(config, app);
   // A deterministic prior-version fixture, with a valid per-file receipt.
@@ -116,7 +116,7 @@ test('compatibility requires explicit starting version, stable same major, runti
 test('healthy automatic replacement verifies app, updates only pin after health and preserves project material', async t => {
   const f = await fixture(t);
   const configBefore = await readFile(f.config.configPath);
-  const guide = path.join(f.project, 'TINKA.md'), setup = path.join(f.project, 'tinka/setup.mjs');
+  const guide = path.join(f.project, 'FRIBBLR.md'), setup = path.join(f.project, 'fribblr/setup.mjs');
   await writeFile(guide, 'Custom project instructions\n'); await writeFile(setup, '// Custom setup\n');
   const notes = path.join(f.config.boardsRoot, 'private-notes.txt'); await writeFile(notes, 'Keep IDs and notes');
   await policy(f, 'auto');
@@ -240,8 +240,8 @@ test('package metadata mismatch rejects before touching app or pin', async t => 
 
 test('published metadata is data-only, current version uses one request, archive binding is enforced',async t=>{
   const f=await fixture(t); const originalFetch=globalThis.fetch; const calls=[]; let badDigest=true;
-  const asset=id=>`https://api.github.com/repos/bladnman/tinka/releases/assets/${id}`;
-  const assets=[{name:archive.zipName,url:asset(1)},{name:`${archive.zipName}.sha256`,url:asset(2)},{name:`tinka-v${candidateVersion}.compatibility.json`,url:asset(3)}];
+  const asset=id=>`https://api.github.com/repos/elenaOnline/fribblr/releases/assets/${id}`;
+  const assets=[{name:archive.zipName,url:asset(1)},{name:`${archive.zipName}.sha256`,url:asset(2)},{name:`fribblr-v${candidateVersion}.compatibility.json`,url:asset(3)}];
   globalThis.fetch=async(input,options)=>{
     const url=String(input); if(!url.startsWith('https://api.github.com/'))return originalFetch(input,options);
     calls.push(url);
@@ -252,7 +252,7 @@ test('published metadata is data-only, current version uses one request, archive
     throw new Error('Unexpected test URL');
   };
   try{
-    assert.deepEqual(await publishedLatest('bladnman/tinka',candidateVersion),{version:candidateVersion}); assert.equal(calls.length,1);
+    assert.deepEqual(await publishedLatest('elenaOnline/fribblr',candidateVersion),{version:candidateVersion}); assert.equal(calls.length,1);
     const failed=await withAppLock(f.app,lockToken=>checkForUpdates(f.config,{context:f.context,explicit:true,lockToken}));
     assert.match(failed.message,/does not match the downloaded package/);
     assert.equal((await json(path.join(f.app,'package.json'))).version,priorVersion);
@@ -267,7 +267,7 @@ test('unresponsive latest endpoint has a bounded check timeout',async()=>{
   const originalFetch=globalThis.fetch;
   globalThis.fetch=(_input,options)=>originalFetch(`http://127.0.0.1:${server.address().port}/`,options);
   const started=Date.now();
-  try{await assert.rejects(publishedLatest('bladnman/tinka',priorVersion));assert(Date.now()-started<3500);}
+  try{await assert.rejects(publishedLatest('elenaOnline/fribblr',priorVersion));assert(Date.now()-started<3500);}
   finally{globalThis.fetch=originalFetch;server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
 
@@ -277,7 +277,7 @@ test('failed candidate health rolls back app, exact config and pin; a prior owne
   await mkdir(broken);
   for (const file of ['README.md','LICENSE','AGENTS.md','IMPLEMENTATION_CONTRACT.md','package.json','cli.mjs','server.mjs','public','lib','docs','examples','scripts','skill']) await cp(path.resolve(file), path.join(broken, file), {recursive: true});
   const server = path.join(broken, 'server.mjs');
-  await writeFile(server, (await readFile(server, 'utf8')).replace("app:'board-room'", "app:'broken-health'"));
+  await writeFile(server, (await readFile(server, 'utf8')).replace("app:'fribblr'", "app:'broken-health'"));
   // Health route's literal identity is changed; candidate still binds successfully.
   assert((await readFile(server, 'utf8')).includes("app:'broken-health'"));
   const {stdout} = await exec(node, [path.join(broken, 'scripts/package.mjs'), '--out', path.join(f.project, 'broken-release')]);
@@ -289,7 +289,7 @@ test('failed candidate health rolls back app, exact config and pin; a prior owne
   assert.deepEqual(await readFile(f.config.configPath), configBefore); assert.deepEqual(await readFile(f.context.pinPath), pinBefore);
   // A checked-out portable project can lack local config entirely. Its pin
   // still must survive a broken candidate's failed health verification.
-  await rm(path.join(f.project,'tinka/local'),{recursive:true});
+  await rm(path.join(f.project,'fribblr/local'),{recursive:true});
   await assert.rejects(installMain(['--project',f.project,'--version',bad.version,'--zip',bad.appZip,'--checksum',bad.appChecksum]),/health identity/);
   assert.deepEqual(await readFile(f.context.pinPath),pinBefore);
   assert.equal((await json(path.join(f.app,'package.json'))).version,priorVersion);
@@ -304,34 +304,40 @@ test('failed candidate health rolls back app, exact config and pin; a prior owne
 });
 
 test('every install and portable start keeps the AGENTS.md block current; manual layouts and failures are safe', async t => {
-  const {PREVIOUS_TINKA_SECTIONS: [oneLiner, unmarked], tinkaBlock} = await import('../lib/project.mjs');
-  const block = tinkaBlock();
+  const {fribblrBlock, FRIBBLR_START, FRIBBLR_END} = await import('../lib/project.mjs');
+  const block = fribblrBlock();
+  // An older fribblr block (any text between the markers) and an upstream Tinka block beside it.
+  const oneLiner = `${FRIBBLR_START}\n## fribblr\n\nOlder text.\n${FRIBBLR_END}`;
+  const unmarked = `${FRIBBLR_START}\n## fribblr\n\nOther older text.\n${FRIBBLR_END}`;
+  // Upstream Tinka's own block, from the fixture (kept out of the rebrand).
+  const upstream = await readFile(new URL('./fixtures/upstream-tinka/AGENTS.md', import.meta.url), 'utf8');
+  const tinka = upstream.slice(upstream.indexOf('<!--')).trimEnd();
   const f = await fixture(t);
   const agents = path.join(f.project, 'AGENTS.md'), claude = path.join(f.project, 'CLAUDE.md');
   const cli = path.join(f.app, 'cli.mjs'), configPath = f.config.configPath;
   const claudeText = `# Claude\n\n${oneLiner}\n`;
-  await writeFile(agents, `# Rules\n\n${oneLiner}\n\n## After\n`); await writeFile(claude, claudeText);
+  await writeFile(agents, `# Rules\n\n${tinka}\n\n${oneLiner}\n\n## After\n`); await writeFile(claude, claudeText);
   // An unattended update: the new app's health-probe start applies its own text.
   await policy(f, 'auto');
   const auto = await withAppLock(f.app, lockToken => checkForUpdates(f.config, {context: f.context, fetchLatest: async () => latest(), downloadRelease: source, lockToken}));
   assert.equal(auto.replaced, true);
-  assert.match(auto.message, /Review and commit tinka\/project\.json and the updated Tinka section in AGENTS\.md\./);
-  assert.equal(await readFile(agents, 'utf8'), `# Rules\n\n${block}\n\n## After\n`);
+  assert.match(auto.message, /Review and commit fribblr\/project\.json and the updated fribblr section in AGENTS\.md\./);
+  assert.equal(await readFile(agents, 'utf8'), `# Rules\n\n${tinka}\n\n${block}\n\n## After\n`);
   assert.equal(await readFile(claude, 'utf8'), claudeText);
   await policy(f, 'notify');
-  // A normal start migrates 0.7.6's unmarked text once; the next start writes nothing.
+  // A normal start replaces an older block once; the next start writes nothing.
   await writeFile(agents, `# Rules\n\n${unmarked}\n`);
   const first = (await exec(node, [cli, 'start', '--config', configPath])).stdout;
-  assert.match(first, /Updated the Tinka section in AGENTS\.md\.\nTinka \/ Fixture started/);
+  assert.match(first, /Updated the fribblr section in AGENTS\.md\.\nfribblr \/ Fixture started/);
   assert.equal(await readFile(agents, 'utf8'), `# Rules\n\n${block}\n`);
   const second = (await exec(node, [cli, 'start', '--config', configPath])).stdout;
-  assert.doesNotMatch(second, /Tinka section|Warning/);
+  assert.doesNotMatch(second, /fribblr section|Warning/);
   assert.equal(await readFile(agents, 'utf8'), `# Rules\n\n${block}\n`);
   await exec(node, [cli, 'stop', '--config', configPath]);
   // A refresh failure is a warning; start and update still succeed.
   await rm(agents); await mkdir(agents);
   const warned = (await exec(node, [cli, 'start', '--config', configPath])).stdout;
-  assert.match(warned, /^Warning: Tinka could not refresh AGENTS\.md: .*\nTinka \/ Fixture started/m);
+  assert.match(warned, /^Warning: fribblr could not refresh AGENTS\.md: .*\nfribblr \/ Fixture started/m);
   await exec(node, [cli, 'stop', '--config', configPath]);
   const failedRefresh = await withAppLock(f.app, lockToken => checkForUpdates(f.config, {context: f.context, fetchLatest: async () => latest(), downloadRelease: source, explicit: true, lockToken}));
   assert.equal(failedRefresh.replaced, true);
@@ -344,7 +350,7 @@ test('every install and portable start keeps the AGENTS.md block current; manual
   const plain = await withAppLock(manual.app, lockToken => checkForUpdates(manual.config, {context: manual.context, fetchLatest: async () => latest(), downloadRelease: source, explicit: true, lockToken}));
   assert.equal(plain.replaced, true); assert.doesNotMatch(plain.message, /AGENTS/);
   const manualStart = (await exec(node, [path.join(manual.app, 'cli.mjs'), 'start', '--config', manual.config.configPath])).stdout;
-  assert.doesNotMatch(manualStart, /Tinka section|Warning/);
+  assert.doesNotMatch(manualStart, /fribblr section|Warning/);
   assert.equal(await readFile(outside, 'utf8'), `${oneLiner}\n`);
 });
 
@@ -354,7 +360,7 @@ test('a major update is offered with clear wording and installs only after conse
   const digest = createHash('sha256').update(next.archive.zipBytes).digest('hex');
   const f = await fixture(t); let downloads = 0;
   const options = extra => ({context: f.context, fetchLatest: async () => ({version: majorVersion, compatibility: {...next.embedded, archiveSha256: digest}}), downloadRelease: async () => { downloads++; return {...next.archive, compatibility: next.embedded}; }, ...extra});
-  const offered = new RegExp(`^Tinka ${shown.replaceAll('.', '\\.')} is available \\(installed ${priorVersion.replace(/\.0$/, '').replaceAll('.', '\\.')}\\)\\. This is a major update; ask the user before updating\\.\nAfter the user agrees: node .*cli\\.mjs' update --config .* now --major\n`);
+  const offered = new RegExp(`^fribblr ${shown.replaceAll('.', '\\.')} is available \\(installed ${priorVersion.replace(/\.0$/, '').replaceAll('.', '\\.')}\\)\\. This is a major update; ask the user before updating\\.\nAfter the user agrees: node .*cli\\.mjs' update --config .* now --major\n`);
   // The rule itself: consent replaces the old refusal; every other check stays.
   const versions = {fromVersion: priorVersion, toVersion: majorVersion, nodeVersion: '22.0.0', platform: 'linux'};
   assert.equal(compatibilityError(next.embedded, versions), MAJOR_UPDATE_CONSENT);
@@ -369,7 +375,7 @@ test('a major update is offered with clear wording and installs only after conse
   assert.equal(downloads, 0); assert.equal((await json(path.join(f.app, 'package.json'))).version, priorVersion);
   // Status repeats the offer; plain update now does not install it.
   const status = await updateCommand(f.config, 'status', null, {context: f.context});
-  assert.match(status.message, /^Tinka updates: auto\. .*\nTinka .* is available .*This is a major update; ask the user before updating\.\nAfter the user agrees: .* now --major/s);
+  assert.match(status.message, /^fribblr updates: auto\. .*\nfribblr .* is available .*This is a major update; ask the user before updating\.\nAfter the user agrees: .* now --major/s);
   const plain = await withAppLock(f.app, lockToken => checkForUpdates(f.config, options({lockToken, explicit: true})));
   assert.equal(plain.replaced, false); assert.match(plain.message, offered); assert.equal(downloads, 0);
   await assert.rejects(updateCommand(f.config, 'check', null, options({major: true})), /--major goes with update now/);

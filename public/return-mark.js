@@ -5,8 +5,8 @@
 // with a closed shadow root, no globals, no page CSS in or out.
 (() => {
   if (window.top !== window) return; // inside Tinka, or inside the author's own frame
-  if (document.querySelector('meta[name="tinka-return" i][content="off" i]')) return;
-  if (new URLSearchParams(location.search).get('tinka') === 'off') return;
+  if (document.querySelector('meta[name="fribblr-return" i][content="off" i], meta[name="tinka-return" i][content="off" i]')) return;
+  if ([new URLSearchParams(location.search).get('fribblr'), new URLSearchParams(location.search).get('tinka')].includes('off')) return;
   const HIDDEN = 'tinka/return-hidden';
   try { if (sessionStorage.getItem(HIDDEN)) return; } catch {}
   if (document.querySelector('tinka-return')) return;
@@ -82,13 +82,13 @@
   function render() {
     best = choose();
     const many = data.places.length > 1;
-    const label = best ? `<b>Back to Tinka</b><small>${esc(name(best))} · ${esc(best.boardTitle)}</small>`
-      : many ? `<b>Back to Tinka</b><small>On ${data.places.length} boards · choose one</small>`
-      : '<b>Open Tinka</b><small>This project\'s boards</small>';
-    const aria = best ? `Back to Tinka: ${name(best)} on ${best.boardTitle}` : many ? `Back to Tinka: choose one of ${data.places.length} boards` : 'Open Tinka';
+    const label = best ? `<b>Back to fribblr</b><small>${esc(name(best))} · ${esc(best.boardTitle)}</small>`
+      : many ? `<b>Back to fribblr</b><small>On ${data.places.length} boards · choose one</small>`
+      : '<b>Open fribblr</b><small>This project\'s boards</small>';
+    const aria = best ? `Back to fribblr: ${name(best)} on ${best.boardTitle}` : many ? `Back to fribblr: choose one of ${data.places.length} boards` : 'Open fribblr';
     const rows = many ? `<div class="lab">On ${data.places.length} boards</div>${data.places.map((place, i) => `<a class="row" role="menuitem" href="${esc(place.href)}" data-place="${i}"><span>${esc(place.boardTitle)}</span><small>${esc(name(place))}</small>${place === best ? '<em>last opened</em>' : ''}</a>`).join('')}<div class="sep"></div>` : '';
     root.innerHTML = `<style>${CSS}</style><div class="wrap"><a class="chip" href="${esc(best?.href || (many ? '#' : '/'))}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="m">${MARK}</span><span class="t">${label}</span></a><button class="more" type="button" aria-label="More: other boards, copy path, hide" aria-haspopup="menu" aria-expanded="false">${DOTS}</button></div>
-      <div class="card" role="menu" aria-label="Back to Tinka" hidden>${rows}<div class="foot">${data.file ? '<button type="button" role="menuitem" data-copy>Copy path</button>' : ''}<a href="/" role="menuitem">Tinka home</a><button type="button" role="menuitem" data-hide>Hide</button></div></div>
+      <div class="card" role="menu" aria-label="Back to fribblr" hidden>${rows}<div class="foot">${data.file ? '<button type="button" role="menuitem" data-copy>Copy path</button>' : ''}<a href="/" role="menuitem">fribblr home</a><button type="button" role="menuitem" data-hide>Hide</button></div></div>
       <div class="toast" role="status" hidden></div>`;
     const wrap = root.querySelector('.wrap'), card = root.querySelector('.card'), more = root.querySelector('.more'), chip = root.querySelector('.chip');
     const open = () => { clearTimeout(closeTimer); wrap.classList.add('open'); };

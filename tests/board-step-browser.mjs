@@ -57,19 +57,19 @@ try{
  const step=async key=>{await page.keyboard.press(key);await page.waitForTimeout(60);};
 
  await open('steps');
- ok(!(await inView(p.east))&&!(await inView(p.last)),'Some Tinkas start off screen');
+ ok(!(await inView(p.east))&&!(await inView(p.last)),'Some items start off screen');
  // Nothing selected: J starts at the first Tinka in stepper order.
  await step('j');
  assert.deepEqual(await selected(),[sequence[0]]);checks++;
- ok(await inView(sequence[0]),'The first Tinka is in view');
+ ok(await inView(sequence[0]),'The first item is in view');
  // Five more presses: five successive Tinkas, one at a time, each in view; reserved and board-only are skipped.
  const zoom0=await zoom();
  for(let i=1;i<=5;i++){
   await step('j');
   assert.deepEqual(await selected(),[sequence[i]],`Press ${i} selects ${sequence[i]}`);checks++;
-  ok(await inView(sequence[i]),`Tinka ${i+1} of ${sequence.length} ends in view`);
-  if(sequence[i]===p.giant)ok(await zoom()<zoom0,'A Tinka too big to fit zooms out just enough');
-  else ok(Math.abs(await zoom()-zoom0)<1e-6,`Tinka ${i+1} keeps (or returns to) the zoom stepping began at: ${await zoom()} vs ${zoom0}`);
+  ok(await inView(sequence[i]),`Item ${i+1} of ${sequence.length} ends in view`);
+  if(sequence[i]===p.giant)ok(await zoom()<zoom0,'An item too big to fit zooms out just enough');
+  else ok(Math.abs(await zoom()-zoom0)<1e-6,`Item ${i+1} keeps (or returns to) the zoom stepping began at: ${await zoom()} vs ${zoom0}`);
  }
  await page.screenshot({path:path.join(evidence,'board-step-1244-last.png')});
  // ] and [ are Bring to front / Send to back on a board now: they never step the selection.
@@ -77,7 +77,7 @@ try{
  // The end stops, as the opened Tinka's stepper does.
  await step('j');
  assert.deepEqual(await selected(),[p.last]);checks++;
- ok(await page.locator('#view-announce').textContent()==='Last Tinka on this board','The end is announced');
+ ok(await page.locator('#view-announce').textContent()==='Last item on this board','The end is announced');
  // K goes back.
  await step('k');
  assert.deepEqual(await selected(),[sequence[4]]);checks++;
@@ -157,7 +157,7 @@ try{
   await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});await page.waitForTimeout(300);};
  await openAndStep();
  assert.deepEqual(await selected(),[],'Back on the board nothing stays selected (unchanged)');checks++;
- await step('j');assert.deepEqual(await selected(),[row[6]],'J continues after the Tinka last viewed (7)');checks++;
+ await step('j');assert.deepEqual(await selected(),[row[6]],'J continues after the item last viewed (7)');checks++;
  // Inside the opened Tinka J steps as ⌥→ does (and ] still does: nothing stacks there).
  await openAndStep(['j',']']);
  await step('k');assert.deepEqual(await selected(),[row[4]],'K goes to the one before it (5)');checks++;
@@ -246,7 +246,7 @@ try{
  await mp.goto(base+'/boards/steps/',{waitUntil:'load'});await mp.locator('.workspace-card').first().waitFor();await mp.waitForTimeout(150);
  const plane=()=>mp.evaluate(()=>new DOMMatrix(getComputedStyle(document.getElementById('plane')).transform).e);
  await mp.keyboard.press('j');await mp.keyboard.press('j');const startX=await plane();await mp.waitForTimeout(80);const midX=await plane();await mp.waitForTimeout(500);const endX=await plane();
- ok(midX!==endX&&startX!==endX,`The view glides to the next Tinka: ${startX} → ${midX} → ${endX}`);
+ ok(midX!==endX&&startX!==endX,`The view glides to the next item: ${startX} → ${midX} → ${endX}`);
  await mp.screenshot({path:path.join(evidence,'board-step-1244-dark.png')});
  await moving.close();
  assert.deepEqual(errors,[]);checks++;

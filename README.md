@@ -1,104 +1,65 @@
-# Tinka
+# fribblr
 
-Tinka is a **free, project-local workspace for ideas, resources and experiments created with your AI agent**. Keep title-only ideas, notes, HTML, images, videos, documents, external links and live applications together. Arrange the same item on several boards, open its content or children, and collect review notes without moving its files. Existing design rounds and comparison readers remain supported.
+fribblr is a **project-local workspace for ideas, resources and experiments made with your AI agent**. Your agent lays out its work on boards (to fribble it), and you review it there: title-only ideas, notes, HTML, images, videos, documents, external links and live applications, side by side. The same item can sit on several boards, open into its content or its own board, and collect comments, without its files moving.
 
-Each project gets its own instance. You can run `Tinka / Atlas` and `Tinka / Orchard` at the same time, with separate boards, notes, configuration, processes, and saved URLs. There is no master service or shared port allocator.
+fribblr is a fork of [Tinka](https://github.com/bladnman/tinka) by bladnman, under the same MIT License. It adds its own theme, keyboard and focus behaviour on every control (UI SDK), zoom-out navigation between items and boards, a pointing mode for showing your agent exactly what you mean, and a whiteboard proof of concept.
 
-[See Tinka](https://tinka.metal-sole.com/) · [Try the working examples](https://tinka.metal-sole.com/#example) · [Agent setup guide](https://tinka.metal-sole.com/install.md)
+Each project gets its own instance. You can run `fribblr / Atlas` and `fribblr / Orchard` at the same time, with separate boards, notes, configuration, processes and saved URLs. There is no master service or shared port allocator.
 
-![A Tinka board comparing three Glade reading designs, with a sample essay and example feedback.](https://tinka.metal-sole.com/shared/board.webp?v=glade-20261016)
+![A fribblr board whose cards are boards: each card is a miniature of the board it opens.](docs/images/board.png)
 
-## Quick start
+## Add fribblr to a project
 
-Tell the agent you already use for your project:
+fribblr needs **Node.js 22 or newer** on macOS or Linux. It has no npm dependencies and no build step. There are no releases yet; install from a checkout:
+
+```sh
+git clone https://github.com/elenaOnline/fribblr.git ~/fribblr
+node ~/fribblr/scripts/install.mjs --project /absolute/path/to/project
+```
+
+This installs the app into `PROJECT/fribblr/app/`, writes `FRIBBLR.md` and a fribblr section in the project's `AGENTS.md`, creates the boards folder (`design/boards`), and starts the project's instance. The last line it prints is the project's URL. Add `--port 47900` for a fixed port; otherwise fribblr picks a free one from 45080 up. `--label "Atlas"` names the instance; the default is the project folder's name. A second project is the same command with its own path.
+
+To update, run `git -C ~/fribblr pull`, then the same install command. A project that already has upstream Tinka keeps it as it is: fribblr uses its own folder, guide, `AGENTS.md` section, port and boards. Every step, including the headless browser fribblr uses for pictures and the whiteboard, is in [docs/INSTALL.md](docs/INSTALL.md).
+
+A project then has:
 
 ```text
-Add Tinka to this project:
-https://tinka.metal-sole.com
+AGENTS.md                 fribblr section: visual work also goes on boards, share direct links; see FRIBBLR.md
+FRIBBLR.md                where the boards are, how to start fribblr, add work and read comments
+fribblr/
+  project.json            version pin, project label, relative boards path, where the app came from
+  setup.mjs               restore helper to commit with the project
+  .gitignore              ignores only the replaceable app and this computer's state
+  app/                    the replaceable app; ignored
+  local/                  this computer's config, process record and log; ignored
+design/boards/            commit boards, assets, handoffs and .state/notes.json
 ```
 
-Your agent can read the setup instructions, install Tinka and start this project's
-local canvas. No separate agent skill is required. Agents should read the
-[agent guide](docs/AGENT.md) and the manual setup below.
+fribblr keeps its section current in the project-root `AGENTS.md` (read by Codex, Claude Code and other agents), creating the file if needed. The section sits between `<!-- fribblr:start … -->` and `<!-- fribblr:end -->` markers; install and each start of the project replace what is between them and never change anything outside. No other instruction file is written.
 
-Open an experiment, try its interactions, and leave a note for the next round.
-These public examples use sample content.
+Commit the instructions, setup helper, pin and complete boards. Boards and experiment handoffs stay readable without the app. A hidden folder is not automatically excluded by Git: what travels is what you commit, so check ignore rules, especially for `.state/notes.json`.
 
-![The Open book reading design open in Tinka, with the other reading alternatives still on its board.](https://tinka.metal-sole.com/shared/experiment.webp?v=glade-20261016)
-
-### Manual setup
-
-Tinka uses **Node.js 22 or newer**, has **no runtime npm dependencies**, and binds only to `127.0.0.1`. It answers only requests addressed to `127.0.0.1` or `localhost` at its own port, so a web page cannot reach it through a DNS name that resolves to this computer, and board links open only on this computer. Managed start/stop uses `ps`, so use macOS or Linux. The package is internally named `board-room` for compatibility with the original installer; the product is Tinka.
-
-No agent skill is required. Use a visible `tinka/` folder for project tooling and
-`design/boards/` for durable design work. Existing `.tinka` or external layouts
-continue to work; these are placement recommendations, not required names.
-
-Download `tinka-install.mjs` from the [release page](https://github.com/bladnman/tinka/releases/latest), then run:
+Start and stop it from the project root:
 
 ```sh
-node /absolute/tinka-install.mjs --project /absolute/project --label Atlas
-node /absolute/project/tinka/app/cli.mjs start \
-  --config /absolute/project/tinka/local/config.json
+node fribblr/app/cli.mjs start --config fribblr/local/config.json
+node fribblr/app/cli.mjs stop --config fribblr/local/config.json
 ```
 
-For local packages, pass the app ZIP and its matching checksum too:
+**Open the URL printed by `start`.** A new automatic instance tries 45080, 45180, 45280 and so on, at most 20 candidates. It binds the real socket before choosing a port, saves the actual port in this instance's config, and tries that saved port first on restart. If it is occupied, the same bounded sequence continues from there. A numeric `--port` means **fixed**: a collision fails clearly without changing any other process.
 
-```sh
-node /absolute/tinka-install.mjs --project /absolute/project \
-  --zip /absolute/tinka-vVERSION.zip \
-  --checksum /absolute/tinka-vVERSION.zip.sha256
-```
+fribblr binds only to `127.0.0.1`. It answers only requests addressed to `127.0.0.1` or `localhost` at its own port, so a web page cannot reach it through a DNS name that resolves to this computer, and board links open only on this computer. Managed start and stop use `ps`, so use macOS or Linux.
 
-Setup creates an empty boards folder and this project structure:
+For work on fribblr itself, run `node cli.mjs` in the checkout directly; keep config and boards outside it. `node cli.mjs init --config /absolute/config.json --boards /absolute/boards --label Atlas` makes a manual layout.
 
-```text
-AGENTS.md                 Short Tinka section: visual work also goes on boards, share direct links; see TINKA.md
-TINKA.md                  Board location, restore and operating instructions
-tinka/
-  project.json            Version pin, project label, relative boards path
-  setup.mjs               Standalone restore helper to commit with the project
-  .gitignore              Ignores only replaceable app and machine-local state
-  app/                    Replaceable app; ignored by default
-  local/                  This machine's config, process record and log; ignored
-design/boards/            Commit boards, assets, handoffs and .state/notes.json
-```
-
-Tinka keeps that section current in the project-root `AGENTS.md` (read by Codex,
-Claude Code and other agents), creating the file if needed. The section sits
-between `<!-- tinka:start … -->` and `<!-- tinka:end -->` markers: setup, every
-install and update, and each start of a portable project replace what is between
-them and never change anything outside. Earlier unmarked Tinka text is converted
-in place. No other instruction file is written.
-
-Commit the instructions, setup helper, version pin and complete boards. On a new
-machine, the app and local config can be absent. Run from the checked-out root:
-
-```sh
-node tinka/setup.mjs
-node tinka/app/cli.mjs start --config tinka/local/config.json
-```
-
-Setup restores the pinned version rather than silently choosing a newer release.
-It resolves relative project paths on this machine and preserves boards and notes.
-For offline restoration, commit the matching `tinka/packages/tinka-vVERSION.zip`
-and its `.sha256` sidecar. Setup selects that bundle automatically by version pin.
-Without a bundle it needs network access, or `--zip` and `--checksum` for a local package.
-Boards and experiment handoffs remain readable without the app. A hidden folder
-is not automatically excluded by Git: what travels is what you commit. Check
-ignore rules, especially for `.state/notes.json`. You may deliberately vendor an
-app copy for offline use; keep its boards and config outside that replaceable copy.
-
-**Open the URL printed by `start`.** A new automatic instance tries 43821, 43921, 44021, and so on, at most 20 candidates. It binds the real socket before choosing a port, saves the actual port in this instance's config, and tries that saved port first on restart. If it is occupied, the same bounded sequence continues from there. A numeric `init --port 43821` means **fixed**: a collision fails clearly without changing any other process. Omit `--label` to use the current project folder's name.
-
-For a source checkout, run `node cli.mjs` directly; keep config and boards outside the app checkout. No build step or `npm install` is needed. `node cli.mjs project init --project /absolute/target-project` prepares portable project instructions and setup, or use `init --config /absolute/config.json --boards /absolute/boards --label Atlas` for a manual layout. The standalone installer also accepts `--install-dir /absolute/app` and `--config` for existing installations.
+![An HTML experiment opened from its board in fribblr, with the board's frame, stepper and zoom controls around it.](docs/images/item.png)
 
 Create a board that agents fill with the workspace tools (`item.create` and the
 others in the [agent guide](docs/AGENT.md#showing-visual-work)):
 
 ```sh
-node /absolute/project/tinka/app/cli.mjs tools call board.create \
-  --config /absolute/project/tinka/local/config.json \
+node /absolute/project/fribblr/app/cli.mjs tools call board.create \
+  --config /absolute/project/fribblr/local/config.json \
   --json '{"id":"first-ideas","title":"A better first step"}'
 ```
 
@@ -117,8 +78,8 @@ On a schema-2 nested board, select representative items and choose **Show on
 parent…** to place the same work beside its round on a parent board. The source
 items, notes and stars remain shared; the original placements stay in place.
 Position and resize the parent placements independently, and open their source
-link to return to the round. Tinka starts in Light when this browser has no
-saved appearance. The System / Light / Dark choice changes Tinka's surfaces
+link to return to the round. fribblr starts in Light when this browser has no
+saved appearance. The System / Light / Dark choice changes fribblr's surfaces
 and named drawing colors. Embedded previews keep their own appearance.
 The installed [agent guide](docs/AGENT.md#make-the-work-visible) explains how to
 build boards that show their work at a useful scale.
@@ -126,11 +87,11 @@ build boards that show their work at a useful scale.
 ### One image of a board
 
 To send a whole board as one picture, for a phone or a chat that cannot open a
-board link, save an overview while the project's Tinka is running:
+board link, save an overview while the project's fribblr is running:
 
 ```sh
-node /absolute/project/tinka/app/cli.mjs board overview looks \
-  --config /absolute/project/tinka/local/config.json --out /absolute/project/design/looks-overview.png
+node /absolute/project/fribblr/app/cli.mjs board overview looks \
+  --config /absolute/project/fribblr/local/config.json --out /absolute/project/design/looks-overview.png
 ```
 
 It shows the board as it looks at its saved geometry, with only its title above
@@ -139,34 +100,34 @@ small board is not enlarged past 125%) and as tall as the board's shape needs. I
 is light by default; use `--appearance dark` for the dark look. It drives an
 installed Chrome, Chromium, Edge or Brave in headless mode with a throwaway
 profile (set `CHROMIUM_EXECUTABLE` to choose one) and never overwrites an existing
-file. It usually takes about ten seconds, during which other Tinka commands for
+file. It usually takes about ten seconds, during which other fribblr commands for
 this app wait; it gives up after 45 seconds, and saves nothing if the board page
 fails to load. Without a browser, open `URL/boards/BOARD_ID/?overview` and take a
 screenshot; that view changes nothing in the browser or the project.
 
 ### One image of an item, and its link
 
-To show one Tinka itself, larger than its tile, save a shot of it:
+To show one item itself, larger than its tile, save a shot of it:
 
 ```sh
-node /absolute/project/tinka/app/cli.mjs item shot ITEM_OR_PLACEMENT_ID \
-  --config /absolute/project/tinka/local/config.json --out /absolute/shot.png --width 390
+node /absolute/project/fribblr/app/cli.mjs item shot ITEM_OR_PLACEMENT_ID \
+  --config /absolute/project/fribblr/local/config.json --out /absolute/shot.png --width 390
 ```
 
 An HTML item renders as a page at `--width` CSS pixels (default 1280, 320–2560; 390
 is a phone) at twice the pixels (`--scale 1` for plain), down to 4000 CSS pixels of
 its height (`--height` to choose); an image keeps its own size (at most 4000 pixels
-a side); a document shows as Tinka's reader shows it, without its controls; a note
-or idea as a card. It prints the item's Tinka link (`--board` chooses which board's),
+a side); a document shows as fribblr's reader shows it, without its controls; a note
+or idea as a card. It prints the item's fribblr link (`--board` chooses which board's),
 uses the same headless browser and limits as an overview, and never overwrites a
 file. Remote web pages are not loaded; a local app item is, when it is answering.
 
-Every tool call that changes a board also returns `link`, the direct Tinka link
-to what it added or changed (`URL/boards/BOARD/#items/PLACEMENT` opens that Tinka;
-several changed Tinkas also get `links`). Agents give the user that link, and
+Every tool call that changes a board also returns `link`, the direct fribblr link
+to what it added or changed (`URL/boards/BOARD/#items/PLACEMENT` opens that item;
+several changed items also get `links`). Agents give the user that link, and
 when the user is away from this computer, a picture with it.
 
-Stop only this instance with `node /absolute/project/tinka/app/cli.mjs stop --config /absolute/project/tinka/local/config.json`. Use `serve` for a foreground process and Ctrl-C to stop it. PID and log files live beside the config. Managed stop checks the recorded PID, CLI path, config path, and unique process token before signaling anything.
+Stop only this instance with `node /absolute/project/fribblr/app/cli.mjs stop --config /absolute/project/fribblr/local/config.json`. Use `serve` for a foreground process and Ctrl-C to stop it. PID and log files live beside the config. Managed stop checks the recorded PID, CLI path, config path, and unique process token before signaling anything.
 
 ## Initialize the flexible workspace
 
@@ -194,11 +155,11 @@ notes, stars and status. Each placement has its own position and size. Grid and
 Canvas show the same board; moving or removing a placement does not move or delete
 files. An external URL can open in a separate tab. A stopped local app retains its
 preview and start instructions, with retry when its independently managed server
-returns. Tinka does not run commands from item metadata.
+returns. fribblr does not run commands from item metadata.
 
-Numbers carry through: when a tile shows a number (for example 07 from the board's manifest or an item's `number`), the opened Tinka, browser title and a child board's top bar show it too, and it follows stepping. Leaving an item or child board by any route lands back on its tile with a short pan and a green pulse (no movement with reduced motion).
+Numbers carry through: when a tile shows a number (for example 07 from the board's manifest or an item's `number`), the opened item, browser title and a child board's top bar show it too, and it follows stepping. Leaving an item or child board by any route lands back on its tile with a short pan and a green pulse (no movement with reduced motion).
 
-Version 0.7.0 uses one calm visual language: a single green (the Tinka mark's)
+Version 0.7.0 uses one calm visual language: a single green (the fribblr mark's)
 means on, selected or primary; neutrals are warm, dark mode is a softer warm
 graphite, and tiles sit on the canvas with real elevation. The top bar has
 **where** on the left — Navigator, Home, a parent return when applicable and the
@@ -208,7 +169,7 @@ boards). The Inspector opens on demand at the right edge: with nothing chosen it
 starts with the board itself (its name, counts and description), then View
 (Layout, canvas pattern, board color and background image), Filter, Edit
 (including comparison order), Feedback (Comments, Export
-notes), Appearance (Mode: System/Light/Dark; Background: Blue/White, light only), Help (how to use this board, Keyboard shortcuts) and Tinka; a tile's ⋯ menu groups Open experiment, Handoff when available, Notes and
+notes), Appearance (Mode: System/Light/Dark; Background: Blue/White, light only), Help (how to use this board, Keyboard shortcuts) and fribblr; a tile's ⋯ menu groups Open experiment, Handoff when available, Notes and
 Remove from board; Details… (or ⌘/Ctrl-I with one tile selected) shows that item's notes, feedback, appearance and paper, created/edited
 dates and actions. Click-away or Escape closes any temporary panel or menu. Zoom
 lives in one floating pill at the lower right: −, the zoom percentage (a menu with
@@ -216,11 +177,11 @@ lives in one floating pill at the lower right: −, the zoom percentage (a menu 
 selected, and Dots / Grid / Plain), +, the board map and Fit. The background starts Plain; Dots or Grid is a per-board view preference kept in this
 browser; it never changes board data.
 
-An opened Tinka is one level down and keeps the board's frame: the same header
-(Navigator, Home, **‹ its board**, the Tinka's title, Find and the Inspector) and the
+An opened item is one level down and keeps the board's frame: the same header
+(Navigator, Home, **‹ its board**, the item's title, Find and the Inspector) and the
 same pill at the lower right (−, the % menu, +, Back after a fit, and Fit). Its
 content sits on a canvas of its own: ⌘/Ctrl-scroll or pinch zooms it about the
-pointer, also over Tinka's own local content, and the page never zooms; drag the
+pointer, also over fribblr's own local content, and the page never zooms; drag the
 background, or hold Space and drag, to pan. Scrolling pans over the background, and
 over content with nothing to scroll, such as an image zoomed in to fill the view;
 documents and pages that scroll keep scrolling themselves. Fit (F or ⇧1) shows the whole resource
@@ -231,7 +192,7 @@ magnifies; Window and Type size reflow. The % menu also holds what the old View
 panel did: Window (Fit, Compact, Standard, Wide or a custom size dragged from the
 window's corner) and Version, Light (Paper/Night), Type size and Open standalone.
 The Inspector (⌘/Ctrl-I) starts with **Where it lives**, with two separate ways out.
-*In a browser tab* has **Open standalone** (the file served by Tinka, so Tinka must be
+*In a browser tab* has **Open standalone** (the file served by fribblr, so fribblr must be
 running) and Copy link. *The file itself* shows the full absolute path with **Copy
 path**, which works with no server and is what an agent needs. A remote item shows
 its own address instead. *On boards* lists every board and placement that uses the
@@ -241,36 +202,36 @@ opening or adding a child board, moving, adding references and featuring on a pa
 Copy for an agent sits beside the local path. Reload and Keyboard shortcuts are
 under Help. Favorite (☆) and Notes are in the header. Its
 content belongs to the agent that made it, so adding, dragging, resizing and
-backgrounds stay on boards; the editable place for a Tinka is its own board, one
+backgrounds stay on boards; the editable place for an item is its own board, one
 level down.
 
-A project HTML file opened straight from Tinka's address (Open standalone, or a
-`/resources/…` link) shows a small Tinka mark at the bottom left. Hover it for
-**Back to Tinka · ‹item› · ‹board›**; a click returns to that opened Tinka (the one
+A project HTML file opened straight from fribblr's address (Open standalone, or a
+`/resources/…` link) shows a small fribblr mark at the bottom left. Hover it for
+**Back to fribblr · ‹item› · ‹board›**; a click returns to that opened item (the one
 last opened in this browser, or the only place that shows the file). Its ⋯ menu
-lists the other boards that show the file, Copy path, Tinka home and Hide (for the
-rest of the tab). Tinka adds one script tag to the page only when a browser opens it
-as the page itself; Tinka's own previews, curl and agents get the file's exact bytes.
-Turn it off for a page with `<meta name="tinka-return" content="off">`, or for one
-visit with `?tinka=off`. Images, PDFs, video and Markdown open raw, without a mark.
+lists the other boards that show the file, Copy path, fribblr home and Hide (for the
+rest of the tab). fribblr adds one script tag to the page only when a browser opens it
+as the page itself; fribblr's own previews, curl and agents get the file's exact bytes.
+Turn it off for a page with `<meta name="fribblr-return" content="off">`, or for one
+visit with `?fribblr=off` (upstream's `tinka-return` and `?tinka=off` work too). Images, PDFs, video and Markdown open raw, without a mark.
 
 Hover the title (after a moment), click it or tap it for **where you are**: Home →
-the boards above → this board → this Tinka → its own board, then a numbered list of
-what sits beside it on this board, and any other boards that also show it. A
-Tinka placed on several boards uses the board you came from. Choose a row to go
+the boards above → this board → this item → its own board, then a numbered list of
+what sits beside it on this board, and any other boards that also show it. An
+item placed on several boards uses the board you came from. Choose a row to go
 there; a click outside the panel or Escape closes it. **‹ n / N ›**, which holds still at
 the right end of the title row whatever the title, steps through the board in review order,
-skipping reserved, building and board-only Tinkas; the count opens the same list,
-and **↓ Board · N** goes down into the Tinka's own board. Keys: ⌥← / ⌥→ on a Mac or
-Ctrl+← / Ctrl+→ on Windows and Linux step, also while Tinka's own local content has
+skipping reserved, building and board-only items; the count opens the same list,
+and **↓ Board · N** goes down into the item's own board. Keys: ⌥← / ⌥→ on a Mac or
+Ctrl+← / Ctrl+→ on Windows and Linux step, also while fribblr's own local content has
 focus but never inside a text field; [ and ] and K and J step too, and plain ← / → step while
-Tinka rather than the content has focus (opening a Tinka leaves focus there, and
+fribblr rather than the content has focus (opening an item leaves focus there, and
 content that grabs focus as it loads hands it back until you click into it or press Tab).
 ⌥↑ / Ctrl+↑ or Escape goes up to the board, and ⌥↓ / Ctrl+↓ goes down. Stepping
 replaces the address instead of adding to the browser history, so Back returns to
-where you opened the Tinka from; opening, going up and going down are one entry
+where you opened the item from; opening, going up and going down are one entry
 each. An independent web page in its own frame keeps its keys and scroll; use the
-header buttons, or click Tinka's canvas first.
+header buttons, or click fribblr's canvas first.
 
 Tiles rest quietly, showing state badges (favorite, notes, your vote) and one ⋯ menu. On
 hover, keyboard focus or a single selection a small floating toolbar over the preview offers Open,
@@ -306,7 +267,7 @@ Inspector → Appearance → Full when you want to change an existing placement.
 New graph boards open in Canvas unless you have already chosen Grid. Scroll with
 a mouse or trackpad to pan; Shift-scroll moves sideways. On a touch screen, swipe
 the background. Pinch or Control/⌘-scroll zooms, from 2% to 1000%, around the
-pointer, including over a Tinka or the floating controls; previews never zoom
+pointer, including over an item or the floating controls; previews never zoom
 themselves. Fit board and Fit selection never magnify past 125%.
 Fit follows the selection: with items selected it reads **Fit selection** with a
 count and frames them; pressed again, or with nothing selected, it fits the whole
@@ -354,7 +315,7 @@ The toolbar, selection circle and resize controls keep their separate actions.
 Right-click a native card for a short menu: Open, Details…, Favorite, Move to
 board…, Duplicate and Remove from board.
 
-On Canvas, select two or more Tinkas, drawings or containers, then choose
+On Canvas, select two or more items, drawings or containers, then choose
 **Group** or press **⌘G / Ctrl-G**. A group saves which objects belong together
 and leaves their positions and appearance as they were. Select any member to
 select the whole group. Drag or nudge it together, or Option/Alt-drag to place
@@ -363,7 +324,7 @@ objects in place as separate selections. Both actions support Undo and Redo.
 Select a container itself to group it with other objects. Its children follow
 the container's layout.
 
-Everything on a Canvas, Tinkas and drawings alike, sits in one stacking order.
+Everything on a Canvas, items and drawings alike, sits in one stacking order.
 New things land on top, except that a colored region or other backdrop drawn
 around existing objects goes under them. Dragging something onto an object above
 it, that it was not touching before, brings it forward; a small slip, a slide
@@ -371,15 +332,15 @@ among the same neighbours, arrow-key nudges, resizing, recoloring and editing
 leave the order alone. A backdrop you drag stays beneath the things resting on it
 (more than half inside it and no more than half its size). Press **]** to bring the
 selection to the front or **[** to send it to the back, or choose Bring to front /
-Send to back from a Tinka's ⋯ menu or a shape's, region's or arrow's options. Undo
+Send to back from an item's ⋯ menu or a shape's, region's or arrow's options. Undo
 restores the order with the move that changed it. On boards saved before this
 order, drawings without a saved place keep their kind's level: regions, shapes and
-text beneath every Tinka, arrows and stickers above.
+text beneath every item, arrows and stickers above.
 
 Hold **Option** (**Alt** on Windows or Linux) as you start dragging a card or
 drawn element to place a copy on the same canvas. Drag a selected member to copy
 the whole selection in one Undo step. A card copy has its own position and size
-and shares the same Tinka, name and source file. Deleting the copy leaves those
+and shares the same item, name and source file. Deleting the copy leaves those
 and the other cards in place. A copied Text block has its own editable text.
 The preview follows the object, using a still of loaded local HTML when available.
 Press Escape during the drag to cancel.
@@ -392,9 +353,9 @@ all rendered cards; Enter opens the sole selected item; ⌘/Ctrl-K or / opens
 Navigator; ⌘/Ctrl-I opens the Inspector; F fits the selection, then the board;
 Shift-1 fits the board, Shift-2 fits the selection (by physical key, on any
 layout) and Shift-0 zooms to 100%; M shows or hides the board map. K / J (also Ctrl+← / Ctrl+→ on Windows and
-Linux) select the previous or next Tinka in the same order an opened Tinka steps through,
+Linux) select the previous or next item in the same order an opened item steps through,
 and bring it into view; ⌥← / ⌥→ moves the focused item. With nothing selected they continue from the board's current
-Tinka: the one you last opened or stepped to inside it, stepped to on the board or
+item: the one you last opened or stepped to inside it, stepped to on the board or
 selected on its own (remembered per board in this tab). T, S and D add Text, a Sticky note or a Markdown
 Document at the pointer, N opens Quick jot, A shows or hides the edit tools, E
 edits the one selected Markdown document and ⇧⌘C / Ctrl-Shift-C copies the
@@ -403,7 +364,7 @@ board's notes as Markdown.
 shortcut sheet.
 Editing fields, readers, iframes and dialogs keep their native keys.
 
-Press Delete or Backspace to remove selected Tinkas from this board immediately.
+Press Delete or Backspace to remove selected items from this board immediately.
 ⌘Z / Ctrl-Z restores the exact placements and arrangement; Redo removes them
 again. Notes, stars, child boards, resource files and references on other boards
 stay available. The toolbar’s Remove from board action is also undoable and
@@ -420,17 +381,17 @@ movement history. Text fields keep their own undo, and replay is available after
 gestures and writes finish. A conflicting arrangement is never overwritten; review the
 latest board before retrying. New successful movement clears the redo branch.
 
-Select Tinkas or drawn elements and use ⌘C / Ctrl-C, then ⌘V / Ctrl-V on the same
+Select items or drawn elements and use ⌘C / Ctrl-C, then ⌘V / Ctrl-V on the same
 board or another board in this workspace. Copies keep their relative arrangement,
 size, appearance, groups and container contents. A copied arrow stays attached to
-the copies of its selected targets. Tinka copies have independent identities and
+the copies of its selected targets. Item copies have independent identities and
 keep their names, notes, stars and resource references.
 A copied board keeps its layout and references its existing children. Originals
 stay in place. The Inspector also offers Copy selection and a Paste shortcut reminder.
 The clipboard carries the selection itself, including across tabs; unrelated text
-never pastes a stale selection. Another workspace's Tinkas are rejected.
+never pastes a stale selection. Another workspace's items are rejected.
 
-Use ⌘X / Ctrl-X on selected Tinkas to mark them for moving, then paste on another
+Use ⌘X / Ctrl-X on selected items to mark them for moving, then paste on another
 board in this workspace. Cut leaves originals in place until paste succeeds. The
 move keeps the same items, notes, stars, resources, children and relative layout;
 Undo restores the original source placements. Pasting back onto the source board
@@ -442,7 +403,7 @@ If source placement layout/order changed, paste rejects the entire move; later
 item content or feedback edits remain current. An uncertain response can retry the
 same destination without creating a second move.
 
-Paste a single HTTP(S) link to make a link Tinka with a title, description and image
+Paste a single HTTP(S) link to make a link item with a title, description and image
 when available, including public tweet metadata. Unavailable pages retain the
 original address and a recognizable fallback. This explicit paste looks up bounded
 public metadata; it never runs the page's HTML. Paste other text to make a document,
@@ -482,7 +443,7 @@ Select native Text, Sticky notes or shapes and choose **Make container**, or use
 **+ Add → Container** to start typing in a blank Text block inside a new container.
 Use **Stack**, **Row** or **Grid** in the selected container's toolbar. **More**
 holds gap, padding, and grid columns. Gap and padding preview the layout as you
-drag the adjustment control. The grid offers its column counts directly. Drag a native block, shape or Tinka card
+drag the adjustment control. The grid offers its column counts directly. Drag a native block, shape or item card
 into a container and release at the insertion marker. Drag it to another slot,
 another container, or the open canvas. Drag a container's exposed background to
 move it with its children. Removing a container leaves its children in place.
@@ -535,7 +496,7 @@ Escape or ⌘/Ctrl-Enter ends it. While editing, ⌘/Ctrl-Z and ⇧⌘/Ctrl-Shif
 redo inside the document, a word of typing or one formatting change at a time
 (undoing a Markdown shortcut brings back the characters you typed), and keys typed
 right after the double-click that starts editing are kept. Blocks you did not touch keep their exact source.
-If the file changed elsewhere since editing began, the save is refused and Tinka
+If the file changed elsewhere since editing began, the save is refused and fribblr
 says so instead of overwriting it. Document cards look like paper and fill their
 tile, with checklists, strikethrough, nested formatting, and live highlights and
 comments. After a save, highlights and comments follow their exact quoted text when
@@ -554,7 +515,7 @@ and Undo restores them. Stickies start with a paper color dot and text size.
 Shapes, regions and containers show their fill color in the same place. Tile
 paper and board color use the same palette from their Inspectors. Native colors
 adapt together when switching between Light and Dark, including custom board
-colors, paper, text and arrows. Tinka preserves the saved values and the colors
+colors, paper, text and arrows. fribblr preserves the saved values and the colors
 inside artwork and embedded pages. With several
 selected, a shared choice applies
 to all of them. On Canvas
@@ -565,7 +526,7 @@ and with two or more selected, **Arrange** aligns, distributes or tidies them in
 a grid in one Undo step. **Quick jot** (N) is one floating line: each Enter adds a
 sticky to a tidy grid in a clear area, and Escape closes it. **⇧⌘C** /
 Ctrl-Shift-C, or **Copy notes as Markdown** in the Inspector's Feedback section, copies the board's text, stickies
-and item titles (with their Tinka links), top to bottom.
+and item titles (with their fribblr links), top to bottom.
 Notes and conversation composers use the same scoped shortcut, with a platform
 hint. Failed saves preserve drafts; click-away never posts a comment. Small saved
 cards keep their size and expose hidden actions through More and selection controls.
@@ -592,11 +553,11 @@ with ⌘-click. **Send to agent** in the bottom bar marks the open threads as se
 copies a short prompt to paste to your agent, and **Waiting on you** in the comments
 menu lists the threads an agent has addressed or asked about. When an agent says a
 thread is addressed, choose **Looks good · Resolve** or **Not yet**. Agents find their
-work with `node tinka/app/cli.mjs inbox --config tinka/local/config.json` (the
+work with `node fribblr/app/cli.mjs inbox --config fribblr/local/config.json` (the
 `feedback.inbox` tool), reply with what they changed, and never resolve or reopen a
-person's thread: only its author does. New `TINKA.md` files and the agent guide tell
+person's thread: only its author does. New `FRIBBLR.md` files and the agent guide tell
 agents to check the inbox when you mention comments or feedback, and before they
-finish a Tinka task.
+finish a fribblr task.
 
 An agent can also wait for comments live: `inbox --watch`, run in the background,
 returns as soon as a comment arrives for it. While one is waiting, **Send to agent**
@@ -624,7 +585,7 @@ stream and runtime identity. Healthy connections do not poll workspace documents
 ## If you're an agent
 
 Read [the agent guide](docs/AGENT.md), [folder protocol](docs/PROTOCOL.md),
-the project's `TINKA.md`, and the selected board's `AGENTS.md`. The app includes
+the project's `FRIBBLR.md`, and the selected board's `AGENTS.md`. The app includes
 all version-specific instructions. Browser prompts identify this installation's
 app, config, boards and instruction paths; they do not require a skill.
 
@@ -635,7 +596,7 @@ replacing an existing guide:
 node /absolute/app/cli.mjs board guide board-slug --config /absolute/config.json
 ```
 
-The optional Tinka skill is a small discovery pointer. Install it only if useful;
+The optional fribblr skill is a small discovery pointer. Install it only if useful;
 app upgrades do not require updating it. No global registry is needed for portable
 projects. Legacy workspace pointers and external data layouts remain supported.
 
@@ -643,11 +604,15 @@ Browser storage keys include an identity derived from this config's canonical pa
 
 ## Updates for one project
 
+An app installed from a checkout updates by `git pull` and the same install command (see
+[docs/INSTALL.md](docs/INSTALL.md#update)); it never checks for releases. The rest of this section
+describes the release updater, which applies once fribblr publishes releases.
+
 Run the normal start command whenever returning to a project's boards, even if
 its server is already running:
 
 ```sh
-node tinka/app/cli.mjs start --config tinka/local/config.json
+node fribblr/app/cli.mjs start --config fribblr/local/config.json
 ```
 
 Start verifies and returns the existing instance's URL, or starts it when stopped.
@@ -657,12 +622,12 @@ The default is **notify**: one concise agent-readable notice per new release,
 with commands for the following choices:
 
 ```sh
-node tinka/app/cli.mjs update now --config tinka/local/config.json
-node tinka/app/cli.mjs update later --config tinka/local/config.json
-node tinka/app/cli.mjs update policy auto --config tinka/local/config.json
-node tinka/app/cli.mjs update policy notify --config tinka/local/config.json
-node tinka/app/cli.mjs update policy off --config tinka/local/config.json
-node tinka/app/cli.mjs update status --config tinka/local/config.json
+node fribblr/app/cli.mjs update now --config fribblr/local/config.json
+node fribblr/app/cli.mjs update later --config fribblr/local/config.json
+node fribblr/app/cli.mjs update policy auto --config fribblr/local/config.json
+node fribblr/app/cli.mjs update policy notify --config fribblr/local/config.json
+node fribblr/app/cli.mjs update policy off --config fribblr/local/config.json
+node fribblr/app/cli.mjs update status --config fribblr/local/config.json
 ```
 
 `later` reminds again after 24 hours; it does not change the daily check interval.
@@ -670,11 +635,11 @@ node tinka/app/cli.mjs update status --config tinka/local/config.json
 starting a stopped instance. A running board is left running, with the update
 deferred. Failed automatic installs are attempted once per release; `update now`
 explicitly retries. In a portable project, the newly installed app refreshes the
-managed Tinka section in `AGENTS.md` when it starts, for manual and automatic
+managed fribblr section in `AGENTS.md` when it starts, for manual and automatic
 updates alike; review and commit that change with the pin. `off` disables automatic checks. `update check` explicitly
 refreshes release information without downloading or installing an app.
 
-Preferences/cache stay in ignored `tinka/local/updates.json`. Manual and dotfolder
+Preferences/cache stay in ignored `fribblr/local/updates.json`. Manual and dotfolder
 layouts retain their config locations and use `CONFIG_PATH.updates.json` beside
 each config, so different configs never silently share consent. No background
 service, scheduler, model or registry is involved. Source checkouts do not perform
@@ -685,14 +650,14 @@ version, stable releases within the same app major, supported Node/platform and
 workspace/config schemas, and no migration. Version numbers alone grant nothing,
 including within 0.x.
 
-Releases are numbered X.Y and shown that way (Tinka 1.1); each release bumps the
+Releases are numbered X.Y and shown that way (fribblr 1.1); each release bumps the
 minor number, and there are no patch releases. Machinery keeps the full form
-(1.1.0 in `package.json`, the `v1.1.0` tag, `tinka/project.json`), and wherever
+(1.1.0 in `package.json`, the `v1.1.0` tag, `fribblr/project.json`), and wherever
 you type a version, X.Y means X.Y.0. Older releases with a patch number, such as
 1.0.4, keep showing it.
 
 A new major version (for example 0.7.17 to 1.0) is offered, never refused for
-being major: the notice and `update status` say "Tinka 1.0 is available. This is
+being major: the notice and `update status` say "fribblr 1.0 is available. This is
 a major update; ask the user before updating." and give the one command that
 installs it after the user agrees, `update now --major`. Plain `update now` and
 automatic updates never cross a major version; they show that notice instead.
@@ -707,55 +672,33 @@ checksum, staging and backup path. A temporary health probe verifies a stopped
 candidate before acceptance; its original config bytes are restored after the
 probe. Failure restores the prior app/config and attempts to recover its running
 service. The project pin changes only after successful health verification; review
-and commit `tinka/project.json` yourself. No Git commit is created automatically.
+and commit `fribblr/project.json` yourself. No Git commit is created automatically.
 
-The browser says the same where Tinka already says "Live": on a board's floating
+The browser says the same where fribblr already says "Live": on a board's floating
 status line and on Home's live line (a pill on phones). A compatible update is quiet
 grey text; its popover offers **Update now**, **Later** (24 hours, the same as
 `update later`) and **Install compatible updates automatically** (`update policy
-auto`). A major update has the accent and a dot and opens **Update to Tinka X?**,
-which starts on Later, so Enter never approves. The board Inspector's **Tinka**
+auto`). A major update has the accent and a dot and opens **Update to fribblr X?**,
+which starts on Later, so Enter never approves. The board Inspector's **fribblr**
 section shows the version and the policy as **Ask first** / **Automatic** / **Off**
 (notify / auto / off). Update now runs `update now --to X.Y.Z` (the exact release) (with `--major` after
-that yes) as a separate process: while Tinka restarts, the board stays visible,
-adding and undoing pause and changes wait, then **Tinka X is ready · Refresh**
+that yes) as a separate process: while fribblr restarts, the board stays visible,
+adding and undoing pause and changes wait, then **fribblr X is ready · Refresh**
 offers the usual Refresh. Nothing reloads by itself. The browser never installs
 when updates are Off, when the app copy has local changes or no file baseline, or
 when compatibility needs review; **Copy a request for your agent** is always there
 and is then the only route. A failed install shows its reason and Try again; the
-old app is restored as above. Commit `tinka/project.json` afterwards as usual.
-`TINKA_UPDATE_FEED=/absolute/folder` makes the updater read releases from a local
+old app is restored as above. Commit `fribblr/project.json` afterwards as usual.
+`FRIBBLR_UPDATE_FEED=/absolute/folder` (or the older `TINKA_UPDATE_FEED`) makes the updater read releases from a local
 folder of `scripts/package.mjs` outputs instead of GitHub, for offline mirrors and
 tests; every other check still applies.
 
-Existing installations receive these commands through a deliberate upgrade:
-
-```sh
-node tinka/setup.mjs --version X.Y
-```
-
-With no version argument, setup always restores its existing pin. `--version 1.1`
-means 1.1.0 for installers and setup helpers from 1.1 on; an older `setup.mjs`
-needs the full `--version 1.1.0`. Custom existing
-`setup.mjs` and `TINKA.md` are preserved. Older setup helpers can install the new
-feature but write receipts without file baselines. To enable future automatic
-replacement safely, review local app modifications, download the **current**
-`tinka-install.mjs` from the release page, and deliberately reinstall the current
-version with it:
-
-```sh
-node /absolute/tinka-install.mjs --install-dir /absolute/project/tinka/app \
-  --config /absolute/project/tinka/local/config.json --version X.Y
-```
-
-This also works when already on the latest version and preserves custom project
-instructions and setup helpers. Default policy remains notify. Keep one installed
-app copy per project when projects need independent upgrades; never share an app
+Keep one installed app copy per project when projects need independent upgrades; never share an app
 copy among configs you intend to update independently.
 
 Config, boards, notes, logs, and PID state must stay outside the app directory. Existing version 0.1 configs remain fixed-port configurations; add `"projectLabel": "Your project"` and optionally `"portMode": "auto"`. The legacy `title` property remains accepted but project identity comes from `projectLabel`.
 
-See [operations](docs/README.md), [release packaging](docs/RELEASE.md), and [maintainer guidance](AGENTS.md). Tinka is open source under the [MIT License](LICENSE).
+See [installing](docs/INSTALL.md), [operations](docs/README.md), [release packaging](docs/RELEASE.md), [branding notes](docs/BRANDING.md) and [maintainer guidance](AGENTS.md). fribblr is open source under the [MIT License](LICENSE), as is [Tinka](https://github.com/bladnman/tinka), which it is forked from.
 
 Boards on Home appear newest-created first, including graph and legacy boards
 together. Nested board cards in Grid use the child board’s creation date within

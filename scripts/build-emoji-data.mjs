@@ -95,7 +95,7 @@ const catalogue = `${header}`
 const latest = `${header}`
   + `// Emoji added after ${baseline}, for runtimes whose Unicode tables predate this repertoire.\n`
   + `export const newEmoji = new Set(${JSON.stringify(additions)});\n`;
-const attribution = 'Tinka uses Unicode Emoji 18.0 test data and CLDR release 49 English annotations.\n'
+const attribution = 'fribblr uses Unicode Emoji 18.0 test data and CLDR release 49 English annotations.\n'
   + 'Emoji test data: © 2026 Unicode®, Inc. Unicode and the Unicode Logo are\n'
   + 'registered trademarks of Unicode, Inc. in the U.S. and other countries.\n'
   + 'CLDR data: Copyright © 1991-2026 Unicode, Inc.\n'

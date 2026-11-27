@@ -95,7 +95,7 @@ try{
  const launch=card(ids[1]).locator('[data-open]:not([data-slot])').first();
  await launch.focus();await page.keyboard.press('Enter');
  await page.locator('#reader-dialog[open]').waitFor();await page.waitForTimeout(200);
- eq(await focused(),'reader-stage','Opening focuses Tinka\'s canvas');
+ eq(await focused(),'reader-stage','Opening focuses fribblr\'s canvas');
  const stops=await page.evaluate(async()=>{const {tabStops}=await import('/app/reader-dialog.js');const list=tabStops(document.getElementById('reader-dialog'));return {first:list[0]?.id,last:list.at(-1)?.id};});
  await page.locator(`#${stops.last}`).focus();await page.keyboard.press('Tab');
  eq(await focused(),stops.first,'Tab from the last control wraps to the first');
@@ -107,13 +107,13 @@ try{
  eq(await page.locator('#reader-next').getAttribute('aria-disabled'),'true','…and says it is disabled');
  await page.keyboard.press(process.platform==='darwin'?'Meta+i':'Control+i');
  await page.locator('#reader-info').waitFor({state:'visible'});
- ok(await page.locator('#reader-info .calm-side-body').evaluate(el=>el.contains(document.activeElement)),'The Tinka Inspector opens on its first control');
+ ok(await page.locator('#reader-info .calm-side-body').evaluate(el=>el.contains(document.activeElement)),'The item Inspector opens on its first control');
  await page.keyboard.press('Escape');await page.locator('#reader-info').waitFor({state:'hidden'});
- ok(await readerOpen(),'Escape closes the Inspector and leaves the Tinka open');
+ ok(await readerOpen(),'Escape closes the Inspector and leaves the item open');
  eq(await focused(),'reader-next','…and focus returns to what had it');
  await page.locator('#reader-info-toggle').click();await page.locator('#reader-info').waitFor({state:'visible'});
  await page.locator('#reader-stage').focus();await page.keyboard.press('Escape');await page.locator('#reader-info').waitFor({state:'hidden'});
- ok(await readerOpen(),'Escape from Tinka\'s canvas peels the Inspector first');
+ ok(await readerOpen(),'Escape from fribblr\'s canvas peels the Inspector first');
  await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});
  await page.waitForTimeout(150);
  ok(await card(ids[2]).evaluate(el=>el===document.activeElement||el.contains(document.activeElement)),'Closing returns focus to the card last viewed');
@@ -122,7 +122,7 @@ try{
  eq(await page.locator('#reader-header .chrome-actions').getAttribute('role'),'toolbar','The reader\'s commands are a toolbar');
  await page.locator('#reader-star').focus();await page.keyboard.press('ArrowRight');
  eq(await focused(),'notes-toggle','→ moves along the reader\'s toolbar, it does not step');
- eq(await page.locator('#reader-count').textContent(),'2 / 3','…and the Tinka stays');
+ eq(await page.locator('#reader-count').textContent(),'2 / 3','…and the item stays');
  await page.locator('#reader-stage').focus();await page.keyboard.press('Escape');await page.locator('#reader-dialog').waitFor({state:'hidden'});
 
  // (5) The board map: head toolbar, 0 shows 100%, Escape from the head closes it and focus goes to the toggle.

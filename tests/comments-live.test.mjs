@@ -135,6 +135,6 @@ test('without a running server, --watch waits on the thread files and times out 
   await new Promise(resolve=>setTimeout(resolve,300));
   await f.op({type:'addComment',id:'file-watch',boardId:'landing',author:robin,body:'Seen through the files?',to:{kind:'agent'},status:'sent'});
   const output=await waiting;
-  assert.match(output,/^Tinka: 1 new comment for you on 'Landing page directions'/);assert.match(output,/\/boards\/landing\/#comments\/file-watch \(thread file-watch\)/);
+  assert.match(output,/^fribblr: 1 new comment for you on 'Landing page directions'/);assert.match(output,/\/boards\/landing\/#comments\/file-watch \(thread file-watch\)/);
   assert.equal(await main(['inbox','--config',f.configPath,'--brief','--actor','design-agent']),'','a watch marks what it showed as seen');
 });

@@ -71,7 +71,7 @@ test('relative points follow targets without rewriting threads and expose detach
  for(const id of ['relative','shape']){const thread=(await listFeedback(config,{threadId:id})).threads[0];assert.equal(thread.anchorStatus,'detached');assert.deepEqual(thread.anchor,anchors[id]);assert.deepEqual(thread.anchorPoint,{x:anchors[id].x,y:anchors[id].y,detached:true,fallback:true});}
  assert.deepEqual(await Promise.all(Object.keys(anchors).map(id=>readFile(path.join(root,'threads',`${id}.json`),'utf8'))),original);
 });
-async function configFile(config,root){const file=path.join(root,'..','fixture-config.json');await writeFile(file,JSON.stringify({schemaVersion:1,port:43821,portMode:'auto',projectLabel:'Feedback',title:'Tinka',...config}));return file;}
+async function configFile(config,root){const file=path.join(root,'..','fixture-config.json');await writeFile(file,JSON.stringify({schemaVersion:1,port:43821,portMode:'auto',projectLabel:'Feedback',title:'fribblr',...config}));return file;}
 test('relative point bounds and target requirements reject before commit; preview geometry shares the resolver',async t=>{
  const {config,board,item}=await fixture(t),snapshot=await getBoardSnapshot(config,board.boardId),placement=snapshot.placements.find(p=>p.itemId===item.itemId);
  const base={type:'addComment',boardId:board.boardId,author,body:'Invalid relative point'},point={kind:'point',x:0,y:0,placementId:placement.id};

@@ -80,7 +80,7 @@ try{
  ok((await plane()).x<k.x-200,'Shift+→ pans a screenful');
  for(let i=0;i<40;i++)await page.keyboard.press('Shift+ArrowRight');
  const edge=await plane();await page.keyboard.press('ArrowRight');
- ok((await plane()).x===edge.x&&await count()===startCount,'At the right edge, → stays on this Tinka');
+ ok((await plane()).x===edge.x&&await count()===startCount,'At the right edge, → stays on this item');
  await page.keyboard.press('ArrowLeft');ok((await plane()).x===edge.x+80,'← pans back');
  await page.keyboard.press('f');await page.waitForTimeout(60);
  await page.keyboard.press('ArrowRight');await page.waitForFunction(c=>document.querySelector('#reader-count').textContent.trim()!==c,startCount);checks++;

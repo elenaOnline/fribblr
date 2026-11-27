@@ -1,4 +1,4 @@
-Tinka uses Unicode Emoji 18.0 test data and CLDR release 49 English annotations.
+fribblr uses Unicode Emoji 18.0 test data and CLDR release 49 English annotations.
 Emoji test data: © 2026 Unicode®, Inc. Unicode and the Unicode Logo are
 registered trademarks of Unicode, Inc. in the U.S. and other countries.
 CLDR data: Copyright © 1991-2026 Unicode, Inc.

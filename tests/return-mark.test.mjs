@@ -30,6 +30,7 @@ test('injection adds one tag before the last </body>, keeps bytes elsewhere and 
   assert.equal(injectReturnMark(Buffer.from('<meta content="off" name="tinka-return"><p>x</p>')),null);
   assert.equal(returnMarkOptedOut("<META NAME='tinka-return' CONTENT='OFF'>"),true);
   assert.equal(returnMarkOptedOut('<meta name="tinka-return" content="on">'),false);
+  assert.equal(returnMarkOptedOut('<meta name="fribblr-return" content="off">'),true,'fribblr-return is the documented name');
   assert.equal(injectReturnMark(Buffer.from([0xff,0xfe,0x3c,0x00])),null,'UTF-16 is left alone');
 });
 
@@ -64,7 +65,7 @@ test('only a top-level HTML document gets the mark; frames, curl, ranges, non-HT
 
   const frame=await raw(port,'/resources/assets/calm.html',{'sec-fetch-dest':'iframe'});
   const curl=await raw(port,'/resources/assets/calm.html');
-  assert.deepEqual(frame.body,original,'Tinka\'s own frames get the exact bytes');
+  assert.deepEqual(frame.body,original,'fribblr\'s own frames get the exact bytes');
   assert.deepEqual(curl.body,original,'curl and agents get the exact bytes');
   assert.deepEqual(frame.body,curl.body,'iframe and curl responses are byte-identical');
   assert.equal(frame.headers.vary,'Sec-Fetch-Dest');
@@ -74,13 +75,14 @@ test('only a top-level HTML document gets the mark; frames, curl, ranges, non-HT
   assert.equal(range.status,206);assert.deepEqual(range.body,original.subarray(0,10),'a range is never rewritten');
   const off=await raw(port,'/resources/assets/calm.html?tinka=off',{'sec-fetch-dest':'document'});
   assert.deepEqual(off.body,original,'?tinka=off serves the exact bytes');
+  assert.deepEqual((await raw(port,'/resources/assets/calm.html?fribblr=off',{'sec-fetch-dest':'document'})).body,original,'?fribblr=off serves the exact bytes');
   const quiet=await raw(port,'/resources/assets/quiet.html',{'sec-fetch-dest':'document'});
   assert.deepEqual(quiet.body,await readFile(path.join(assets,'quiet.html')),'the meta opt-out serves the exact bytes');
   const svg=await raw(port,'/resources/assets/shot.svg',{'sec-fetch-dest':'document'});
   assert.deepEqual(svg.body,await readFile(path.join(assets,'shot.svg')),'non-HTML is left raw');
   assert.equal(svg.headers.vary,undefined);
   const script=await raw(port,'/app/return-mark.js');assert.equal(script.status,200);
-  const app=await raw(port,'/app/item.html',{'sec-fetch-dest':'document'});assert.equal(app.body.includes('return-mark.js'),false,'Tinka\'s own pages are not marked');
+  const app=await raw(port,'/app/item.html',{'sec-fetch-dest':'document'});assert.equal(app.body.includes('return-mark.js'),false,'fribblr\'s own pages are not marked');
 
   // Legacy board files follow the same rule.
   const legacy=path.join(root,'boards','legacy');await mkdir(path.join(legacy,'rounds','first','alpha'),{recursive:true});
