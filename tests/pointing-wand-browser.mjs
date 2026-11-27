@@ -1,6 +1,6 @@
 // Pointing mode's round 2 (team/pointing/CONTRACT.md § Round 2) on a real board page, driven with a real pointer and
 // keyboard: the Wand (a held drag waving over a card, underlining a heading, circling a sticky is one reference each,
-// drawn as still glitter; travelling between targets, moving while typing and a resting hand make none; a lift
+// drawn as a still dither over a translucent fill; travelling between targets, moving while typing and a resting hand make none; a lift
 // mid-wave carries the same reference on; Backspace and Undo take the last one back and bring it again), snapping to
 // board objects (a sloppy marquee round a card, a lasso round a sticky, a marquee round a container, an underline
 // under text) shown before release, ⌘ held takes exactly what the reviewer drew, and a click recorded as tool "click" with the
@@ -74,15 +74,61 @@ try{
     assert.equal(all.length,3,`three chips: ${all}`);assert.match(all[0],/^1\s*Hero B/);assert.match(all[1],/^2\s*(Text · )?Quarterly plan/);assert.match(all[2],/^3\s*(Sticky · )?A sticky/);
     const tips=await field.locator('.pointing-chip').evaluateAll(cs=>cs.map(c=>c.dataset.tip));
     assert.match(tips[0],/snapped to the card "Hero B"/);assert.match(tips[1],/snapped to the text "Quarterly plan"/);assert.match(tips[2],/snapped to the sticky "A sticky"/);
-    assert.equal(await page.locator('.pointing-marks .pointing-swath').count(),3,'each drawn as glitter');
+    assert.equal(await page.locator('.pointing-marks .pointing-swath').count(),3,'each drawn as the wand\'s area');
   });
-  await check('the glitter is still: once a gesture commits nothing on the board moves on its own',async()=>{
-    await page.mouse.move(1270,850);await page.waitForTimeout(700);
+  await check('the area is still: once a gesture commits nothing on the board moves on its own, from just after the release',async()=>{
     const read=()=>page.evaluate(()=>[...document.querySelectorAll('.pointing-swath')].map(c=>c.toDataURL()).join('|')+'#'+document.querySelector('.pointing-sheet').toDataURL());
-    const a=await read();await page.waitForTimeout(900);const b=await read();
-    assert.ok(a===b,'nothing changed with no input');
-    const ink=await page.evaluate(()=>{const c=document.querySelector('.pointing-swath'),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n/(c.width*c.height);});
-    assert.ok(ink>0.01&&ink<0.4,`flecks, not a fill (${(ink*100).toFixed(1)} % of the patch is ink)`);
+    // A raw stroke (no snap: the sheet holds it until its still canvas is drawn) and a snapped wave (drawn snapped at once,
+    // nothing dissolving), each read just after the release and a second on.
+    const h=await box(card('Hero B'));
+    for(const raw of [true,false]){
+      if(raw)await page.keyboard.down(MOD);
+      if(raw){await page.mouse.move(h.x+20,h.y+60);await page.mouse.down();for(let i=0;i<=12;i++)await page.mouse.move(h.x+20+i*14,h.y+60+(i%2)*4);await page.mouse.up();}
+      else await wave(h);
+      if(raw)await page.keyboard.up(MOD);
+      await page.waitForTimeout(120);
+      const a=await read();await page.waitForTimeout(1000);const b=await read();
+      assert.ok(a===b,`nothing changed with no input after the release (${raw?'raw':'snapped'})`);
+      await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+    }
+    // The tip's sparkles go within half a second of the hand stopping (the user's motion only).
+    await page.mouse.move(1270,850);await page.waitForTimeout(700);
+    const c=await read();await page.waitForTimeout(1000);
+    assert.ok(c===await read(),'nothing changed with no input');
+  });
+  await check('the look: a translucent red fill under an ordered dither, on a grid fixed to the board',async()=>{
+    // Every pixel inside a raw swath is inked: most at the tint (light), some lit by the matrix (dense); none in between.
+    const m=await page.evaluate(async()=>{
+      const w=await import('/app/pointing-wand.js');
+      const f=new w.SwathField({width:56,cell:4});for(let x=0;x<=200;x+=6)f.add(40+x,60+Math.sin(x/30)*8);
+      const paint=(ox,oy)=>{const c=document.createElement('canvas');c.width=360;c.height=200;const ctx=c.getContext('2d');w.paintField(ctx,f,{ox,oy,k:1},{tones:['rgb(179,56,48)','rgb(179,56,48)','rgb(250,230,228)','rgb(121,26,22)']});return ctx.getImageData(0,0,360,200).data;};
+      const A=paint(0,0),B=paint(-40,-24);
+      let inside=0,inked=0,light=0,dense=0,same=0,n=0;
+      for(let y=0;y<200;y++)for(let x=0;x<360;x++){
+        const q=(x+y*360)*4;if(f.contains([x+0.5,y+0.5])){inside++;if(A[q+3])inked++;if(A[q+3]>0&&A[q+3]<80)light++;if(A[q+3]>150)dense++;}
+        if(x+40<360&&y+24<200){const r=((x+40)+(y+24)*360)*4;n++;if(A[q+3]===B[r+3]&&A[q]===B[r])same++;}
+      }
+      return {inside,inked,light,dense,same,n};
+    });
+    assert.ok(m.inked/m.inside>0.97,`the fill covers the area (${m.inked} of ${m.inside} px inked)`);
+    assert.ok(m.light/m.inked>0.6,`mostly the translucent tint (${(100*m.light/m.inked).toFixed(1)} %)`);
+    assert.ok(m.dense/m.inked>0.04&&m.dense/m.inked<0.35,`the dither over it (${(100*m.dense/m.inked).toFixed(1)} % lit)`);
+    assert.equal(m.same,m.n,'panned by 40, 24 px the same area draws the same pixels, moved by 40, 24 px');
+  });
+  await check('text under the area stays legible: its ink stays dark and the paper round it mostly light',async()=>{
+    const hb=await words('#world [data-decoration="head"]');
+    const clip={x:Math.round(hb.x),y:Math.round(hb.y),width:Math.round(hb.width),height:Math.round(hb.height)};
+    const lum=buf=>page.evaluate(async b64=>{const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);const d=x.getImageData(0,0,c.width,c.height).data,o=[];for(let i=0;i<d.length;i+=4)o.push((0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2])/255);return o;},buf.toString('base64'));
+    const plain=await lum(await page.screenshot({clip}));
+    await page.keyboard.type(' over ');await page.keyboard.down(MOD);
+    await page.mouse.move(hb.x-10,hb.cy);await page.mouse.down();for(let k=0;k<3;k++)for(let i=0;i<=12;i++)await page.mouse.move(hb.x-10+(k%2?12-i:i)*(hb.width+20)/12,hb.cy+(k-1)*4);await page.mouse.up();await page.keyboard.up(MOD);
+    await page.mouse.move(1270,850);await page.waitForTimeout(500);
+    const over=await lum(await page.screenshot({clip}));
+    let ink=0,inkKept=0,paper=0,paperKept=0;
+    for(let i=0;i<plain.length;i++){if(plain[i]<0.3){ink++;if(over[i]<0.35)inkKept++;}else if(plain[i]>0.85){paper++;if(over[i]>0.55)paperKept++;}}
+    assert.ok(ink>50&&inkKept/ink>0.95,`the words' ink stays dark (${inkKept} of ${ink})`);
+    assert.ok(paperKept/paper>0.7,`the paper round them stays mostly light (${(100*paperKept/paper).toFixed(1)} %)`);
+    await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
   });
   await check('travelling between targets, moving while typing and a resting hand make no reference',async()=>{
     const before=(await chips()).length;
@@ -202,7 +248,7 @@ try{
     const ctx=await browser.newContext({viewport:{width:1280,height:860},deviceScaleFactor:dpr,colorScheme:mode,reducedMotion:'reduce'}),p=await ctx.newPage();
     await p.addInitScript(mode=>{try{localStorage.setItem('tinka/appearance',mode);}catch{}},mode);
     await p.goto(`${url}/boards/${look}/`);await p.waitForSelector('#world .workspace-card');await p.waitForSelector('[data-pointing-enter]',{state:'attached'});await p.waitForTimeout(400);
-    await check(`the look, ${mode} ${dpr}x: glitter in the mark red over the content`,async()=>{
+    await check(`the look, ${mode} ${dpr}x: the wand's dither in the mark red over the content`,async()=>{
       await p.keyboard.press('p');await p.keyboard.press('Alt+KeyW');
       const b=await p.locator(card('Hero B')).first().boundingBox();
       await p.mouse.move(b.x+12,b.y+b.height/2);await p.mouse.down();for(let k=0;k<4;k++)for(let i=0;i<=10;i++)await p.mouse.move(b.x+12+(k%2?10-i:i)*(b.width-24)/10,b.y+b.height/2+(k-2)*5);
