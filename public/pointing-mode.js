@@ -28,7 +28,7 @@
 // The unsent draft (words, chips, marks, times) is kept per board for the session, so leaving the page loses nothing.
 import {pointingGuard} from './pointing-guard.js';
 import {rectHits, pathHits, areaHits, pointTarget, simplify, boundsOf, intersectRect, polygonArea, pointInPolygon} from './pointing-geometry.js';
-import {SwathField, WAND, CROP_LOOK, paintField, fleckSize, reach, ringsOf, outlinePointsOf, inRings} from './pointing-wand.js';
+import {SwathField, WAND, CROP_LOOK, paintField, fleckSize, reach, extent, ringsOf, outlinePointsOf, inRings} from './pointing-wand.js';
 import {objectSnap, bestProposal} from './pointing-snap.js';
 import {esc, attachPicker, decorationLabel, itemLabel} from './comment-refs.js';
 import {choiceHTML, setChoice, onChoose} from './ui-toolbar.js';
@@ -81,7 +81,7 @@ const FRESH = 280;               // ms a newly swept cell carries glints while t
 const PLACEHOLDER = 'Message to the agent. Point at things as you type.';
 const ROUND = v => Math.round(v * 10) / 10;
 const BLOCKS = new Set(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'td', 'th', 'pre', 'dd', 'dt', 'figcaption', 'div', 'article', 'section', 'ul', 'ol', 'table']);
-const FAINT = 0.4;               // a snapped wand mark's own sweep, under the outline (lib/pointing-crop.mjs glitterOf draws it at 0.4 too)
+const FAINT = 0.5;               // a snapped wand mark's own sweep, at half under the snapped outline's tint and dotted line (quiet over words)
 const LATE = 120;                // ms a release waits at most for a source that answers later (the pixel worker)
 const PART_SCORE = 0.5;          // a source inside a card beats the whole card from this score (proposal)
 const clip = (text, n) => { text = String(text || '').replace(/\s+/g, ' ').trim(); return text.length > n ? text.slice(0, n - 1).trimEnd() + '…' : text; };
@@ -1401,14 +1401,15 @@ class PointingMode {
     if (this.frame) return;
     this.frame = requestAnimationFrame(t => { this.frame = 0; this.draw(undefined, t); });
   }
-  // The area's colours, from the tokens (pointing.css --wand-*): the mark red, a pale (a glint's centre) and a deep tone; plain ink-2
-  // for a mark whose targets are all gone.
+  // The area's colours, from the tokens (pointing.css --wand-*): the tint's red, the lit texels' red, a pale (a glint's centre),
+  // a deep tone and the tint's alpha (a number); plain ink-2 for a mark whose targets are all gone.
   tones(gone = false) {
     const key = `${document.documentElement.dataset.appearance || ''}|${document.documentElement.dataset.theme || ''}|${gone}`;
     if (this.toneKey === key) return this.toneCache;
     const probe = document.createElement('span'); probe.style.display = 'none'; this.bar.append(probe);
     const read = name => { probe.style.color = `var(${name})`; return getComputedStyle(probe).color; };
-    const t = gone ? [read('--ink-2'), read('--ink-2'), read('--ink-2'), read('--ink-2')] : [read('--wand-ink'), read('--wand-ink'), read('--wand-pale'), read('--wand-star')];
+    const num = name => getComputedStyle(probe).getPropertyValue(name).trim();
+    const t = gone ? [read('--ink-2'), read('--ink-2'), read('--ink-2'), read('--ink-2'), num('--wand-tint')] : [read('--wand-ink'), read('--wand-dot'), read('--wand-pale'), read('--wand-star'), num('--wand-tint')];
     probe.remove();
     this.toneKey = key; this.toneCache = t;
     return t;
@@ -1427,10 +1428,10 @@ class PointingMode {
     if (!c) {
       const cell = WAND.pitch / zoom;
       const fields = g.shapes.map(s => s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s.kind === 'outline' ? {kind: 'rect', x: s.x, y: s.y, w: s.w, h: s.h} : s, cell, 7 / zoom));
-      // Snapped: the sweep as made, faint, under the outline it snapped to (the crop draws the same).
+      // Snapped: the sweep as made, at half, under the outline it snapped to (the crop leaves the sweep out).
       const faint = g.raw ? SwathField.fromShape(g.raw, cell) : null;
       const boxes = [...fields, ...(faint ? [faint] : [])].map(f => f.bounds()).filter(Boolean); if (!boxes.length) return null;
-      const pad = (3 * fleckSize(dpr) / dpr + 2) / zoom;
+      const pad = Math.max(...[...fields, ...(faint ? [faint] : [])].map(extent)) + 2 / zoom;
       const b0 = boundsOf(boxes.flatMap(b => [[b.x, b.y], [b.x + b.w, b.y + b.h]])), b = {x: b0.x - pad, y: b0.y - pad, w: b0.w + 2 * pad, h: b0.h + 2 * pad};
       const k = Math.min(zoom * dpr, 4096 / Math.max(b.w, b.h));
       c = document.createElement('canvas'); c.className = `pointing-swath${g.gone ? ' pointing-gone' : ''}`; c.dataset.key = key; c.dataset.n = m.n;
@@ -1438,7 +1439,7 @@ class PointingMode {
       const ctx = c.getContext('2d');
       if (faint) { ctx.globalAlpha = FAINT; paintField(ctx, faint, {ox: b.x, oy: b.y, k}, {tones}); ctx.globalAlpha = 1; }
       for (const f of fields) paintField(ctx, f, {ox: b.x, oy: b.y, k}, {tones});
-      c.box = b;
+      c.box = b; c.pad = pad;
     }
     Object.assign(c.style, {left: `${c.box.x + o.x}px`, top: `${c.box.y + o.y}px`, width: `${c.box.w}px`, height: `${c.box.h}px`});
     return c;
@@ -1716,19 +1717,17 @@ class PointingMode {
   cropSwath(ctx, toCrop, k, m) {
     const s = m.snap?.shape || m.shape, [ox, oy] = toCrop(0, 0), cell = Math.max(1, WAND.pitch / k);
     const field = s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s, cell, 7 / k), view = {ox: -ox / k, oy: -oy / k, k};
-    const raw = rawSweep(m);
-    if (raw) { ctx.save(); ctx.globalAlpha = FAINT; paintField(ctx, SwathField.fromShape(raw, cell), view, {tones: this.tones(), look: CROP_LOOK}); ctx.restore(); }
+    // (A crop leaves out the sweep as made under a snapped outline: faint stripes across the subject.)
     paintField(ctx, field, view, {tones: this.tones(), look: CROP_LOOK});
   }
-  // A wand mark's glitter over its image crop: the same area (the snapped outline filled, or the swath) at the same
-  // density as on the board, scaled with the crop.
+  // A wand mark's area over its image crop: the same area (the snapped outline filled, or the swath) with the dither at
+  // its screen size (2 crop px a texel), not magnified with the crop.
   cropGlitter(m) {
     return (ctx, toCrop) => {
       const v = this.view(), scr = (x, y) => [v.left + (x + v.ox) * v.zoom, v.top + (y + v.oy) * v.zoom];
       const [ax, ay] = toCrop(...scr(0, 0)), [bx] = toCrop(...scr(1, 0)), k = bx - ax; if (!(k > 0)) return;
-      const view = {ox: -ax / k, oy: -ay / k, k}, cell = WAND.pitch / v.zoom, s = m.snap?.shape || m.shape;
-      const field = s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s, cell, 7 / v.zoom), raw = rawSweep(m);
-      if (raw) { ctx.save(); ctx.globalAlpha = FAINT; paintField(ctx, SwathField.fromShape(raw, cell), view, {tones: this.tones(), look: CROP_LOOK}); ctx.restore(); }
+      const view = {ox: -ax / k, oy: -ay / k, k}, cell = WAND.pitch / k, s = m.snap?.shape || m.shape;
+      const field = s.kind === 'swath' ? SwathField.fromShape(s, cell) : SwathField.fromRegion(s, cell, 7 / k);
       paintField(ctx, field, view, {tones: this.tones(), look: CROP_LOOK});
     };
   }
@@ -1852,7 +1851,9 @@ class PointingMode {
     let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
     for (const el of this.layer.querySelectorAll('.pointing-shape:not(.pointing-outline), .pointing-swath, .pointing-badge, .pointing-dot')) {
       const r = el.getBoundingClientRect(); if (!r.width && !r.height) continue;
-      left = Math.min(left, r.left); top = Math.min(top, r.top); right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
+      // A wand mark's canvas reaches past its area (a glint's arm, a snapped outline's dither outside it): its area counts.
+      const ix = el.pad && el.box ? el.pad / el.box.w * r.width : 0, iy = el.pad && el.box ? el.pad / el.box.h * r.height : 0;
+      left = Math.min(left, r.left + ix); top = Math.min(top, r.top + iy); right = Math.max(right, r.right - ix); bottom = Math.max(bottom, r.bottom - iy);
     }
     return right > left ? {left, top, right, bottom} : null;
   }

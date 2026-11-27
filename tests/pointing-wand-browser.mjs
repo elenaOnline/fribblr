@@ -96,24 +96,34 @@ try{
     const c=await read();await page.waitForTimeout(1000);
     assert.ok(c===await read(),'nothing changed with no input');
   });
-  await check('the look: a translucent red fill under an ordered dither, on a grid fixed to the board',async()=>{
-    // Every pixel inside a raw swath is inked: most at the tint (light), some lit by the matrix (dense); none in between.
+  await check('the look: a translucent fill under an ordered dither, both dissolving from the path to the edge, on a grid fixed to the board; a snapped outline adds only a light tint and a dotted line',async()=>{
     const m=await page.evaluate(async()=>{
-      const w=await import('/app/pointing-wand.js');
-      const f=new w.SwathField({width:56,cell:4});for(let x=0;x<=200;x+=6)f.add(40+x,60+Math.sin(x/30)*8);
-      const paint=(ox,oy)=>{const c=document.createElement('canvas');c.width=360;c.height=200;const ctx=c.getContext('2d');w.paintField(ctx,f,{ox,oy,k:1},{tones:['rgb(179,56,48)','rgb(179,56,48)','rgb(250,230,228)','rgb(121,26,22)']});return ctx.getImageData(0,0,360,200).data;};
-      const A=paint(0,0),B=paint(-40,-24);
-      let inside=0,inked=0,light=0,dense=0,same=0,n=0;
+      const w=await import('/app/pointing-wand.js'),tones=['rgb(179,56,48)','rgb(146,44,38)','rgb(250,230,228)','rgb(121,26,22)','0.1'];
+      const path=x=>60+Math.sin(x/30)*8;
+      const f=new w.SwathField({width:56,cell:4});for(let x=0;x<=200;x+=6)f.add(40+x,path(x));
+      const paint=(field,ox,oy)=>{const c=document.createElement('canvas');c.width=360;c.height=200;const ctx=c.getContext('2d');w.paintField(ctx,field,{ox,oy,k:1},{tones});return ctx.getImageData(0,0,360,200).data;};
+      const A=paint(f,0,0),B=paint(f,-40,-24);
+      // inner: within 8 px of the path, outer: the last 8 px of the 28 px half-band (well inside the stroke's ends)
+      const z={inner:{n:0,inked:0,dense:0},outer:{n:0,inked:0,dense:0}};let same=0,n=0;
       for(let y=0;y<200;y++)for(let x=0;x<360;x++){
-        const q=(x+y*360)*4;if(f.contains([x+0.5,y+0.5])){inside++;if(A[q+3])inked++;if(A[q+3]>0&&A[q+3]<80)light++;if(A[q+3]>150)dense++;}
+        const q=(x+y*360)*4;
+        if(x>=70&&x<=210){const d=Math.abs(y+0.5-path(x+0.5-40));const b=d<8?z.inner:d>20&&d<27?z.outer:null;if(b&&f.contains([x+0.5,y+0.5])){b.n++;if(A[q+3])b.inked++;if(A[q+3]>150)b.dense++;}}
         if(x+40<360&&y+24<200){const r=((x+40)+(y+24)*360)*4;n++;if(A[q+3]===B[r+3]&&A[q]===B[r])same++;}
       }
-      return {inside,inked,light,dense,same,n};
+      // a snapped outline: inside only a light tint; a dotted line just outside it
+      const g=w.SwathField.fromRegion({kind:'rect',x:100,y:60,w:120,h:60},4,7),R=paint(g,0,0);
+      let inMax=0,outDense=0;
+      for(let y=0;y<200;y++)for(let x=0;x<360;x++){const a=R[(x+y*360)*4+3];if(x>=104&&x<216&&y>=64&&y<116)inMax=Math.max(inMax,a);else if(a>150)outDense++;}
+      return {z,same,n,inMax,outDense};
     });
-    assert.ok(m.inked/m.inside>0.97,`the fill covers the area (${m.inked} of ${m.inside} px inked)`);
-    assert.ok(m.light/m.inked>0.6,`mostly the translucent tint (${(100*m.light/m.inked).toFixed(1)} %)`);
-    assert.ok(m.dense/m.inked>0.04&&m.dense/m.inked<0.35,`the dither over it (${(100*m.dense/m.inked).toFixed(1)} % lit)`);
+    const {inner,outer}=m.z,share=(b,k)=>b[k]/b.n;
+    assert.ok(share(inner,'inked')>0.93,`the tint is whole along the path (glints sit in small clearings) (${(100*share(inner,'inked')).toFixed(1)} %)`);
+    assert.ok(share(outer,'inked')<0.8*share(inner,'inked'),`and dissolves toward the edge (${(100*share(outer,'inked')).toFixed(1)} % inked there)`);
+    assert.ok(share(inner,'dense')>0.08&&share(inner,'dense')<0.4,`the dither is densest along the path (${(100*share(inner,'dense')).toFixed(1)} % lit)`);
+    assert.ok(share(outer,'dense')<0.5*share(inner,'dense'),`and thins toward the edge (${(100*share(outer,'dense')).toFixed(1)} % lit there)`);
     assert.equal(m.same,m.n,'panned by 40, 24 px the same area draws the same pixels, moved by 40, 24 px');
+    assert.ok(m.inMax<=Math.round(0.1*0.6*255)+1,`a snapped outline's inside carries only a light tint (alpha ${m.inMax})`);
+    assert.ok(m.outDense>200,`its dotted line lies outside it (${m.outDense} lit px)`);
   });
   await check('no blink at the release: every frame from the press to a second after the release shows the area, though the release waits for a late snap source',async()=>{
     // A stub source that answers late (as the picture worker does), so the commit waits on it; it never snaps.
@@ -139,15 +149,18 @@ try{
     const clip={x:Math.round(hb.x),y:Math.round(hb.y),width:Math.round(hb.width),height:Math.round(hb.height)};
     const lum=buf=>page.evaluate(async b64=>{const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);const d=x.getImageData(0,0,c.width,c.height).data,o=[];for(let i=0;i<d.length;i+=4)o.push((0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2])/255);return o;},buf.toString('base64'));
     const plain=await lum(await page.screenshot({clip}));
-    await page.keyboard.type(' over ');await page.keyboard.down(MOD);
-    await page.mouse.move(hb.x-10,hb.cy);await page.mouse.down();for(let k=0;k<3;k++)for(let i=0;i<=12;i++)await page.mouse.move(hb.x-10+(k%2?12-i:i)*(hb.width+20)/12,hb.cy+(k-1)*4);await page.mouse.up();await page.keyboard.up(MOD);
-    await page.mouse.move(1270,850);await page.waitForTimeout(500);
-    const over=await lum(await page.screenshot({clip}));
-    let ink=0,inkKept=0,paper=0,paperKept=0;
-    for(let i=0;i<plain.length;i++){if(plain[i]<0.3){ink++;if(over[i]<0.35)inkKept++;}else if(plain[i]>0.85){paper++;if(over[i]>0.55)paperKept++;}}
-    assert.ok(ink>50&&inkKept/ink>0.95,`the words' ink stays dark (${inkKept} of ${ink})`);
-    assert.ok(paperKept/paper>0.7,`the paper round them stays mostly light (${(100*paperKept/paper).toFixed(1)} %)`);
-    await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+    for(const raw of [true,false]){
+      await page.keyboard.type(' over ');if(raw)await page.keyboard.down(MOD);
+      await page.mouse.move(hb.x-10,hb.cy);await page.mouse.down();for(let k=0;k<3;k++)for(let i=0;i<=12;i++)await page.mouse.move(hb.x-10+(k%2?12-i:i)*(hb.width+20)/12,hb.cy+(k-1)*4);await page.mouse.up();if(raw)await page.keyboard.up(MOD);
+      await page.mouse.move(1270,850);await page.waitForTimeout(700);
+      const over=await lum(await page.screenshot({clip}));
+      let ink=0,inkKept=0,paper=0,paperKept=0;
+      for(let i=0;i<plain.length;i++){if(plain[i]<0.3){ink++;if(over[i]<0.35)inkKept++;}else if(plain[i]>0.85){paper++;if(over[i]>0.55)paperKept++;}}
+      const what=raw?'raw':'snapped';
+      assert.ok(ink>50&&inkKept/ink>0.95,`${what}: the words' ink stays dark (${inkKept} of ${ink})`);
+      assert.ok(paperKept/paper>0.7,`${what}: the paper round them stays mostly light (${(100*paperKept/paper).toFixed(1)} %)`);
+      await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');
+    }
   });
   await check('travelling between targets, moving while typing and a resting hand make no reference',async()=>{
     const before=(await chips()).length;

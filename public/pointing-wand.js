@@ -266,30 +266,39 @@ function segDist(x, y, ax, ay, bx, by) {
 
 // ---- the dither ----
 // An ordered dither on a 4 × 4 Bayer matrix, in texels half a cell across (2 CSS px at the pitch the gesture was made at),
-// anchored to the board: texel (u, v) is the same board square at every redraw, so the pattern never crawls. Every texel
-// inside the area carries a quiet tint of the mark red; the matrix lights more of them, solid in the one colour, where
-// the density is higher; the area's edge is one texel of line. Only alpha varies, never the shade, so it reads the same
-// on paper and on a dark board (dither-kit's rule: opacities, not shades).
+// anchored to the board: texel (u, v) is the same board square at every redraw, so the pattern never crawls. One ramp
+// runs from the hand's path to the edge (dither-kit's floor-to-line ramp, turned round a stroke): along the path the
+// matrix lights the most texels, solid in the mark red, and every texel between them carries a quiet tint of it; toward
+// the edge the lit texels thin out and then the tint itself dissolves, texel by texel, so the area has one edge and it
+// dissolves. Only alpha varies, never the shade, so it reads alike on paper and a dark board (the kit's rule: opacities,
+// not shades). A few glints, four-point stars in a small clearing, are the sparkle.
+// A snapped outline filled is drawn quietly over the sweep as cast (pointing-mode.js draws that beneath it, the same
+// material): inside, a light tint; a dotted line a cell outside the outline. Nothing dense lands on the thing it names.
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
+const bayer = (u, v) => BAYER[(u & 3) | ((v & 3) << 2)];
+// The tint's own threshold: the matrix shifted half a tile, so the tint's dissolve and the lit texels interleave.
+const bayerT = (u, v) => BAYER[((u + 2) & 3) | (((v + 1) & 3) << 2)];
 export const LOOK = {
-  tint: 0.12,       // alpha of every texel inside: the translucent area
-  dot: 0.8,         // alpha of a texel the matrix lights
-  core: 0.25,       // density along the hand's path at full strength (4 of 16), falling to 0 at the edge
-  rim: 3,           // cells over which the density falls off at the edge
-  line: 0,          // alpha of the edge line (0: none; a crop for the agent draws one)
+  tint: 0.11,       // alpha of the tint texels (the translucent area); tones[4] (pointing.css --wand-tint) overrides
+  dot: 0.82,        // alpha of a texel the matrix lights
+  core: 0.3,        // density along the hand's path at full strength, falling to 0 at the edge
+  ramp: [3, 7],     // cells over which it falls: the band's half-width, kept within these
+  tintReach: 0.6,   // the tint is whole over the inner 60 % of the ramp and dissolves over the rest
+  line: 0,          // alpha of a solid edge line (0: none; a crop for the agent draws one)
   keyline: 0,       // alpha of a pale line just outside the edge (0: none; a crop for the agent draws one)
-  regionLine: 0.85, // a snapped outline filled: its edge line,
-  rimDensity: 0.5,  //   the density just inside its edge,
-  inner: 0.3,       //   and within, per unit of strength (a region's inside is 0.2: 1 of 16)
-  glint: 0.025,     // share of cells carrying a still four-point glint, per unit of strength
+  pad: 1,           // a snapped outline: cells between the thing's edge and its dotted line,
+  regionTint: 0.6,  //   and the tint inside, as a share of `tint`
+  glint: 0.012,     // share of cells carrying a still glint, per unit of strength
 };
 /**
  * What a crop for the agent draws over the same dither: the area's edge as a line with a pale keyline outside it, so
  * the area reads in a still image on any content, a red subject included (where the tint and the dots go unseen).
  */
 export const CROP_LOOK = {line: 0.9, keyline: 0.8};
-/** How far (cells) a changed cell changes the drawing: the rim's reach and a glint's arm. */
-export const reach = () => Math.ceil(LOOK.rim) + 3;
+/** How far (cells) a changed cell changes the drawing: the ramp's reach and a glint's arm. */
+export const reach = () => LOOK.ramp[1] + 3;
+/** How far (board units) the drawing reaches past the area's bounds: a glint's arm, or a snapped outline's dotted line. */
+export const extent = field => field.cell * (field.region ? LOOK.pad + 2 : 2);
 /** A texel's size in device pixels at the gesture's own zoom. */
 export const fleckSize = dpr => Math.max(1, Math.round(WAND.pitch / 2 * dpr));
 
@@ -305,88 +314,114 @@ function rgbOf(colour) {
   rgbCache.set(colour, v);
   return v;
 }
-const pack = ([r, g, b], a) => ((Math.round(a * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0;
+const pack = ([r, g, b], a) => ((Math.round(Math.max(0, Math.min(1, a)) * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0;
+const clamp01 = t => t < 0 ? 0 : t > 1 ? 1 : t;
+// 3-4 chamfer distance (in thirds of a step) from the cells where `seed` is 0, capped at `big`; edges of the grid count as 0.
+function chamfer(D, W, H) {
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const q = x + y * W; if (!D[q]) continue;
+    D[q] = Math.min(D[q], x ? D[q - 1] + 3 : 3, y ? D[q - W] + 3 : 3, x && y ? D[q - W - 1] + 4 : 4, y && x < W - 1 ? D[q - W + 1] + 4 : 4);
+  }
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+    const q = x + y * W; if (!D[q]) continue;
+    D[q] = Math.min(D[q], x < W - 1 ? D[q + 1] + 3 : 3, y < H - 1 ? D[q + W] + 3 : 3, x < W - 1 && y < H - 1 ? D[q + W + 1] + 4 : 4, x && y < H - 1 ? D[q + W - 1] + 4 : 4);
+  }
+}
 
 /**
  * Draws the area into `ctx` (identity transform, device pixels). `view`: {ox, oy, k}: device px = (board − o) × k.
- * `w`: cell bounds to draw (default all). `tones`: [ink, ink, pale, deep] (pointing.css --wand-ink, --wand-ink,
- * --wand-pale, --wand-star); `ink` alone draws one colour. `fresh`: {now, ms, only}: while the user sweeps, the cells
- * swept in the last `ms` carry glints that go out as they age (drawn over a canvas that already holds the area).
+ * `w`: cell bounds to draw (default all). `tones`: [ink, dot, pale, deep, tint] (pointing.css --wand-ink, --wand-dot,
+ * --wand-pale, --wand-star, --wand-tint as a number); `ink` alone draws one colour. `fresh`: {now, ms}: while the user
+ * sweeps, the cells swept in the last `ms` carry glints that go out as they age (drawn over a canvas that already holds
+ * the area). `look`: overrides of LOOK (CROP_LOOK for the agent's crops).
  */
 export function paintField(ctx, field, view, {ink, tones = null, w = null, fresh = null, look: over = null} = {}) {
   const L = over ? {...LOOK, ...over} : LOOK, c = field.cell, k = view.k, b = field.box;
   if (!b) return;
-  const red = rgbOf(tones ? tones[0] : ink), pale = rgbOf(tones ? tones[2] || tones[0] : ink);
-  w ||= b;
-  const i0 = Math.max(w.i0, b.i0 - 1), i1 = Math.min(w.i1, b.i1 + 1), j0 = Math.max(w.j0, b.j0 - 1), j1 = Math.min(w.j1, b.j1 + 1);
+  const red = rgbOf(tones ? tones[0] : ink), dot = rgbOf(tones ? tones[1] || tones[0] : ink), pale = rgbOf(tones ? tones[2] || tones[0] : ink);
+  const tint = tones && tones[4] !== undefined && tones[4] !== '' && Number.isFinite(+tones[4]) ? +tones[4] : L.tint;
+  const region = !!field.region, ext = region ? L.pad + 2 : 2;
+  w ||= {i0: b.i0 - ext, j0: b.j0 - ext, i1: b.i1 + ext, j1: b.j1 + ext};
+  const i0 = Math.max(w.i0, b.i0 - ext), i1 = Math.min(w.i1, b.i1 + ext), j0 = Math.max(w.j0, b.j0 - ext), j1 = Math.min(w.j1, b.j1 + ext);
   if (i1 < i0 || j1 < j0) return;
   const ts = c * k / 2;
-  if (fresh) return paintFresh(ctx, field, view, L, red, pale, {i0, j0, i1, j1}, fresh, ts);
-  // The strengths of the window and a margin round it (the rim's reach), and each cell's distance from outside (3-4
-  // chamfer, in thirds of a cell; the margin's outer edge counts as outside, which only matters past the rim's reach).
-  const M = Math.ceil(L.rim) + 3, gi0 = i0 - M, gj0 = j0 - M, GW = i1 - i0 + 1 + 2 * M, GH = j1 - j0 + 1 + 2 * M;
-  const S = new Float32Array(GW * GH), D = new Uint16Array(GW * GH);
+  if (fresh) return paintFresh(ctx, field, view, L, dot, pale, {i0, j0, i1, j1}, fresh, ts);
+  const R = Math.max(L.ramp[0], Math.min(L.ramp[1], field.r / c));
+  // The strengths of the window and a margin round it (as far as the ramp or the aura reaches).
+  const M = Math.ceil(region ? L.pad : R) + 3, gi0 = i0 - M, gj0 = j0 - M, GW = i1 - i0 + 1 + 2 * M, GH = j1 - j0 + 1 + 2 * M;
+  const S = new Float32Array(GW * GH);
   field.forEach((i, j, s) => { S[(i - gi0) + (j - gj0) * GW] = s; }, {i0: gi0, j0: gj0, i1: gi0 + GW - 1, j1: gj0 + GH - 1});
-  const BIG = 3 * (M + 1);
-  for (let q = 0; q < S.length; q++) D[q] = S[q] > 0 ? BIG : 0;
-  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
-    const q = x + y * GW; if (!D[q]) continue;
-    let d = D[q];
-    const l = x ? D[q - 1] + 3 : 3, u = y ? D[q - GW] + 3 : 3, ul = x && y ? D[q - GW - 1] + 4 : 4, ur = y && x < GW - 1 ? D[q - GW + 1] + 4 : 4;
-    D[q] = Math.min(d, l, u, ul, ur);
-  }
-  for (let y = GH - 1; y >= 0; y--) for (let x = GW - 1; x >= 0; x--) {
-    const q = x + y * GW; if (!D[q]) continue;
-    const r = x < GW - 1 ? D[q + 1] + 3 : 3, dn = y < GH - 1 ? D[q + GW] + 3 : 3, dr = x < GW - 1 && y < GH - 1 ? D[q + GW + 1] + 4 : 4, dl = x && y < GH - 1 ? D[q + GW - 1] + 4 : 4;
-    D[q] = Math.min(D[q], r, dn, dr, dl);
-  }
-  // Texels of the window: two per cell each way.
   const TW = 2 * (i1 - i0 + 1), TH = 2 * (j1 - j0 + 1);
   scratch ||= typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(TW, TH) : document.createElement('canvas');
   if (scratch.width < TW || scratch.height < TH) { scratch.width = Math.max(scratch.width, TW); scratch.height = Math.max(scratch.height, TH); }
   const sx = scratch.getContext('2d');
   const img = sx.createImageData(TW, TH), px = new Uint32Array(img.data.buffer);
-  const TINT = pack(red, L.tint), DOT = pack(red, L.dot), KEY = pack(pale, L.keyline);
-  const GC = pack(pale, 1), GA = pack(red, 1), GB = pack(red, 0.5);
-  // A snapped outline filled (fromRegion) is drawn tidied: its edge a line, a dense band inside it, light within.
-  const mode = field.region ? 'rim' : 'core', lineA = field.region ? L.regionLine : L.line, LINE = pack(red, lineA || 0);
-  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-    const q = (i - gi0) + (j - gj0) * GW, s = S[q];
-    if (!(s > 0)) continue;
-    const dc = D[q] / 3;
-    const inner = L.inner * s, rimD = L.rimDensity * Math.max(0, Math.min(1, 1 - (dc - 1) / L.rim));
-    const dens = mode === 'core' ? Math.min(1, s / 0.6) * L.core * Math.max(0, Math.min(1, (dc - 0.5) / L.rim)) : Math.max(inner, rimD);
-    // Which sides face outside (for the edge line).
-    const oL = !(S[q - 1] > 0), oR = !(S[q + 1] > 0), oU = !(S[q - GW] > 0), oD = !(S[q + GW] > 0);
-    for (let b2 = 0; b2 < 2; b2++) for (let a2 = 0; a2 < 2; a2++) {
-      const u = 2 * i + a2, v = 2 * j + b2, t = (u - 2 * i0) + (v - 2 * j0) * TW;
-      const sideX = (a2 === 0 && oL) || (a2 === 1 && oR), sideY = (b2 === 0 && oU) || (b2 === 1 && oD);
-      // A convex corner's outer texel is left out, so a diagonal edge steps by a texel rather than a cell.
-      if (sideX && sideY && !lineA) continue;
-      const edge = lineA && (sideX || sideY);
-      if (edge) { px[t] = LINE; continue; }
-      px[t] = dens > BAYER[(u & 3) | ((v & 3) << 2)] ? DOT : TINT;
+  const TINT = pack(red, tint), DOT = pack(dot, L.dot), LINE = pack(dot, L.line), KEY = pack(pale, L.keyline);
+  const at = (u, v) => (u - 2 * i0) + (v - 2 * j0) * TW;
+  if (!region) {
+    // Each cell's distance from outside, in cells.
+    const D = new Uint16Array(GW * GH), BIG = 3 * (M + 1);
+    for (let q = 0; q < S.length; q++) D[q] = S[q] > 0 ? BIG : 0;
+    chamfer(D, GW, GH);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const q = (i - gi0) + (j - gj0) * GW, s = S[q];
+      if (!(s > 0)) continue;
+      const ramp = clamp01((D[q] / 3 - 0.5) / R);
+      const dens = Math.min(1, s / 0.6) * L.core * ramp, tdens = clamp01(ramp / L.tintReach);
+      const oL = !(S[q - 1] > 0), oR = !(S[q + 1] > 0), oU = !(S[q - GW] > 0), oD = !(S[q + GW] > 0);
+      for (let b2 = 0; b2 < 2; b2++) for (let a2 = 0; a2 < 2; a2++) {
+        const u = 2 * i + a2, v = 2 * j + b2;
+        if (L.line && ((a2 === 0 && oL) || (a2 === 1 && oR) || (b2 === 0 && oU) || (b2 === 1 && oD))) { px[at(u, v)] = LINE; continue; }
+        px[at(u, v)] = dens > bayer(u, v) ? DOT : tdens > bayerT(u, v) ? TINT : 0;
+      }
+    }
+    // A pale keyline just outside the edge (the agent's crop): the texels beside each edge texel.
+    if (L.keyline) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const q = (i - gi0) + (j - gj0) * GW; if (S[q] > 0) continue;
+      const iL = S[q - 1] > 0, iR = S[q + 1] > 0, iU = S[q - GW] > 0, iD = S[q + GW] > 0;
+      if (!(iL || iR || iU || iD)) continue;
+      const u = 2 * i, v = 2 * j;
+      if (iL) { px[at(u, v)] = KEY; px[at(u, v + 1)] = KEY; }
+      if (iR) { px[at(u + 1, v)] = KEY; px[at(u + 1, v + 1)] = KEY; }
+      if (iU) { px[at(u, v)] = KEY; px[at(u + 1, v)] = KEY; }
+      if (iD) { px[at(u, v + 1)] = KEY; px[at(u + 1, v + 1)] = KEY; }
+    }
+  } else {
+    // A snapped outline: each texel's distance outside it, in texels (inside: 0).
+    const XW = 2 * GW, XH = 2 * GH, DX = new Uint16Array(XW * XH), BIG = 6 * (M + 1);
+    for (let y = 0; y < XH; y++) for (let x = 0; x < XW; x++) DX[x + y * XW] = S[(x >> 1) + (y >> 1) * GW] > 0 ? 0 : BIG;
+    // (chamfer measures from the zeros: here the inside)
+    for (let y = 0; y < XH; y++) for (let x = 0; x < XW; x++) {
+      const q = x + y * XW; if (!DX[q]) continue;
+      DX[q] = Math.min(DX[q], x ? DX[q - 1] + 3 : BIG, y ? DX[q - XW] + 3 : BIG, x && y ? DX[q - XW - 1] + 4 : BIG, y && x < XW - 1 ? DX[q - XW + 1] + 4 : BIG);
+    }
+    for (let y = XH - 1; y >= 0; y--) for (let x = XW - 1; x >= 0; x--) {
+      const q = x + y * XW; if (!DX[q]) continue;
+      DX[q] = Math.min(DX[q], x < XW - 1 ? DX[q + 1] + 3 : BIG, y < XH - 1 ? DX[q + XW] + 3 : BIG, x < XW - 1 && y < XH - 1 ? DX[q + XW + 1] + 4 : BIG, x && y < XH - 1 ? DX[q + XW - 1] + 4 : BIG);
+    }
+    const IN = pack(red, tint * L.regionTint), P = 2 * L.pad;
+    for (let v = 2 * j0; v < 2 * j1 + 2; v++) for (let u = 2 * i0; u < 2 * i1 + 2; u++) {
+      const d = DX[(u - 2 * gi0) + (v - 2 * gj0) * XW] / 3;
+      let col = 0;
+      if (d < P - 0.5) col = IN;
+      else if (d < P + 0.5) col = ((u + v) & 1) ? 0 : DOT;            // the dotted line
+      px[at(u, v)] = col;
     }
   }
-  // A pale keyline just outside the edge: the texel beyond each edge texel.
-  if (L.keyline) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-    const q = (i - gi0) + (j - gj0) * GW; if (S[q] > 0) continue;
-    const iL = S[q - 1] > 0, iR = S[q + 1] > 0, iU = S[q - GW] > 0, iD = S[q + GW] > 0;
-    if (!(iL || iR || iU || iD)) continue;
-    const base = (2 * (i - i0)) + (2 * (j - j0)) * TW;
-    if (iL) { px[base] = KEY; px[base + TW] = KEY; }
-    if (iR) { px[base + 1] = KEY; px[base + 1 + TW] = KEY; }
-    if (iU) { px[base] = KEY; px[base + 1] = KEY; }
-    if (iD) { px[base + TW] = KEY; px[base + 1 + TW] = KEY; }
-  }
-  // Still glints: a four-point star at the cells whose blue-noise rank is under `glint` × strength, never on the edge.
-  if (L.glint) for (let j = j0 - 2; j <= j1 + 2; j++) for (let i = i0 - 2; i <= i1 + 2; i++) {
-    const q = (i - gi0) + (j - gj0) * GW, s = S[q];
-    if (!(s > 0) || D[q] < 6 || rankAt(i, j) >= L.glint * s) continue;
-    const u = 2 * i - 2 * i0, v = 2 * j - 2 * j0;
-    const put = (x, y, col) => { if (x >= 0 && y >= 0 && x < TW && y < TH) px[x + y * TW] = col; };
-    put(u, v, GC); put(u - 1, v, GA); put(u + 1, v, GA); put(u, v - 1, GA); put(u, v + 1, GA);
-    put(u - 2, v, GB); put(u + 2, v, GB); put(u, v - 2, GB); put(u, v + 2, GB);
+  // Still glints: a four-point star (a pale centre, red arms) in a small clearing, at the cells whose blue-noise rank is
+  // under `glint` × strength, never at the very edge.
+  if (L.glint && !region) {
+    const GC = pack(pale, 1), GA = pack(dot, 1);
+    const put = (u, v, col) => { const x = u - 2 * i0, y = v - 2 * j0; if (x >= 0 && y >= 0 && x < TW && y < TH) px[x + y * TW] = col; };
+    for (let j = j0 - 3; j <= j1 + 3; j++) for (let i = i0 - 3; i <= i1 + 3; i++) {
+      const q = (i - gi0) + (j - gj0) * GW, s = S[q];
+      if (!(s > 0) || rankAt(i, j) >= L.glint * Math.min(1, s / 0.6)) continue;
+      if (!(S[q - 1] > 0 && S[q + 1] > 0 && S[q - GW] > 0 && S[q + GW] > 0)) continue;
+      const u = 2 * i, v = 2 * j;
+      for (const [x, y] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [-2, -1], [-1, -2], [2, -1], [1, -2], [-2, 1], [-1, 2], [2, 1], [1, 2]]) put(u + x, v + y, 0);
+      put(u, v, GC); put(u - 1, v, GA); put(u + 1, v, GA); put(u, v - 1, GA); put(u, v + 1, GA);
+      put(u - 2, v, GA); put(u + 2, v, GA); put(u, v - 2, GA); put(u, v + 2, GA);
+    }
   }
   sx.putImageData(img, 0, 0);
   const x0 = Math.round((i0 * c - view.ox) * k), y0 = Math.round((j0 * c - view.oy) * k);
@@ -395,22 +430,22 @@ export function paintField(ctx, field, view, {ink, tones = null, w = null, fresh
   ctx.imageSmoothingEnabled = smooth;
 }
 // While sweeping: glints on the cells swept in the last `ms`, more of them the fresher the cell, on the same texels.
-function paintFresh(ctx, field, view, L, red, pale, w, {now, ms}, ts) {
-  const c = field.cell, k = view.k, t = Math.max(1, Math.round(ts));
+function paintFresh(ctx, field, view, L, dot, pale, w, {now, ms}, ts) {
+  const k = view.k, t = Math.max(1, Math.round(ts));
   const centres = [], arms = [];
   field.forEach((i, j, s, born) => {
     const age = now - born; if (!(age >= 0 && age < ms)) return;
-    if (rankAt(i, j) >= 0.16 * (1 - age / ms)) return;
-    const x = Math.round((2 * i * ts) + (-view.ox * k)), y = Math.round((2 * j * ts) + (-view.oy * k));
+    if (rankAt(i, j) >= 0.12 * (1 - age / ms)) return;
+    const x = Math.round(2 * i * ts - view.ox * k), y = Math.round(2 * j * ts - view.oy * k);
     centres.push(x, y);
-    if (age < ms * 0.6) arms.push(x - t, y, x + t, y, x, y - t, x, y + t);
+    arms.push(x - t, y, x + t, y, x, y - t, x, y + t);
+    if (age < ms * 0.5) arms.push(x - 2 * t, y, x + 2 * t, y, x, y - 2 * t, x, y + 2 * t);
   }, w);
   if (!centres.length) return;
-  const rgba = (rgb, a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
-  ctx.fillStyle = rgba(red, Math.max(L.dot, 0.6)); ctx.beginPath();
+  ctx.fillStyle = `rgb(${dot[0]},${dot[1]},${dot[2]})`; ctx.beginPath();
   for (let q = 0; q < arms.length; q += 2) ctx.rect(arms[q], arms[q + 1], t, t);
   ctx.fill();
-  ctx.fillStyle = rgba(pale, 1); ctx.beginPath();
+  ctx.fillStyle = `rgb(${pale[0]},${pale[1]},${pale[2]})`; ctx.beginPath();
   for (let q = 0; q < centres.length; q += 2) ctx.rect(centres[q], centres[q + 1], t, t);
   ctx.fill();
 }

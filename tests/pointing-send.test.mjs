@@ -470,10 +470,11 @@ test('round 2 crops: a snapped mark is framed by what it snapped to; a swath by 
   const swath={kind:'swath',width:60,points:[[100,100],[300,110]]};
   const band=markBox({n:1,tool:'wand',shape:swath,targets:[]},layout,unit);
   assert.ok(band.x<=70&&band.x+band.w>=330&&band.y<=70&&band.y+band.h>=140,`the band's width is inside the frame: ${JSON.stringify(band)}`);
-  // glitter: only the wand's own area; a snapped wand fills the snapped outline and keeps the reviewer's sweep faint
+  // the wand's area only for a wand; a snapped wand: the snapped outline filled, the sweep as made left out (it would stripe
+  // the subject); a crop gives its own cell size so the dither keeps its screen size
   assert.equal(glitterOf({tool:'marquee',shape:raw}),null);assert.equal(glitterOf({tool:'click',shape:{kind:'point',x:1,y:1}}),null);
   const free=glitterOf({tool:'wand',shape:swath});assert.deepEqual(free.shapes.map(s=>[s.kind,s.alpha]),[['swath',1]]);assert.equal(free.cell,60/14);
-  const tied=glitterOf({tool:'wand',shape:swath,snap:{source:'object',label:'c',shape:{kind:'rect',x:0,y:0,w:9,h:9}}});assert.deepEqual(tied.shapes.map(s=>[s.kind,s.alpha]),[['region',1],['swath',0.4]]);
+  const tied=glitterOf({tool:'wand',shape:swath,snap:{source:'object',label:'c',shape:{kind:'rect',x:0,y:0,w:9,h:9}}});assert.deepEqual(tied.shapes.map(s=>[s.kind,s.alpha]),[['region',1]]);assert.equal(glitterOf({tool:'wand',shape:swath},0,0.5).cell,0.5);
   // outlines: the snapped outline whole, the raw gesture faint; a bare point is a dot; empty space a ring
   const both=layersOf({tool:'marquee',shape:raw,snap:{source:'dom',label:'x',shape:{kind:'rect',x:5,y:5,w:50,h:50}}});
   assert.deepEqual(both.layers.map(l=>l.opacity),[1,0.4]);
@@ -660,7 +661,7 @@ test('review fixes crops: a path of several rings is framed, outlined and filled
   const {layers}=layersOf({tool:'marquee',shape:{kind:'rect',x:0,y:0,w:20,h:20},snap:{source:'object',label:'2 cards',shape:twoParts}});
   assert.deepEqual(layers.filter(l=>l.opacity===1).map(l=>l.points.length),[4,4],'one closed outline per part');
   const wand={tool:'wand',shape:{kind:'swath',width:56,points:[[0,0],[50,5]]},snap:{source:'object',label:'2 cards',shape:twoParts}};
-  assert.deepEqual(glitterOf(wand).shapes.map(s=>[s.kind,s.alpha]),[['region',1],['region',1],['swath',0.4]]);
+  assert.deepEqual(glitterOf(wand).shapes.map(s=>[s.kind,s.alpha]),[['region',1],['region',1]]);
   assert.deepEqual(ringsOf({kind:'path',points:ring(0,0,1,1)}),[ring(0,0,1,1)],'a single outline is one ring');
 });
 
