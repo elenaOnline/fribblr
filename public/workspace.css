@@ -1135,7 +1135,7 @@ html[data-theme="night"] .item-representation p {
   opacity: .92;
 }
 .workspace-copy-ghost { pointer-events: none; }
-/* the copy she is making is the slab she holds, lifted (depth.css data-lifted's look, set here on the ghost) */
+/* the copy the user is making is the slab the user holds, lifted (depth.css data-lifted's look, set here on the ghost) */
 #world .workspace-copy-ghost.workspace-card { --lift: var(--side-lift); --rim-close: 1; outline: 0; }
 .workspace-copy-frame {
   display: block;
@@ -1390,7 +1390,7 @@ body.navigator-docked .edit-tools { left:calc((100vw + var(--navigator-dock-widt
 .board-art:has(.board-collage)>.art-label { display:none; }
 
 .workspace-clipboard-actions { display: flex; flex-wrap: wrap; gap: 5px; flex-basis: 100%; }
-.workspace-document-preview { width: 100%; height: 100%; overflow: hidden; padding: 22px 24px; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; color: var(--ink); background: var(--surface-paper); font: 14px/1.65 var(--type-board-serif); }   /* her note's own words: sized to fit as upstream (fonts.css) */
+.workspace-document-preview { width: 100%; height: 100%; overflow: hidden; padding: 22px 24px; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; color: var(--ink); background: var(--surface-paper); font: 14px/1.65 var(--type-board-serif); }   /* the user's note's own words: sized to fit as upstream (fonts.css) */
 
 .workspace-import-drop { position: fixed; z-index: 150; pointer-events: none; border: 3px solid var(--mark-blue); box-sizing: border-box; background: color-mix(in srgb, var(--mark-blue) 12%, transparent); display: grid; place-content: center; padding: 32px; text-align: center; color: var(--ink); font: 600 17px/1.5 var(--type-sans); box-shadow: inset 0 0 0 5px color-mix(in srgb, var(--surface-paper) 67%, transparent); }
 .workspace-import-drop[hidden] { display: none; }
@@ -1632,7 +1632,7 @@ html[data-appearance="dark"] .board-miniature .workspace-cover-tile.mini-tile[st
 .comment-pins[hidden] { display: none; }
 .comment-pin { position: absolute; pointer-events: auto; display: grid; place-items: center; width: 30px; height: 30px; min-width: 0; min-height: 0; padding: 0;
   transform: translate(-4px, -100%) scale(var(--chrome-scale, 1)); transform-origin: 4px 100%;
-  /* a raised key (depth.css): her voice is a red face on a deep red side */
+  /* a raised key (depth.css): the user's voice is a red face on a deep red side */
   --key-face: var(--mark-red); --key-face-hover: var(--mark-red-deep); --key-side: var(--mark-red-side); --key-side-hover: var(--mark-red-side);
   --key-rim: var(--mark-red-deep); --key-rim-hover: var(--mark-red-deep);
   border: 2px solid var(--surface-paper); border-radius: 50% 50% 50% 3px; color: var(--ink-on-mark);
@@ -1644,7 +1644,7 @@ html[data-appearance="dark"] .board-miniature .workspace-cover-tile.mini-tile[st
 .comment-pin[data-status="resolved"] { --key-d: 0px; --key-face: var(--ground); --key-face-hover: var(--ground); --key-rim: var(--line-edge); --key-rim-hover: var(--line-edge); color: var(--ink-2); border-color: var(--line-edge); }
 .comment-pin-badge { display: none; position: absolute; right: -5px; top: -5px; width: 13px; height: 13px; border-radius: 50%; corner-shape: round; border: 2px solid var(--surface-paper); background: var(--ink); }
 .comment-pin:is([data-status="addressed"],[data-status="question"],[data-status="working"]) .comment-pin-badge { display: block; }
-/* the agent answered or asked: an ink dot on her pin (danger has no colour) */
+/* the agent answered or asked: an ink dot on the user's pin (danger has no colour) */
 .comment-pin.detached { --key-d: 0px; --key-rim: transparent; --key-rim-hover: transparent; --key-face: var(--surface-paper); --key-face-hover: var(--surface-paper); color: var(--mark-red); border: 2px dashed var(--mark-red); }
 .comment-pin.active { --key-face: var(--mark-red-deep); outline: 2px solid var(--mark-red); outline-offset: 3px; }
 .comment-pin-gone { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); padding: 3px 8px; border-radius: var(--shape-key);
@@ -1659,7 +1659,7 @@ html[data-appearance="dark"] .board-miniature .workspace-cover-tile.mini-tile[st
 .comment-bar[hidden] { display: none; }
 body .canvas-footer .zoom-pill .comment-bar button { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; }
 .comment-bar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-/* her waiting comments are counted in her colour, as a number, not a badge */
+/* the user's waiting comments are counted in the user's colour, as a number, not a badge */
 .comment-count { min-width: 0; height: auto; padding: 0; background: transparent; color: var(--mark-red); font: 500 12px/1 var(--type-mono); text-align: center; }
 .comment-count[hidden] { display: none; }
 .comment-send[aria-disabled="true"] { cursor: default; }

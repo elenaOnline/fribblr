@@ -1,8 +1,8 @@
 // Headless check: a board opened as its own page has a zoom floor where all of it fits (100% at most; an empty board stops
 // at 100%). Zooming out stops there (a gesture or press that reaches it, a held −), and a fresh zoom-out one step below
-// goes up to the board it lives on: the parent she entered it from, in the view she entered from, else the parent's
+// goes up to the board it lives on: the parent the reviewer entered it from, in the view the reviewer entered from, else the parent's
 // opening view centred on its card; the card selected and focused, Enter goes back in, and no other view is painted
-// first. A board with several parents goes to the one she came from (?from=), else the one in its path. A board on Home
+// first. A board with several parents goes to the one the reviewer came from (?from=), else the one in its path. A board on Home
 // goes Home, its tile selected and focused. A gesture still running after leaving an opened item stops at the board's
 // floor. External fixtures only (ui-sdk.md § Zoom floor, back to the board, Expand).
 import assert from 'node:assert/strict';
@@ -93,7 +93,7 @@ try{
  await page.locator('#viewport').focus();await page.keyboard.press('=');await page.keyboard.press('-');
  eq(boardPath(),'/boards/kid/','− back down to the floor stops there');
 
- // (2) Leaving with a known view: Top opens in the view she entered Kid from, Kid's tile selected and focused.
+ // (2) Leaving with a known view: Top opens in the view the reviewer entered Kid from, Kid's tile selected and focused.
  // The board's leave band: absent above the floor; a pinch at the floor grows it, reversing makes it recede, the end of
  // the pinch drops it; it never takes a pointer and is hidden from assistive technology.
  eq((await band()).opacity,0,'No band at the floor before a new gesture');
@@ -116,7 +116,7 @@ try{
  await ctrlWheel(100);eq(boardPath(),'/boards/kid/','A notch at the floor shows the band');ok(Math.abs((await band()).opacity-.6)<.01,'…half way');
  await ctrlWheel(100);
  await waitBoard('top');
- eq(await boardView(),topView,'Top opens in the view she entered Kid from');
+ eq(await boardView(),topView,'Top opens in the view the reviewer entered Kid from');
  await landed(kidTile,'Kid → Top (view known)');
  await page.keyboard.press('Enter');await waitBoard('kid');checks++;  // Enter goes back in
 
@@ -133,7 +133,7 @@ try{
  await card(otherTile).focus();await page.keyboard.press('Enter');await waitBoard('kid');
  ok(new URL(page.url()).search==='?from=other','Entered from Other');
  await page.locator('#viewport').focus();for(let i=0;i<12;i++)await page.keyboard.press('-');
- await waitBoard('other');await landed(otherTile,'Kid → Other (the parent she came from)');
+ await waitBoard('other');await landed(otherTile,'Kid → Other (the parent the reviewer came from)');
  await clearReturn();await load(`${base}/boards/kid/`);
  await page.locator('#viewport').focus();for(let i=0;i<12;i++)await page.keyboard.press('-');
  await waitBoard('top');await landed(kidTile,'Kid → Top (no ?from=: the parent in its path)');

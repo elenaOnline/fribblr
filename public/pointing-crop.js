@@ -7,7 +7,7 @@
 //    taints the canvas and gives null.
 // 2. TabCapture: the browser's capture of this tab (getDisplayMedia with
 //    preferCurrentTab). One permission prompt when started, a sharing indicator
-//    while running, and the exact pixels she sees, grabbed at the moment a
+//    while running, and the exact pixels the user sees, grabbed at the moment a
 //    gesture completes. Chromium only in practice (see CROP.md).
 //
 // Both return {dataUrl, width, height, from} or null; the caller sends null as
@@ -21,7 +21,9 @@ const MAX_BYTES = 2 * 1024 * 1024; // the contract's limit for a client crop
 // or omitted for the whole card. Returns the part of the image inside it.
 // `source`: the same picture at a higher resolution (the item's file when the
 // card shows a smaller preview); the card's <img> still gives the layout.
-export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = null} = {}) {
+// `overlay(ctx, toCrop)`: drawn over the picture (the wand's glitter, so the crop shows the area the user pointed at);
+// toCrop(clientX, clientY) gives that screen point's place in the crop's pixels.
+export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = null, overlay = null} = {}) {
   const img = card?.querySelector?.('.workspace-card-preview img');
   if (!img || !img.complete || !(img.naturalWidth > 0)) return null;
   const box = card.getBoundingClientRect(), shown = img.getBoundingClientRect();
@@ -59,6 +61,8 @@ export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = nul
   const g = canvas.getContext('2d');
   if (!vector && k > 1) g.imageSmoothingEnabled = false;
   g.drawImage(pic, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const kx = canvas.width / sw, ky = canvas.height / sh;
+  if (overlay) { try { overlay(g, (x, y) => [((x - content.x) * nw / content.w - sx) * kx, ((y - content.y) * nh / content.h - sy) * ky]); } catch {} }
   try {
     // PNG keeps every pixel; a photo too big for the contract's 2 MB goes as JPEG instead.
     let dataUrl = canvas.toDataURL('image/png');
@@ -71,7 +75,7 @@ export function imageCrop(card, region = {x: 0, y: 0, w: 1, h: 1}, {source = nul
 
 // An image card cropped from the item's own file at full resolution (`fileUrl`, same origin) when the card shows a
 // smaller preview of the same picture; the card's picture otherwise. Async: the file may need loading.
-export async function imageCropFull(card, region, fileUrl) {
+export async function imageCropFull(card, region, fileUrl, overlay = null) {
   const img = card?.querySelector?.('.workspace-card-preview img');
   if (!img) return null;
   if (!img.complete) { try { await img.decode(); } catch { return null; } }
@@ -83,7 +87,48 @@ export async function imageCropFull(card, region, fileUrl) {
     if (source && Math.abs(source.naturalWidth / source.naturalHeight - img.naturalWidth / img.naturalHeight) > 0.02 * (img.naturalWidth / img.naturalHeight)) source = null;
   }
   if (!card.isConnected) return null;
-  return imageCrop(card, region, {source});
+  return imageCrop(card, region, {source, overlay});
+}
+
+// A mark made inside an opened image (pointing-reader.js): the picture's own file, cut round `shape` (the snapped
+// outline, else the user's gesture; image px of the file) with a margin of a quarter of its size, at the file's resolution,
+// with the outline drawn on it in the user's red (`red`), the spot the user clicked as a dot (`gesture` a point), or the wand's
+// area as glitter (`swath(ctx, toCrop, k)`). Same origin only; a vector picture is drawn at 2×.
+export async function imageFileCrop(fileUrl, shape, {gesture = null, swath = null, red = '#B33830'} = {}) {
+  const img = new Image(); img.src = fileUrl;
+  try { await img.decode(); } catch { return null; }
+  const nw = img.naturalWidth, nh = img.naturalHeight; if (!(nw > 0 && nh > 0)) return null;
+  const pts = shape.kind === 'rect' ? [[shape.x, shape.y], [shape.x + shape.w, shape.y + shape.h]] : shape.kind === 'point' ? [[shape.x, shape.y]]
+    : shape.kind === 'swath' ? shape.points.flatMap(([x, y]) => [[x - shape.width / 2, y - shape.width / 2], [x + shape.width / 2, y + shape.width / 2]]) : shape.rings?.length ? shape.rings.flat() : shape.points;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const pad = Math.max(24, 0.25 * Math.max(x1 - x0, y1 - y0, shape.kind === 'point' ? 192 : 0));
+  const sx = Math.max(0, Math.floor(x0 - pad)), sy = Math.max(0, Math.floor(y0 - pad));
+  const sw = Math.min(nw, Math.ceil(x1 + pad)) - sx, sh = Math.min(nh, Math.ceil(y1 + pad)) - sy;
+  if (sw < 1 || sh < 1) return null;
+  const vector = /\.svgz?(?:$|[?#])|^data:image\/svg/i.test(fileUrl);
+  let k = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+  if (vector) k = Math.min(2, MAX_SIDE / Math.max(sw, sh));
+  else if (Math.max(sw, sh) < MIN_SIDE) k = Math.min(8, MIN_SIDE / Math.max(sw, sh));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(sw * k)); canvas.height = Math.max(1, Math.round(sh * k));
+  const g = canvas.getContext('2d');
+  if (!vector && k > 1) g.imageSmoothingEnabled = false;
+  g.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const toCrop = (x, y) => [(x - sx) * k, (y - sy) * k], line = Math.max(2, Math.round(Math.max(canvas.width, canvas.height) / 400));
+  g.strokeStyle = red; g.fillStyle = red; g.lineWidth = line; g.lineJoin = 'round';
+  if (swath) { try { swath(g, toCrop, k); } catch {} }
+  else if (shape.kind === 'rect') { const [a, b] = toCrop(shape.x, shape.y); g.strokeRect(a - line / 2, b - line / 2, shape.w * k + line, shape.h * k + line); }
+  else if (shape.kind === 'path') { g.beginPath(); for (const ring of shape.rings?.length ? shape.rings : [shape.points]) { ring.forEach(([x, y], i) => { const [a, b] = toCrop(x, y); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.closePath(); } g.stroke(); }
+  const dot = gesture?.kind === 'point' ? gesture : shape.kind === 'point' ? shape : null;
+  if (dot) { const [a, b] = toCrop(dot.x, dot.y); g.beginPath(); g.arc(a, b, 2.5 * line, 0, Math.PI * 2); g.fill(); }
+  try {
+    let dataUrl = canvas.toDataURL('image/png');
+    for (const q of [0.92, 0.85, 0.75]) { if (dataUrl.length * 0.75 <= MAX_BYTES) break; dataUrl = canvas.toDataURL('image/jpeg', q); }
+    if (dataUrl.length * 0.75 > MAX_BYTES) return null;
+    return {dataUrl, width: canvas.width, height: canvas.height,
+      from: `natural pixels ${sx},${sy} ${sw}×${sh} of ${nw}×${nh}${k !== 1 ? `, ${k < 1 ? 'scaled down' : vector ? 'drawn' : 'enlarged with hard edges'} to ${canvas.width}×${canvas.height}` : ''}; the mark drawn in red`};
+  } catch { return null; }
 }
 
 // One capture of this tab for the length of the mode. start() must run inside
@@ -112,7 +157,7 @@ export class TabCapture {
     try { controller?.setFocusBehavior?.('no-focus-change'); } catch {}
     const track = this.stream.getVideoTracks()[0];
     track.addEventListener('ended', () => { this.stream = null; this.onended?.(); });
-    // Only this tab: if she picked a window or screen (Safari, Firefox), the
+    // Only this tab: if the user picked a window or screen (Safari, Firefox), the
     // frame is not the page and a crop by page coordinates would be wrong.
     const surface = track.getSettings().displaySurface;
     if (surface && surface !== 'browser') { this.stop(); throw new Error(`Captured a ${surface}, not this tab.`); }

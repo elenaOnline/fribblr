@@ -27,7 +27,7 @@
 .ct-who{font-weight:500}
 .ct-msg-head time,.ct-edited{color:var(--ink-2);font:400 11px/1.4 var(--type-mono)}
 .ct-agent-tag{color:var(--ink-2);font:400 var(--type-meta)/1.4 var(--type-sans)}
-/* her words are red, the agent's are ink */
+/* the user's words are red, the agent's are ink */
 .ct-msg:not(.ct-agent) .ct-body{color:var(--mark-red)}
 .ct-agent .ct-body{color:var(--ink)}
 .ct-msg-tools{margin-left:auto;display:inline-flex;gap:8px;opacity:0;transition:opacity .12s}
@@ -50,7 +50,7 @@
 .ct-status[role=alert]{color:var(--ink)}
 .ct-for-agent{display:inline-flex;align-items:center;gap:5px;margin-left:auto;cursor:pointer}
 .ct-for-agent+.tk-btn{margin-left:0!important}
-/* where she writes the field sinks (depth.css), the text is her red, and focus is a red underline */
+/* where the user writes the field sinks (depth.css), the text is the user's red, and focus is a red underline */
 .ct-composer{min-height:58px;max-height:160px;overflow:auto;padding:8px 10px;border-radius:var(--shape-key);color:var(--mark-red);--sink-focus:var(--mark-red);outline:none;white-space:pre-wrap;overflow-wrap:anywhere;cursor:text}
 .ct-composer:empty::before{content:attr(data-placeholder);color:var(--ink-2);pointer-events:none}
 .ct-edit{margin-top:4px;min-height:44px}
@@ -83,7 +83,7 @@ ui-trigger-menu{display:contents}
 .cref-empty{margin:6px 8px;color:var(--ink-2);font-size:var(--type-meta)}
 /* "No match" only while nothing matches (the SDK marks it data-empty); with matches it would sit above them. */
 .cref-empty:not([data-empty]){display:none}
-/* her avatar is a small raised red key carrying her initial; the agent's is a white key with an ink rim (raised: depth.css) */
+/* the user's avatar is a small raised red key carrying the user's initial; the agent's is a white key with an ink rim (raised: depth.css) */
 .ct-avatar{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex:none;font:500 11px/1 var(--type-sans);color:var(--ink-on-mark);--key-face:var(--mark-red);--key-face-hover:var(--mark-red);--key-side:var(--mark-red-side);--key-side-hover:var(--mark-red-side);--key-rim:var(--mark-red);--key-rim-hover:var(--mark-red)}
 .ct-avatar.agent{color:var(--ink);--key-face:var(--surface-paper);--key-face-hover:var(--surface-paper);--key-side:var(--ink);--key-side-hover:var(--ink);--key-rim:var(--ink);--key-rim-hover:var(--ink)}
 .ct-avatar.agent svg{width:13px;height:13px;fill:currentColor;stroke:none}

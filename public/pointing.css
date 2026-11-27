@@ -1,6 +1,6 @@
 /* Pointing mode (pointing-mode.js). Role tokens and the depth model only: the composer floats (data-height="float"),
-   its keys are raised, the field is sunken. Pointing is her voice, so the marks and their numbered chips are drawn in
-   her red (--mark-red); the words she types are ordinary ink, as in any composer. */
+   its keys are raised, the field is sunken. Pointing is the user's voice, so the marks and their numbered chips are drawn in
+   the user's red (--mark-red); the words the user types are ordinary ink, as in any composer. */
 
 /* While pointing, the board's editing chrome steps aside; it comes back as it was. */
 body.pointing-on :is(#edit-tools, #workspace-selection, .whiteboard-toolbar, .whiteboard-menu, .whiteboard-connect-hint) { display: none !important; }
@@ -58,9 +58,17 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 /* The sheet over the board: it takes every press while pointing. */
 .pointing-sheet { position: fixed; z-index: 25; display: block; touch-action: none; cursor: crosshair; }
 .pointing-sheet[hidden] { display: none; }
-.pointing-sheet[data-tool="laser"] { cursor: none; }
+.pointing-sheet[data-tool="wand"] { cursor: none; }
 .pointing-sheet[data-tool="point"] { cursor: default; }
 .pointing-sheet.pointing-panning { cursor: grabbing; }
+
+/* The Wand's glitter (pointing-wand.js): two-tone flecks so it reads on any ground (paper, a photo, a red subject, a
+   dark board): mark-red flecks keylined light on their top and left, light flecks keylined deep on their bottom and
+   right, a rare light sparkle with red arms. Hard-edged pixels, never blurred: between a zoom and its redraw the canvas
+   scales without smoothing. */
+:root { --wand-ink: var(--mark-red); --wand-pale: color-mix(in srgb, var(--mark-red) 12%, var(--ink-on-mark)); --wand-star: var(--mark-red-side); }
+html[data-appearance="dark"], html[data-theme="night"]:not([data-document-mode="card"], [data-document-mode="panel"]) { --wand-pale: color-mix(in srgb, var(--mark-red) 18%, var(--ink-on-mark)); --wand-star: color-mix(in srgb, var(--mark-red-side) 70%, black); }
+.pointing-swath { position: absolute; pointer-events: none; image-rendering: pixelated; }
 
 /* Marks on the board, in world units: strokes and numbers keep their screen size at any zoom. */
 .pointing-marks { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 10006; }
@@ -68,8 +76,24 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 .pointing-marks-svg { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
 .pointing-shape { fill: color-mix(in srgb, var(--mark-red) 8%, transparent); stroke: var(--mark-red); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .pointing-shape.pointing-outline { fill: none; }
-.pointing-badge { position: absolute; transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-2px, calc(-100% - 3px)); }
-.pointing-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; corner-shape: round; background: var(--mark-red); transform-origin: 0 0; transform: scale(calc(1 / var(--canvas-zoom, 1))) translate(-50%, -50%); }
+.pointing-badge { position: absolute; transform-origin: 0 0; transform: scale(calc(1 / (var(--canvas-zoom, 1) * var(--pointing-k, 1)))) translate(-2px, calc(-100% - 3px)); }
+.pointing-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; corner-shape: round; background: var(--mark-red); transform-origin: 0 0; transform: scale(calc(1 / (var(--canvas-zoom, 1) * var(--pointing-k, 1)))) translate(-50%, -50%); }
+
+/* Pointing inside the opened item (pointing-reader.js). The sheet covers the reader's stage, under its zoom pill; the
+   marks sit inside the item's window, in the item's own units (the layer is scaled by --pointing-k inside the reader's
+   plane, which carries its zoom as --canvas-zoom), so they follow its zoom, pan and scroll. */
+.pointing-reader-sheet { z-index: 5; }
+.pointing-reader-marks { transform-origin: 0 0; z-index: 3; }
+/* On the board, a mark made inside an item is that item's card, outlined dashed and labelled Inside. */
+.pointing-shape.pointing-inside { fill: none; stroke-dasharray: 6 4; }
+/* A chip for a mark made inside an item carries a small window glyph; a chip whose mark is in the other place (on the
+   board while the user points inside an item, or inside an item while the user points at the board) is outlined dashed: listed,
+   but not drawn here. */
+.cref.pointing-chip .pointing-in { width: 12px; height: 12px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.2; color: var(--ink-2); }
+.cref.pointing-chip.pointing-elsewhere { outline: 1px dashed var(--line-edge); outline-offset: -1px; }
+.cref.pointing-chip.pointing-elsewhere .cref-label { color: var(--ink-2); }
+/* The opened item's Point and type key, on while the mode is. */
+#reader-header .reader-pointing svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* The rail gains one key (Point and type): on a phone its keys share the width ten ways, not nine (workspace.css);
    under 360 px ten keys do not fit beside each other, so the rail keeps its own nine. */
@@ -91,7 +115,12 @@ body.navigator-docked .pointing-bar { left: calc((100vw + var(--navigator-dock-w
 }
 .pointing-status[hidden] { display: none; }
 .pointing-status[data-error] { color: var(--ink); white-space: normal; }
-/* Her words in a sent pointing message are ordinary ink, as in the composer; the chips carry her red. */
+/* The user's words in a sent pointing message are ordinary ink, as in the composer; the chips carry the user's red. */
 .ct-msg .pointing-words { color: var(--ink); }
 /* The mark a chip in an open thread was pressed for. */
 .pointing-shape.pointing-focus { stroke-width: 3px; }
+/* Numbers that would sit on one spot (several marks made inside one item, two marks on one thing) go side by side in
+   one row; inside the opened item a number at the window's top edge sits just inside it instead of above it. */
+.pointing-badge-row { position: absolute; display: flex; gap: 3px; transform-origin: 0 0; transform: scale(calc(1 / (var(--canvas-zoom, 1) * var(--pointing-k, 1)))) translate(-2px, calc(-100% - 3px)); }
+.pointing-badge-row > .pointing-badge { position: static; transform: none; }
+.pointing-badge.pointing-badge-below, .pointing-badge-row.pointing-badge-below { transform: scale(calc(1 / (var(--canvas-zoom, 1) * var(--pointing-k, 1)))) translate(3px, 3px); }

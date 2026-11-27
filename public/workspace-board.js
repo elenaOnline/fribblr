@@ -1126,7 +1126,7 @@ export class WorkspaceBoard {
       <dt>E</dt><dd>Edit the selected (or focused) Markdown document</dd>
       <dt>C · Shift-C</dt><dd>Comment tool: click the board, a card or a drawn element to comment, or press Enter on the focused one · Show or hide comments</dd>
       <dt>N</dt><dd>Quick jot: type a line, Enter adds it as a sticky; Escape closes</dd>
-      <dt>P</dt><dd>Point and type: write to the agent and point at the board as you go. ⌥/Alt with M · L · K · P picks Marquee · Lasso · Laser pointer · Point; ⌥/Alt-R points at the selection; ⌥/Alt with = · − · 0 · 1 zooms in, out, 100%, fit; Enter sends; Escape leaves</dd>
+      <dt>P</dt><dd>Point and type: write to the agent and point at the board as you go. ⌥/Alt with M · L · W · P picks Marquee · Lasso · Wand · Point; ⌥/Alt with [ · ] makes the wand narrower, wider; hold ${isMacPlatform() ? "⌘" : "Ctrl"} while pointing to take exactly what you drew; ⌥/Alt-R points at the selection; ⌥/Alt with = · − · 0 · 1 zooms in, out, 100%, fit; Enter sends; Escape leaves</dd>
       <dt>?</dt><dd>Show keyboard shortcuts</dd>
       <dt>⌘/Ctrl-C · X · V</dt><dd>Copy · Cut · Paste</dd>
       <dt>Shift-⌘/Ctrl-C</dt><dd>Copy this board's notes as Markdown (text, stickies and linked item titles)</dd>
@@ -2063,10 +2063,10 @@ export class WorkspaceBoard {
     $("notes-for").textContent = "Item notes · shared across placements";
     this.hooks.readerChanged?.();
   }
-  // Where zooming out of this board goes (canvas.js leaveBoard). Its parent: the board she entered it from (the tile she
+  // Where zooming out of this board goes (canvas.js leaveBoard). Its parent: the board the user entered it from (the tile the user
   // came through, or ?from=), else the parent in its path (as the path menu shows it), else the first board that shows its
   // owner item. Returns {parentId, from (the parent's own ?from=), placementId (this board's card there), view (the
-  // parent's view when she entered from its tile)}, or null for a board on Home (or with no parent): Home is above it.
+  // parent's view when the user entered from its tile)}, or null for a board on Home (or with no parent): Home is above it.
   async zoomOutTarget() {
     try { if (!this.workspaceGraph) await this.loadCrumb(); } catch {}
     return this.zoomOutParent();
@@ -2082,7 +2082,7 @@ export class WorkspaceBoard {
     let entry = null;
     try { entry = JSON.parse(sessionStorage.getItem(`tinka/${this.config.workspaceId}/return-to-tile`) || "null"); } catch {}
     if (entry?.childBoardId !== id || entry.zoomOut || !parents.some(b => b.id === entry.parentBoardId)) entry = null;
-    // A board on Home that she didn't enter from a parent has Home above it.
+    // A board on Home that the user didn't enter from a parent has Home above it.
     const from_ = new URLSearchParams(location.search).get("from");
     if (!entry && !parents.some(b => b.id === from_) && ws.homeBoardIds?.includes(id)) return null;
     const path = this.boardPath() || [], inPath = path.length > 1 ? path[path.length - 2].id : null;
@@ -4117,7 +4117,7 @@ export class WorkspaceBoard {
     // Focus bookkeeping runs on focus events only, never on pointer moves.
     // Tab onto an item brings it into view, as an arrow does (UI SDK viewport: focus-in): the browser's own focus
     // scrolling (carried over from the cushion as a pan) skips an item it already shows in part. Only a Tab: a press is
-    // already where she pointed, and focus coming back (after the reader, a menu) leaves the board where it was.
+    // already where the user pointed, and focus coming back (after the reader, a menu) leaves the board where it was.
     let tabbedAt = -1;
     document.addEventListener("keydown", e => { if (e.key === "Tab") tabbedAt = e.timeStamp; }, true);
     $("world").addEventListener("focusin", e => {

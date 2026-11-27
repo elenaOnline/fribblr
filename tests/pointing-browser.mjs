@@ -1,16 +1,16 @@
 // Pointing mode (pointing-mode.js) on a real board page, driven with a real pointer and keyboard: P enters, typing and
-// pointing interleave (marquee, lasso, point, the laser's circle, @), chips land at the caret, Backspace and Undo take
+// pointing interleave (marquee, lasso, point, the wand's circle, @), chips land at the caret, Backspace and Undo take
 // a chip and its mark away and back, the board is never selected or edited, Enter sends one thread to the agent with
 // the pointing record, Escape leaves with the view and selection as they were, and the sent thread's card reads as
-// her sentence with chips. At 1280 also: a sent mark follows a card an agent moves or resizes, an edited target's chip
+// the reviewer's sentence with chips. At 1280 also: a sent mark follows a card an agent moves or resizes, an edited target's chip
 // takes its new text, a deleted target's mark stays where it was drawn labelled Deleted, a draft mark follows a card
-// moved while she types, and Send clears at once, lets her type on while it sends, and gives a failed message back.
+// moved while the reviewer types, and Send clears at once, lets the reviewer's type on while it sends, and gives a failed message back.
 // The review's fixes (team/pointing/STATUS.md, 2026-11-25): an @ name with spaces keeps the list open and Enter picks;
 // a press on the bar keeps focus in the field; a number on screen is never used twice; ⌥R, the @ list's Selected
-// group, ⌥ zoom and Tab out of the bar; panels stay open; the laser dot goes with the pointer; the 20-mark and length
+// group, ⌥ zoom and Tab out of the bar; panels stay open; the wand's ring goes with the pointer; the 20-mark and length
 // limits and an app that isn't answering said plainly; the draft survives a reload. At 1280 also: a click points at the
 // whole thing with its spot and content coordinates (page px, image px), text counts where its words are drawn, an
-// arrow by its line, a slow laser circle round a sticky is the whole sticky, and an open thread card clears its marks.
+// arrow by its line, a slow wand circle round a sticky is the whole sticky, and an open thread card clears its marks.
 // Light at 1280 and a phone at 390. Isolated fixture, headless, port 0.
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';
@@ -91,19 +91,20 @@ try{
       await page.keyboard.press(`${MOD}+z`);
       await until(async()=>(await chips()).length===2);assert.equal(await page.locator('.pointing-marks .pointing-badge').count(),2);
     });
-    await check(`${tag} the lasso and the laser's circle; @ picks by name`,async()=>{
+    await check(`${tag} the lasso and the wand's circle; @ picks by name`,async()=>{
       await page.keyboard.press('End');await page.keyboard.type(' and ');
       await page.keyboard.press('Alt+KeyL');
       const s=await centre(card('Pricing'));
       await page.mouse.move(s.x+R,s.y);await page.mouse.down();
       for(let d=0;d<=360;d+=20)await page.mouse.move(s.x+R*Math.cos(d*Math.PI/180),s.y+R*.8*Math.sin(d*Math.PI/180));
       await page.mouse.up();
-      await page.keyboard.press('Alt+KeyK');await page.keyboard.type(' or ');
+      await page.keyboard.press('Alt+KeyW');await page.keyboard.type(' or ');
       const n=await centre('#world [data-decoration="note1"]');
       const r=narrow?75:110;
-      await page.mouse.move(n.x-r,n.y+r);await page.mouse.down();
-      for(let x=0;x<160;x+=16)await page.mouse.move(n.x-r+x*(narrow?.5:1),n.y+r+(x%32?20:-20)); // waving: no reference
-      for(let d=0;d<=420;d+=15)await page.mouse.move(n.x+r*Math.cos(d*Math.PI/180),n.y+r*.8*Math.sin(d*Math.PI/180));
+      // moving without the button (on the way to the sticky) points at nothing; the held circle is one reference
+      await page.mouse.move(n.x-r,n.y+r);for(let x=0;x<160;x+=16)await page.mouse.move(n.x-r+x*(narrow?.5:1),n.y+r+(x%32?20:-20));
+      await page.mouse.move(n.x-r,n.y);await page.mouse.down();
+      for(let d=180;d<=560;d+=15)await page.mouse.move(Math.min(width-4,n.x+r*Math.cos(d*Math.PI/180)),n.y+r*.8*Math.sin(d*Math.PI/180));
       await page.mouse.up();
       await page.keyboard.type(' @pric');await page.locator('.cref-picker[data-open]').waitFor();await page.keyboard.press('Enter');
       const all=await chips();
@@ -118,7 +119,8 @@ try{
       assert.match(t.body,/^change this @1 Login mock to look more like this @2 Hero B and @3 Pricing or @4 .+ @5 Pricing$/);
       const p=t.pointing;assert.equal(p.source,'typed');assert.equal(p.marks.length,5);
       assert.deepEqual(p.parts.filter(x=>'mark' in x).map(x=>x.mark),[1,2,3,4,5]);
-      assert.deepEqual(p.marks.map(m=>m.tool),['marquee','point','lasso','laser','keyboard']);
+      assert.deepEqual(p.marks.map(m=>m.tool),['marquee','click','lasso','wand','keyboard']);
+      assert.equal(p.marks[1].via,'point','a click names the tool it was made with');assert.equal(p.marks[3].shape.kind,'swath');
       const m1=p.marks[0];assert.equal(m1.targets[0].title,'Login mock');assert.equal(m1.targets[0].whole,false);assert.ok(m1.targets[0].region.w>0&&m1.targets[0].region.w<1);
       assert.equal(p.marks[1].targets[0].whole,true);assert.equal(p.marks[3].targets[0].kind,'decoration');
       assert.equal(p.appearance,'light','the board\'s appearance goes with the message');
@@ -138,7 +140,7 @@ try{
       assert.equal(await page.locator('#world .workspace-card').count(),3,'no card added or removed');
       assert.equal(await page.locator('#world .workspace-decoration').count(),1,'no drawing added');
     });
-    await check(`${tag} the thread card reads as her sentence with numbered chips; its marks show while open`,async()=>{
+    await check(`${tag} the thread card reads as the reviewer's sentence with numbered chips; its marks show while open`,async()=>{
       await page.evaluate(()=>window.dispatchEvent(new HashChangeEvent('hashchange')));
       await page.evaluate(id=>{location.hash=`#comments/${encodeURIComponent(id)}`;},threadId);
       const cardEl=page.locator('.ct-card');await cardEl.waitFor();
@@ -151,7 +153,7 @@ try{
     });
     if(!narrow){
       const t=(await listFeedback(config,{boardId,includeBodies:true})).threads.find(x=>x.id===threadId),marks=t.pointing.marks;
-      const shapeBox=n=>page.evaluate(n=>{const e=document.querySelector(`.pointing-marks [data-n="${n}"]:is(rect,path)`);if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};},n);
+      const shapeBox=n=>page.evaluate(n=>{const e=document.querySelector(`.pointing-marks [data-n="${n}"]:is(rect,path,canvas)`);if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};},n);
       const cardBox=async title=>{const b=await page.locator(card(title)).first().boundingBox();return b&&{x:b.x,y:b.y,w:b.width,h:b.height};};
       const close=(a,b,tol=3)=>!!a&&!!b&&['x','y','w','h'].every(k=>Math.abs(a[k]-b[k])<=tol);
       const openCard=async()=>{await page.evaluate(id=>{history.replaceState(null,'',location.pathname+location.search);window.dispatchEvent(new HashChangeEvent('hashchange'));location.hash=`#comments/${encodeURIComponent(id)}`;},threadId);await page.locator('.ct-card').waitFor();await until(async()=>(await page.locator('.pointing-marks .pointing-badge').count())===5);
@@ -175,20 +177,20 @@ try{
         await applyOperation(config,{type:'updateDecoration',boardId,decorationId:'note1',patch:{text:'Renamed sticky',width:220}});
         assert.ok(await until(async()=>/Renamed sticky/.test(await page.locator('.ct-card .pointing-chip[data-point-n="4"]').textContent())),'the chip has the new text');
         const ok=await until(async()=>{const d=await page.locator('#world [data-decoration="note1"]').boundingBox(),m=await shapeBox(4);return d&&m&&d.width>200&&m.w>d.width?true:null;});
-        assert.ok(ok,'the laser circle widened with the sticky');
+        assert.ok(ok,'the wand mark widened with the sticky');
       });
       await check(`${tag} a deleted target: its mark stays where it was drawn, plain, labelled Deleted; the chip says so`,async()=>{
         await applyOperation(config,{type:'removeDecoration',boardId,decorationId:'note1'});
         assert.ok(await until(async()=>(await page.locator('.pointing-marks .pointing-badge[data-n="4"].pointing-gone').count())===1,6000),'mark 4 shows as gone');
         assert.match(await page.locator('.pointing-marks .pointing-badge[data-n="4"]').textContent(),/^4\s*Deleted$/);
-        assert.equal(await page.evaluate(()=>document.querySelector('.pointing-marks [data-n="4"]:is(rect,path)').classList.contains('pointing-gone')),true);
+        assert.equal(await page.evaluate(()=>document.querySelector('.pointing-marks [data-n="4"]:is(rect,path,canvas)').classList.contains('pointing-gone')),true);
         assert.ok(close(await shapeBox(4),drawn4,2),'the gone mark is where it was drawn');
         assert.ok(await until(async()=>(await page.locator('.ct-card .pointing-chip.missing').count())===1),'the open card\'s chip 4 says Deleted');
         assert.equal(await page.locator('.ct-card .pointing-chip.missing').getAttribute('data-tip'),'Deleted');
         await page.screenshot({path:path.join(evidence,`pointing-followed-${width}.png`)});
         await page.locator('.ct-card [data-act="close"]').click();await page.locator('.ct-card').waitFor({state:'detached'});
       });
-      await check(`${tag} a draft mark follows a card an agent moves while she types`,async()=>{
+      await check(`${tag} a draft mark follows a card an agent moves while the reviewer types`,async()=>{
         await page.keyboard.press('p');await until(()=>page.evaluate(()=>document.body.classList.contains('pointing-on')));
         await page.keyboard.press('Alt+KeyP');await page.keyboard.type('this ');
         const c=await centre(card('Pricing'));await page.mouse.click(c.x,c.y);
@@ -287,18 +289,18 @@ try{
       await page.evaluate(()=>document.getElementById('viewport').focus());await page.keyboard.press(`${MOD}+i`); // the selected card's Inspector
       const inspector=()=>page.evaluate(()=>[...document.querySelectorAll('.calm-side')].some(e=>e.getBoundingClientRect().width>0));
       await until(inspector);assert.equal(await inspector(),true,'Inspector open');
-      await page.locator('[data-pointing-enter]').click();
+      await page.locator('#edit-tools [data-pointing-enter]').click();
       await until(on);assert.equal(await inspector(),true,'still open after the rail key');
       await page.locator('[data-pointing-tool="marquee"]').click();assert.equal(await inspector(),true,'still open after a tool key');
       assert.equal(await inField(),true);
       await page.keyboard.press('Escape');await until(async()=>!(await on()));assert.equal(await inspector(),true,'still open after leaving');
       await page.locator('.calm-side [data-context-close]').first().click();await until(async()=>!(await inspector()));
     });
-    await check(`${tag} the laser dot goes when the pointer leaves the board`,async()=>{
-      await enterMode();await page.keyboard.press('Alt+KeyK');
+    await check(`${tag} the wand's ring goes when the pointer leaves the board`,async()=>{
+      await enterMode();await page.keyboard.press('Alt+KeyW');
       const ink=()=>page.evaluate(()=>{const c=document.querySelector('.pointing-sheet'),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n;});
       const c=await centre(card('Pricing'));await page.mouse.move(c.x,c.y);await page.mouse.move(c.x+10,c.y+5);
-      assert.ok(await until(async()=>(await ink())>0,1000),'a dot on the board');
+      assert.ok(await until(async()=>(await ink())>0,1000),'a ring on the board');
       const b=await page.locator('.pointing-bar').boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:4});
       assert.ok(await until(async()=>(await ink())===0,2000),'nothing left on the board');
       await page.keyboard.press('Alt+KeyP');
@@ -350,9 +352,9 @@ try{
         const arr=await page.locator('#world [data-decoration="arr"]').boundingBox();
         await page.keyboard.type(' across the arrow ');await page.mouse.move(arr.x+arr.width/2-15,arr.y-10);await page.mouse.down();await page.mouse.move(arr.x+arr.width/2+15,arr.y+arr.height+10,{steps:5});await page.mouse.up();
         await page.keyboard.type(' off its line ');await page.mouse.move(arr.x+arr.width*.75,arr.y+2);await page.mouse.down();await page.mouse.move(arr.x+arr.width-2,arr.y+arr.height*.35,{steps:5});await page.mouse.up();
-        // the laser: a slow circle (about 2.5 s) round the sticky
+        // the wand: a slow circle (about 2.5 s) round the sticky
         const stk=await page.locator('#world [data-decoration="stk"]').boundingBox(),cx=stk.x+stk.width/2,cy=stk.y+stk.height/2,rx=stk.width*.62,ry=stk.height*.62;
-        await page.keyboard.press('Alt+KeyK');await page.keyboard.type(' round ');
+        await page.keyboard.press('Alt+KeyW');await page.keyboard.type(' round ');
         await page.mouse.move(cx+rx,cy);await page.mouse.down();for(let d=0;d<=380;d+=10){await page.mouse.move(cx+rx*Math.cos(d*Math.PI/180),cy+ry*Math.sin(d*Math.PI/180));await page.waitForTimeout(65);}await page.mouse.up();
         const all=await chips();
         assert.equal(all.length,7,`seven chips: ${all}`);

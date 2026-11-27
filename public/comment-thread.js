@@ -148,7 +148,7 @@ function showCard(board, {threadId = null, anchor = null, anchorRect = null, ite
   // The pin's rect as given, or (when none, or not laid out) the live pin or target on the board.
   const currentRect = () => { const t = thread || (threadId ? {id:threadId} : null); return withMarks(board, t, livePin(t) || pinBox(rect) || liveRect(board, t, anchor)); };
   // Opened from a list or a link, the board may still be panning to the pin: the anchor follows it until it stops
-  // moving (a few frames), then stays put, so the card does not trail the board once she pans.
+  // moving (a few frames), then stays put, so the card does not trail the board once the user pans.
   let settling = 0, frozen = null;
   const anchor_ = {getBoundingClientRect: () => toRect(frozen || currentRect())};
   function settlePlace() {

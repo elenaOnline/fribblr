@@ -7,7 +7,7 @@
    data-height="slab|raised|sunken". It never writes its own height box-shadow.
    A thing declares its side colour with --side / --side-edge. data-family sets them from the kind tokens, so a card
    with data-family="doc" stands on a violet side. Keys take --key-side from where they stand.
-   States change inputs, never the recipe, and only under her pointer:
+   States change inputs, never the recipe, and only under the user's pointer:
      hover   the face's edge closes: its top (and bottom) take the side's dark colour too; nothing rises
      press   a key drops onto its side (raised only)
      select  a blue line on the ground around the whole slab, side included; the slab does not move
@@ -65,7 +65,7 @@
 :where(
 #world .workspace-card, #world .concept-card, .board-card .board-link, #reader-dialog #reader-window, [data-height="slab"]
 ) {
-  --rim: var(--side, var(--kind-plain-side));   /* the face's edge takes the side's own colour, not its dark contour (Elena, 2026-11-19) */
+  --rim: var(--side, var(--kind-plain-side));   /* the face's edge takes the side's own colour, not its dark contour (the owner, 2026-11-19) */
   --rim-top: color-mix(in srgb, var(--rim) calc(var(--rim-close, var(--slab-top-edge)) * 100%), var(--ground-rim));
   --rim-front: color-mix(in srgb, var(--rim) calc(max(var(--rim-close, 0), var(--slab-front-edge)) * 100%), var(--ground-rim));
   --side-d: calc(var(--side-slab) + var(--lift));
@@ -94,12 +94,12 @@
   outline-offset: calc(var(--select-out) + var(--lift) + var(--under-d, 0px));
 }
 #world .workspace-card.inspected:not(.selected) { outline-style: dashed; }
-/* drag: while she holds it, the slab rises */
+/* drag: while the user holds it, the slab rises */
 #world .workspace-card.workspace-dragging, #world .workspace-card[data-dragging], [data-height="slab"][data-lifted] {
   --lift: var(--side-lift);
   z-index: 9999 !important;     /* held above everything standing on the ground; beats the placement's inline z */
 }
-/* a slab she can drop into, while she holds one over it: blue rim, dashed blue line */
+/* a slab the user can drop into, while the user holds one over it: blue rim, dashed blue line */
 #world .workspace-card.workspace-drop-target {
   --rim: var(--mark-blue); --rim-close: 1;
   outline: var(--select-line) dashed var(--select-color, var(--mark-blue));
@@ -213,7 +213,7 @@ body:has(.reader-title-row[data-family="board"]) #reader-window { --side: var(--
 
 /* ================= sunken (-1): where you type, and windows cut into a face =================
    Inputs: --sink-d (how deep), --sink-floor (paper for a field; a ground colour for a window or tray),
-   --sink-rim (seam), --sink-focus (the underline while typing: blue; her red where she writes). */
+   --sink-rim (seam), --sink-focus (the underline while typing: blue; the user's red where the user writes). */
 :where(
 [data-height="sunken"], #world .workspace-board-tile .workspace-card-preview, .workspace-file-versions, .board-card .board-art,
 .tk-field, .tk-seg, #new-dialog :is(input, textarea), :is(#canvas-header, #reader-header) .chrome-search,

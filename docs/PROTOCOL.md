@@ -760,15 +760,15 @@ Refs and changes in list results add `exists`, `state` and `currentLabel`.
 Pointing messages (fribblr): `addComment` accepts an optional `pointing` object
 (`v:1`, `source` typed|voice, `startedAt`, `sentAt`, `appearance` light|dark, `parts`
 of at most 60 text runs and `{mark:n}`, `marks` of at most 20 with `n`, `tool`
-marquee|lasso|laser|point|keyboard, `at`, `end`, `boardId`, `shape` rect|path (at most
-400 points)|point, `targets` of at most 12 with `kind` placement|decoration|board, `id`,
+marquee|lasso|laser|point|keyboard|wand|click, `via` (a click only: marquee|lasso|wand|point), `at`, `end`, `boardId`, `place` (absent or `{kind:"board",boardId}`, or `{kind:"item",itemId,boardId,placementId?,version?,view:{zoom 0.05–64,scrollX,scrollY ≥ 0,width,height 1–20000,unit?,visible?:{x,y,w,h}}}`: the mark was made inside the opened item and its coordinates are the item's own; `boardId` is the mark's board), `shape` rect|path (at most
+400 points)|point|swath (`{kind:"swath",width,points}`, 2 to 400 points: the wand's band), `snap` (`{source:"object"|"dom"|"pixels",label ≤ 120,shape}`, `shape` a rect or a path of at least 3 points: the outline the reference was tidied to; a path naming several objects also carries `rings` (2 to 12 closed outlines of at least 3 points each, at most 800 points in all; `points` stays the first ring); `shape` above stays the raw gesture), `targets` of at most 12 with `kind` placement|decoration|board, `id`,
 `boardId`, `itemId`, `itemKind`, `title`, `whole`, `region` as 0..1 fractions of the
-object's box, `spot:{x,y}` as 0..1 fractions of the object's box where she clicked (a click is
+object's box, `spot:{x,y}` as 0..1 fractions of the object's box where the reviewer clicked (a click is
 `whole:true` with `spot`), and `content:{x,y,w,h,unit,of}`: the region or spot in the item's
 own coordinates, `unit` `px` (CSS px of an HTML page, pixels of an image file; 0 to
 10,000,000) or `fraction` (0..1 of the content area under the card's title, inside it),
 `w` and `h` 0 for a spot, `of` a name of at most 80 characters such as `page 1280 px wide`;
-unknown keys are refused). A `board` target is a board she picked with @ and has no card on
+`element` (`{tag,role?,name?,text?,id?,selector,path,box:{x,y,w,h},frameUrl?}`: a DOM element, `box` in page px; `frameUrl` an app path or a loopback address; tag ≤ 40, name ≤ 200, text ≤ 300, selector and path ≤ 600), `elements` (2 to 12 such elements, only with `element` as their common ancestor) and `text` (`{quote ≤ 20,000,prefix?,suffix? ≤ 2,000,start?,end?}`, the text-comment anchor shape); unknown keys are refused). A `board` target is a board the reviewer picked with @ and has no card on
 the board, so it gets no crop of its own. Refusals state the limit in words (`A message can
 be at most 20,000 characters.`, `A message can have at most 20 references.`). A mark may carry `crop:{dataUrl,from?,box?}`, PNG or JPEG of at most 2 MB
 whose bytes are checked. Through `POST /api/operations` the server renders any other
@@ -776,7 +776,7 @@ mark's crop (headless Chrome-family browser, `CHROMIUM_EXECUTABLE`; one render a
 time), writes the files to `<workspaceRoot>/pointing/<threadId>/<n>.png|jpg` and only
 then writes the thread, removing the files if that fails; stored marks keep
 `crop:{path (relative to the workspace root),width,height,from,box}` or `crop:null` with
-`cropNote`, and each placement or drawing target keeps `placed`, its box when sent. Any
+`cropNote`, and each placement or drawing target keeps `placed`, its box when sent. A mark with `place.kind:"item"` is cropped from a render of the item itself (its saved HTML page at the reviewer's frame size divided by zoom, scrolled where the reviewer was, the version `place.version` names; an image at its own size; a document as the reader draws it), never the reviewer's screen; `crop.from` says what the render cannot reproduce, and a gone version, a deleted item, a PDF/video or a remote page gets a note instead. `view.visible` (finite x, y; w and h above 0, in the marks' own coordinates) is the part of the item that was on screen: the crop shows it, or the mark with context when the mark lay partly outside it; without it a zoomed item's crop is stated to show the whole window. A render failure becomes a plain note naming what could not be drawn, never the browser's exception. Comment pins and every thread's pointing marks are hidden in board crops. A wand's swath is drawn on the crop as its glitter. Deleting a pointing thread's first message removes `<workspaceRoot>/pointing/<threadId>/`; starting the server removes such folders whose thread no longer exists. Any
 other writer (CLI, tools) gets `crop:null` and a note. `feedback.list` with bodies adds
 `pointing.read` (plain text), absolute `crop.path`, `crop.url` and each target's `now`
 (state, current label and box). `GET /api/pointing/<threadId>/<n>` serves a crop image

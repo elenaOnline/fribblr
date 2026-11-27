@@ -62,7 +62,7 @@ a:focus-visible,button:focus-visible { outline:2px solid var(--mark-blue); outli
 .document-selection-tools[hidden] { display:none; }
 .document-paint-layer { position:fixed; inset:0; pointer-events:none; z-index:2; overflow:hidden; }
 .document-paint-layer span { position:absolute; border-radius:1px; }
- /* her highlights and comments are her voice: red (a wash for a highlight, an underline for a comment); the selection is blue */
+ /* the user's highlights and comments are the user's voice: red (a wash for a highlight, an underline for a comment); the selection is blue */
 .document-range-highlight { background:color-mix(in srgb,var(--mark-red) 14%,transparent); }
 .document-range-comment { background:transparent; box-shadow:inset 0 -2px var(--mark-red); }
 .document-range-selection { background:color-mix(in srgb,var(--mark-blue) 18%,transparent); box-shadow:inset 0 -1px var(--mark-blue); }

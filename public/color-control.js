@@ -44,7 +44,7 @@ export function setSwatch(palette,id) {
   else palette.setAttribute("default-value",next);
 }
 
-// Run fn(id) when she chooses a swatch (pointer or arrow keys). valuechange does not bubble: listen on the group.
+// Run fn(id) when the user chooses a swatch (pointer or arrow keys). valuechange does not bubble: listen on the group.
 export function onSwatch(palette,fn) {
   palette.addEventListener("valuechange",event=>{if(event.detail.value!=null)fn(event.detail.value);});
 }

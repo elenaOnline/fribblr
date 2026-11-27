@@ -1,4 +1,4 @@
-// A sent pointing message inside its comment thread card (comment-thread.js): her sentence with a numbered chip per
+// A sent pointing message inside its comment thread card (comment-thread.js): the user's sentence with a numbered chip per
 // mark, the same chips as in the composer. While the card is open the marks show on the board (pointing-mode.js
 // showSent); a chip press brings its mark into view, ⌘/Ctrl-press opens what it points at.
 import {esc, refState, decorationLabel} from './comment-refs.js';
@@ -23,7 +23,7 @@ const refOf = target => target && (target.kind === 'board' ? {kind: 'board', id:
 export function pointingBody(board, thread) {
   const frag = document.createDocumentFragment(), p = thread.pointing, marks = new Map((p.marks || []).map(m => [m.n, m]));
   for (const part of p.parts || []) {
-    // Her words are ordinary ink (pointing.css); the chips carry her red.
+    // The user's words are ordinary ink (pointing.css); the chips carry the user's red.
     if (!('mark' in part)) { const words = document.createElement('span'); words.className = 'pointing-words'; words.textContent = part.text; frag.append(words); continue; }
     const mark = marks.get(part.mark); if (!mark) continue;
     const chip = document.createElement('span');

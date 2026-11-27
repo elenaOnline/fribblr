@@ -29,7 +29,7 @@
 .kind-legend-entry:focus-visible { outline: 2px solid var(--mark-blue); outline-offset: -2px; }
 
 /* With the legend in the foot, the routine status ("Saved", the live dot) steps
-   back; anything that needs her (a save problem, new work to load, a lost
+   back; anything that needs the user (a save problem, new work to load, a lost
    connection, an app update) still shows. */
 .canvas-footer:has(> .kind-legend:not([hidden])) .status-line:not(:has(#save-status:is([data-state="error"], [data-state="local"]), #live-refresh:not([hidden]), #live-status[data-connection="offline"], .update-chip, .update-refresh)) { display: none; }
 

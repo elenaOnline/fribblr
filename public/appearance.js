@@ -9,7 +9,7 @@ const MODES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
 const GROUNDS = [['desk', 'Blue'], ['white', 'White']];
 const KEY = { mode: 'tinka/appearance', ground: 'tinka/ground' };
 const LISTS = { mode: MODES, ground: GROUNDS };
-const DEFAULT = { mode: 'light', ground: 'desk' };   // Tinka 1.3: light unless she chooses otherwise
+const DEFAULT = { mode: 'light', ground: 'desk' };   // Tinka 1.3: light unless the user chooses otherwise
 const read = kind => { try { const value = localStorage.getItem(KEY[kind]); if (LISTS[kind].some(([choice]) => choice === value)) return value; } catch {} return DEFAULT[kind]; };
 
 function sync() {

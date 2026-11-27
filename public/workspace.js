@@ -224,7 +224,7 @@ export function makeDialog(title, body, onSubmit, {
   // Only typed text makes a stray Escape or backdrop press ask before closing: a choice (a radio, a checkbox, a select, a
   // slider) costs one press to make again. Text back to what it was asks nothing. The close key never asks. A dialog
   // that keeps its draft (onDismiss) has nothing to lose, so it never asks.
-  // Each field's value is noted just before her first edit to it (beforeinput), so text a caller fills in is not hers.
+  // Each field's value is noted just before the user's first edit to it (beforeinput), so text a caller fills in is not the user's.
   const typed = el => el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_TYPES.has(el.type));
   const before = new Map();
   form.addEventListener('beforeinput', event => { if (typed(event.target) && !before.has(event.target)) before.set(event.target, event.target.value); });

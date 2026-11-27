@@ -94,7 +94,7 @@ export function choiceHTML({ label, className = '', value, items, attrs = {} }) 
   return `<ui-toggle-group${className ? ` class="${className}"` : ''} aria-label="${escAttr(label)}" deselectable="false"${value != null ? ` default-value="${escAttr(value)}"` : ''}${root}>${cells}</ui-toggle-group>`;
 }
 
-// Run fn(value) when she chooses one (pointer or keys).
+// Run fn(value) when the user chooses one (pointer or keys).
 export function onChoice(group, fn) {
   group?.addEventListener('valuechange', event => { const value = event.detail.value[0]; if (value != null) fn(value, event); });
 }

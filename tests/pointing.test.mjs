@@ -9,7 +9,9 @@ import {main} from '../cli.mjs';
 import {loadConfig} from '../lib/config.mjs';
 import {applyOperation,getBoardSnapshot} from '../lib/workspace.mjs';
 import {listFeedback} from '../lib/feedback.mjs';
-import {rectHits,pathHits,pointTarget,closedLoop,simplify,clipPolygon,polygonArea} from '../public/pointing-geometry.js';
+import {rectHits,pathHits,areaHits,pointTarget,closedLoop,simplify,clipPolygon,polygonArea} from '../public/pointing-geometry.js';
+import {SwathField,ringsOf,inRings} from '../public/pointing-wand.js';
+import {objectSnap,bestProposal,candidateOutline} from '../public/pointing-snap.js';
 
 const card=(id,x,y,w=200,h=150,extra={})=>({key:`placement:${id}`,kind:'placement',id,x,y,w,h,...extra});
 const keys=hits=>hits.targets.map(t=>t.candidate.id);
@@ -100,6 +102,102 @@ test('the laser: a circle closes a loop, a wave does not',()=>{
   assert.equal(turn,null,'a turnaround loop is not a circle');
 });
 
+// ---- the wand (pointing-wand.js) and snapping (pointing-snap.js) ----
+const sweep=(pts,width=56,cell=4)=>{const f=new SwathField({width,cell});for(const [x,y] of pts)f.add(x,y);return f;};
+const waveOver=(x0,x1,y,passes=4)=>{const pts=[];for(let k=0;k<passes;k++)for(let x=0;x<=20;x++)pts.push([k%2?x1-(x1-x0)*x/20:x0+(x1-x0)*x/20,y+(k-passes/2)*4]);return pts;};
+const ring=(cx,cy,rx,ry,from=0,to=380)=>{const pts=[];for(let d=from;d<=to;d+=6)pts.push([cx+rx*Math.cos(d*Math.PI/180),cy+ry*Math.sin(d*Math.PI/180)]);return pts;};
+const line=(x0,x1,y)=>{const pts=[];for(let x=x0;x<=x1;x+=6)pts.push([x,y]);return pts;};
+
+test('the wand\'s area: a band; each return of a wave makes it denser; a circle fills its inside, a wave never does',()=>{
+  const once=sweep(line(0,300,100)),wave=sweep(waveOver(0,300,100,6));
+  let a=0,b=0;once.forEach((i,j,s)=>{a=Math.max(a,s);});wave.forEach((i,j,s)=>{b=Math.max(b,s);});
+  assert.ok(b>a+0.3,`a wave is denser than one pass (${a.toFixed(2)} vs ${b.toFixed(2)})`);
+  assert.equal(once.contains([150,100]),true);assert.equal(once.contains([150,100+29]),false,'the band is 56 across');
+  assert.equal(wave.loops,0,'a wave fills nothing');
+  const circle=sweep(ring(300,300,120,90));
+  assert.ok(circle.loops>=1);assert.equal(circle.contains([300,300]),true,'the inside of a circle is in the area');
+  // a circle that ends short of where it began (no crossing) still closes
+  const short=sweep(ring(300,300,120,90,0,345));
+  assert.equal(short.contains([300,300]),true,'a circle closed by coming back near its start');
+  // the shape rebuilds the same area
+  const again=SwathField.fromShape(circle.shape(),4);
+  assert.equal(again.count,circle.count);assert.equal(circle.shape().kind,'swath');assert.equal(circle.shape().width,56);
+});
+
+test('what the wand points at: a wave over a card, an underline under a heading, a circle round a sticky',()=>{
+  const heading={key:'decoration:h',kind:'decoration',id:'h',x:400,y:300,w:360,h:44};
+  const sticky={key:'decoration:s',kind:'decoration',id:'s',x:100,y:420,w:160,h:120};
+  const list=[card('a',0,0,300,200),card('b',400,0,300,200),heading,sticky];
+  let hits=areaHits(sweep(waveOver(40,260,100)),list);
+  assert.deepEqual(keys(hits),['a']);
+  hits=areaHits(sweep(line(395,765,356)),list);
+  assert.deepEqual(keys(hits),['h'],'an underline points at the words above it');assert.ok(hits.targets[0].along>=0.75);
+  hits=areaHits(sweep(ring(180,480,130,100)),list);
+  assert.deepEqual(keys(hits),['s']);assert.equal(hits.targets[0].whole,true,'a circle round a thing is the whole thing');
+  // travel: one quick pass across the gap between cards touches nothing enough to count
+  assert.deepEqual(keys(areaHits(sweep(line(310,390,100),24),list)),[]);
+});
+
+const named=c=>`card "${c.id}"`;
+test('snapping to board objects: a sloppy box, a loose lasso and an underline tidy to the thing; a part, a speck and a mix do not',()=>{
+  const tray={key:'decoration:t',kind:'decoration',id:'t',x:0,y:300,w:500,h:300,frame:true};
+  const list=[card('a',0,0,300,200),card('b',400,0,300,200),tray];
+  // a box round most of a (85 %)
+  let raw=rectHits({x:20,y:-10,w:300,h:200},list),snap=objectSnap(raw,{tool:'marquee',gestureArea:300*200,name:named});
+  assert.ok(snap);assert.deepEqual(snap.shape,{kind:'rect',x:0,y:0,w:300,h:200});assert.equal(snap.label,'card "a"');assert.ok(snap.targets.every(t=>t.whole));
+  // a box round two cards
+  raw=rectHits({x:-10,y:-10,w:720,h:220},list);snap=objectSnap(raw,{tool:'marquee',gestureArea:720*220,name:named});
+  assert.equal(snap.label,'2 objects');assert.equal(snap.shape.kind,'path','several things: each one\'s outline, never a box round all of them');
+  assert.deepEqual(snap.shape.rings,[[[0,0],[300,0],[300,200],[0,200]],[[400,0],[700,0],[700,200],[400,200]]]);assert.deepEqual(snap.shape.points,snap.shape.rings[0]);
+  // a container covered most of the way
+  raw=rectHits({x:10,y:310,w:470,h:280},list);snap=objectSnap(raw,{tool:'marquee',gestureArea:470*280,name:c=>c.id});
+  assert.equal(snap?.label,'t');
+  // a part (a third of a card): no snap
+  raw=rectHits({x:20,y:20,w:120,h:100},list);assert.equal(objectSnap(raw,{tool:'marquee',gestureArea:12000}),null);
+  // a card covered whole plus another a third: no snap (it would drop something the reviewer half meant)
+  raw=rectHits({x:-10,y:-10,w:520,h:220},list);assert.equal(objectSnap(raw,{tool:'marquee',gestureArea:520*220}),null);
+  // a speck: a big box over empty board with a small card in its corner stays a board area
+  raw=rectHits({x:-2000,y:-2000,w:2310,h:2210},[card('s',0,0,60,40)]);assert.equal(objectSnap(raw,{tool:'marquee',gestureArea:2310*2210}),null);
+  // the wand: an underline along a heading snaps to it
+  const heading={key:'decoration:h',kind:'decoration',id:'h',x:400,y:300,w:360,h:44};
+  const f=sweep(line(395,765,356));raw=areaHits(f,[heading]);snap=objectSnap(raw,{tool:'wand',gestureArea:f.area(),name:c=>`text "${c.id}"`});
+  assert.equal(snap?.label,'text "h"');assert.deepEqual(snap.shape,{kind:'rect',x:400,y:300,w:360,h:44});
+  // a diamond and an ellipse snap to their drawn shape, not their box
+  const diamond={key:'decoration:d',kind:'decoration',id:'d',x:1000,y:0,w:200,h:100,decoration:{type:'region',shape:'diamond'}};
+  snap=objectSnap(rectHits({x:990,y:-10,w:220,h:120},[diamond]),{tool:'marquee',gestureArea:220*120,name:c=>c.id});
+  assert.deepEqual(snap.shape,{kind:'path',points:[[1100,0],[1200,50],[1100,100],[1000,50]]});
+  assert.equal(candidateOutline({x:0,y:0,w:100,h:50,decoration:{shape:'ellipse'}}).length,24);
+  // the best proposal wins; below the floor nothing does
+  assert.equal(bestProposal([{shape:{},score:.5,source:'object'},{shape:{},score:.8,source:'dom'}]).source,'dom');
+  assert.equal(bestProposal([{shape:{},score:.2}]),null);
+});
+
+test('the area shown is the area mapped: several outlines as rings, a swipe along a gap underlines neither row, an arrow leading out stays out',()=>{
+  // a path naming several things: its rings are their outlines, filled ring by ring, nothing between them
+  const a=[[0,0],[10,0],[10,10],[0,10]],b=[[50,0],[70,0],[70,20],[50,20]];
+  const p={kind:'path',points:a,rings:[a,b]};
+  assert.deepEqual(ringsOf(p),[a,b]);assert.deepEqual(ringsOf({kind:'path',points:a}),[a],'a lasso is one ring');
+  assert.equal(inRings([60,10],p),true);assert.equal(inRings([30,5],p),false);
+  const f=SwathField.fromRegion(p,1,2);
+  assert.equal(f.contains([30,5]),false,'nothing drawn between two outlines');assert.equal(f.contains([60,10]),true);
+  // two rows of cards 30 apart: a stroke along the gap is under one row and just over the other, so under neither
+  const rows=[card('a',0,0,230,170),card('b',260,0,230,170),card('c',0,200,230,170),card('d',260,200,230,170)];
+  assert.deepEqual(keys(areaHits(sweep(line(-20,520,185)),rows)),[],'along the gap: nothing');
+  // just over a row (nothing above it) is not under it
+  assert.deepEqual(keys(areaHits(sweep(line(-10,500,-12)),rows)),[],'over is not under');
+  // a stroke just under the second row, with nothing below it, underlines that row
+  const under=areaHits(sweep(line(-10,500,382)),rows);
+  assert.deepEqual(keys(under).sort(),['c','d']);assert.ok(under.targets.every(t=>t.along>=0.75));
+  // a circle round card d with an arrow arriving at it from card b: d alone
+  const arrow={key:'decoration:l',kind:'decoration',id:'l',x:370,y:170,w:4,h:30,line:true,points:[[372,171],[372,185],[372,199]]};
+  const hits=areaHits(sweep(ring(375,285,140,110)),[...rows,arrow]);
+  assert.deepEqual(keys(hits),['d']);
+  // a long stroke that crosses the arrow on its way is not about it
+  assert.deepEqual(keys(areaHits(sweep(line(-20,520,185)),[arrow])),[],'crossed on the way');
+  // the same arrow circled on its own still counts
+  assert.deepEqual(keys(areaHits(sweep(ring(372,185,30,30),24),[arrow])),['l']);
+});
+
 const robin={id:'robin',label:'Robin',kind:'human'};
 async function fixture(t){
   const root=await mkdtemp(path.join(os.tmpdir(),'tinka-pointing-'));t.after(()=>rm(root,{recursive:true,force:true}));
@@ -146,4 +244,27 @@ test('a pointing record is refused when it breaks the contract',async t=>{
     p=>{p.marks=Array.from({length:21},(_,i)=>({...p.marks[1],n:i+1}));},
   ];
   for(const [i,change] of bad.entries()){const p=record(f);change(p);await assert.rejects(add(p,`bad${i}`),{status:400},`case ${i}`);}
+});
+
+test('round 2 marks: the wand\'s swath, a click with the tool it was made with, a snapped outline; malformed ones refused',async t=>{
+  const f=await fixture(t);
+  const p=record(f);
+  p.marks[0]={...p.marks[0],tool:'wand',shape:{kind:'swath',width:56,points:[[10,10],[80,12],[150,10]]},snap:{source:'object',label:'card "Login mock"',shape:{kind:'rect',x:0,y:0,w:300,h:200}},
+    targets:[{...p.marks[0].targets[0],whole:true,region:undefined}]};delete p.marks[0].targets[0].region;
+  p.marks[1]={...p.marks[1],tool:'click',via:'marquee'};
+  await f.op({type:'addComment',id:'r2',boardId:'landing',author:robin,body:'x',pointing:p});
+  const [thread]=(await listFeedback(f.config,{threadId:'r2',includeBodies:true})).threads;
+  const [m1,m2]=thread.pointing.marks;
+  assert.equal(m1.tool,'wand');assert.deepEqual(m1.shape,{kind:'swath',width:56,points:[[10,10],[80,12],[150,10]]});assert.equal(m1.snap.label,'card "Login mock"');
+  assert.equal(m2.tool,'click');assert.equal(m2.via,'marquee');
+  const add=(pointing,id)=>f.op({type:'addComment',id,boardId:'landing',author:robin,body:'x',pointing});
+  const bad=[
+    q=>{q.marks[1].tool='marquee';q.marks[1].via='lasso';},               // only a click names its tool
+    q=>{q.marks[1].via='pen';},
+    q=>{q.marks[0].shape={kind:'swath',points:[[0,0],[1,1]]};},           // a swath has a width
+    q=>{q.marks[0].snap={source:'magic',label:'x',shape:{kind:'rect',x:0,y:0,w:1,h:1}};},
+    q=>{q.marks[0].snap={source:'object',label:'x',shape:{kind:'point',x:0,y:0}};},
+    q=>{q.marks[0].snap.extra=1;},
+  ];
+  for(const [i,change] of bad.entries()){const q=structuredClone(p);change(q);await assert.rejects(add(q,`bad2${i}`),{status:400},`case ${i}`);}
 });

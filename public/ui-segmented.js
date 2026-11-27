@@ -1,7 +1,7 @@
 // Segmented choice (a radio group drawn as a row of keys) on UI SDK's ui-segmented-control.
 // Same look as the old `.tk-seg` of aria-pressed buttons: the chosen item is the raised cell in the sunken track.
 // The SDK writes data-checked / aria-checked on the items; ui-sdk.css draws that state. No sliding indicator is
-// used: the raised cell is the item's own face, so it moves only when she chooses.
+// used: the raised cell is the item's own face, so it moves only when the user chooses.
 import './vendor/ui-sdk/web/segmented-control.js';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -28,7 +28,7 @@ export function setSegmented(el, value) {
   else { el.setAttribute('default-value', value); el.setAttribute('value', value); }
 }
 
-// Run `fn(value, event)` when she chooses an option (pointer or arrow keys).
+// Run `fn(value, event)` when the user chooses an option (pointer or arrow keys).
 export function onSegmented(el, fn) {
   el.addEventListener('valuechange', event => { if (event.detail.value != null) fn(event.detail.value, event); });
 }

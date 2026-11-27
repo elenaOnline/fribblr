@@ -18,7 +18,7 @@
      a chosen row / on-state tint    --surface-chosen
      rule inside a surface --line-hair   rim of a key/field/row --line-seam   rim of a float, hover rim --line-edge
      words --ink   meta, labels, hints --ink-2   words on a blue or red mark --ink-on-mark
-     on/selected/focus/primary --mark-blue(-deep, -side)   her voice (comments, stars, notes) --mark-red(-deep, -side)
+     on/selected/focus/primary --mark-blue(-deep, -side)   the user's voice (comments, stars, notes) --mark-red(-deep, -side)
      an item's kind --kind-<family>-side | -edge | -text   (family = page, doc, pic, plain, board)
      danger has no colour: --ink.  A translucent wash of ink: color-mix(in srgb, var(--ink) N%, transparent).
    - A box-shadow that shows height is deleted; the element joins a height in depth.css instead.
@@ -74,7 +74,7 @@
   --mark-blue: #005E8B;         /* on, selected, focused, the primary key, links in documents */
   --mark-blue-deep: color-mix(in srgb, var(--mark-blue) 85%, #000);   /* #005077 */
   --mark-blue-side: color-mix(in srgb, var(--mark-blue) 62%, #000);   /* #003A57 */
-  --mark-red: #B33830;          /* her voice: her comments, replies, review notes, stars, votes, the note dot */
+  --mark-red: #B33830;          /* the user's voice: the user's comments, replies, review notes, stars, votes, the note dot */
   --mark-red-deep: #922C26;
   --mark-red-side: #791A16;
   /* kind material: an item's kind is the colour of its slab's lower side (OKLCH L .70, C .115; hues 195/305/145);
@@ -86,13 +86,13 @@
   --kind-plain-side: oklch(from var(--desk) .700 calc(c * 1.30) h); --kind-plain-edge: oklch(from var(--desk) .479 calc(c * 1.67) h); --kind-plain-text: #595959;   /* #93A1A9 #50606A */
   --kind-board-side: oklch(from var(--desk) .581 calc(c * 2.61) h); --kind-board-edge: oklch(from var(--desk) .381 calc(c * 2.25) h); --kind-board-text: #000000;  /* #647F8F #304652 */
 
-  /* ---------- content fills: what she paints with, beside the 15 hues of drawing-palette.js ----------
+  /* ---------- content fills: what the user paints with, beside the 15 hues of drawing-palette.js ----------
      A Text block's fill options, by job (the stored names are upstream's): Paper is a white face, Tint a step down
      into the ground, Strong a deep piece of the desk that takes light ink. theme-colors.js reads these. */
   --fill-paper: var(--surface-paper);
   --fill-tint: var(--ground-deep);
   --fill-strong: oklch(from var(--desk) .420 calc(c * 2.30) h);   /* #3B5360 */
-  /* a container is a tray cut into the ground: its floor is a step down from the ground (plain), or from her hue */
+  /* a container is a tray cut into the ground: its floor is a step down from the ground (plain), or from the user's hue */
   --depth-tray: 3px;            /* the shade along a tray's top inner edge */
 
   /* ---------- depth: one light from above; the model and its rules are in depth.css ----------
@@ -106,7 +106,7 @@
   --depth-slab: 10px;           /* a slab's lower side */
   --depth-slab-min: 2.5;        /* ...only so far out (under 25 %) does it stop shrinking */
   --depth-edge-low: 1.5px;      /* the contour under a slab's side is this much heavier than at its ends */
-  --depth-lift: 5px;            /* how far a slab she drags rises */
+  --depth-lift: 5px;            /* how far a slab the user drags rises */
   --depth-lift-min: 1.5;
   --depth-hair-min: 1;          /* hairlines (rims, contours) never fall under a screen pixel, so they never vanish */
   --depth-sheet-paper: 2px;     /* a sheet under a slab (depth.css data-sheets): its paper edge, */
@@ -224,7 +224,7 @@ html[data-appearance] :is(button, a, input, textarea, select, summary, [tabindex
 .tk-btn.tk-primary, .tk-btn.tk-primary:hover { color: var(--ink-on-mark); }
 /* the primary key's inputs for the raised height (depth.css): a blue face on a deep blue side */
 .tk-primary, .primary { --key-face: var(--mark-blue); --key-face-hover: var(--mark-blue-deep); --key-side: var(--mark-blue-side); --key-side-hover: var(--mark-blue-side); --key-rim: var(--mark-blue-deep); --key-rim-hover: var(--mark-blue-side); --key-face-on: var(--mark-blue-deep); --key-side-on: var(--mark-blue-side); --key-rim-on: var(--mark-blue-side); color: var(--ink-on-mark); }
-.tk-btn.tk-danger { color: var(--ink); }  /* danger has no colour: red is her voice */
+.tk-btn.tk-danger { color: var(--ink); }  /* danger has no colour: red is the user's voice */
 .tk-btn svg, .tk-glyph { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 /* a printed shortcut is a tiny raised key (depth.css) */
 .tk-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 17px; box-sizing: border-box; padding: 0 4px; border: 0; border-radius: var(--shape-cap); color: var(--ink-2); font: 400 10.5px/1 var(--type-mono); --key-d: 1.5px; }

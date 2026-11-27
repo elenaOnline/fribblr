@@ -14,7 +14,7 @@ import {listTools,callTool,toolDefinition} from './lib/tools.mjs';
 import {discoveryCatalog,searchWorkspace} from './lib/discovery.mjs';
 import {listFeedback} from './lib/feedback.mjs';
 import {addPointingComment} from './lib/pointing-send.mjs';
-import {findCrop,pointingRoot} from './lib/pointing-files.mjs';
+import {findCrop,pointingRoot,sweepCrops} from './lib/pointing-files.mjs';
 import {listHighlights} from './lib/highlights.mjs';
 import {migrateLegacy} from './lib/migrate.mjs';
 import {resolveResource,resourceUrl} from './lib/resources.mjs';
@@ -25,6 +25,7 @@ import {createDocument,saveDocument} from './lib/documents.mjs';
 import {wantsReturnMark,injectReturnMark,resourcePlaces} from './lib/return-mark.mjs';
 import {createUpdateService} from './lib/update-browser.mjs';
 import {createInboxWaiter} from './lib/inbox-wait.mjs';
+import {agentInboxCommand} from './lib/inbox.mjs';
 import {handleDrawxide} from './lib/drawxide.mjs';
 
 const appRoot=path.dirname(fileURLToPath(import.meta.url));
@@ -160,7 +161,7 @@ export function createAppServer(config,{updates=createUpdateService(config)}={})
       }
       if(pathname==='/api/health'&&method==='GET'){sendJson(res,200,{app:'fribblr',version:VERSION,configPath:config.configPath,boardsRoot:config.boardsRoot,projectLabel:config.projectLabel,workspaceId:config.workspaceId,port:server.address().port,url:`http://127.0.0.1:${server.address().port}/`});return;}
       if(pathname.startsWith('/api/drawxide/')&&await handleDrawxide({req,res,pathname,method,config,checkWrite:()=>checkWrite(req,server,config),sendJson}))return;
-      if(pathname==='/api/config'&&method==='GET'){sendJson(res,200,publicConfig(config));return;}
+      if(pathname==='/api/config'&&method==='GET'){sendJson(res,200,{...publicConfig(config),inboxCommand:await agentInboxCommand(config)});return;}
       if(pathname==='/api/tools'&&method==='GET'){sendJson(res,200,listTools());return;}
       // This project's updates (lib/update-browser.mjs): a read-only state and two
       // same-origin writes. An install starts `update now` detached and answers 202.
@@ -288,6 +289,8 @@ export function createAppServer(config,{updates=createUpdateService(config)}={})
   return server;
 }
 export async function listen(config,{port=config.port,persist=false,updates}={}){
+  // Pictures of pointing threads that no longer exist: removed before the first request can write a new folder.
+  await sweepCrops(config).catch(()=>{});
   const automatic=persist&&config.portMode==='auto';
   const attempts=automatic?PORT_ATTEMPTS:1;
   for(let attempt=0;attempt<attempts;attempt++){

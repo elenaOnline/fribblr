@@ -4,7 +4,7 @@
 // panels, the Escape ladder) can see it. Off, it does nothing but one property read per event, and for a press, a
 // call to `entry`: the rail's Point and type key keeps its press to itself, so no open panel or menu treats it as a
 // click-away.
-export const pointingGuard = {handler: null, entry: null};
+export const pointingGuard = {handler: null, entry: null, mode: null};
 const TYPES = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'keydown'];
 if (typeof window !== 'undefined') for (const type of TYPES) window.addEventListener(type, event => {
   const handler = pointingGuard.handler || (type === 'pointerdown' || type === 'mousedown' ? pointingGuard.entry : null);

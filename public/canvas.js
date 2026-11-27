@@ -156,6 +156,8 @@ async function fetchBoard() {
     graph.hooks.restoreView = restoreBoardView;
     // Pointing mode's zoom chords (⌥= ⌥− ⌥0 ⌥1, pointing-mode.js): the board's own steps, 100% and fit, announced.
     graph.hooks.zoomKey = key => { const before = zoom; if (key === '0') boardZoomTo(1); else if (key === 'fit') runFit('board'); else boardZoomBy(key === '+' ? 1.15 : 1 / 1.15); if (zoom !== before) announceView(`Zoom ${Math.round(zoom * 100)}%`); };
+    // Pointing inside the opened item (pointing-reader.js): what the reader shows, and its view.
+    graph.hooks.reader = readerPointing;
     if (overview) graph.mode = 'canvas';
     return graph.adapt(data);
   }
@@ -379,7 +381,7 @@ function changeZoom(value, cx = viewport.clientWidth / 2, cy = viewport.clientHe
 
 // ---- The board's zoom floor: zooming out stops where all of the board fits; a fresh zoom-out there goes up to the board
 // it lives on (its parent), or Home for a board on Home. The opened item's model (canvas-zoom.js zoomOutGate; ui-sdk.md §
-// Zoom floor). Fit, the map's Fit and app-chosen moves use changeZoom directly; every zoom-out she makes goes through here.
+// Zoom floor). Fit, the map's Fit and app-chosen moves use changeZoom directly; every zoom-out the user makes goes through here.
 var boardGate = zoomOutGate({ onProgress: p => showLeaveBand(p, 'board') });
 var boardFloor = null, leavingBoard = false, boardMinusState = null;  // var: applyView may run before this line
 // Only a canvas board on its own page has a floor: not Grid view, the overview render, or while the reader is open.
@@ -405,7 +407,7 @@ function measureBoardFloor() {
 }
 // Over the last stretch above the floor (from SETTLE_SPAN × the floor down to it), each zoom-out step also draws the view
 // towards the floor view, in proportion to the step, so the floor shows all of the board, as Fit does, wherever the
-// pointer is (Photos and Preview settle a picture centred as it reaches fit). Frame for frame with her input; nothing
+// pointer is (Photos and Preview settle a picture centred as it reaches fit). Frame for frame with the user's input; nothing
 // runs after it, and it reads nothing (floorTarget was measured before the view was written).
 const SETTLE_SPAN = 2;
 function settleView(anchored, z0, z1) {
@@ -444,13 +446,13 @@ function boardZoomBy(factor, cx, cy, options) {
   if (z != null && z !== zoom) changeZoomSettled(z, cx, cy);
   return z;
 }
-// A zoom she sets directly (the slider, a preset, 0): never below the floor, settled on the way down.
+// A zoom the user sets directly (the slider, a preset, 0): never below the floor, settled on the way down.
 function boardZoomTo(value) {
   const floor = measureBoardFloor();
   changeZoomSettled(floor == null ? value : Math.max(floor, value));
 }
-// Up a level: the parent board (the one she came from, else the one in the path, else the first), landed on this board's
-// card in the view she entered from (canvas.js landFromZoomOut); a board on Home goes Home, its tile selected and focused.
+// Up a level: the parent board (the one the user came from, else the one in the path, else the first), landed on this board's
+// card in the view the user entered from (canvas.js landFromZoomOut); a board on Home goes Home, its tile selected and focused.
 async function leaveBoard() {
   if (leavingBoard) return;
   leavingBoard = true;
@@ -463,7 +465,7 @@ async function leaveBoard() {
       const entry = { parentBoardId: target.parentId, placementId: target.placementId || null, childBoardId: boardId, at, zoomOut: true, view: !!target.view };
       try {
         sessionStorage.setItem(RETURN_KEY(), JSON.stringify(entry));
-        // The parent opens in the view she entered this board from (openBoardView restores it before the first paint).
+        // The parent opens in the view the user entered this board from (openBoardView restores it before the first paint).
         if (target.view) sessionStorage.setItem(`tinka/${workspaceId}/${target.parentId}/view`, JSON.stringify(target.view));
       } catch {}
       location.href = `/boards/${encodeURIComponent(target.parentId)}/${target.from ? `?from=${encodeURIComponent(target.from)}` : ''}`;
@@ -831,12 +833,14 @@ function syncReaderZoom(view) {
   input.value = String(sliderFromZoom(view.zoom));
   input.setAttribute('aria-valuetext', `${percent} percent`);
   // − at the floor goes back to the board; expanded, it is unavailable there (aria-disabled through its toolbar part).
-  const floor = readerCanvas.atLastFloor(), state = readerCanvas.expanded && floor ? 'off' : floor ? 'leave' : 'zoom';
+  // Pointing inside it (pointing-mode.js) locks zoom out at the floor too: leaving would drop the user's draft's place.
+  const floor = readerCanvas.atLastFloor(), state = readerCanvas.expanded && floor ? 'off' : readerCanvas.locked && floor ? 'pointing' : floor ? 'leave' : 'zoom';
   if (state !== readerMinusState) {
     readerMinusState = state;
     const minus = $('reader-zoom-minus'), part = minus.closest('ui-toolbar-button');
-    if (part) part.disabled = state === 'off'; else minus.setAttribute('aria-disabled', String(state === 'off'));
-    setTip(minus, state === 'off' ? 'Zoom out · turn off Expand first' : state === 'leave' ? 'Zoom out to the board' : 'Zoom out');
+    const off = state === 'off' || state === 'pointing';
+    if (part) part.disabled = off; else minus.setAttribute('aria-disabled', String(off));
+    setTip(minus, state === 'off' ? 'Zoom out · turn off Expand first' : state === 'pointing' ? 'Zoom out · leave Point and type first' : state === 'leave' ? 'Zoom out to the board' : 'Zoom out');
   }
 }
 // Expand: the opened Tinka fills the stage and zooming out stops there. The toggle again, or the path (Up, Home, a row
@@ -848,13 +852,25 @@ function setReaderExpanded(on, { announce = true } = {}) {
   readerCanvas.setExpanded(on);
   if (announce) announceReaderView(on ? 'Expanded: zoom out is off' : 'Expand off');
 }
-// Zooming out past the fitted view: back to the board this Tinka lives on, the board view she opened it from, its card selected (landOnCard).
+// Zooming out past the fitted view: back to the board this Tinka lives on, the board view the user opened it from, its card selected (landOnCard).
 function leaveToBoard() {
   if (!dialog.open || !active) return;
   closeReader({ land: true });
   // The rest of the gesture that left the item zooms the board out; it stops at the board's floor rather than going on up.
   boardGate.hold();
 }
+// Pointing mode inside the opened item (pointing-reader.js): the reader's parts, the item and version shown, and its
+// zoom keys. Null while the reader is closed. pointingFollows() tells the mode the reader changed (opened, closed,
+// stepped, another version, its content loaded).
+function readerPointing() {
+  if (!dialog.open || !active) return null;
+  const versions = readerVersionChoices(), shown = versions.find(v => v.id === activeVariantId);
+  return { dialog, stage: readerStage, plane: $('reader-plane'), window: $('reader-window'), frame: $('active-reader'), canvas: readerCanvas,
+    key: active.key, item: active.graphItem || null, placement: active.placement || null, title: active.name,
+    version: versions.length > 1 ? { id: activeVariantId, name: shown?.name || activeVariantId } : null,
+    zoom: (key, repeat) => runReaderCommand({ '+': 'zoom-in', '-': 'zoom-out', '0': 'actual-size', fit: 'fit' }[key], { repeat }) };
+}
+function pointingFollows() { graph?.pointing?.readerChanged?.(); }
 // Opening a Tinka leaves focus on Tinka's canvas, not inside the content, so its keys work at once.
 function focusTinka() {
   if (dialog.open) readerStage.focus({ preventScroll: true });
@@ -1041,6 +1057,7 @@ function loadRevision({ focus = false } = {}) {
   readerResource.reset(href);
   replaceFrame($('active-reader'), href);
   if (focus) focusTinka();
+  pointingFollows();
 }
 
 // Stepping skips reserved and building slots, and board-only Tinkas (those open their board).
@@ -1174,6 +1191,7 @@ function openReader(key, revision = null, { history: mode = 'push', focus = 'tin
   commitHistory(readerState(), mode);
   updateMetadata();
   applyReaderFocus(focus);
+  pointingFollows();
   return true;
 }
 
@@ -1206,6 +1224,7 @@ function closeReader({ history: mode = 'push', land = null } = {}) {
   applyView();
   const noPriorView = readerWithoutBoardView;
   readerWithoutBoardView = false;
+  pointingFollows();
   if (land && returnKey && landOnCard(returnKey, { noPriorView })) return;
   // Land on the tile last viewed (after any arrowing between siblings).
   if (returnKey) requestAnimationFrame(() => {
@@ -1238,10 +1257,10 @@ function clearLeave(event) {
 // Chrome sends no end for a trackpad pinch, so a lifted pinch leaves the band as it was until the pointer or a key moves.
 for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel']) document.addEventListener(type, clearLeave, { capture: true, passive: true });
 addEventListener('blur', () => clearLeave());
-// Zoomed out of an opened Tinka: the board comes back as she opened it from (closeReader has restored that view), with
-// the card selected and focused, so Enter opens it again. If the card isn't in that view (she stepped to another
-// Tinka, or the view was never hers), the zoom stays and the card is centred; with no board view of her own (a direct
-// link, Home), the board's opening zoom, never above 100%. One step, no glide, no pulse: nothing moves unless she moved
+// Zoomed out of an opened Tinka: the board comes back as the user opened it from (closeReader has restored that view), with
+// the card selected and focused, so Enter opens it again. If the card isn't in that view (the user stepped to another
+// Tinka, or the view was never the user's), the zoom stays and the card is centred; with no board view of the user's own (a direct
+// link, Home), the board's opening zoom, never above 100%. One step, no glide, no pulse: nothing moves unless the user moved
 // it (§ Performance rules). False when the card isn't on this board as a card (another board's item, a grid board, a
 // hidden card): the reader has closed as Up.
 var readerWithoutBoardView;  // var, no initializer: start-up may set it before this line runs
@@ -1483,6 +1502,7 @@ function readerShortcuts() {
     <dt>Shift-F</dt><dd>Expand: fill the screen, zoom out off (again, or Escape, to turn it off)</dd>
     <dt>⌘/Ctrl-scroll · pinch</dt><dd>Zoom the item, also over local content; the page never zooms. At fit, zooming out fills a blue band at the edge; a third smaller goes back to the board</dd>
     <dt>Drag the background · Space-drag</dt><dd>Pan</dd>
+    <dt>P</dt><dd>Point and type inside this item: point at its elements, words or picture while you write to the agent, as on the board; zoom out stops at fit until you leave (Escape)</dd>
     <dt>⌘/Ctrl-K</dt><dd>Find across this project (Navigator)</dd>
     <dt>⌘/Ctrl-I</dt><dd>Inspector for this item</dd>
     <dt>?</dt><dd>Show keyboard shortcuts</dd></dl>`);
@@ -1521,6 +1541,7 @@ function runReaderCommand(command, { fromFrame = false, repeat = false } = {}) {
     const result = readerCanvas.zoomBy(1 / 1.25, undefined, undefined, { repeat });
     if (result === 'zoomed') announceReaderView();
     else if (result === 'held' && readerCanvas.expanded && !repeat) announceReaderView('Expanded: zoom out is off');
+    else if (result === 'held' && readerCanvas.locked && !repeat) announceReaderView('Pointing: zoom out stops here');
     return true;
   }
   if (command === 'expand') { setReaderExpanded(!readerCanvas.expanded); return true; }
@@ -1680,7 +1701,7 @@ function landFromChild() {
   attempt();
 }
 addEventListener('pageshow', event => { if (event.persisted) { leavingBoard = false; landFromChild(); } });
-// Arriving on a parent by zooming out of one of its boards (leaveBoard): the view she entered the child from (restored by
+// Arriving on a parent by zooming out of one of its boards (leaveBoard): the view the user entered the child from (restored by
 // openBoardView from the saved view) or, unknown, this board's opening view at 100% at most; the child's card selected,
 // focused, and centred if it isn't in that view (landOnCard, the opened item's landing). In one step, before the canvas
 // is shown.
@@ -2570,6 +2591,7 @@ $('active-reader').addEventListener('load', () => {
   if (!dialog.open) return;
   forwardFrame($('active-reader'));
   readerResource.prepare();
+  pointingFollows();
   // Key events inside a frame do not reach the surrounding dialog.
   try {
     $('active-reader').contentWindow.addEventListener('keydown', event => {
@@ -2840,7 +2862,7 @@ async function openBoardView() {
     currentRound = concept?.row || 0;
     renderNav();
     jump(concept.key);
-    readerWithoutBoardView = true;  // a direct link or Home: she never saw this board's view
+    readerWithoutBoardView = true;  // a direct link or Home: the user never saw this board's view
     openReader(requested.key, requested.revision, { history: 'replace' });
   } else {
     if (requested.invalid) commitHistory({ view: 'board', round: null }, 'replace');

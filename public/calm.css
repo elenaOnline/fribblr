@@ -199,7 +199,7 @@ body:not(.workspace-board) #board-info > .appearance-control .tk-seg { width: 10
 .inspector-title p { margin: 3px 0 0; font-size: var(--type-meta); color: var(--ink-2); }
 .inspector-desc { margin: 0; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
 .inspector-open { display: flex; flex-wrap: wrap; gap: 6px; }
-/* where she writes, the underline while typing is her red */
+/* where the user writes, the underline while typing is the user's red */
 .tile-notes textarea, #workspace-item-controls textarea { --sink-focus: var(--mark-red); }
 #workspace-item-controls .workspace-context-note { display: block; color: var(--mark-red); }
 #workspace-item-controls textarea { box-sizing: border-box; display: block; width: 100%; min-height: 84px; padding: 8px 10px; border: 0; border-radius: var(--shape-key); color: var(--mark-red); font: var(--type-ui)/1.5 var(--type-sans); resize: vertical; }
@@ -324,7 +324,7 @@ body .workspace-add-menu button > span { width: 18px; color: var(--ink-2); text-
 #world .workspace-badges:empty { display: none; }
 #world .workspace-badge { display: inline-flex; align-items: center; }
 #world .workspace-badge svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-#world .workspace-badge-star { color: var(--mark-red); }  /* a star is something she said */
+#world .workspace-badge-star { color: var(--mark-red); }  /* a star is something the user said */
 #world .workspace-badge-star svg { fill: currentColor; }
 #world .workspace-badge-vote { padding: 3px 6px; border-radius: var(--shape-cell); background: var(--surface-chosen); color: var(--mark-blue); }
 #world .workspace-badges:last-child { margin-right: 10px; }

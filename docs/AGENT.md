@@ -285,35 +285,35 @@ A pointing message is a comment thread the person typed while pointing at things
 the board (marquee, lasso, laser, click). It arrives in the inbox like any thread; the
 inbox line says `(pointing message, N references)`. Read it with
 `feedback.list {threadId, includeBodies:true}`. Start with `pointing.read`: plain text
-with her sentence, `[n]` where she pointed, then one line per `[n]`:
+with the reviewer's sentence, `[n]` where the reviewer pointed, then one line per `[n]`:
 
 ```text
 change this [1] to look more like this [2]
 
 [1] marquee, 0.9 s, board landing: part of card "Login mock" (html; placement P, item I), region x 0.10–0.43, y 0.30–0.40 of the card's own box (fractions 0 to 1 from its top left); in the page (1280 px wide): x 120–480 px, y 900–1010 px. Now (card): still there, not moved. Crop: /abs/path/1.png (894×655 px; …).
-[2] point, 3.2 s, board landing: card "Hero B" (image; placement P2, item I2), whole; she clicked at x 0.44, y 0.52 of it; in the image (1200 × 800 px): at x 528 px, y 416 px. Now (card): removed from the board since. Crop: /abs/path/2.png (…).
+[2] point, 3.2 s, board landing: card "Hero B" (image; placement P2, item I2), whole; the reviewer clicked at x 0.44, y 0.52 of it; in the image (1200 × 800 px): at x 528 px, y 416 px. Now (card): removed from the board since. Crop: /abs/path/2.png (…).
 ```
 
-Each line says the tool, when (seconds after she began typing), the board, what was hit
-(kind, title, ids you can pass to the workspace tools), whether she covered it whole or
+Each line says the tool, when (seconds after the reviewer began typing), the board, what was hit
+(kind, title, ids you can pass to the workspace tools), whether the reviewer covered it whole or
 a part (a region is fractions of that object's own box, including a card's title bar, so
 it still means the same part after the object is moved, but after a resize it may not:
 the line then says so), and what the target is now: still there, moved or resized (with
 the old and new box), removed from the board, deleted, archived or renamed. A click is
-`whole` with `spot`, where she clicked as fractions of the object. When the client could
+`whole` with `spot`, where the reviewer clicked as fractions of the object. When the client could
 tell, the target also carries `content`, the same place in the item's own coordinates:
 CSS pixels of an HTML page at the width the card renders it, pixels of an image file, or
 fractions of a card's content area under its title. Trust `content` over the fractions
 when the card has been resized, and for HTML that scales with the card's width.
 Empty space is a valid mark (a board position). The crop is an image file you can open:
-a render of the board around what she pointed at, with her gesture drawn dashed in the
+a render of the board around what the reviewer pointed at, with the reviewer's gesture drawn dashed in the
 board's red (a click on a whole object shows the object with a red dot at the spot), or
 for a part of an image item the image's own pixels. The margin around a gesture is a
 quarter of its larger side, so a column of a row still shows the row. If there is no picture the line says why
 (`No crop: …`) and the objects and region are still exact; never assume a picture exists.
 
 The same data is structured under `pointing`: `source` (`typed`; later `voice`),
-`startedAt`, `sentAt`, `appearance`, `parts` (her text runs and `{mark:n}` in reading
+`startedAt`, `sentAt`, `appearance`, `parts` (the reviewer's text runs and `{mark:n}` in reading
 order, each run with `at`/`end` in ms from `startedAt`), and `marks` (`n`, `tool`, `at`,
 `end`, `boardId`, `shape` in board coordinates, `targets` with `kind`, `id`, `boardId`,
 `itemId`, `itemKind`, `title`, `whole`, `region`, `spot`, `content` (`{x,y,w,h,unit:"px"|"fraction",of}`; `w` and `h` are 0 for a spot), `now`, and `crop` with absolute `path`,
@@ -321,6 +321,39 @@ order, each run with `at`/`end` in ms from `startedAt`), and `marks` (`n`, `tool
 thread with `feedback.reply`, with `changes` for what you changed, as for any comment.
 Only a message sent from the fribblr page has crops; a pointing thread written through the
 CLI or tools has `crop:null` and a note.
+
+Round 2 adds the following, all optional on a mark:
+
+- `tool` is also `wand` (the reviewer sweeps an area with glitter: `shape` is `{kind:"swath", width, points}`, the centre
+  line and the band's width, in the place's units) or `click` (a click without a drag in any tool; `via` names that
+  tool). The read says `click (with marquee)`, and for a wand what the area covered.
+- Snapping. When a reference was tidied to something the reviewer meant, `snap` is `{source, label, shape}`: `source` is
+  `object` (a card or drawing), `dom` (an element of a page) or `pixels` (a region found by edges in a picture),
+  `label` names it (`button "Sign in"`), `shape` is the snapped outline (rect or path; a reference to several objects is
+  one `path` whose `rings` lists each object's own outline, and the read says "2 separate outlines"). `shape` stays the raw gesture,
+  and the read states both ("Snapped to button "Sign in" (…); what the reviewer did before it snapped: a click at x 184, y
+  1239"). Targets, regions and the crop follow the snapped outline. No `snap` means exactly what the reviewer drew.
+- `place`: where the mark was made. Absent or `{kind:"board", boardId}` is the board. `{kind:"item", itemId, boardId,
+  placementId?, version?, view:{zoom, scrollX, scrollY, width, height, unit?}}` is inside the opened item: `shape`
+  and `snap` are then in the item's own coordinates (CSS px of the page for an HTML item, px of the image, or
+  fractions of the content area when `view.unit` is `fraction`), and `view` is what the reviewer was looking at (the reviewer's frame
+  in screen px, its zoom, how far the page was scrolled; `visible: {x, y, w, h}`, when sent, is the part of the item
+  that was on screen, in the same coordinates as `shape`). One message can mix places; each line of the read says its own.
+  An item crop of such a mark shows `visible` (or the mark with context, saying so, when it lay partly outside it);
+  without `visible`, a zoomed item's crop says it shows the whole window, more than was on screen.
+- Targets may carry `element` (a DOM element of a same-origin or loopback page: `tag`, `role?`, `name?`, `text?`,
+  `id?`, `selector` matching only it, `path`, `box` in page px with scroll included, `frameUrl?`), `elements` (with
+  `element` as their common ancestor, when the reviewer meant several: 2 to 12) and `text` (a range in a document:
+  `quote`, `prefix?`, `suffix?`, `start?`, `end?`, as for text comments, so you can find it in the source).
+
+Crops follow. For a mark on the board the render is the board as saved; the wand's area is drawn as the same glitter
+the reviewer saw, a snapped mark shows the outline it snapped to (dashed, full red) and the raw gesture faint. For a mark inside
+an opened item the crop is a render of the item itself, not the reviewer's screen: an HTML page loaded fresh at the reviewer's frame's size
+divided by the reviewer's zoom, scrolled where the reviewer was, the version the reviewer looked at (`place.version`), or, for a snapped or element
+mark, the snapped outline or the element's box with context. Its `from` says what it is and what it cannot reproduce
+(text typed into the page, state its scripts built up, a running app's session). If the version is gone, the item is
+deleted, or it is a PDF or video, there is no crop and the line says why. Deleting a pointing thread removes its crops
+(`<workspaceRoot>/pointing/<threadId>/`); on server start, crop folders of threads that no longer exist are removed.
 
 Point comments can follow a target with normalized fractions while retaining a
 creation fallback. For example, after inspecting a board and its placement IDs:
