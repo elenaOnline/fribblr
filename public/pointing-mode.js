@@ -38,8 +38,8 @@ import {toast} from './toasts.js';
 import {imageCropFull, imageFileCrop} from './pointing-crop.js';
 import {resourceURL} from './workspace.js';
 import {syncPointingChips} from './pointing-thread.js';
-import {ReaderPlace, placeKey} from './pointing-reader.js';
-import {domSnap, pageMapping} from './pointing-snap-dom.js';
+import {ReaderPlace, placeKey, textRangeIn, toTop} from './pointing-reader.js';
+import {domSnap, pageMapping, resolveFrame} from './pointing-snap-dom.js';
 import {pixelSnap} from './pointing-snap-pixels.js';
 
 const TOOLS = [
@@ -69,6 +69,7 @@ const WAND_SESSION = 1200;       // ms after a wand drag ends in which a new pre
 const FRESH = 280;               // ms a newly swept cell sparkles before it settles
 const PLACEHOLDER = 'Message to the agent. Point at things as you type.';
 const ROUND = v => Math.round(v * 10) / 10;
+const BLOCKS = new Set(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'td', 'th', 'pre', 'dd', 'dt', 'figcaption', 'div', 'article', 'section', 'ul', 'ol', 'table']);
 const LATE = 120;                // ms a release waits at most for a source that answers later (the pixel worker)
 const PART_SCORE = 0.5;          // a source inside a card beats the whole card from this score (proposal)
 const clip = (text, n) => { text = String(text || '').replace(/\s+/g, ' ').trim(); return text.length > n ? text.slice(0, n - 1).trimEnd() + '…' : text; };
@@ -327,7 +328,8 @@ class PointingMode {
     if (c.kind === 'placement') {
       const item = c.item, frac = t.region || (t.spot ? {...t.spot, w: 0, h: 0} : null), content = frac && this.contentOf(c, frac);
       return {kind: 'placement', id: c.id, boardId, ...(item?.id ? {itemId: item.id} : {}), itemKind: kindOf(item), title: clip(item?.title || 'Untitled', 120),
-        whole: t.whole, ...(t.region ? {region: t.region} : {}), ...(t.spot ? {spot: t.spot} : {}), ...(content ? {content} : {}), ...(t.element ? {element: t.element} : {})};
+        whole: t.whole, ...(t.region ? {region: t.region} : {}), ...(t.spot ? {spot: t.spot} : {}), ...(content ? {content} : {}), ...(t.element ? {element: t.element} : {}),
+        ...(t.elements?.length >= 2 ? {elements: t.elements.slice(0, 12)} : {}), ...(t.text ? {text: t.text} : {})};
     }
     const d = c.decoration;
     const itemKind = d.type === 'line' ? 'line' : d.type === 'text' ? 'text' : d.sticker ? 'sticker' : d.type !== 'region' ? d.type || 'drawing'
@@ -424,7 +426,7 @@ class PointingMode {
     } else {
       const footer = document.querySelector('.canvas-footer');
       if (footer && this.bar.nextElementSibling !== footer) footer.before(this.bar);
-      this.sheet = this.boardSheet; this.ctx = this.boardCtx; this.sheet.hidden = false; this.layer.hidden = false;
+      this.sheet = this.boardSheet; this.ctx = this.boardCtx; this.sheet.hidden = false; this.layer.hidden = false; this.sheet.dataset.tool = this.tool;
       if (!this.savedView) this.savedView = this.board.hooks.currentView?.() || null;
     }
     this.hoverList = null; this.hover = null; this.hoverSnap = null; this.wandLast = null; this.sparks = [];
@@ -736,14 +738,20 @@ class PointingMode {
     const snap = best ? {source: best.source, label: clip(best.label, 120), shape: best.shape.kind === 'rect' ? {kind: 'rect', x: ROUND(best.shape.x), y: ROUND(best.shape.y), w: ROUND(best.shape.w), h: ROUND(best.shape.h)}
       : {kind: 'path', points: best.shape.points.slice(0, 400).map(([x, y]) => [ROUND(x), ROUND(y)])}} : null;
     if (this.reader) return this.resolveInside(hits, best, snap, geom, field);
-    if (!best) return {hits, snap: null};
+    if (!best) {
+      // A part of one document card, unsnapped: the words her gesture holds.
+      const t = hits.targets.length === 1 && !hits.more && !hits.targets[0].whole ? hits.targets[0] : null, doc = t && geom && geom.kind !== 'point' && this.cardDocument(t.candidate);
+      const text = doc && this.textFor(doc, geom, null, null, field, geom.kind === 'rect' ? geom : boundsOf(geom.kind === 'swath' ? geom.points.flatMap(([x, y]) => [[x - geom.width / 2, y - geom.width / 2], [x + geom.width / 2, y + geom.width / 2]]) : geom.points));
+      return {hits: text ? {...hits, targets: [{...t, text}]} : hits, snap: null};
+    }
     if (best.targets) return {hits: {targets: best.targets, more: 0}, snap};
     // A source inside one card: that card, the part it snapped to (and the element, when it names one).
     const c = best.candidate, b = best.shape.kind === 'rect' ? best.shape : boundsOf(best.shape.points);
     const f = v => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
     const x = f((b.x - c.x) / c.w), y = f((b.y - c.y) / c.h);
     const region = {x, y, w: Math.min(1 - x, f(b.w / c.w)), h: Math.min(1 - y, f(b.h / c.h))};
-    return {hits: {targets: [{candidate: c, whole: false, region, ...(best.element ? {element: best.element} : {}), ...(best.elements ? {elements: best.elements} : {})}], more: 0}, snap};
+    const doc = geom && this.cardDocument(c), text = doc && this.textFor(doc, geom, snap, best, field, b);
+    return {hits: {targets: [{candidate: c, whole: false, region, ...(best.element ? {element: best.element} : {}), ...(best.elements ? {elements: best.elements} : {}), ...(text ? {text} : {})}], more: 0}, snap};
   }
   // Inside the opened item every reference is the item itself, and where in it: the snapped element (or the part her
   // gesture covers), in the content's own units, with the element the DOM source named and, in a document or a note,
@@ -755,20 +763,30 @@ class PointingMode {
     const raw = geom.kind === 'point' ? {x: geom.x, y: geom.y, w: 0, h: 0} : geom.kind === 'rect' ? geom : boundsOf(geom.kind === 'swath' ? geom.points.flatMap(([x, y]) => [[x - geom.width / 2, y - geom.width / 2], [x + geom.width / 2, y + geom.width / 2]]) : geom.points);
     const clipTo = b => { const x0 = Math.max(e.x, b.x), y0 = Math.max(e.y, b.y), x1 = Math.min(e.x + e.w, b.x + b.w), y1 = Math.min(e.y + e.h, b.y + b.h); return {x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0)}; };
     const box = clipTo(best ? (best.shape.kind === 'rect' ? best.shape : boundsOf(best.shape.points)) : raw);
-    // The text it points at: the snapped block's own words, else the characters inside her gesture (or the snap).
-    let text = null;
-    if (this.reader.current().article && (geom.kind !== 'point' || best?.element)) {
-      const s = snap?.shape;
-      const inside = s?.kind === 'rect' ? (x, y) => x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h
-        : s?.kind === 'path' ? (x, y) => pointInPolygon([x, y], s.points)
-        : geom.kind === 'rect' ? (x, y) => x >= geom.x && x <= geom.x + geom.w && y >= geom.y && y <= geom.y + geom.h
-        : geom.kind === 'path' ? (x, y) => pointInPolygon([x, y], geom.points)
-        : geom.kind === 'swath' && field ? (x, y) => field.contains([x, y]) : null;
-      const block = best?.element && !best.elements && ['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'td', 'th', 'pre', 'dd', 'dt', 'figcaption', 'div', 'article'].includes(best.element.tag) ? best.element : null;
-      const rect = s?.kind === 'rect' ? s : !s && geom.kind === 'rect' ? geom : null;
-      try { text = this.reader.textRange({inside, rect, bounds: box, element: block && geom.kind === 'point' ? block : (inside ? null : block)}); } catch { text = null; }
-    }
+    const text = this.textFor(this.reader.current().article ? {article: this.reader.current().article, toUnits: null} : null, geom, snap, best, field, box);
     return {hits: {targets: [{candidate: c, whole: false, box, ...(best?.element ? {element: best.element} : {}), ...(best?.elements ? {elements: best.elements} : {}), ...(text ? {text} : {})}], more: 0}, snap};
+  }
+  // The words a gesture points at in a document or a note: the snapped block's own words, else the characters inside
+  // the snap (or her gesture). `where`: {article, toUnits} (null toUnits: the opened item's own mapping).
+  textFor(where, geom, snap, best, field, box) {
+    if (!where?.article || (geom.kind === 'point' && !best?.element)) return null;
+    const s = snap?.shape;
+    const inside = s?.kind === 'rect' ? (x, y) => x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h
+      : s?.kind === 'path' ? (x, y) => pointInPolygon([x, y], s.points)
+      : geom.kind === 'rect' ? (x, y) => x >= geom.x && x <= geom.x + geom.w && y >= geom.y && y <= geom.y + geom.h
+      : geom.kind === 'path' ? (x, y) => pointInPolygon([x, y], geom.points)
+      : geom.kind === 'swath' && field ? (x, y) => field.contains([x, y]) : null;
+    const block = best?.element && !best.elements && BLOCKS.has(best.element.tag) ? best.element : null;
+    const rect = s?.kind === 'rect' ? s : !s && geom.kind === 'rect' ? geom : null;
+    const opts = {inside, rect, bounds: box, element: block && (geom.kind === 'point' || !inside) ? block : null};
+    try { return where.toUnits ? textRangeIn(where.article, where.toUnits, opts) : this.reader.textRange(opts); } catch { return null; }
+  }
+  // A document card on the board (a Markdown page in its frame): its column, and its page px -> board units.
+  cardDocument(c) {
+    if (c?.kind !== 'placement' || !c.el || !['markdown', 'text'].includes(kindOf(c.item))) return null;
+    const f = resolveFrame(c.el), article = f?.doc.querySelector('.markdown, .item-text'); if (!article) return null;
+    const t = toTop(f.win), v = this.boardView(); if (!t) return null;
+    return {article, toUnits: (x, y) => { const p = this.toBoard(t.x + t.k * x, t.y + t.k * y, v); return [p.x, p.y]; }};
   }
   // The best snap for a gesture. On the board a source inside a card (an element in its page, an edge in its picture)
   // is what she means when the gesture lies inside that card and the thing it found is clearly smaller than the card;

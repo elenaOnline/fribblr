@@ -58,7 +58,7 @@ export function readerContent(frame, item) {
     const kind = params.get('kind');
     if (kind === 'image') { const img = doc.querySelector('.image-stage img'); return img?.naturalWidth ? {kind: 'image', doc, win, img} : windowed(img ? 'loading' : 'image'); }
     if (kind === 'markdown') { const scroller = doc.getElementById('media-content'), article = doc.querySelector('.markdown'); return scroller && article ? {kind: 'document', doc, win, scroller, article} : windowed('loading'); }
-    if (kind === 'video' || kind === 'audio') return windowed(kind, doc.querySelector(kind));
+    if (kind === 'video' || kind === 'audio') { const media = doc.querySelector(kind); return windowed(media ? kind : 'loading', media); }
     if (kind === 'pdf') return windowed('pdf');
     if (kind === 'html') return windowed('other origin');
     return windowed(kind || 'media');
@@ -199,7 +199,7 @@ export class ReaderPlace {
     const content = box ? {x: round(Math.max(0, box.x)), y: round(Math.max(0, box.y)), w: round(Math.max(0, box.w)), h: round(Math.max(0, box.h)), unit: 'px', of: this.of()} : null;
     const title = String(c.item?.title || this.info.title || 'Untitled').replace(/\s+/g, ' ').trim().slice(0, 120);
     return {kind: 'placement', id: c.id, boardId, ...(c.item?.id ? {itemId: c.item.id} : {}), itemKind: c.item ? kindOf(c.item) : 'html', title, whole: !!whole,
-      ...(content && !whole ? {content} : {}), ...(element ? {element} : {}), ...(elements?.length ? {elements: elements.slice(0, 12)} : {}), ...(text ? {text} : {})};
+      ...(content && !whole ? {content} : {}), ...(element ? {element} : {}), ...(elements?.length >= 2 ? {elements: elements.slice(0, 12)} : {}), ...(text ? {text} : {})};
   }
   /** The mark's `place`: which item, which version, and what she was looking at. */
   // `view`: the reader's zoom, the content's scroll, and her frame (the item's window) as it was on screen, in CSS px
@@ -215,41 +215,10 @@ export class ReaderPlace {
   // ---- a text range in a document or a note (CONTRACT `text`), from what the gesture holds ----
   // `inside(x, y)` in content units; `element` when the snap named a block (its whole text). The same model as the
   // document's own text comments (markdown-document.js documentTextMap): {quote, prefix, suffix, start, end}.
-  textRange({inside, bounds, rect = null, element = null}) {
-    const c = this.current(), article = c.article; if (!article || !c.win) return null;
-    const doc = c.doc, range = doc.createRange(), v = this.view(), t = toTop(c.win); if (!t) return null;
-    const toContent = (x, y) => [(t.x + t.k * x - v.left) / v.zoom, (t.y + t.k * y - v.top) / v.zoom];
-    let start = null, end = null;
-    if (element) {
-      const el = findElement(doc, element);
-      if (!el || !article.contains(el) && el !== article && !el.contains(article)) return null;
-      range.selectNodeContents(el.contains(article) ? article : el);
-    } else {
-      const walker = doc.createTreeWalker(article, NodeFilter.SHOW_TEXT);
-      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-        if (!n.nodeValue.trim()) continue;
-        range.selectNodeContents(n);
-        const r = range.getBoundingClientRect(), [x0, y0] = toContent(r.left, r.top), [x1, y1] = toContent(r.right, r.bottom);
-        if (x1 < bounds.x || y1 < bounds.y || x0 > bounds.x + bounds.w || y0 > bounds.y + bounds.h) continue;
-        // The characters whose middle is inside her gesture.
-        for (let i = 0; i < n.nodeValue.length; i++) {
-          if (/\s/.test(n.nodeValue[i])) continue;
-          range.setStart(n, i); range.setEnd(n, i + 1);
-          const b = range.getBoundingClientRect(); if (!b.width && !b.height) continue;
-          const [ax, ay] = toContent(b.left, b.top), [bx, by] = toContent(b.right, b.bottom), cx = (ax + bx) / 2;
-          if (rect) {
-            // A box over part of a line: the characters at least a third inside it.
-            const ix = Math.max(0, Math.min(bx, rect.x + rect.w) - Math.max(ax, rect.x)), iy = Math.max(0, Math.min(by, rect.y + rect.h) - Math.max(ay, rect.y));
-            if (!(ix * iy >= (bx - ax) * (by - ay) / 3)) continue;
-          } else if (!inside(cx, (ay + by) / 2) && !inside(cx, ay + (by - ay) / 4) && !inside(cx, by - (by - ay) / 4)) continue;
-          if (!start) start = [n, i];
-          end = [n, i + 1];
-        }
-      }
-      if (!start) return null;
-      range.setStart(...start); range.setEnd(...end);
-    }
-    return textAnchor(article, range);
+  textRange(opts) {
+    const c = this.current(); if (!c.article || !c.win) return null;
+    const v = this.view(), t = toTop(c.win); if (!t) return null;
+    return textRangeIn(c.article, (x, y) => [(t.x + t.k * x - v.left) / v.zoom, (t.y + t.k * y - v.top) / v.zoom], opts);
   }
 
   // ---- input the reader would have had: the wheel scrolls the content, else pans; ⌘/Ctrl or a pinch zooms ----
@@ -314,6 +283,47 @@ export class ReaderPlace {
 /** A place's key: 'item:<itemId>:<version>' for a mark made inside an item, 'board' otherwise. */
 export const placeKey = place => place?.itemId ? `item:${place.itemId}:${place.version || ''}` : 'board';
 
+// A text range in `article` (a document's column, a note's text) from a gesture: `toUnits(x, y)` maps the article's
+// page client px to the gesture's units; `element` (a block the DOM source named) gives its whole text; else the
+// characters inside the gesture: for a box (`rect`) those at least a third inside it, else those whose middle (or a
+// quarter above or below it) `inside(x, y)` holds; `bounds` skips text nodes far from it. Null when it holds no words.
+export function textRangeIn(article, toUnits, {inside, bounds, rect = null, element = null}) {
+  const doc = article.ownerDocument, range = doc.createRange();
+  let start = null, end = null;
+  if (element) {
+    const el = findElement(doc, element);
+    if (!el || !article.contains(el) && el !== article && !el.contains(article)) return null;
+    range.selectNodeContents(el.contains(article) ? article : el);
+  } else {
+    if (!rect && !inside) return null;
+    const walker = doc.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.nodeValue.trim()) continue;
+      range.selectNodeContents(n);
+      const r = range.getBoundingClientRect(), [x0, y0] = toUnits(r.left, r.top), [x1, y1] = toUnits(r.right, r.bottom);
+      if (x1 < bounds.x || y1 < bounds.y || x0 > bounds.x + bounds.w || y0 > bounds.y + bounds.h) continue;
+      for (let i = 0; i < n.nodeValue.length; i++) {
+        if (/\s/.test(n.nodeValue[i])) continue;
+        range.setStart(n, i); range.setEnd(n, i + 1);
+        const b = range.getBoundingClientRect(); if (!b.width && !b.height) continue;
+        const [ax, ay] = toUnits(b.left, b.top), [bx, by] = toUnits(b.right, b.bottom), cx = (ax + bx) / 2;
+        if (rect) {
+          const ix = Math.max(0, Math.min(bx, rect.x + rect.w) - Math.max(ax, rect.x)), iy = Math.max(0, Math.min(by, rect.y + rect.h) - Math.max(ay, rect.y));
+          if (!(ix * iy >= (bx - ax) * (by - ay) / 3)) continue;
+        } else if (!inside(cx, (ay + by) / 2) && !inside(cx, ay + (by - ay) / 4) && !inside(cx, by - (by - ay) / 4)) continue;
+        if (!start) start = [n, i];
+        end = [n, i + 1];
+      }
+    }
+    if (!start) return null;
+    // A word cut by her gesture's edge counts whole (as a text selection by words does).
+    const word = /[\p{L}\p{N}_'’-]/u;
+    while (start[1] > 0 && word.test(start[0].nodeValue[start[1] - 1]) && word.test(start[0].nodeValue[start[1]])) start[1]--;
+    while (end[1] < end[0].nodeValue.length && word.test(end[0].nodeValue[end[1]]) && word.test(end[0].nodeValue[end[1] - 1])) end[1]++;
+    range.setStart(...start); range.setEnd(...end);
+  }
+  return textAnchor(article, range);
+}
 // The element a DOM snap named, found again in its page: by selector, else by id.
 function findElement(doc, element) {
   try { const all = doc.querySelectorAll(element.selector); if (all.length === 1) return all[0]; } catch {}
